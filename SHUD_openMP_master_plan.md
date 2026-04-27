@@ -38,14 +38,16 @@
 
 ### 2.1 四层基线
 
-| 基线 | 定义 | 用途 |
-|---|---|---|
-| **B0** | 当前单线程 SHUD 的历史参考结果 | 锁定当前行为；识别预优化是否改变结果 |
-| **B1** | 完成预并行阶段（S0–S6）后的 parallel-ready serial reference | strict 并行的唯一对照；长期回归标准 |
-| **P-strict** | strict OpenMP 阶段的并行结果 | 目标：与 B1 **bitwise identical** |
-| **P-prod** | production 并行阶段的结果 | 允许与 B1 有微小可解释差异；deterministic 可复现 |
+| 基线 | 是什么 | 怎么来的 | 用途 |
+|---|---|---|---|
+| **B0** | 当前 SHUD 原样编译的单线程结果 | 不改任何代码，锁定编译环境后直接跑 | 历史参考；后续所有改动的对照起点 |
+| **B1** | 重构后的单线程结果 | S0–S6 完成后：统一 RHS core、拆完 side-effect、固定拓扑顺序，仍以单线程运行 | **并行阶段的唯一对照**；长期回归标准 |
+| **P-strict** | strict OpenMP 并行结果 | P1–P7：RHS 内部 OpenMP，CVODE 仍用 serial N_Vector | 目标：与 B1 **bitwise identical** |
+| **P-prod** | production 并行结果 | P8–P9：CVODE OpenMP N_Vector、Krylov solver、tree reduction | 允许与 B1 有微小可解释差异；deterministic 可复现 |
 
-B1 与 B0 的关系：理想目标 bitwise identical。若 B1 包含明确 bug fix，必须在 `B1_CHANGELOG.md` 中记录差异来源、影响范围和验收指标。
+**B0 与 B1 的核心区别**：B0 是当前代码的"原始快照"（serial/omp 双路径并存、side-effect 未拆、可能含已知 bug）；B1 是经过预并行重构后的"干净单线程"（唯一 RHS core、compute/gather 分离、拓扑固定）。两者都是单线程运行，但 B1 的代码结构已经为并行做好了准备。
+
+**B1 vs B0 的精度关系**：理想目标 bitwise identical——说明重构只改了代码结构，没改计算逻辑。若 B1 修复了明确 bug（如 omp 路径的 river DY 公式与 serial 不一致），则 B1 可能与 B0 有差异，必须在 `B1_CHANGELOG.md` 中逐项记录差异来源、影响范围和验收指标。
 
 ### 2.2 六级精度等级（A0–A5）
 
