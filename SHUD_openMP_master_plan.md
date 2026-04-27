@@ -15,11 +15,12 @@
 
 ### 1.1 目标
 
-在不破坏 SHUD 水量守恒、过程一致性和可解释性的前提下，把 SHUD 从"能跑"提升到"可审计、可基准、可并行、可持续优化"的求解器后端。具体而言：
+**通过 OpenMP 并行化显著降低 SHUD 的 wall-clock 运行时间。**
 
-1. **统一 RHS core**：消除 serial / OpenMP 双路径实现漂移。
-2. **deterministic parallelism**：并行结果可复现、可解释。
-3. **分层加速**：先 I/O 和热点，再线性代数和预条件器。
+约束条件：
+- 串行与并行路径物理方程等价（同一套 RHS core）
+- strict 阶段精度与单线程 base bitwise identical
+- production 阶段精度在可解释的工程容差内，水量守恒不恶化
 
 ### 1.2 核心原则
 
@@ -962,4 +963,4 @@ first_mismatch = none
 
 ---
 
-> **一句话总结**：先把 SHUD 变成可审计、可基准的唯一 RHS core（S0–S6），再在 B1 上做 strict bitwise 并行（P1–P7），最后进入 deterministic tolerance 的 production 并行（P8–P9）。每一步都有门控，不通过不前进。
+> **一句话总结**：目标是并行提速。路线是先统一 RHS core 确保路径等价（S0–S6），再在 B1 上做 strict bitwise 并行证明精度不变（P1–P7），最后进入 production 并行换取最大性能（P8–P9）。每一步都有门控，不通过不前进。
