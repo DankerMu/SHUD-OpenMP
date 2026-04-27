@@ -322,7 +322,77 @@ uYgw[i] = (Y[i] >= 0.) ? Y[i] : 0.;  // f_updatei case 3
 
 这意味着 coupled 和 uncoupled 模式的负状态处理语义不同。当前方案以 coupled 路径为主线，uncoupled 暂不纳入并行改造，但需要记录这个差异，避免后续混淆。
 
-### 4.10 forcing I/O 模式
+### 4.10 全局变量裸指针
+
+**文件**：`src/Model/shud.cpp` L18–L24 + `src/Model/Macros.hpp` L100–L108
+
+```cpp
+// shud.cpp L18-24: 定义
+double *uYsf; double *uYus; double *uYgw; double *uYriv; double *uYlake;
+double timeNow;
+
+// Macros.hpp L100-108: extern 声明
+extern double *uYsf; ... extern double timeNow;
+```
+
+`uYsf/uYus/uYgw/uYriv/uYlake/timeNow` 是全局变量，不是 `Model_Data` 成员。`iSF/iUS/iGW/iRIV/iLAKE` 宏（`Macros.hpp` L21–L25）展开后直接用 `NumEle/NumRiv`（`Model_Data` 成员）索引这些全局指针。当前 CVODE 单线程调 `f()` 所以安全，但如果未来有并发 RHS（如 Jacobian 并行差分估计），全局状态会冲突。S1 阶段应将这些收编到 `Model_Data` 内部。
+
+### 4.11 `ET()` 也有孤立的 `#pragma omp for`
+
+**文件**：`src/ModelData/MD_ET.cpp` L113–L114
+
+```cpp
+#ifdef _OPENMP_ON
+#pragma omp for
+#endif
+    for(i = 0; i < NumEle; i++) { ...
+```
+
+与 §4.8 中 `updateforcing()` 同一个问题。`ET()` 从 `shud.cpp` L94 的主循环串行调用（`MD->ET(t, tnext)`），无外层 parallel region，`#pragma omp for` 是孤立指令。
+
+### 4.12 `AccTemperature.getACC()` 除零风险
+
+**文件**：`src/classes/AccTemperature.hpp` L60–L62
+
+```cpp
+double getACC(){
+    return ACC / que.size();  // que.size() 初始为 0
+}
+```
+
+`push(x, tnow)` 只在 `(tnow - Time_start) >= 1440` 时才实际入队。模拟前 1440 分钟内 `que` 为空，`getACC()` 除零 → NaN → 传播到 `fu_Surf[i]`/`fu_Sub[i]` → 影响入渗/补给。这是**现有 bug**（非并行引入），但 cryosphere 启用时会影响 B0 基线稳定性。S0 锁定 B0 时需确认 cryosphere 算例是否触发此问题。
+
+### 4.13 当前代码已使用 OpenMP N_Vector
+
+**文件**：`src/Model/shud.cpp` L58–L59
+
+```cpp
+#ifdef _OPENMP_ON
+    udata = N_VNew_OpenMP(NY, MD->CS.num_threads, sunctx);
+    du = N_VNew_OpenMP(NY, MD->CS.num_threads, sunctx);
+```
+
+方案 P8 将"引入 OpenMP N_Vector"列为 production 阶段任务，但**当前代码已经在用**。这意味着 CVODE 内部 norm/dot/reduction 在 OMP 模式下已经是多线程的。方案原则 C4"CVODE 内部并行晚于 RHS 并行"在当前代码中已被违反。P7 strict 阶段如果要用 serial N_Vector 做 bitwise 验证，需**显式改回** `N_VNew_Serial`。
+
+### 4.14 `movePointer()` 非线程安全
+
+**文件**：`src/classes/TimeSeriesData.cpp` L116–L136
+
+`movePointer()` 修改 `iNow`、`iNext`，可能触发 `read_csv()`（重新打开文件）。多个 element 可能共享同一个 `tsd_weather[idx]`（`Ele[i].iForc` 相同），当前只在串行 loop 中调用（`MD_ET.cpp` L21–L24）。如果未来并行化 `tReadForcing`，共享同一 forcing 对象的多个 element 会冲突。S5 forcing 改造时必须处理。
+
+### 4.15 `f_etFlux()` 中 `printf` 警告在并行中不安全
+
+**文件**：`src/ModelData/MD_ET.cpp` L215–L216
+
+```cpp
+if(qEleETA[i] > qEleETP[i] * 2.){
+    printf("Warning: More AET(%.3E) than PET(%.3E) on Element (%d).", ...);
+}
+```
+
+P2 并行化 element vertical 时，多线程 `printf` 会交错输出。不影响数值但产生乱码日志。应改为写 diagnostic buffer，RHS 后串行输出。
+
+### 4.16 forcing I/O 模式
 
 **`TimeSeriesData::read_csv()`**（`src/classes/TimeSeriesData.cpp` L45–L89）：
 - 每次 refill 重新打开文件（L48）
@@ -331,7 +401,7 @@ uYgw[i] = (Y[i] >= 0.) ? Y[i] : 0.;  // f_updatei case 3
 
 **`getX()`**（L102–L105）直接返回 `ts[iNow][col]`，zero-order hold，不做插值。
 
-### 4.10 求解控制参数
+### 4.17 求解控制参数
 
 **`Model_Control.hpp`**（`src/classes/Model_Control.hpp` L104–L108）：
 ```cpp
@@ -436,6 +506,10 @@ void rhs_core(double* Y, double* DY, double t, ExecPolicy policy) {
 | S2.10 | `updateforcing()` 孤立 `omp for` | `#pragma omp for` 无外层 parallel region | 确认调用上下文；若孤立则移除或包裹 parallel | `MD_ET.cpp` L12–L14（见 §4.8） |
 | S2.11 | lake element DY=0 | serial 对 lake element 置零 `DY[i]/DY[ius]/DY[igw]`；OMP 缺失 | core 必须包含 | `MD_f.cpp` L108–L112 |
 | S2.12 | uncoupled 路径 clamp | `f_updatei()` 统一做 `max(0,Y)` clamp；coupled `f_update()` 不 clamp | 记录差异；当前方案以 coupled 路径为主线，uncoupled 暂不纳入并行改造 | `MD_update.cpp` L3–L59 vs L60–L147（见 §4.9） |
+| S2.13 | 全局变量裸指针 | `uYsf/uYus/uYgw/uYriv/uYlake/timeNow` 是全局变量，非 `Model_Data` 成员 | S1 收编到 `Model_Data` 内部；iSF/iUS/iGW 宏同步修改 | `shud.cpp` L18–L24, `Macros.hpp` L21–L25, L100–L108（见 §4.10） |
+| S2.14 | `ET()` 孤立 `omp for` | 与 `updateforcing()` 同一问题 | 确认调用上下文；若孤立则移除 | `MD_ET.cpp` L113–L114（见 §4.11） |
+| S2.15 | `AccTemperature.getACC()` 除零 | `que.size()==0` 时除零 → NaN | 加 guard：`que.empty() ? 0.0 : ACC/que.size()`；若修改则记入 `B1_CHANGELOG.md` | `AccTemperature.hpp` L60–L62（见 §4.12） |
+| S2.16 | 当前已使用 OpenMP N_Vector | `shud.cpp` L58–59 已用 `N_VNew_OpenMP` | P7 strict 阶段需显式改回 `N_VNew_Serial` | `shud.cpp` L58–L59（见 §4.13） |
 
 **验收标准（A1）**：
 
@@ -800,7 +874,7 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 
 **改造要点**：
 - `rhs_core(..., ExecPolicy::StrictOMP)` 打开所有 P1–P6 的 parallel region
-- CVODE 使用 `N_VNew_Serial()`
+- CVODE **必须改回** `N_VNew_Serial()`（注意：当前代码 `shud.cpp` L58–L59 已用 `N_VNew_OpenMP`，见 §4.13，需显式切换）
 - 不换线性求解器
 - 不改容差
 
@@ -901,7 +975,12 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 | RISK-06 | CVODE OpenMP N_Vector 提前引入 | R1/R2 | SUNDIALS docs | 先完成 P7；再进入 P8 | P7 前 |
 | RISK-07 | 编译器优化改变浮点行为 | R2/R3 | fast-math/FMA/版本差异 | 固定工具链；禁止 fast-math；compile manifest | 全程 |
 | RISK-11 | `f_applyDY_omp` 局部变量 data race | R3 | `MD_f_omp.cpp` L10–L16（§4.6） | S1 合并 RHS core 时修复：变量声明到循环体内或标记 private | S1 前 |
-| RISK-12 | `updateforcing()` 孤立 `#pragma omp for` | R1 | `MD_ET.cpp` L12–L14（§4.8） | S1 确认调用上下文；若孤立则移除 | S1 前 |
+| RISK-12 | `updateforcing()` 和 `ET()` 孤立 `#pragma omp for` | R1 | `MD_ET.cpp` L12–L14, L113–L114（§4.8, §4.11） | S1 确认调用上下文；若孤立则移除 | S1 前 |
+| RISK-13 | 全局变量裸指针阻碍并发 RHS | R2 | `shud.cpp` L18–L24, `Macros.hpp` L100–L108（§4.10） | S1 收编到 Model_Data；iSF/iUS/iGW 宏重构 | S1 前 |
+| RISK-14 | `AccTemperature.getACC()` 除零 → NaN | R4 | `AccTemperature.hpp` L60–L62（§4.12） | 加 empty guard；cryosphere 算例纳入 B0 | S0 前 |
+| RISK-15 | 当前已用 OpenMP N_Vector，违反 C4 原则 | R2 | `shud.cpp` L58–L59（§4.13） | P7 strict 显式改回 N_VNew_Serial | P7 前 |
+| RISK-16 | `movePointer()` 非线程安全 | R3 | `TimeSeriesData.cpp` L116–L136（§4.14） | S5 forcing 改造时处理；并行前 movePointer 必须串行完成 | P2 前 |
+| RISK-17 | `f_etFlux()` 中 `printf` 在并行中交错 | R0 | `MD_ET.cpp` L215–L216（§4.15） | 改为 diagnostic buffer | P2 前 |
 | RISK-08 | 未初始化数组或旧值残留 | R4 | serial/omp update 覆盖不一致 | 统一 reset；debug 模式 fill NaN/sentinel | P1 前 |
 | RISK-09 | 诊断/日志输出破坏并行确定性 | R1/R3 | RHS 内 debug print | RHS 内只写 buffer；RHS 后串行输出 | P1 起 |
 | RISK-10 | production 被误当 strict | R2 | CVODE vector/Krylov/tree reduction | 明确 StrictOMP / ProductionOMP 模式 | P8 起 |
