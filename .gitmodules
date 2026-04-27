@@ -1,0 +1,3 @@
+[submodule "SHUD"]
+	path = SHUD
+	url = https://github.com/SHUD-System/SHUD.git
