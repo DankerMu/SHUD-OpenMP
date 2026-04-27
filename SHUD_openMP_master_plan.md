@@ -341,18 +341,24 @@ extern double *uYsf; ... extern double timeNow;
 
 `uYsf/uYus/uYgw/uYriv/uYlake/timeNow` 是全局变量，不是 `Model_Data` 成员。`iSF/iUS/iGW/iRIV/iLAKE` 宏（`Macros.hpp` L21–L25）展开后直接用 `NumEle/NumRiv`（`Model_Data` 成员）索引这些全局指针。当前 CVODE 单线程调 `f()` 所以安全，但如果未来有并发 RHS（如 Jacobian 并行差分估计），全局状态会冲突。S1 阶段应将这些收编到 `Model_Data` 内部。
 
-### 4.11 `ET()` 也有孤立的 `#pragma omp for`
+### 4.11 `ET()` 孤立 `#pragma omp for` + 循环外局部变量 data race
 
-**文件**：`src/ModelData/MD_ET.cpp` L113–L114
+**文件**：`src/ModelData/MD_ET.cpp` L106–L165
+
+**问题 1 — 孤立 pragma**：与 §4.8 中 `updateforcing()` 同一个问题。`ET()` 从 `shud.cpp` L94 的主循环串行调用（`MD->ET(t, tnext)`），无外层 parallel region，`#pragma omp for` 是孤立指令。
+
+**问题 2 — 循环外局部变量**：以下变量全部声明在 `for` 循环体**外部**（L107–L112）：
 
 ```cpp
-#ifdef _OPENMP_ON
-#pragma omp for
-#endif
-    for(i = 0; i < NumEle; i++) { ...
+double  T=NA_VALUE,  LAI=NA_VALUE, MF =NA_VALUE, prcp = NA_VALUE;  // L107
+double  snFrac, snAcc, snMelt, snStg;                                // L108
+double  icAcc, icEvap, icStg, icMax, vgFrac;                         // L109
+double  DT_min = tnext - t;                                          // L110
+double  ta_surf, ta_sub;                                              // L111
+int i;                                                                // L112
 ```
 
-与 §4.8 中 `updateforcing()` 同一个问题。`ET()` 从 `shud.cpp` L94 的主循环串行调用（`MD->ET(t, tnext)`），无外层 parallel region，`#pragma omp for` 是孤立指令。
+如果未来将此循环包进 `#pragma omp parallel`，这些变量在 `default(shared)` 下全部共享 → **16 个标量同时被多线程读写 = data race**。仅删除孤立 pragma 不够，并行化时必须将 `T, LAI, MF, prcp, snFrac, snAcc, snMelt, snStg, icAcc, icEvap, icStg, icMax, vgFrac, ta_surf, ta_sub, i` 声明移入循环体内部或显式标记 `private`。`DT_min` 是循环不变量（只读），可保持共享。
 
 ### 4.12 `AccTemperature.getACC()` 除零风险
 
@@ -416,6 +422,60 @@ double MaxStep = 30;
 double SolverStep = 2;
 ```
 均为标量，未提供 vector absolute tolerance。
+
+### 4.18 `fun_Ele_sub()` lake 分支 `Ele[inabr].u_effKH` 越界/语义风险
+
+**`fun_Ele_sub()`**（`MD_ElementFlux.cpp` L100–L156）中，lake 分支（`ilake >= 0`）在 L117 计算导水率：
+
+```cpp
+inabr = Ele[i].nabr[j] - 1;          // L105
+ilake = Ele[i].lakenabr[j] - 1;      // L106
+if(ilake >= 0){                        // L107 — 进入 lake 分支
+    // ...
+    Kmean = 0.5 * (Ele[i].u_effKH + Ele[inabr].u_effKH);  // L117 — 使用 inabr
+```
+
+**越界风险**：lake 分支入口仅检查 `ilake >= 0`，未检查 `inabr >= 0`。若 `nabr[j] == 0`（无邻居），则 `inabr == -1`，`Ele[-1].u_effKH` 越界。
+
+**数据流保护**：`lakenabr[j]` 的唯一赋值点在 `MD_Lake.cpp` L133–L144，赋值前已检查 `inabr >= 0` 且 `Ele[inabr].iLake > 0`。因此当前数据流下 `lakenabr[j] > 0` 蕴含 `nabr[j] > 0`——但这是**隐含保证**，代码中无显式 assert。
+
+**物理语义疑问**：`Ele[inabr]` 是 lake element，其 `u_effKH`（有效水平导水率）是否有物理意义？Lake element 本质上是水体而非土壤，若其土壤属性未专门赋值，则 Kmean 计算结果可能不可靠。
+
+**对比**：`fun_Ele_surface()` L46–L52 的 lake 分支使用堰流公式（`WeirFlow_jtoi`），不依赖 `Ele[inabr]` 任何属性，无此问题。
+
+### 4.19 `N_VDestroy_Serial` 与 `N_VNew_OpenMP` 类型不匹配
+
+**文件**：`src/Model/shud.cpp` L58–L59, L111–L112
+
+```cpp
+// 创建（_OPENMP_ON 分支）
+udata = N_VNew_OpenMP(NY, MD->CS.num_threads, sunctx);  // L58
+du = N_VNew_OpenMP(NY, MD->CS.num_threads, sunctx);      // L59
+
+// 销毁（无条件）
+N_VDestroy_Serial(udata);  // L111
+N_VDestroy_Serial(du);      // L112
+```
+
+`N_VNew_OpenMP` 创建的向量内部结构与 `N_VNew_Serial` 不同（额外存储线程数等元数据）。用 `N_VDestroy_Serial` 释放 OpenMP 向量是**类型不匹配**，可能导致内存泄漏或 undefined behavior。
+
+**修复**：使用 generic `N_VDestroy()`（SUNDIALS 提供的类型无关销毁函数），自动根据向量的实际类型调用正确的释放逻辑。这在 strict 阶段（改回 Serial）暂时安全，但 P8a 重新启用 OpenMP N_Vector 前**必须修正**。
+
+### 4.20 `updateElement()` 在 `updateforcing()` 和 `f_loop()` 中被重复调用
+
+**调用链**：
+
+1. `updateforcing()` → `MD_ET.cpp` L22：`Ele[i].updateElement(uYsf[i], uYus[i], uYgw[i])`
+2. `f_loop()` → `MD_f.cpp` L21（非 lake element）：`Ele[i].updateElement(uYsf[i], uYus[i], uYgw[i])`
+
+**分析**：`updateElement()`（`Element.cpp` L257–L294）是幂等函数——纯粹根据 `(Ysurf, Yunsat, Ygw)` 计算 `u_effKH, u_deficit, u_satn, u_theta, u_satKr, u_phius, u_effkInfi`。两次调用之间 `uYsf/uYus/uYgw` 未被修改（`ET()` 不改这些值），因此第二次调用**输入相同、输出相同**——是冗余计算。
+
+**并行化影响**：
+- 冗余调用本身不影响正确性（幂等保证）
+- 但 `updateElement()` 修改 `Ele[i]` 的多个成员字段（写操作），在并行化时若 P2（element vertical）和其他并行阶段的边界不清晰，可能造成混淆
+- `updateforcing()` 中的调用在 ET 之前，`f_loop()` 中的调用在 infiltration 之前——如果未来重构将 ET 和 infiltration 拆到不同并行区间，需明确 `updateElement()` 的唯一调用点
+
+**原则**：S1b 抽取 `f_loop()` 时保持双重调用不变（纯搬运）；S2 或 S3 阶段审查后决定是否消除冗余——消除时需确认 ET 不依赖 `updateElement()` 的输出（或在 ET 之前已有等效调用）。
 
 ---
 
@@ -683,10 +743,11 @@ void rhs_core(double* Y, double* DY, double t, ExecPolicy policy) {
 - **原则**：S2 收编到 `Model_Data` 内部；iSF/iUS/iGW 宏同步修改
 - **文件**：`shud.cpp` L18–L24, `Macros.hpp` L21–L25, L100–L108（见 §4.10）
 
-**S2.14 — `ET()` 孤立 `omp for`**
-- **差异**：与 `updateforcing()` 同一问题
-- **原则**：确认调用上下文；若孤立则移除
-- **文件**：`MD_ET.cpp` L113–L114（见 §4.11）
+**S2.14 — `ET()` 孤立 `omp for` + 循环外局部变量 data race**
+- **问题 1**：孤立 `#pragma omp for`，与 `updateforcing()` 同一问题
+- **问题 2**：`T, LAI, MF, prcp, snFrac, snAcc, snMelt, snStg, icAcc, icEvap, icStg, icMax, vgFrac, ta_surf, ta_sub, i` 共 16 个标量声明在循环外（L107–L112），并行化时 `default(shared)` 导致 data race
+- **原则**：移除孤立 pragma；将所有 element-local scalar 移入 `for` 循环体内部（或显式 `private`）；`DT_min` 为循环不变量可保持共享
+- **文件**：`MD_ET.cpp` L106–L165（见 §4.11）
 
 **S2.15 — `AccTemperature.getACC()` 除零**
 - **差异**：`que.size()==0` 时除零 → NaN
@@ -697,6 +758,18 @@ void rhs_core(double* Y, double* DY, double t, ExecPolicy policy) {
 - **差异**：`shud.cpp` L58–59 已用 `N_VNew_OpenMP`
 - **原则**：P7 strict 阶段需显式改回 `N_VNew_Serial`
 - **文件**：`shud.cpp` L58–L59（见 §4.13）
+
+**S2.17 — `fun_Ele_sub()` lake 分支 `Ele[inabr].u_effKH` 越界/语义风险**（⚠️ blocker）
+- **问题**：`MD_ElementFlux.cpp` L107–L121，lake 分支进入条件是 `ilake >= 0`，但 L117 计算 `Kmean` 时使用了 `Ele[inabr].u_effKH`（`inabr = Ele[i].nabr[j] - 1`），**未检查 `inabr >= 0`**
+- **数据流分析**：`lakenabr[j]` 仅在 `MD_Lake.cpp` L133–L144 赋值，赋值前已检查 `inabr >= 0` 且 `Ele[inabr].iLake > 0`，所以**当前数据流下 `inabr` 在 lake 分支中一定合法**。但这是隐含依赖，不是显式保证
+- **物理语义疑问**：lake 边的地下水导水率取 `0.5 * (Ele[i].u_effKH + Ele[inabr].u_effKH)`，其中 `Ele[inabr]` 是 lake element。Lake element 的 `u_effKH` 是否有物理意义？如果 lake element 的土壤属性未赋值或无意义，则 Kmean 计算结果不可靠
+- **对比**：`fun_Ele_surface()` 的 lake 分支（L46–L52）使用堰流公式，不依赖 `inabr`，无此问题
+- **原则**：
+  1. 在 `fun_Ele_sub()` lake 分支入口加 `assert(inabr >= 0)` 防御性检查
+  2. 审查 lake element 的 `u_effKH` 赋值来源，确认其物理意义
+  3. 若 lake element 的 `u_effKH` 无意义，应改为仅用 `Ele[i].u_effKH`（bank element 自身导水率）或引入 lake-bed 导水率参数
+  4. 若修改公式则属于**物理语义变更**，必须记入 `B1_CHANGELOG.md`
+- **文件**：`MD_ElementFlux.cpp` L100–L156（`fun_Ele_sub()`），`MD_Lake.cpp` L133–L144（`lakenabr` 赋值）
 
 **验收标准（A1）**：
 
@@ -1137,9 +1210,10 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 |---|---|---|---|
 | P8a.1 | 规模评估 | — | 计算目标 benchmark 算例的 NumY；若所有 benchmark 的 NumY < 50,000，**跳过 P8a**，RHS OpenMP + serial N_Vector 即为 production baseline |
 | P8a.2 | vector op profiling | S5c 诊断 timer | 在 P7 结果上测量 CVODE vector ops（norm/dot/scale）占总 solver 时间的比例；若 < 10%，即使 NumY 足够大，OpenMP N_Vector 收益也有限 |
-| P8a.3 | 有条件切换 | `shud.cpp` L58–L59 | 仅当 P8a.1 和 P8a.2 均表明有收益时：`N_VNew_Serial` → `N_VNew_OpenMP`（注意：当前代码已用 `N_VNew_OpenMP`，P7 为 strict 改回了 Serial） |
-| P8a.4 | A/B 性能对比 | — | serial N_Vector vs OpenMP N_Vector 端到端 wall time 对比；若 OpenMP 版本更慢，回退到 serial N_Vector |
-| P8a.5 | 记录 reduction 行为 | — | `N_VDotProd_OpenMP` 使用 `omp reduction(+:sum)`，结果随线程数可能有 ULP 级差异；记录并确认在容差内 |
+| P8a.3 | **前置：修复 N_VDestroy 类型不匹配** | `shud.cpp` L111–L112 | `N_VDestroy_Serial()` → generic `N_VDestroy()`（见 §4.19）；这是资源生命周期正确性修复，**无论是否启用 OpenMP N_Vector 都必须做** |
+| P8a.4 | 有条件切换 | `shud.cpp` L58–L59 | 仅当 P8a.1 和 P8a.2 均表明有收益时：`N_VNew_Serial` → `N_VNew_OpenMP`（注意：当前代码已用 `N_VNew_OpenMP`，P7 为 strict 改回了 Serial） |
+| P8a.5 | A/B 性能对比 | — | serial N_Vector vs OpenMP N_Vector 端到端 wall time 对比；若 OpenMP 版本更慢，回退到 serial N_Vector |
+| P8a.6 | 记录 reduction 行为 | — | `N_VDotProd_OpenMP` 使用 `omp reduction(+:sum)`，结果随线程数可能有 ULP 级差异；记录并确认在容差内 |
 
 **决策矩阵**：
 
@@ -1281,7 +1355,7 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 | RISK-06 | CVODE 改造项叠加引入不可定位的 regression | R1/R2 | SUNDIALS docs | P8a–P8e 严格串行，每步独立验收；先完成 P7 再进入 P8a | P7 前 |
 | RISK-07 | 编译器优化改变浮点行为 | R2/R3 | fast-math/FMA/版本差异 | 固定工具链；禁止 fast-math；compile manifest | 全程 |
 | RISK-11 | `f_applyDY_omp` 局部变量 data race | R3 | `MD_f_omp.cpp` L10–L16（§4.6） | S1 合并 RHS core 时修复：变量声明到循环体内或标记 private | S1 前 |
-| RISK-12 | `updateforcing()` 和 `ET()` 孤立 `#pragma omp for` | R1 | `MD_ET.cpp` L12–L14, L113–L114（§4.8, §4.11） | S1 确认调用上下文；若孤立则移除 | S1 前 |
+| RISK-12 | `updateforcing()` 和 `ET()` 孤立 `#pragma omp for` + `ET()` 16 个循环外局部变量 data race | R3 | `MD_ET.cpp` L12–L14, L106–L165（§4.8, §4.11） | 移除孤立 pragma；所有 element-local scalar 移入循环体内部或显式 private | S2 前 |
 | RISK-13 | 全局变量裸指针阻碍并发 RHS | R2 | `shud.cpp` L18–L24, `Macros.hpp` L100–L108（§4.10） | S1 收编到 Model_Data；iSF/iUS/iGW 宏重构 | S1 前 |
 | RISK-14 | `AccTemperature.getACC()` 除零 → NaN | R4 | `AccTemperature.hpp` L60–L62（§4.12） | 加 empty guard；cryosphere 算例纳入 B0 | S0 前 |
 | RISK-15 | 当前已用 OpenMP N_Vector，违反 C4 原则 | R2 | `shud.cpp` L58–L59（§4.13） | P7 strict 显式改回 N_VNew_Serial | P7 前 |
@@ -1290,6 +1364,9 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 | RISK-08 | 未初始化数组或旧值残留 | R4 | serial/omp update 覆盖不一致 | 统一 reset；debug 模式 fill NaN/sentinel | P1 前 |
 | RISK-09 | 诊断/日志输出破坏并行确定性 | R1/R3 | RHS 内 debug print | RHS 内只写 buffer；RHS 后串行输出 | P1 起 |
 | RISK-10 | production 被误当 strict | R2 | CVODE vector/Krylov/tree reduction | 明确 StrictOMP / ProductionOMP 模式 | P8 起 |
+| RISK-18 | `fun_Ele_sub()` lake 分支隐含依赖 `inabr` 合法性 | R2/R4 | `MD_ElementFlux.cpp` L105–L117（§4.18） | 加 `assert(inabr >= 0)`；审查 lake element `u_effKH` 物理意义；若改公式记入 B1_CHANGELOG | S2 前（blocker） |
+| RISK-19 | `N_VDestroy_Serial` 释放 `N_VNew_OpenMP` 创建的向量 | R2/R4 | `shud.cpp` L58–L59, L111–L112（§4.19） | 改用 generic `N_VDestroy()`；P8a 前置修复 | P8a 前 |
+| RISK-20 | `updateElement()` 在 `updateforcing()` 和 `f_loop()` 中重复调用 | R0 | `MD_ET.cpp` L22, `MD_f.cpp` L21（§4.20） | 幂等函数，当前无害；S1b 纯搬运保持不变；S2/S3 审查是否消除冗余 | S3 前 |
 
 ### 7.3 阶段 go/no-go 汇总
 
