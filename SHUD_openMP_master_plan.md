@@ -220,36 +220,92 @@ DY[iRIV] = (- QrivUp[i] - QrivSurf[i] - QrivSub[i] - QrivDown[i] + Riv[i].qBC) /
 
 ### 4.5 shared accumulator side-effect
 
+共享写分两类：**被 `PassValue()` 覆盖的死代码**和**真正需要拆的共享写**。
+
+#### 死代码（被 `PassValue()` 零化后重新累加，实际不影响结果）
+
 **`fun_Seg_surface()`**（`src/ModelData/MD_RiverFlux.cpp` L100–L113）：
 ```cpp
 QsegSurf[i] = WeirFlow_jtoi(...);
-QrivSurf[iRiv]  +=  QsegSurf[i];   // ← 共享写 river accumulator
-Qe2r_Surf[iEle] += -QsegSurf[i];   // ← 共享写 element accumulator
+QrivSurf[iRiv]  +=  QsegSurf[i];   // ← 死��码：PassValue() L158-170 会清零并重新累加
+Qe2r_Surf[iEle] += -QsegSurf[i];   // ← 死代码：PassValue() L163-172 会清零并重新累加
 ```
 
-**`fun_Seg_sub()`**（L114–L126）同理。
+**`fun_Seg_sub()`**（L114–L126）同理。这些 `+=` 在 serial 和 OMP 路径中都是冗余的，因为 `PassValue()`（`MD_f.cpp` L156–L196）会先清零 `QrivSurf/QrivSub/QrivUp/Qe2r_Surf/Qe2r_Sub`（L158–L166），再从 `QsegSurf/QsegSub` 重新累加（L167–L174）。
 
-**`Flux_RiverDown()`**（L5–L63）中 toLake 分支：
+#### 真正需要拆的共享写（不在 `PassValue()` 覆盖范围内）
+
+**`Flux_RiverDown()`**（`MD_RiverFlux.cpp` L5–L63）中 toLake 分支：
 ```cpp
-QLakeRivIn[Riv[i].toLake] += QrivDown[i];  // L24, 共享写 lake accumulator
+QLakeRivIn[Riv[i].toLake] += QrivDown[i];  // L24, 真正的共享写
 ```
 
-**`PassValue()`**（`src/ModelData/MD_f.cpp` L156–L196）包含三类共享累加：
-- `QrivSurf[ir] += QsegSurf[i]`（L170）
-- `Qe2r_Surf[ie] += -QsegSurf[i]`（L172）
-- `QrivUp[iDownStrm] += -QrivDown[i]`（L177）
-
-**`fun_Ele_surface()`**（`src/ModelData/MD_ElementFlux.cpp` L35–L97）中 lake neighbor 分支：
+**`fun_Ele_surface()`**（`MD_ElementFlux.cpp` L35–L97）中 lake neighbor 分支：
 ```cpp
-QLakeSurf[ilake] += Q;  // L52, 共享写
+QLakeSurf[ilake] += Q;  // L52, 真正的共享写
 ```
 
 **`fun_Ele_sub()`**（L100–L156）中 lake neighbor 分支：
 ```cpp
-QLakeSub[ilake] += Q;  // L121, 共享写
+QLakeSub[ilake] += Q;  // L121, 真正的共享写
 ```
 
-### 4.6 forcing I/O 模式
+**`PassValue()`**（`MD_f.cpp` L156–L196）��身是当前的 gather 实现：
+- `QrivSurf[ir] += QsegSurf[i]`（L170）— 串行执行，无并行风险
+- `Qe2r_Surf[ie] += -QsegSurf[i]`（L172）— 同上
+- `QrivUp[iDownStrm] += -QrivDown[i]`（L177）— 同上
+
+`PassValue()` 在串行中是安全���。并行改造时需将其重构为使用预构建 adjacency list 的 owner-local gather，但不需要从 `fun_Seg_*` "移入"累加逻辑——只需删掉 `fun_Seg_*` 里的死 `+=`。
+
+### 4.6 `f_applyDY_omp` 局部变量 data race
+
+**文件**：`src/ModelData/MD_f_omp.cpp` L9–L67
+
+```cpp
+void Model_Data::f_applyDY_omp(double *DY, double t){
+    double area;                    // ← 声明在 parallel region 外
+    int isf, ius, igw, i;          // ← isf/ius/igw 也在外面
+#pragma omp parallel default(shared) private(i)  // 只有 i 是 private
+    {
+#pragma omp for
+        for (i = 0; i < NumEle; i++) {
+            isf = iSF; ius = iUS; igw = iGW;  // 多线程同时写同一个 isf/ius/igw
+            area = Ele[i].area;                 // 多线程同时写同一个 area
+```
+
+`area`、`isf`、`ius`、`igw` 声明在 `#pragma omp parallel` 之外且 `default(shared)`，多线程同时写同一内存地址。这是 **data race（undefined behavior）**，不只是累加顺序问题。当前碰巧能跑是因为编译器可能将其优化进寄存器，但不可依赖。
+
+**修复**：S1 统一 RHS core 时，将这些变量声明到 for 循环体内部，或显式标记为 `private`。
+
+### 4.7 `PassValue()` 覆盖了 `fun_Seg_*` 的 side-effect
+
+**`fun_Seg_surface()`**（`MD_RiverFlux.cpp` L107–L108）写 `QrivSurf[iRiv] += QsegSurf[i]` 和 `Qe2r_Surf[iEle] += -QsegSurf[i]`。但 **`PassValue()`**（`MD_f.cpp` L156–L196）在 `f_loop` 末尾会先把 `QrivSurf/QrivSub/QrivUp/Qe2r_Surf/Qe2r_Sub` **全部清零**（L158–L166），然后从 `QsegSurf/QsegSub` **重新累加**（L167–L174）。
+
+这意味着 `fun_Seg_surface/sub` 里的 `+=` 是**死代码**——无论写什么值，`PassValue()` 都会覆盖。`fun_Seg_sub` 同理。
+
+**真正需要拆的共享写**只有 `PassValue()` 外部的：
+- `Flux_RiverDown()` L24：`QLakeRivIn[toLake] += QrivDown[i]`（不在 PassValue 覆盖范围）
+- `fun_Ele_surface()` L52：`QLakeSurf[ilake] += Q`（不在 PassValue 覆盖范围）
+- `fun_Ele_sub()` L121：`QLakeSub[ilake] += Q`（不在 PassValue 覆盖范围）
+
+S3 的实际工作：**删掉 fun_Seg_surface/sub 里的死 `+=`**；对 lake 相关的共享写做 compute/gather 拆分；`PassValue()` 本身就是 gather，重构为使用预构建 adjacency list 的确定性版本。
+
+### 4.8 `updateforcing()` 中孤立的 `#pragma omp for`
+
+**文件**：`src/ModelData/MD_ET.cpp` L12–L14
+
+```cpp
+#ifdef _OPENMP_ON
+#pragma omp for
+#endif
+    for (i = 0; i < NumForc; i++){
+        tsd_weather[i].movePointer(t);
+    }
+```
+
+此 `#pragma omp for` 没有外层 `#pragma omp parallel`。除非 `updateforcing()` 从某个 parallel region 内部被调用，否则这是孤立指令，运行时退化为串行。需在 S1 阶段确认其调用上下文并修正。
+
+### 4.9 forcing I/O 模式
 
 **`TimeSeriesData::read_csv()`**（`src/classes/TimeSeriesData.cpp` L45–L89）：
 - 每次 refill 重新打开文件（L48）
@@ -258,7 +314,7 @@ QLakeSub[ilake] += Q;  // L121, 共享写
 
 **`getX()`**（L102–L105）直接返回 `ts[iNow][col]`，zero-order hold，不做插值。
 
-### 4.7 求解控制参数
+### 4.10 求解控制参数
 
 **`Model_Control.hpp`**（`src/classes/Model_Control.hpp` L104–L108）：
 ```cpp
@@ -349,16 +405,19 @@ void rhs_core(double* Y, double* DY, double t, ExecPolicy policy) {
 
 **具体任务**：
 
-| # | 对齐项 | 当前差异 | B1 处理原则 | 涉及文件/行号 |
-|---|---|---|---|---|
-| S2.1 | lake vertical | serial 有 `updateLakeElement()` + `fun_Ele_lakeVertical()`；OMP 缺失 | core 必须显式包含 | `MD_f.cpp` L11–L16, `MD_ElementFlux.cpp` L2–L17 |
-| S2.2 | lake horizontal | serial 有 `fun_Ele_lakeHorizon()`；OMP 缺失 | core 必须包含 | `MD_f.cpp` L28–L29, `MD_ElementFlux.cpp` L18–L23 |
-| S2.3 | ET flux | serial 普通 element 调 `f_etFlux()`；OMP 缺失 | core 在非 lake element 上调 `f_etFlux()` | `MD_ET.cpp` L167–L228 |
-| S2.4 | river DY 公式 | serial：length + area clamp + `fun_dAtodY()`；OMP：直接除 `u_TopArea` | 采用 serial 公式 | `MD_f.cpp` L119–L141 vs `MD_f_omp.cpp` L54–L65 |
-| S2.5 | lake DY | serial 有完整 lake DY；OMP 缺失 | core 必须包含 | `MD_f.cpp` L142–L153 |
-| S2.6 | 负状态 clamp | serial 不做 `max(0,Y)` → `uYsf = Y[iSF]`；OMP 做 `(Y[iSF] >= 0) ? Y[iSF] : 0` | 统一为 serial 语义（不 clamp），除非另立数值变更 | `MD_update.cpp` L70–L74 vs `MD_f_omp.cpp` L116–L117 |
-| S2.7 | lake 初始化 | serial 清零所有 lake flux；OMP 缺失 | core 完整 reset | `MD_update.cpp` L132–L143 |
-| S2.8 | Qe2r/QrivSurf/Sub 清零 | serial 在 `f_update()` 中清零；OMP 在 `PassValue()` 中清零 | 统一到 update 阶段 | `MD_update.cpp` L123–L131 vs `MD_f.cpp` L157–L165 |
+| #    | 对齐项                  | 当前差异                                                                      | B1 处理原则                              | 涉及文件/行号                                             |
+| ---- | -------------------- | ------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------- |
+| S2.1 | lake vertical        | serial 有 `updateLakeElement()` + `fun_Ele_lakeVertical()`；OMP 缺失          | core 必须显式包含                          | `MD_f.cpp` L11–L16, `MD_ElementFlux.cpp` L2–L17     |
+| S2.2 | lake horizontal      | serial 有 `fun_Ele_lakeHorizon()`；OMP 缺失                                   | core 必须包含                            | `MD_f.cpp` L28–L29, `MD_ElementFlux.cpp` L18–L23    |
+| S2.3 | ET flux              | serial 普通 element 调 `f_etFlux()`；OMP 缺失                                   | core 在非 lake element 上调 `f_etFlux()` | `MD_ET.cpp` L167–L228                               |
+| S2.4 | river DY 公式          | serial：length + area clamp + `fun_dAtodY()`；OMP：直接除 `u_TopArea`           | 采用 serial 公式                         | `MD_f.cpp` L119–L141 vs `MD_f_omp.cpp` L54–L65      |
+| S2.5 | lake DY              | serial 有完整 lake DY；OMP 缺失                                                 | core 必须包含                            | `MD_f.cpp` L142–L153                                |
+| S2.6 | 负状态 clamp            | serial 不做 `max(0,Y)` → `uYsf = Y[iSF]`；OMP 做 `(Y[iSF] >= 0) ? Y[iSF] : 0` | 统一为 serial 语义（不 clamp），除非另立数值变更      | `MD_update.cpp` L70–L74 vs `MD_f_omp.cpp` L116–L117 |
+| S2.7 | lake 初始化             | serial 清零所有 lake flux；OMP 缺失                                              | core 完整 reset                        | `MD_update.cpp` L132–L143                           |
+| S2.8 | Qe2r/QrivSurf/Sub 清零 | serial 在 `f_update()` 中清零；OMP 在 `PassValue()` 中清零                         | 统一到 update 阶段                        | `MD_update.cpp` L123–L131 vs `MD_f.cpp` L157–L165   |
+| S2.9 | `f_applyDY_omp` data race | `area/isf/ius/igw` 声明在 parallel region 外且 `default(shared)` | 声明到 for 循环内部或标记 `private` | `MD_f_omp.cpp` L10–L16（见 §4.6） |
+| S2.10 | `updateforcing()` 孤立 `omp for` | `#pragma omp for` 无外层 parallel region | 确认调用上下文；若孤立则移除或包裹 parallel | `MD_ET.cpp` L12–L14（见 §4.8） |
+| S2.11 | lake element DY=0 | serial 对 lake element 置零 `DY[i]/DY[ius]/DY[igw]`；OMP 缺失 | core 必须包含 | `MD_f.cpp` L108–L112 |
 
 **验收标准（A1）**：
 
@@ -373,22 +432,37 @@ void rhs_core(double* Y, double* DY, double t, ExecPolicy policy) {
 
 ### S3：拆分 flux compute 与 deterministic gather
 
-**目标**：消除所有"计算通量时顺手累加到 owner"的代码，为并行消除共享写做准备。
+**目标**：消除所有并行不安全的共享写，形成"纯计算 + owner-local gather"结构。
 
-**具体任务**：
+**具体任务**分两类：
+
+#### S3a：删除死代码（被 `PassValue()` 覆盖，见 §4.7）
+
+| # | 死代码 | 源文件/行号 | 改造方向 |
+|---|---|---|---|
+| S3a.1 | `QrivSurf[iRiv] += QsegSurf[i]` | `MD_RiverFlux.cpp` L107 | 直接删除，`PassValue()` 已从 `QsegSurf` 重新累加 |
+| S3a.2 | `Qe2r_Surf[iEle] += -QsegSurf[i]` | `MD_RiverFlux.cpp` L108 | 同上 |
+| S3a.3 | `QrivSub[iRiv] += QsegSub[i]` | `MD_RiverFlux.cpp` L121 | 同上 |
+| S3a.4 | `Qe2r_Sub[iEle] += -QsegSub[i]` | `MD_RiverFlux.cpp` L122 | 同上 |
+
+删除后 `fun_Seg_surface/sub` 变成纯函数：只写 `QsegSurf[i]` / `QsegSub[i]`，不碰任何 accumulator。
+
+#### S3b：拆分真正的共享写（不在 `PassValue()` 覆盖范围内）
 
 | # | 当前共享写 | 源文件/行号 | 改造方向 |
 |---|---|---|---|
-| S3.1 | `QrivSurf[iRiv] += QsegSurf[i]` | `MD_RiverFlux.cpp` L107 | `fun_Seg_surface()` 只写 `QsegSurf[i]`；累加移到 gather |
-| S3.2 | `Qe2r_Surf[iEle] += -QsegSurf[i]` | `MD_RiverFlux.cpp` L108 | 同上 |
-| S3.3 | `QrivSub[iRiv] += QsegSub[i]` | `MD_RiverFlux.cpp` L121 | `fun_Seg_sub()` 只写 `QsegSub[i]` |
-| S3.4 | `Qe2r_Sub[iEle] += -QsegSub[i]` | `MD_RiverFlux.cpp` L122 | 同上 |
-| S3.5 | `QLakeRivIn[..] += QrivDown[i]` | `MD_RiverFlux.cpp` L24 | `Flux_RiverDown()` 只写 `QrivDown[i]`；lake 汇总移到 gather |
-| S3.6 | `QLakeSurf[ilake] += Q` | `MD_ElementFlux.cpp` L52 | `fun_Ele_surface()` lake 分支写临时 per-edge slot |
-| S3.7 | `QLakeSub[ilake] += Q` | `MD_ElementFlux.cpp` L121 | `fun_Ele_sub()` lake 分支写临时 per-edge slot |
-| S3.8 | `qLakeEvap[..] += ...` / `qLakePrcp[..] += ...` | `MD_f.cpp` L15–L16 | 写 per-element contribution slot；gather 汇总 |
-| S3.9 | `QrivUp[iDownStrm] += -QrivDown[i]` | `MD_f.cpp` L177 | 移到 downstream river owner gather |
-| S3.10 | `PassValue()` 整体重构 | `MD_f.cpp` L156–L196 | 替换为 `rhs_deterministic_gather()`，使用预构建的 adjacency list |
+| S3b.1 | `QLakeRivIn[toLake] += QrivDown[i]` | `MD_RiverFlux.cpp` L24 | `Flux_RiverDown()` 只写 `QrivDown[i]`；lake 汇总移到 gather |
+| S3b.2 | `QLakeSurf[ilake] += Q` | `MD_ElementFlux.cpp` L52 | `fun_Ele_surface()` lake 分支写 per-edge slot；gather 汇总 |
+| S3b.3 | `QLakeSub[ilake] += Q` | `MD_ElementFlux.cpp` L121 | `fun_Ele_sub()` lake 分支写 per-edge slot；gather 汇总 |
+| S3b.4 | `qLakeEvap[..] += ...` / `qLakePrcp[..] += ...` | `MD_f.cpp` L15–L16 | 写 per-element contribution slot；gather 汇总 |
+
+#### S3c：重构 `PassValue()` 为确定性 gather
+
+| # | 当前实现 | 源文件/行号 | 改造方向 |
+|---|---|---|---|
+| S3c.1 | `QrivSurf[ir] += QsegSurf[i]` 等 segment→river/element 累加 | `MD_f.cpp` L167–L174 | 使用预构建 adjacency list，固定顺序累加 |
+| S3c.2 | `QrivUp[iDownStrm] += -QrivDown[i]` | `MD_f.cpp` L177 | 移到 downstream river owner gather |
+| S3c.3 | `PassValue()` 整体 | `MD_f.cpp` L156–L196 | 替换为 `rhs_deterministic_gather()`，合并 S3b 的 lake gather |
 
 **gather 推荐模式**（以 segment→river 为例）：
 
@@ -808,6 +882,8 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 | RISK-05 | forcing cache 改变时间采样语义 | R2 | `TimeSeriesData.cpp` L45–L89 | 先保持 B0 语义；插值独立进入精度路线 | S5 前 |
 | RISK-06 | CVODE OpenMP N_Vector 提前引入 | R1/R2 | SUNDIALS docs | 先完成 P7；再进入 P8 | P7 前 |
 | RISK-07 | 编译器优化改变浮点行为 | R2/R3 | fast-math/FMA/版本差异 | 固定工具链；禁止 fast-math；compile manifest | 全程 |
+| RISK-11 | `f_applyDY_omp` 局部变量 data race | R3 | `MD_f_omp.cpp` L10–L16（§4.6） | S1 合并 RHS core 时修复：变量声明到循环体内或标记 private | S1 前 |
+| RISK-12 | `updateforcing()` 孤立 `#pragma omp for` | R1 | `MD_ET.cpp` L12–L14（§4.8） | S1 确认调用上下文；若孤立则移除 | S1 前 |
 | RISK-08 | 未初始化数组或旧值残留 | R4 | serial/omp update 覆盖不一致 | 统一 reset；debug 模式 fill NaN/sentinel | P1 前 |
 | RISK-09 | 诊断/日志输出破坏并行确定性 | R1/R3 | RHS 内 debug print | RHS 内只写 buffer；RHS 后串行输出 | P1 起 |
 | RISK-10 | production 被误当 strict | R2 | CVODE vector/Krylov/tree reduction | 明确 StrictOMP / ProductionOMP 模式 | P8 起 |
