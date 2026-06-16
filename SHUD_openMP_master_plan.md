@@ -7,7 +7,14 @@
 > 3. `SHUD_parallel_alignment_accuracy_plan.md`（2026-04-26，精度验收层）
 > 4. `SHUD_parallel_complete_package/SHUD_parallel_full_plan.md`（2026-04-26，合并版）
 >
-> 版本：v1.1 | 日期：2026-04-27 | SHUD 源码子模块路径：`SHUD/`
+> 版本：v1.2 | 日期：2026-06-16 | SHUD 源码子模块路径：`SHUD/` (pinned to `3aec657`)
+
+> **v1.2 修订要点**（基于第二轮深度审查，吸收 M1–M5 五条结构性修订）：
+> 1. **M5（§2.2）**：A3 拆为 A3a/A3b/A3c，跨线程数 bitwise 从硬门控降为加分项
+> 2. **M1（§1.1.1 + §1.2 + §5 S0.12）**：加入按流域规模量化加速比目标；新增 C6/C7/C8 原则；新增 S0.12 RHS 占比 profile 强制门控
+> 3. **M3-prep（§4.17）+ M3（§6 P8）**：修正"基线为 dense solver"的事实错误；P8 按真实 ROI 重排为 P8-precond → P8-tune → P8-NVector → P8-KLU
+> 4. **M2（§6 P7）**：强制单 parallel 区融合 + `nowait/barrier/single` + `NumEle < OMP_CUTOFF` serial fallback
+> 5. **M4-prep（§4.22）+ M4（§5 S5d）**：新增数据布局 + NUMA first-touch + 线程绑定改造阶段
 
 ---
 
@@ -37,7 +44,7 @@ SHUD 是一个全耦合水文模型，核心求解由 SUNDIALS/CVODE 驱动。�
 |---|---|---|
 | 预并行（S0–S4） | 重构有没有改掉计算？ | B1a 与 B0 **bitwise identical**——纯结构重构，零计算变更 |
 | 预并行（S5–S6） | bug fix 的影响可解释吗？ | B1b 与 B0 的差异在 `B0_vs_B1b_report` 中逐项记录且可解释 |
-| strict 并行（P1–P7） | 并行有没有改掉模型？ | P-strict 与 B1b bitwise identical：同一输入、同一线程数、同一结果，连 CVODE 内部步数都一致 |
+| strict 并行（P1–P7） | 并行有没有改掉模型？ | A3a：同线程数与 B1b bitwise identical；A3b：跨线程数 ULP 级差异在工程上界内；A3c 可选 |
 | production 并行（P8–P9） | 性能优化有没有超出容差？ | P-prod 与 B1b 差异在标定容差内；同配置可复现；水量守恒不恶化 |
 
 ### 0.4 为什么必须分阶段
@@ -61,10 +68,27 @@ SHUD 是一个全耦合水文模型，核心求解由 SUNDIALS/CVODE 驱动。�
 
 **通过 OpenMP 并行化显著降低 SHUD 的 wall-clock 运行时间。**
 
-约束条件：
+#### 1.1.1 量化加速比目标（按流域规模分级）
+
+> 以下目标基于**目标部署平台**（典型科研工作站：单插槽 8 物理核 x86_64 Linux、`-O2 -ffp-contract=off -fopenmp`、`OMP_PROC_BIND=close OMP_PLACES=cores`、warm cache、forcing 已 preload）。所有数字是 **P9 完成后**对 B1b 单线程的 wall-clock 加速比目标，分两类：M（最小可接受，未达到必须复盘）和 T（目标值，达到即视为成功）。
+>
+> **重要**：这些目标**只在目标部署平台验收**。本地开发平台（如 Apple Silicon Mac）跑出的数字只用于开发期参考，不计入 go/no-go。两平台角色分工见 §5 S0.12 跨平台执行声明。
+
+| 流域规模 | NumEle | NumY 量级 | 1→2 线程 (M / T) | 1→4 线程 (M / T) | 1→8 线程 (M / T) | 主导优化 |
+|---|---|---|---|---|---|---|
+| Small | < 1,000 | < 5k | 1.0× / 1.3× | 1.0× / 1.8× | 1.0× / 2.0× | 仅 cutoff 走 serial；并行收益由 fork-join 吃掉 |
+| Medium | 1,000 – 10,000 | 5k – 40k | 1.4× / 1.7× | 2.2× / 3.0× | 3.0× / 4.5× | RHS owner-local 并行 + SoA layout |
+| Large | 10,000 – 100,000 | 40k – 400k | 1.5× / 1.8× | 2.8× / 3.5× | 4.5× / 6.0× | RHS 并行 + N_Vector OpenMP + **预条件器降低 Krylov 迭代数** |
+| XLarge | > 100,000 | > 400k | 1.6× / 1.9× | 3.0× / 3.8× | 5.5× / 7.0× | 同上 + 可能引入 KLU 或更强 precond |
+
+**Amdahl 上限说明**：根据 S0.12 实测的 `t_RHS_kernel / t_total` 比例 `f`，理论上限 `S_max = 1 / (1 - f + f/N)`。若 S0.12 测得 `f < 0.5`（RHS 不占主导），上述 T 列目标需要 P8（预条件器 + N_Vector）配合才能达到，**仅靠 P1–P7 RHS 并行无法达成 T 目标**。
+
+#### 1.1.2 约束条件
+
 - 串行与并行路径物理方程等价（同一套 RHS core）
-- strict 阶段精度与单线程 base bitwise identical
+- strict 阶段：A3a 强制（同线程数 bitwise）+ A3b 强制（跨线程数 ULP 上界）；A3c 可选
 - production 阶段精度在可解释的工程容差内，水量守恒不恶化
+- 不同流域规模档位的目标独立验收，小流域达不到 T 不阻塞中/大流域
 
 ### 1.2 核心原则
 
@@ -75,6 +99,9 @@ SHUD 是一个全耦合水文模型，核心求解由 SUNDIALS/CVODE 驱动。�
 | C3 | strict 阶段不改物理 | 不改 forcing 插值、不改容差、不改公式、不改求和算法 |
 | C4 | CVODE 内部并行晚于 RHS 并行 | 先 RHS bitwise，再 CVODE vector/solver 并行 |
 | C5 | 阶段门控 | 每阶段有 go/no-go checklist，不通过不进入下一阶段 |
+| C6 | profile-driven 优先级 | S0.12 实测各子系统占总 wall-clock 比例后才决定 P1–P9 优先级；占比 < 10% 的子系统不投入并行预算 |
+| C7 | fork-join 最少化 | RHS 内每次调用最多一个 `#pragma omp parallel` 区，多个 stage 用 `#pragma omp for` + `barrier`/`single` 组合，不在 RHS 内重复 fork-join |
+| C8 | 小流域 cutoff | `NumEle < OMP_CUTOFF`（编译期或运行期可配置，默认 1024）时 RHS 强制走 serial 路径，跳过 parallel 区 |
 
 ---
 
@@ -107,10 +134,14 @@ SHUD 是一个全耦合水文模型，核心求解由 SUNDIALS/CVODE 驱动。�
 | **A0** | baseline repeatability | 单线程 base 多次运行 bitwise identical | S0 |
 | **A1** | refactor equivalence | 重构后不开并行，与 B0 bitwise identical | S1–S4（→ B1a） |
 | **A1b** | bug-fix accountability | bug fix 后与 B0 的差异逐项归因且可解释 | S5–S6（B1a → B1b） |
-| **A2** | RHS bitwise equivalence | 单次 RHS 评估中所有关键数组和 `DY` 与 B1b bitwise identical | P1–P6 |
-| **A3** | full-run bitwise equivalence | 完整 CVODE run 输出与 B1b bitwise identical，CVODE stats 一致 | P7 |
-| **A4** | deterministic tolerance | 并行结果重复运行一致，与 B1b 差异在阈值内 | P8 |
+| **A2** | RHS bitwise equivalence | 单次 RHS 评估中所有关键数组和 `DY` 与 B1b bitwise identical（同线程数） | P1–P6 |
+| **A3a** | same-thread full-run bitwise | 同线程数下完整 CVODE run 输出与 B1b **bitwise identical**，CVODE stats 一致 | P7 强制 |
+| **A3b** | cross-thread tight tolerance | 不同线程数之间 `max_ulp(DY) ≤ 4` 且 `max_abs_diff(state) < 1e-12`，CVODE 内部步数差异 ≤ 0.1% | P7 强制 |
+| **A3c** | cross-thread full bitwise | 不同线程数之间完整 run bitwise identical | P7 **可选**（加分项，不进 go/no-go） |
+| **A4** | deterministic tolerance | 并行结果重复运行一致，与 B1b 差异在 §2.3 标定阈值内 | P8 |
 | **A5** | physical acceptance | 水文指标、水量守恒和跨流域表现可接受 | P9 及生产评估 |
+
+> **为什么把 A3 拆三档**：A3c（跨线程数 bitwise）的工程意义主要是"差异定位时容易回溯"，不是科研正确性证据；任何 SUNDIALS 内部隐式 OpenMP、任何遗漏 `+=`、Apple Silicon 上 inline 函数的 FMA 选择都可能破坏它，代价巨大。**对外发表水文结果只需 A3a + A4** 即可；A3b 给出跨线程数差异的工程上界，足够定位 bug；A3c 作为加分项，达到则记入交付物，未达到不阻塞 P8。
 
 ### 2.3 A4 容差阈值（待标定）
 
@@ -422,7 +453,11 @@ P2b 并行化 RHS element vertical 时，多线程 `printf` 会交错输出。�
 
 **`getX()`**（L102–L105）直接返回 `ts[iNow][col]`，zero-order hold，不做插值。
 
-### 4.17 求解控制参数
+### 4.17 求解控制参数与线性求解器实际配置
+
+> **历史更正**：本节 v1.0 仅审了 `Model_Control.hpp` 中的标量容差，未审 `cvode_config.cpp`，错误地把基线线性求解器当成 "CVODE 默认 dense solver"。这导致 v1.0 的 P8b/P8c 描述（"替代 dense"、"集成 SPGMR"）方向错误。v1.1 修正。
+
+#### 4.17.1 容差与时间步控制
 
 **`Model_Control.hpp`**（`src/classes/Model_Control.hpp` L104–L108）：
 ```cpp
@@ -432,7 +467,41 @@ double InitStep = 1.e-2;
 double MaxStep = 30;
 double SolverStep = 2;
 ```
-均为标量，未提供 vector absolute tolerance。
+均为标量，未提供 vector absolute tolerance。Opt-Tol 阶段处理（§6 P8）。
+
+#### 4.17.2 基线线性求解器：matrix-free SPGMR（**重要更正**）
+
+**文件**：[cvode_config.cpp:176-180](SHUD/src/Equations/cvode_config.cpp:176)
+
+```cpp
+LS = SUNLinSol_SPGMR(udata, 0, 0, sunctx);
+//                          ^  ^
+//                          |  +-- maxl = 0 → SUNDIALS 默认 5（Krylov 子空间维度）
+//                          +----- pretype = 0 → PREC_NONE（无预条件器）
+check_flag((void *)LS, "SUNLinSol_SPGMR", 0);
+
+flag = CVodeSetLinearSolver(cvode_mem, LS, NULL);
+//                                          ^^^^
+//                                          +-- 第三参 NULL = matrix-free
+//                                              Jacobian-vector 积 Jv 用差分近似（DQ）
+```
+
+**等价配置**：**Matrix-free SPGMR + 无预条件器 + Krylov 维度 5 + 默认 restart**。
+
+**性能特征**：
+- 每次 Krylov iteration 调用 1 次完整 RHS 做 `Jv ≈ (f(y + σv) - f(y)) / σ` 差分近似 → `nfeLS` 直接是 Krylov 累计迭代数
+- `nfe + nfeLS` 是 CVODE 调 RHS 的总次数；通常 `nfeLS / nfe ∈ [1, 10]`，越大说明 Krylov 迭代越密集
+- 无预条件意味着 GMRES 收敛速度完全由系统本身条件数决定，对刚性系统（SHUD 的 GW + surface 耦合）会很慢
+- `maxl=5` 是非常保守的设置，意味着每 5 次 iter 就要 restart 一次，丢失收敛历史
+
+**对 P8 路线的修正**（详见 §6 P8）：
+- ❌ v1.0 P8b "用 KLU 替代默认 dense solver" — **基线根本不是 dense**，描述无效
+- ❌ v1.0 P8c "集成 SUNLinSol_SPGMR" — **SPGMR 早已在跑**，集成无意义
+- ✅ v1.1 P8-precond（新第一优先）：在现有 SPGMR 基础上加物理分块预条件器，降 nfeLS
+- ✅ v1.1 P8-tune：调 maxl/restart/EpsLin
+- ✅ v1.1 P8-KLU（评估后决定）：构造 sparsity + colored FD Jacobian，与 preconditioned SPGMR A/B 对比
+
+**S0.12 profile gate 关联**：`ratio_nfeLS_over_nfe` 越大，P8-precond 的潜在收益越大（每减少一次 Krylov iter 就直接减少一次 RHS 调用，是双重收益）。
 
 ### 4.18 `fun_Ele_sub()` lake 分支 `Ele[inabr].u_effKH` 越界/语义风险
 
@@ -470,7 +539,7 @@ N_VDestroy_Serial(du);      // L112
 
 `N_VNew_OpenMP` 创建的向量内部结构与 `N_VNew_Serial` 不同（额外存储线程数等元数据）。用 `N_VDestroy_Serial` 释放 OpenMP 向量是**类型不匹配**，可能导致内存泄漏或 undefined behavior。
 
-**修复**：使用 generic `N_VDestroy()`（SUNDIALS 提供的类型无关销毁函数），自动根据向量的实际类型调用正确的释放逻辑。这在 strict 阶段（改回 Serial）暂时安全，但 P8a 重新启用 OpenMP N_Vector 前**必须修正**。
+**修复**：使用 generic `N_VDestroy()`（SUNDIALS 提供的类型无关销毁函数），自动根据向量的实际类型调用正确的释放逻辑。这在 strict 阶段（改回 Serial）暂时安全，但 P8-NVector 重新启用 OpenMP N_Vector 前**必须修正**。
 
 ### 4.20 `updateElement()` 在 `updateforcing()` 和 `f_loop()` 中被重复调用
 
@@ -508,7 +577,7 @@ N_VDestroy_Serial(du);      // L112
 
 ```
 SHUD_ENABLE_OPENMP_RHS       // 控制 RHS 内部 OpenMP loop（P1–P7 可打开）
-SHUD_USE_OPENMP_NVECTOR      // 控制 SUNDIALS N_Vector backend（P8a 才允许打开）
+SHUD_USE_OPENMP_NVECTOR      // 控制 SUNDIALS N_Vector backend（P8-NVector 才允许打开）
 SHUD_LEGACY_OMP_RHS          // 保留旧 _omp 路径供 A/B 对比（逐步删除）
 ```
 
@@ -518,13 +587,91 @@ SHUD_LEGACY_OMP_RHS          // 保留旧 _omp 路径供 A/B 对比（逐步删�
 |---|---|---|---|
 | S0–S1 | OFF | OFF | 纯 serial baseline |
 | P1–P7 strict | ON | **OFF** | RHS 并行 + serial N_Vector = bitwise safe |
-| P8a+ | ON | ON（有条件） | CVODE 内部也并行 |
+| P8-NVector+ | ON | ON（有条件） | CVODE 内部也并行 |
 
 **N_Vector 数据访问统一**：`NV_DATA_OMP(v)` 和 `NV_DATA_S(v)` 应统一为 SUNDIALS 提供的 generic 接口 `N_VGetArrayPointer(v)`。该接口通过 N_Vector 的 virtual operation table 自动分派到正确后端，**消除业务代码对具体 N_Vector 类型的编译期依赖**。这使得 `f.cpp` 中 6 个函数的 `#ifdef` 可以完全消除。`Macros.hpp` 中的 `SET_VALUE` 宏同样应改用 `NV_Ith(v,i)`（generic）或直接用指针算术。
 
 > **SUNDIALS 版本要求**：`N_VGetArrayPointer()` 在 SUNDIALS ≥ 2.5 中可用（作为 generic N_Vector API 的一部分）。`N_VDestroy()`（generic）同样需要 ≥ 2.5。S0 锁定编译环境时必须确认 SUNDIALS 版本满足此要求。当前代码使用的 `SUNContext`（`shud.cpp` L50）是 SUNDIALS 6.0+ 特性，因此版本约束实际上已被满足。
 
 **实施时机**：S1d 引入 ExecPolicy 时**一并完成**宏解耦和 `N_VGetArrayPointer` 统一（见 S1d 新增任务）。
+
+### 4.22 数据布局：访存受限 + NUMA first-touch 风险
+
+> **重要观察**：SHUD 的 element kernel 是典型的 memory-bound 计算（每次 RHS 邻居访问跳跃、状态读写密集），单插槽 OpenMP 加速比的实际上限由内存带宽和 cache 命中率决定，**不是计算密度**。v1.0 master plan 把这一段（归档预优化文档里有，path: archive/SHUD_single_thread_preoptimization_for_parallel.md 的 P4 节）误删了，v1.1 补回并强化。
+
+#### 4.22.1 `_Element` 多继承导致的 fat-AoS
+
+**文件**：[Element.hpp:22-130](SHUD/src/classes/Element.hpp:22)
+
+```cpp
+class Triangle { node[3], nabr[3], lakenabr[3], nabrToMe[3], edge[3], area, slope[3],
+                 Dist2Edge[3], x, y, z_bottom, z_surf, zcentroid }                       // ~24 doubles + ints
+class AttriuteIndex { iSoil, iGeol, iLC, IC, iForc, iMF, iSS, iBC, iLake, ilakebank }    // ~10 ints
+class _Element : public Triangle, public Soil_Layer, public Geol_Layer,
+                 public Landcover, public AttriuteIndex {
+    index, RivID, RivSegID, windH, Dist2Nabor[3], FixPressure, AquiferDepth, WetlandLevel,
+    RootReachLevel, MacporeLevel, avgRough[3], depression, yBC, QBC, QSS,
+    iupdGW[3], iupdSF[3], u_qi, u_qex, u_qr, u_effKH, u_satn, u_wf, u_deficit, u_theta,
+    u_phius, u_Ginfi, u_satKr, u_effkInfi, Kmax
+    // + Soil_Layer / Geol_Layer / Landcover 自带的所有字段（未列）
+};
+```
+
+`sizeof(_Element)` 估算 **600–1000 字节**（实际值需编译后 `static_assert(sizeof(_Element) == ...)` 测量），单个 cache line 64 字节，意味着访问一个 element 要拖 10–16 条 cache line 进 L1。
+
+**RHS hot path 实际只读**（[MD_ElementFlux.cpp:35-156](SHUD/src/ModelData/MD_ElementFlux.cpp:35) + [MD_f.cpp:54-118](SHUD/src/ModelData/MD_f.cpp:54)）：
+- `nabr[3], lakenabr[3], edge[3], Dist2Nabor[3], Dist2Edge[3]` —— 几何邻居
+- `area, z_surf, z_bottom, depression, Rough, avgRough[3]` —— 几何/糙度
+- `u_effKH, u_satn, u_deficit, u_theta, u_phius, u_satKr, u_effkInfi` —— 状态导出量
+- `iLake, iBC, iSS, QBC, QSS, yBC, Sy` —— BC/SS
+- `VegFrac, FixPressure, ImpAF`（继承自 Landcover/Soil）—— ET 相关
+
+合计约 30–40 个标量，其余几百字节全是 RHS 用不到的初始化/IO/calib 字段，**纯 cache 污染**。
+
+#### 4.22.2 Jagged `double**` 数组
+
+**文件**：[Model_Data.hpp:121-122](SHUD/src/ModelData/Model_Data.hpp:121)
+
+```cpp
+double **QeleSurf;    /* Overland Flux */
+double **QeleSub;     /* Subsurface Flux */
+```
+
+实际分配是 `NumEle` 次独立 `new double[3]`（推断自 `malloc_EleRiv()`），导致 `QeleSurf[i]` 和 `QeleSurf[i+1]` 在堆上**地址不连续**，硬件 prefetcher 无法预测下一个 element 的 flux 槽位置。每个 element flux 读写都是潜在 cache miss。
+
+同类问题：方案没列举但同样存在的还有可能是 `Riv[i].*` 内部数组、`RivSeg[i].*` 等——需在 S5d 启动时全量审计。
+
+#### 4.22.3 NUMA first-touch 错误归属
+
+`Model_Data::malloc_EleRiv()` 和 `LoadIC()` 在**主线程**串行执行，根据 Linux first-touch policy，所有数据页落在主线程所在的 NUMA node。
+
+后果：
+- 单插槽（无 NUMA）：无影响
+- 双插槽（2-socket Xeon / EPYC）：1/2 的线程跨 NUMA 访问，单次访问 latency ×2–3 倍
+- 大流域且 8+ 线程跨插槽时，加速比可能不升反降
+
+方案 v1.0 完全没提；v1.1 在 S5d 中加 parallel first-touch 初始化。
+
+#### 4.22.4 线程绑定缺失
+
+当前代码 [shud.cpp:56](SHUD/src/Model/shud.cpp:56) 只调 `omp_set_num_threads(...)`，未设 `OMP_PROC_BIND` / `OMP_PLACES`。后果：
+
+- OS 调度器可能在物理核之间迁移线程 → 线程切换时 L1/L2 cache 全部失效
+- 在 HT/SMT 启用的机器上，两个线程可能落到同一物理核的两个 SMT，竞争 ALU/FPU 资源
+- 跨 socket 调度时引入 NUMA 跨节点访问
+
+**最低要求**（写入 compile/run manifest）：`OMP_PROC_BIND=close OMP_PLACES=cores` —— 把线程钉到物理核且互相靠近，不允许迁移。
+
+#### 4.22.5 改造时机与影响范围
+
+| 改造 | 时机 | bitwise 影响 | 收益估计 |
+|---|---|---|---|
+| 热字段 SoA 抽取（`ElementHotData`） | S5d | 不变（只换访问路径） | cache miss ↓ 50–70%，单线程也受益 |
+| `QeleSurf/QeleSub` 一维化（`double[NumEle*3]`） | S5d | 不变（仅 layout，运算顺序不变） | prefetch 命中率显著提升 |
+| Parallel first-touch | S5d | 不变 | 双 socket 机器加速比 +20–40% |
+| `OMP_PROC_BIND=close OMP_PLACES=cores` | S0 manifest + S5d 写入 run script | 不变（仅运行时调度） | 跨 socket 时 +10–30%；单 socket 时 ~+5% |
+
+> **关键约束**：S5d 必须在 B1a 锁定**之后**、P1 之前完成；layout 改动属于"结构变更不改运算"，与 §0.4 的 S0–S6 原则一致，必须保持 bitwise = B1a。
 
 ---
 
@@ -549,8 +696,144 @@ SHUD_LEGACY_OMP_RHS          // 保留旧 _omp 路径供 A/B 对比（逐步删�
 | S0.9 | **CI workflow** | `.github/workflows/serial-baseline.yml` | 自动化流水线：checkout SHUD submodule → build serial → run smallest benchmark → dump RHS snapshot → compare against golden snapshot → 记录 CVODE stats / compile flags / git hash → pass/fail |
 | S0.10 | **分支创建** | — | 创建 `baseline/current` 分支并 tag `B0-tag`；后续 S1–S6 在 feature branch 上工作 |
 | S0.11 | **状态矩阵** | `docs/status_matrix.md` | 各阶段 × 各 benchmark 的 pass/fail 矩阵，CI 自动更新或手动填写 |
+| S0.12 | **RHS 占比 profile（profile gate）** | `tools/profile/`, `cvode_config.cpp` 已有 stats | 见 §S0.12 子节 |
 
 > **S0.7–S0.11 的目的**：S0 不只是"跑一遍记录结果"，而是要建立**自动门控基础设施**。没有 CI workflow 和 snapshot 工具，后续 S1a–S1d 的 bitwise gate 就只能靠人肉跑——做一两次可以，做 20 个子阶段不现实。S0.9 的 CI 不需要复杂——最小 benchmark、单线程、约 2 分钟内跑完——但它必须在每次 push 时自动运行并报 pass/fail。
+
+#### S0.12 RHS 占比 profile（profile gate）
+
+> **为什么必须前置**：整个 P1–P7 都在并行 RHS。如果 RHS 不占总 wall-clock 的主导（设阈值 50%），那把 RHS 完美并行的 Amdahl 上限就远低于 §1.1.1 的 T 目标，**优先级必须重排，先做 P8 预条件器**。S0.12 是把这个判断从"凭感觉"变成"凭数据"的强制门控。
+
+**测量对象**：在 B0（单线程）上对每个 benchmark 算例运行一次，分项记录以下时间占比：
+
+| 分项 | 测量方法 | 期望（量级） |
+|---|---|---|
+| `t_RHS_kernel` | 在 `f()` 入口/出口加 timer（`MD_f.cpp` 全部三个子函数：`f_update` + `f_loop` + `f_applyDY`） | RHS 本身的计算耗时 |
+| `t_RHS_total = t_RHS_kernel × (nfe + nfeLS)` | nfe/nfeLS 由 [cvode_config.cpp:45,72](SHUD/src/Equations/cvode_config.cpp:45) 的 `CVodeGetNumRhsEvals` / `CVodeGetNumLinRhsEvals` 直接取 | RHS 总耗时（含 Krylov DQ Jv 近似） |
+| `t_CVODE_internal` | `t_solver - t_RHS_total`（solver 时间扣除 RHS） | SUNDIALS 内部：N_Vector ops、SPGMR 迭代、step control |
+| `t_forcing_io` | `MD_ET.cpp::updateforcing` + `tReadForcing` 加 timer | forcing 读取与插值 |
+| `t_ET` | `MD_ET.cpp::ET` 加 timer | 主循环内的 ET 计算（独立于 RHS） |
+| `t_output` | `Model_Control::PrintData` 等输出函数 timer | I/O 输出 |
+| `t_other` | 残差 | 应 < 5%，否则重测 |
+
+**输出物**：`benchmarks/<case>/profile_B0.yaml`，每个算例一份：
+
+```yaml
+case: small_no_lake
+NumEle: 500
+NumY: 1620
+walltime_total_sec: 118.4
+breakdown:
+  t_RHS_kernel:        { sec: 0.0021, pct_of_RHS_total: 100.0 }
+  t_RHS_total:         { sec:  74.2,  pct_of_total: 62.7 }   # ← 决定 RHS 并行优先级
+  t_CVODE_internal:    { sec:  18.6,  pct_of_total: 15.7 }
+  t_forcing_io:        { sec:  12.4,  pct_of_total: 10.5 }
+  t_ET:                { sec:   8.1,  pct_of_total:  6.8 }
+  t_output:            { sec:   4.3,  pct_of_total:  3.6 }
+  t_other:             { sec:   0.8,  pct_of_total:  0.7 }
+cvode_stats:
+  nfe:    12450
+  nfeLS:  35820
+  nni:     4120
+  nli:    35820
+  nsetups:  892
+  netf:      24
+ratio_nfeLS_over_nfe: 2.88   # Krylov DQ Jv 占比；> 2 表示线性求解迭代密集，预条件器收益大
+```
+
+**Profile Gate（强制门控，进入 S1 前必须满足）**：
+
+| 测量结果 | 触发动作 |
+|---|---|
+| `t_RHS_total / t_total ≥ 50%` **且** `ratio_nfeLS_over_nfe < 1.5` | **走原方案**：P1–P7 RHS 并行优先，P8 预条件器收益有限 |
+| `t_RHS_total / t_total ≥ 50%` **且** `ratio_nfeLS_over_nfe ≥ 1.5` | **平行路线**：P1–P7 与 P8-precond 并行推进，因为大部分 RHS 调用来自 Krylov 内部 Jv 近似，加预条件器能直接减少 nfeLS |
+| `t_RHS_total / t_total ∈ [30%, 50%)` | **优先级重排**：P8-precond 前置到 S6 后立即开始（仍需 B1b 锁定），P1–P7 延后 |
+| `t_RHS_total / t_total < 30%` | **战略暂停**：召集团队重审整个 P1–P7 投入是否值得，可能直接跳到 P8 路线 |
+| 任何 benchmark 的 `t_other > 10%` | **暂停**：profile 工具本身有问题，先修工具再继续 |
+
+**实施要点**：
+- timer 用 `std::chrono::steady_clock` 或 `clock_gettime(CLOCK_MONOTONIC)`，**不用** `clock()`（CPU 时间 ≠ wall-clock）
+- timer 开销必须 < 0.1% wall-clock，关闭时不影响 B0 bitwise（用编译开关 `SHUD_ENABLE_PROFILE`）
+- 每个算例跑 3 次，取中位数；同算例三次结果差异 > 5% 必须重测（Apple Silicon 上跑 5 次，见下方平台声明）
+- 输出物纳入交付物清单（§10）
+
+#### S0.12 跨平台执行声明（必读）
+
+> **关键工程现实**：profile_B0 数据用于**决定路线**（M1–M5 修订是否成立、P1–P7 与 P8 的优先级），而**最终性能验收数字**必须在**目标部署平台**复测。两件事在不同平台做，必须显式区分，否则会拿 Mac 上的数字当 Linux 集群的承诺。
+
+##### 平台分级
+
+| 平台 | 用途 | 哪些数据可信 |
+|---|---|---|
+| **本地开发平台**（任意，含 macOS / Apple Silicon）| profile 决策方向 + S0–S6 重构 + bitwise 验证 + P1–P7 功能开发 | wall-clock 占比（趋势）、CVODE stats（精确）、bitwise 比对（精确）|
+| **目标部署平台**（团队最终运行 SHUD 的机器）| 最终量化加速比验收（§1.1.1）+ NUMA 验收（§4.22.3 / S5d.3）+ 跨 socket 测试 | 一切性能数字 |
+
+**两个平台都必须各跑一份 `profile_B0.yaml`**，并在 `docs/profile_platform.md` 里横向对比，确认决策方向在两个平台上一致。
+
+##### `docs/profile_platform.md` 模板（强制产出物）
+
+```yaml
+# 本地开发平台
+local_platform:
+  os: "macOS 14.5 Darwin"           # 或 "Linux Ubuntu 22.04"
+  cpu: "Apple M2 Pro (10 cores: 6 P-core + 4 E-core)"  # 或 "Intel Xeon 8358 16-core"
+  memory: "32 GB unified"            # 或 "256 GB DDR4, 2 sockets"
+  numa_nodes: 1                      # macOS / Apple Silicon = 1; 双路 Xeon = 2
+  apple_silicon: true                # 触发异构核心补偿
+  compiler: "Apple clang 15 + libomp 17"
+  flags: "-O2 -ffp-contract=off -Xpreprocessor -fopenmp -lomp"
+  profile_purpose: ["decision_only", "bitwise_validation", "p1_p7_dev"]
+  profile_NOT_used_for: ["final_speedup_numbers", "numa_validation"]
+
+# 目标部署平台
+target_platform:
+  os: "Linux RHEL 8 / kernel 4.18"
+  cpu: "AMD EPYC 7763 (64 cores, 2 sockets, NPS=4 NUMA per socket)"
+  memory: "512 GB DDR4-3200, 8 channels per socket"
+  numa_nodes: 8
+  apple_silicon: false
+  compiler: "GCC 12.3 + libgomp"
+  flags: "-O2 -ffp-contract=off -fno-fast-math -fopenmp"
+  profile_purpose: ["final_speedup", "numa_validation", "all_acceptance_numbers"]
+
+# 决策一致性检查
+decision_consistency:
+  ratio_RHS_local:   0.627    # local profile_B0 测得
+  ratio_RHS_target:  0.591    # target profile_B0 测得
+  delta:              0.036   # 两平台差异
+  delta_acceptable:   true    # 差异 < 0.1 算可接受；> 0.1 必须复审决策
+  routing_decision_consistent: true   # 两平台的 profile_decision.md 决策落同一档
+```
+
+##### Apple Silicon 专用补偿（仅当 `apple_silicon: true`）
+
+| 问题 | 影响 | 应对 |
+|---|---|---|
+| 异构核心（P-core / E-core 性能差 2–3×）| 同 binary 同输入跑两次结果可能差 10%+ | 5 次取中位数（而非 3 次）；推荐 `taskpolicy -c utility ./shud` 偏向 P-core；`profile_B0.yaml` 加 `±15%` 不确定度字段 |
+| macOS 上 `OMP_PROC_BIND` 支持有限 | libomp 不识别 Apple 核心拓扑，绑定生效但语义弱 | 接受 binding 是"软建议"；profile 数字看趋势不看绝对值 |
+| Apple Silicon 单芯片 UMA（无 NUMA）| §4.22.3 / S5d.3 的 first-touch 改造**看不到性能提升** | S5d.3/S5d.4 NUMA 验收在 Apple Silicon 上**标记为 N/A**；代码仍要写，等 Linux 多 socket 复测 |
+| Apple Clang 默认启用硬件 FMA | bitwise 复现失败 | `-ffp-contract=off` 必加（§8.1.1 已覆盖）|
+| Apple Clang 不自带 OpenMP runtime | 编译失败 | `brew install libomp` + `-Xpreprocessor -fopenmp -L$(brew --prefix)/lib -lomp` |
+
+##### macOS 上 Linux 工具的替代
+
+| Linux 工具 | macOS 替代 | 用途 |
+|---|---|---|
+| `perf stat -e cache-misses,L1-dcache-load-misses` | **Instruments → Counters** 模板 或 `xctrace record --template "Counters"` | S5d cache miss 率验收 |
+| `perf record` + `perf report` | **Instruments → Time Profiler** 或 `xctrace record --template "Time Profiler"` | hotspot 定位 |
+| `gprof` | clang `-fprofile-generate` PGO 数据 | 调用图 |
+| `valgrind/callgrind` | ❌ M 系列不支持，跳过 | — |
+| `numactl --hardware` | ❌ macOS 无 NUMA 概念 | tools/numa_check.sh 检测到 `uname -s == Darwin` 时打印 "N/A: single UMA node" |
+| `OMP_PROC_BIND=close` | 仍可设但 libomp 实际只做软绑定 | 接受语义弱化；记录在 manifest 中 |
+
+##### 验收复测规则
+
+- **S0.12 决策门控**：在本地平台跑通即可放行 S1；**但必须**在能拿到目标平台前，加一条 placeholder commit 提醒 "S5d / P7 性能验收需在目标平台复测"
+- **S5d 验收**（cache miss / NUMA / first-touch）：Apple Silicon 部分项 N/A，目标平台必须全验
+- **P7 / P8 加速比验收（§1.1.1 量化表）**：**只认目标平台数字**。本地 Mac 数字仅作开发期参考，**不计入 go/no-go**
+- 两个平台的 `profile_B0.yaml` 占比差异 > 10 个百分点 → **必须复审 profile_decision.md**，因为决策可能换档
+
+**Go/No-Go → S1**：所有 benchmark 的 `profile_B0.yaml` 已产出 **且** profile gate 决策已记入 `docs/profile_decision.md` **且** `docs/profile_platform.md` 已声明两个平台的角色分工。决策不写明确即视为"未通过 profile gate"，不进入 S1。
 
 > **当前仓库状态**：截至 S0 开始前，仓库只有 `main` 分支，`.github/workflows/`、`benchmarks/`、`tools/` 目录均不存在。S0 的第一批 commit 就是创建这些目录和脚本。
 
@@ -617,11 +900,11 @@ output_compare:
 | `bc_ss_case` | 含 BC/SS 边界条件 | 覆盖 boundary condition 更新路径 | 视情况 |
 | `dry_wet` | dry/wet transition | 覆盖极端状态（Y≈0）和负值处理 | 视情况 |
 
-**可选扩展算例**（用于 P8a 规模评估）：
+**可选扩展算例**（用于 P8-NVector / P8-KLU 规模评估）：
 
 | 算例 ID | 类型 | 关键特征 | NumY 量级 |
 |---|---|---|---|
-| `large_basin` | 大流域 | P8a NumY 门槛评估 | > 100,000 |
+| `large_basin` | 大流域 | P8-NVector NumY 门槛评估 + P8-KLU 内存评估 | > 100,000 |
 | `cryosphere` | 冻融过程 | 覆盖 `AccTemperature` 路径和 §4.12 除零风险 | 视情况 |
 
 **验收标准（A0）**：
@@ -635,8 +918,13 @@ output_compare:
 - [ ] `.github/workflows/serial-baseline.yml` 在 push 时自动触发，最小 benchmark pass
 - [ ] `B0-tag` 已打在 `baseline/current` 分支上
 - [ ] `docs/status_matrix.md` 已创建，B0 行全部标记 PASS
+- [ ] **`profile_B0.yaml` 已产出，覆盖所有 benchmark**（S0.12）
+- [ ] **`docs/profile_decision.md` 已签署**，明确写出 profile gate 触发的优先级决策
 
-**Go/No-Go → S1**：任何 benchmark 算例 B0 自身不可复现，**或** CI workflow 不能自动 pass/fail，不进入 S1。
+**Go/No-Go → S1**：
+- 任何 benchmark 算例 B0 自身不可复现，**或** CI workflow 不能自动 pass/fail，不进入 S1
+- **profile gate 未做或未签署决策，不进入 S1**（即使 B0 复现性满足）
+- 若 profile gate 触发"战略暂停"或"优先级重排"，必须先调整下游阶段顺序，再进入 S1
 
 **风险**：
 - 算例过少导致基线代表性不足
@@ -832,7 +1120,7 @@ void rhs_core(double* Y, double* DY, double t, ExecPolicy policy) {
 
 **S2.16 — 当前已使用 OpenMP N_Vector**
 - **差异**：`shud.cpp` L58–59 已用 `N_VNew_OpenMP`
-- **原则**：**已由 S1d.3–S1d.5 宏解耦解决**（见 §4.21）。N_Vector 后端由 `SHUD_USE_OPENMP_NVECTOR` 独立控制，S1 阶段默认 OFF → `N_VNew_Serial`；P8a 才允许打开。S2 阶段无需额外处理此项
+- **原则**：**已由 S1d.3–S1d.5 宏解耦解决**（见 §4.21）。N_Vector 后端由 `SHUD_USE_OPENMP_NVECTOR` 独立控制，S1 阶段默认 OFF → `N_VNew_Serial`；P8-NVector 才允许打开。S2 阶段无需额外处理此项
 - **文件**：`shud.cpp` L58–L59（见 §4.13）
 
 **S2.17 — `fun_Ele_sub()` lake 分支 `Ele[inabr].u_effKH` 越界/语义风险**（⚠️ blocker）
@@ -1031,6 +1319,75 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 
 ---
 
+#### S5d：数据布局 + NUMA first-touch + 线程绑定
+
+> **定位**：S5d 是 v1.1 新增的关键阶段，承担 §4.22 全部改造。S5d 完成后才能保证后续 P1–P7 的并行加速不被 memory bandwidth / NUMA 拖死。S5d **不改变任何运算**，只换内存布局和访问顺序，必须保持 bitwise = B1a。
+
+**前置条件**：S5a/S5b/S5c 已完成；B1a 尚未锁定（S5d 是 B1a 的最后一块）。
+
+**实施粒度**：分四步，每步独立验证 bitwise = B0/B1a，不通过不进入下一步。
+
+##### S5d.1：热字段抽取 SoA（`ElementHotData`）
+
+| 任务 | 涉及文件 | 说明 |
+|---|---|---|
+| S5d.1.1 | 新建 `ElementHotData` SoA 容器 | `MD_layout.hpp` (新建) | 把 §4.22.1 列出的 ~40 个 RHS hot path 字段按数组组织：`int nabr_flat[NumEle*3]`, `double edge_flat[NumEle*3]`, `double area[NumEle]`, `double u_effKH[NumEle]`, ... 等 |
+| S5d.1.2 | 初始化路径 | `Model_Data::malloc_EleRiv()`, `Model_Data::initialize()` | 从 `_Element` 复制到 `ElementHotData`；保留 `_Element` 不动（init/IO/calib 仍用） |
+| S5d.1.3 | RHS hot path 改读 SoA | `MD_ElementFlux.cpp`, `MD_f.cpp`, `MD_ET.cpp` 的 RHS 路径 | 所有 `Ele[i].nabr[j]` 改为 `hot.nabr_flat[3*i+j]` 等；非 RHS 路径不变 |
+| S5d.1.4 | 一致性 assertion | RHS 入口 | DEBUG 模式校验 `hot.area[i] == Ele[i].area`（每个时间步抽样）；release 关闭 |
+
+**验证**：S5d.1 完成后单线程 run 与 B1a bitwise identical。
+
+##### S5d.2：jagged 数组扁平化
+
+| 任务 | 涉及文件 | 说明 |
+|---|---|---|
+| S5d.2.1 | `QeleSurf/QeleSub` 改一维 | `Model_Data.hpp` L121–L122, `malloc_EleRiv()`, 所有 RHS 调用点 | `double **QeleSurf` → `double *QeleSurf_flat` (NumEle*3)；提供 inline `QeleSurfAt(i,j)` 访问器；删除嵌套 malloc/free |
+| S5d.2.2 | `Ele[].iupdGW[3]/iupdSF[3]` 等小数组 | `Element.hpp` L94–L95 | 若使用频繁，并入 ElementHotData；否则保留 |
+| S5d.2.3 | `Riv[i]` 内部数组审计 | `River.hpp`, `River.cpp` | 列出所有 `double*`/`double[N]` 成员，频繁访问的并入 `RiverHotData` SoA；不频繁访问的保留 |
+| S5d.2.4 | `RivSeg[i]` 同上 | `Model_Data.hpp` L187 | 同上 |
+
+**验证**：S5d.2 完成后单线程 run 与 B1a bitwise identical；jagged → flat 不改变内存里数值的实际写入顺序。
+
+##### S5d.3：parallel first-touch 初始化
+
+| 任务 | 涉及文件 | 说明 |
+|---|---|---|
+| S5d.3.1 | SoA 数组改 parallel 初始化 | `Model_Data::malloc_EleRiv()` | `new double[NumEle*3]` 后立刻 `#pragma omp parallel for schedule(static) for(i=0; i<NumEle; ++i) for(j=0; j<3; ++j) arr[3*i+j] = 0.0;` —— 让每个 NUMA 页归属到将来处理该 element 的线程 |
+| S5d.3.2 | `_Element*` 数组的 first-touch | `Model_Data::malloc_EleRiv()` | `_Element` 大对象 placement-new 后用 parallel 循环 touch 一次（即使内容由后续 init 填充） |
+| S5d.3.3 | LoadIC 阶段保持串行 | `Model_Data::LoadIC()` | IC 加载本身串行，但加载后**额外做一次 parallel touch**，把内存归属转移到将来处理的线程 |
+| S5d.3.4 | 与 S5d.4 线程绑定一致 | — | 必须先设 `OMP_PROC_BIND` 再做 first-touch，否则线程归属变化导致 first-touch 白做 |
+
+**验证**：S5d.3 完成后单线程 run 与 B1a bitwise identical（parallel touch 写入的是初值，运算没变）。
+
+##### S5d.4：线程绑定与运行环境
+
+| 任务 | 涉及文件 | 说明 |
+|---|---|---|
+| S5d.4.1 | run script 模板 | `tools/run_omp.sh` (新建) | 包装实际运行：导出 `OMP_PROC_BIND=close OMP_PLACES=cores OMP_NUM_THREADS=N`，然后调 `./shud ...` |
+| S5d.4.2 | 程序内 fallback | `shud.cpp` 初始化段 | 若 `getenv("OMP_PROC_BIND") == NULL`，输出 warning；不强制覆盖（用户可能有意不绑定） |
+| S5d.4.3 | manifest 字段 | `manifest.yaml` | 每个 benchmark 加 `omp_env: { OMP_PROC_BIND: close, OMP_PLACES: cores }` 必填字段 |
+| S5d.4.4 | NUMA 探测 | `tools/numa_check.sh` | 启动时打印 `numactl --hardware` 结果，记录到 run log；多 socket 机器必须确认 first-touch 生效 |
+
+**验证**：S5d.4 完成后单线程 run 与 B1a bitwise identical（运行时配置不影响数值）；多线程在 P1+ 阶段衡量加速比。
+
+##### S5d 汇总验收（A1）
+
+- [ ] S5d.1/.2/.3 每步独立 bitwise = B1a
+- [ ] `sizeof(ElementHotData) / NumEle` 显著小于 `sizeof(_Element)`（目标 < 20%）
+- [ ] L1/L2 cache miss 率（perf stat）较 B1a 下降 ≥ 30%（单线程测量）
+- [ ] 双 socket 测试机上，first-touch 启用后 8 线程加速比较未启用 +15% 以上
+- [ ] `OMP_PROC_BIND=close OMP_PLACES=cores` 已写入所有 benchmark manifest
+- [ ] compile/run manifest 记录线程绑定状态
+
+**风险**：
+- SoA 抽取要触及大量 RHS 代码，引入"看似无害"的指针重命名 bug
+- jagged → flat 时若忘记某个调用点，编译过但运行 crash
+- first-touch 必须先线程绑定后再 touch；顺序反了等于白做
+- 多 socket 机器测试缺位会让 NUMA 改造无法验证
+
+---
+
 ### S6：锁定 B1a / B1b 基线
 
 #### S6a：锁定 B1a（refactor-equivalent serial reference）
@@ -1045,6 +1402,8 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 - [ ] 拓扑顺序固定（S4 完成）
 - [ ] forcing 线程安全契约已标注（S5a 完成）
 - [ ] scratch arrays owner 明确（S5b 完成）
+- [ ] solver 诊断接入（S5c 完成）
+- [ ] **数据布局 SoA + jagged 一维 + parallel first-touch + 线程绑定（S5d 完成）**
 - [ ] 宏解耦完成，`_OPENMP_ON` 已消除（S1d.3 完成）
 - [ ] 单线程完整 run 可复现
 - [ ] strict instrumentation 可定位差异
@@ -1343,145 +1702,379 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 
 ---
 
-### P7：完整 RHS OpenMP + serial CVODE
+### P7：完整 RHS OpenMP + serial CVODE — 单 parallel 区融合 + cutoff
 
-**目标**：在 CVODE 仍使用 serial `N_Vector` / 原线性求解器的前提下，全部 RHS 子阶段使用 OpenMP。
+> **v1.1 重大修正**：v1.0 P7 写"打开所有 P1–P6 的 parallel region"——按 §6 P1–P6 的示例代码，每个 P 子阶段都是 `#pragma omp parallel for`，全部打开后一次 RHS 会有 8–12 次 fork-join，**比当前未优化的 [MD_f_omp.cpp](SHUD/src/ModelData/MD_f_omp.cpp) 还多**。v1.1 强制要求 P7 做"final fusion"：整个 RHS 包进单个 `#pragma omp parallel` 区，内部用 `#pragma omp for` + `barrier`/`single`/`nowait` 组合，把 fork-join 降到 **1 次 / RHS 调用**。此外加入 `NumEle < OMP_CUTOFF` 的 serial fallback，避免小流域被并行开销吃光收益（见原则 C7/C8 §1.2）。
 
-**宏配置**（见 §4.21 解耦方案）：
+**目标**：在 CVODE 仍使用 serial `N_Vector` / 原线性求解器的前提下，把整个 RHS 融合为单 parallel 区，每次 `f()` 调用最多 1 次 fork-join。
+
+#### P7.1 宏配置（不变）
 
 | 宏 | 值 | 含义 |
 |---|---|---|
-| `SHUD_ENABLE_OPENMP_RHS` | **ON** | RHS 内部 `#pragma omp parallel for` 生效 |
+| `SHUD_ENABLE_OPENMP_RHS` | **ON** | RHS 内部 OpenMP 路径生效 |
 | `SHUD_USE_OPENMP_NVECTOR` | **OFF** | CVODE 使用 serial N_Vector（`N_VNew_Serial`） |
 | `SHUD_LEGACY_OMP_RHS` | OFF | 旧 `_omp` 路径已在 S2 删除 |
+| `SHUD_OMP_CUTOFF` | **1024**（默认，编译期可配置） | `NumEle < SHUD_OMP_CUTOFF` 时 RHS 走 serial 路径 |
 
-此配置是 S1d 宏解耦（§4.21）的直接产物——`f.cpp` 通过 `N_VGetArrayPointer()` 取指针（不依赖 N_Vector 类型），RHS 内部 OpenMP 循环由 `SHUD_ENABLE_OPENMP_RHS` 独立控制，与 N_Vector 后端完全解耦。
+此配置是 S1d 宏解耦（§4.21）的直接产物：`f.cpp` 通过 `N_VGetArrayPointer()` 取指针（不依赖 N_Vector 类型），RHS 内部 OpenMP 由 `SHUD_ENABLE_OPENMP_RHS` 独立控制。
 
-**改造要点**：
-- `rhs_core(..., ExecPolicy::StrictOMP)` 打开所有 P1–P6 的 parallel region
-- `SHUD_USE_OPENMP_NVECTOR=OFF` 保证 CVODE 使用 `N_VNew_Serial`（S1d.5 已处理创建/销毁统一，无需再"改回"）
-- 不换线性求解器
-- 不改容差
+#### P7.2 单 parallel 区结构（必须遵守）
 
-**验收标准（A3）**：
+```cpp
+// MD_rhs_core.cpp
+void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
+    // ---- C8 cutoff：小流域走 serial 路径，跳过 parallel 区 ----
+    if (NumEle < SHUD_OMP_CUTOFF || policy == ExecPolicy::Serial) {
+        rhs_core_serial(Y, DY, t);
+        return;
+    }
+
+    // ---- C7 单 parallel 区：整个 RHS 只 fork-join 一次 ----
+#pragma omp parallel default(none) \
+    shared(Y, DY, t, /* 所有 Model_Data 成员引用 */ ...) \
+    num_threads(CS.num_threads)
+    {
+        // === Stage 1: f_update（P1）— element / river / lake 三个独立 loop ===
+#pragma omp for schedule(static) nowait
+        for (int i = 0; i < NumEle; ++i) { /* P1 element update */ }
+#pragma omp for schedule(static) nowait
+        for (int i = 0; i < NumRiv; ++i) { /* P1 river update */ }
+#pragma omp for schedule(static)
+        for (int i = 0; i < NumLake; ++i) { /* P1 lake update */ }
+        // ↑ 最后一个 for 不加 nowait —— 隐式 barrier，确保 Stage 2 看到完整 update 结果
+
+        // === Stage 2: RHS element vertical（P2b）+ ET flux ===
+#pragma omp for schedule(static)
+        for (int i = 0; i < NumEle; ++i) {
+            // f_etFlux + updateElement + Infiltration + Recharge
+            // lake element 分支：updateLakeElement + fun_Ele_lakeVertical
+        }
+        // ↑ 隐式 barrier
+
+        // === Stage 3: element horizontal flux（P3）+ lake horizontal ===
+#pragma omp for schedule(static) nowait
+        for (int i = 0; i < NumEle; ++i) {
+            // fun_Ele_surface / fun_Ele_sub（含 lake neighbor 写 per-edge slot）
+            // lake element：fun_Ele_lakeHorizon
+        }
+
+        // === Stage 4: segment flux（P4）— 与 Stage 3 数据独立，可 nowait ===
+#pragma omp for schedule(static)
+        for (int iseg = 0; iseg < NumSegmt; ++iseg) {
+            // fun_Seg_surface + fun_Seg_sub —— 只写 QsegSurf[iseg] / QsegSub[iseg]
+        }
+        // ↑ 隐式 barrier，等 Stage 3 和 Stage 4 都完成才能进 gather
+
+        // === Stage 5: deterministic gather（P5）— owner-local 累加 ===
+#pragma omp for schedule(static) nowait
+        for (int ir = 0; ir < NumRiv; ++ir) { /* seg → river surf/sub */ }
+#pragma omp for schedule(static) nowait
+        for (int ie = 0; ie < NumEle; ++ie) { /* seg → element surf/sub */ }
+#pragma omp for schedule(static) nowait
+        for (int ilake = 0; ilake < NumLake; ++ilake) { /* river/element → lake */ }
+#pragma omp for schedule(static)
+        for (int ir = 0; ir < NumRiv; ++ir) {
+            // Flux_RiverDown — 只写 QrivDown[ir]；upstream gather 在下一个 stage
+        }
+        // ↑ 隐式 barrier
+
+#pragma omp for schedule(static)
+        for (int ir = 0; ir < NumRiv; ++ir) {
+            // upstream river → downstream QrivUp[downstream] —— 由 downstream owner gather
+        }
+
+        // === Stage 6: applyDY（P6）— element / river / lake 三个独立 loop ===
+#pragma omp for schedule(static) nowait
+        for (int i = 0; i < NumEle; ++i) { /* DY[iSF]/DY[iUS]/DY[iGW] + BC/SS + lake DY=0 */ }
+#pragma omp for schedule(static) nowait
+        for (int i = 0; i < NumRiv; ++i) { /* DY[iRIV] —— 含 length + area clamp + fun_dAtodY */ }
+#pragma omp for schedule(static)
+        for (int i = 0; i < NumLake; ++i) { /* DY[iLAKE] */ }
+
+        // === 串行尾部：诊断打印、NaN check 报告（不在 parallel 区内做 I/O）===
+#pragma omp single
+        {
+            // 若 RHS 内累积了 diagnostic buffer，单线程消费/打印
+            // 注意用 single 而非 master —— single 有隐式 barrier，防止后续代码看到不完整状态
+        }
+    } // ← 整个 RHS 只在这里 fork-join 一次
+}
+```
+
+**强制规则**（违反任何一条 P7 验收不通过）：
+
+1. **唯一 fork-join**：`grep -c '#pragma omp parallel' MD_rhs_core.cpp` 必须返回 1（不含 `parallel for`）。
+2. **`for` 不带 `parallel`**：所有内部循环用 `#pragma omp for ...`，**不**用 `#pragma omp parallel for ...`。
+3. **`nowait` 使用规则**：同一 stage 内多个独立 loop 间用 `nowait`；跨 stage 间的最后一个 loop **不能** `nowait`（依赖下一 stage）。每个 `nowait` 必须在代码注释里说明"为什么没数据依赖"。
+4. **串行段必须用 `single`**：禁止 `master`（master 无隐式 barrier，易出 bug）；I/O / 诊断打印必须在 `single` 内或退出 parallel 区后。
+5. **`default(none)`**：所有共享变量显式列在 `shared(...)` 子句，避免意外捕获。
+6. **`schedule(static)` 全局**：禁 dynamic/guided（破坏 cross-thread bitwise）；chunk size 不指定（编译器/OpenMP 运行时默认按 N/threads 均分）。
+
+#### P7.3 NumEle cutoff 设计
+
+| `NumEle` | `SHUD_OMP_CUTOFF=1024` 时行为 | 原因 |
+|---|---|---|
+| < 1024 | 走 `rhs_core_serial`，**不进 parallel 区** | fork-join 开销 ≈ 1–5 μs；元素少时 RHS kernel 本身就 < 10 μs，并行净亏 |
+| ≥ 1024 | 走 `rhs_core_omp`，单 parallel 区 | RHS kernel 时间足够覆盖 fork-join 开销 |
+
+**调优原则**：
+- 默认 1024 是经验起点。S0.12 profile 完成后，可在每台目标机器上跑 cutoff sweep（在 `[128, 256, 512, 1024, 2048, 4096]` 上各跑 medium benchmark 测 wall-clock），找到 serial-OMP 交叉点
+- cutoff 可通过命令行 `-DSHUD_OMP_CUTOFF=512` 或运行时 env `SHUD_OMP_CUTOFF=512` 覆盖（运行时需读 `getenv()`，但**必须在 RHS 第一次调用前固定**，不允许时间步中途改变）
+- 一旦确定，写入对应 benchmark manifest
+
+#### P7.4 验收标准
+
+**A3a（同线程数 bitwise，强制）**：
 
 | 项 | 标准 |
 |---|---|
-| 单次 RHS probe | `DY_parallel == DY_B1b` bitwise identical |
-| 完整 CVODE run | 所有输出 bitwise identical |
-| CVODE stats | internal steps / RHS calls / error test failures 完全一致 |
-| 多线程重复性 | 同线程数重复运行 bitwise identical |
-| 不同线程数 | strict 模式下也应 bitwise identical（gather 顺序不依赖线程数） |
+| 单次 RHS probe | `DY_parallel == DY_B1b` bitwise identical（任一 NumEle）|
+| 完整 CVODE run | 同线程数下输出 bitwise identical |
+| CVODE stats | internal steps / nfe / nfeLS / netf 与 B1b 完全一致 |
+| 同线程数重复性 | 同 binary 同 N 三次运行 bitwise identical |
 | 宏状态验证 | 编译日志确认 `SHUD_USE_OPENMP_NVECTOR` 未定义，`nvector_openmp.h` 未被包含 |
+| fork-join 计数 | RHS 单次调用 fork-join 次数 ≤ 1（perf 验证或编译期 grep 验证 §P7.2 规则 1）|
 
-**Go/No-Go → P8**：P7 未通过 bitwise，不进入 P8。
+**A3b（跨线程数 ULP 上界，强制）**：
+
+| 项 | 标准 |
+|---|---|
+| 不同线程数（1/2/4/8） | `max_ulp(DY) ≤ 4`，`max_abs_diff(state) < 1e-12` |
+| CVODE 步数差异 | 任意两个线程数之间 `\|nst_a - nst_b\| / max(nst_a, nst_b) < 0.1%` |
+| 水量平衡 | 跨线程数差异 < 1e-10（绝对值，按流域总水量归一） |
+
+**A3c（跨线程数 bitwise，可选加分项）**：
+
+| 项 | 标准 |
+|---|---|
+| 不同线程数 | 完整 run bitwise identical |
+| 说明 | A3c 达到则记入交付物；未达到不阻塞 P8，A3b 通过即可 |
+
+**性能验收（量化加速比，对应 §1.1.1）**：
+
+| 流域规模 | 线程数 | 最小可接受 (M) | 目标 (T) |
+|---|---|---|---|
+| Medium (NumEle 1k–10k) | 4 | ≥ 2.0× | ≥ 2.5× |
+| Medium | 8 | ≥ 2.5× | ≥ 3.5× |
+| Large (10k–100k) | 4 | ≥ 2.5× | ≥ 3.0× |
+| Large | 8 | ≥ 3.8× | ≥ 5.0× |
+
+> P7 阶段的加速比目标比 §1.1.1 最终目标稍低，因为 P8 的 N_Vector / 预条件器尚未启用。P7 测得低于 M 列必须做 perf 分析（hotspot / cache miss / fork-join overhead）并记入 `P7_perf_report.md`。
+
+#### P7.5 Go/No-Go → P8
+
+- A3a 强制通过；A3b 强制通过
+- A3c 未达到不阻塞，但要在 `P7_A3c_status.md` 解释为什么没达到
+- P7 性能验收 M 列通过；T 列未达到不阻塞但记入报告
+- **fork-join 计数验证通过**（grep 规则 + perf stat 实测）
 
 **风险**：
-- parallel region 创建/销毁开销可能降低小流域速度收益
-- 编译器因 `-fopenmp` 开关改变浮点代码生成（FMA contraction、向量化路径）。**必须使用 §8.1.1 compiler matrix 中对应编译器的 strict FP flags**
-- 跨线程数 bitwise 依赖所有 gather 均为 owner-local；若遗漏一个 `omp reduction(+:...)` 则不同线程数结果不同
-- N_Vector 后端已由 `SHUD_USE_OPENMP_NVECTOR` 独立控制（见 §4.21），不会因 RHS 并行意外启用 OpenMP N_Vector
+- 编译器因 `-fopenmp` 改变浮点代码生成（FMA contraction、向量化路径）。**必须使用 §8.1.1 compiler matrix 中对应编译器的 strict FP flags**
+- 任何 `parallel for` 残留（忘记拆为 `parallel` + `for`）会让 fork-join 数 > 1，性能不达标但 bitwise 仍通过 → grep 规则必须强制
+- `default(none)` 漏列变量编译失败 → 简单修复
+- `nowait` 用错位置导致 race → A3a 立刻发现（bitwise 不通过）
+
+> **本节与 P1–P6 的关系**：P1–P6 阶段允许用 `#pragma omp parallel for`（独立 parallel 区）逐步验证每个 stage 的 owner-local 正确性；P7 是把所有 stage 收编为单 parallel 区做"final fusion"。P1–P6 的 `parallel for` 代码在 P7 必须重构为 P7.2 模板中的 `for`（去掉 `parallel`）。这个重构本身不改变运算顺序，bitwise = B1b 应继续成立。
 
 ---
 
-### P8：production CVODE 改造（P8a–P8c 速度主线 + Opt-Tol / Opt-Root 可选）
+### P8：production CVODE 改造（基于 §4.17 实测 solver 现状重排）
 
-> **原则**：每个子阶段只改变 CVODE 的一个维度。每步完成后记录 CVODE stats 变化（内部步数、RHS 调用次数、误差测试失败次数）和水文指标变化，确认在 §2.3 容差内。不允许跨子阶段叠加变更——P8b 必须在 P8a 验收通过的代码上开始，不能同时引入。
+> **v1.1 重大修正**：v1.0 的速度主线 "P8a (N_Vector) → P8b (替代 dense 为 KLU) → P8c (集成 SPGMR)" 基于一个错误前提——以为 CVODE 在用 dense solver、需要"引入"SPGMR。§4.17 实测：基线**已经是** matrix-free SPGMR + PREC_NONE + maxl=5。真正的瓶颈不是"线性求解器类型"，而是"无预条件 + 维度太小 + DQ Jv 评估贵"。v1.1 按真实 ROI 重排子阶段。
 >
-> **速度主线**：P8a（N_Vector backend）→ P8b（KLU）→ P8c（Krylov）— 每步只换一个 solver/backend 组件，完成后直接进入 P9。
+> **新速度主线（按 ROI 排序）**：
+> 1. **P8-precond**（第一优先）— 给现有 SPGMR 加物理分块预条件器。每减少一次 Krylov iter 就减少一次 RHS 调用，**双重收益**
+> 2. **P8-tune** — 在 preconditioned SPGMR 上调 `maxl`（默认 5 太小）、restart、`CVodeSetEpsLin`
+> 3. **P8-NVector**（原 P8a）— OpenMP N_Vector backend，**有规模门槛**（NumY ≥ 50k 才评估）
+> 4. **P8-KLU**（评估性，原 P8b 大改）— 仅当 sparsity pattern + colored FD Jacobian 可构造且 preconditioned SPGMR 仍是瓶颈时才做
 >
-> **精度/可选分支**（与速度主线正交，可在任意阶段后独立执行）：
-> - **Opt-Tol**：vector absolute tolerance — 数值精度控制
-> - **Opt-Root**：rootfinding 阈值事件定位 — 阈值过程精度
+> **精度/可选分支**（与速度主线正交）：
+> - **Opt-Tol** — vector absolute tolerance
+> - **Opt-Root** — rootfinding 阈值事件定位
+>
+> **原则**：每个子阶段只改变 CVODE 的一个维度。每步完成后记录 CVODE stats 变化（特别是 `nfeLS / nfe` 比值、`nli/nni` 比值）和水文指标变化，确认在 §2.3 容差内。不允许跨子阶段叠加变更。
 
-**通用验收标准（A4，适用于 P8a–P8c 每一步及 Opt-Tol / Opt-Root）**：
+**通用验收标准（A4，适用于 P8-precond / P8-tune / P8-NVector / P8-KLU 每一步及 Opt-Tol / Opt-Root）**：
 
 - [ ] 同线程重复运行 deterministic
 - [ ] 不同线程数差异在 §2.3 标定的容差内
 - [ ] 水量守恒不恶化
 - [ ] 水文指标（NSE/KGE/峰值/总量）变化在 §2.3 标定的容差内
 - [ ] CVODE stats 变化可解释且已记录
+- [ ] **`nfeLS / nfe` 比值有显著下降**（P8-precond / P8-tune 强制；P8-NVector / P8-KLU 不强制）
 
 ---
 
-#### P8a：OpenMP N_Vector（有条件启用）
+#### P8-precond（第一优先）：物理分块预条件器
+
+> **定位**：基于 §4.17 实测，当前 SPGMR `pretype = PREC_NONE`，GMRES 收敛速度完全由系统条件数决定。SHUD 是 GW + surface + river + lake 多尺度耦合的刚性 ODE，无预条件时 Krylov 迭代密集（典型 `nfeLS / nfe > 3`）。加预条件器是**所有 solver 类优化中 ROI 最高的一步**——预条件器调用一次返回 `P^{-1} v`，省下的是几次完整 RHS（每次 RHS = N_VLinearSum + f_loop + applyDY）。
+
+**目标**：在不动 SPGMR 本身的前提下，加入**左预条件器**（CVODE 默认 PREC_LEFT），把 `ratio_nfeLS_over_nfe`（S0.12 测得）显著降低。
+
+##### P8-precond.1 — 物理分块结构设计
+
+SHUD 状态向量按物理过程分五块：
+
+```
+Y = [ Y_surf  | Y_unsat | Y_gw    | Y_riv   | Y_lake ]
+     NumEle    NumEle    NumEle    NumRiv    NumLake
+     iSF       iUS       iGW       iRIV      iLAKE
+```
+
+| 块 | 主导耦合 | 块内主导项 |
+|---|---|---|
+| `Y_surf` | element 邻居（横向 Manning），与 `Y_unsat` 单向（infiltration） | overland routing 时间常数 ~ 分钟 |
+| `Y_unsat` | element 自身（垂向 Richards），与 `Y_gw` 双向（recharge/exfil） | unsat 时间常数 ~ 小时 |
+| `Y_gw` | element 邻居（Darcy 横向）+ river segment 交换 | GW 时间常数 ~ 天–月 |
+| `Y_riv` | upstream/downstream river + element segment 交换 + lake | river 时间常数 ~ 分钟–小时 |
+| `Y_lake` | element bank + river in/out | lake 时间常数 ~ 小时–天 |
+
+**块对角预条件器**（最简版本）：
+
+```
+P^{-1} = diag( P_surf^{-1}, P_unsat^{-1}, P_gw^{-1}, P_riv^{-1}, P_lake^{-1} )
+```
+
+- `P_surf`：对角 dominant，主对角 = `1 - dt * d(DY_surf)/dY_surf` 的诊断估计 → 标量缩放即可
+- `P_unsat`：同上，主对角主导（垂向）
+- `P_gw`：element 邻接稀疏矩阵，**最关键的块** — GW 耦合最强，刚性最大。建议 ILU(0) 或 element-by-element 块 Jacobi
+- `P_riv`：bidiagonal upstream/downstream 结构，可解析逆
+- `P_lake`：小规模（NumLake 通常 < 100），直接稠密求逆
+
+##### P8-precond.2 — 实施任务
+
+| # | 任务 | 涉及文件 | 说明 |
+|---|---|---|---|
+| P8-precond.1 | 新建 `MD_precond.cpp` | 新文件 | 实现 `PSetup(t, y, fy, jok, jcurPtr, gamma, user_data)` 和 `PSolve(t, y, fy, r, z, gamma, delta, lr, user_data)` |
+| P8-precond.2 | 块对角骨架 | `MD_precond.cpp` | `PSolve` 依次解五个块；每块独立函数 `psolve_surf` 等 |
+| P8-precond.3 | `P_gw` 实现 | `MD_precond.cpp` | 先 element-by-element Jacobi（最简）；若 wall-clock 不达标再升级 ILU(0) |
+| P8-precond.4 | sparsity pattern 复用 | `MD_jacobian.cpp` (新文件) | 从拓扑（element nabr + river up/down + segment 关联）导出 GW 块的 CSC pattern；为 P8-KLU 复用 |
+| P8-precond.5 | 注册 precond | `shud.cpp`, `cvode_config.cpp` | `CVodeSetPreconditioner(cvode_mem, PSetup, PSolve)`；改 `SUNLinSol_SPGMR(udata, PREC_LEFT, 0, sunctx)` |
+| P8-precond.6 | precond setup 频率 | `cvode_config.cpp` | `CVodeSetJacEvalFrequency` 或自定义 lagged update — Jacobian 不必每步重算 |
+| P8-precond.7 | A/B 对比 | — | 对比 `nfe / nfeLS / nni / nli / wall-clock`；目标：`nfeLS / nfe` 降到 < 1.5；wall-clock 降 30%+ |
+
+##### P8-precond.3 验收（A4 + 预条件器特定门控）
+
+- [ ] A4 通用项全部通过
+- [ ] `nfeLS / nfe` 显著下降（每个 benchmark 至少降 30%）
+- [ ] precond setup time / 总 solver time < 20%（若 > 20% 说明 setup 频率过高或 Jacobian 计算过贵）
+- [ ] CVODE 不报 `MSGCV_CONV_FAILURE` / `MSGCV_LSETUP_FAIL`
+- [ ] 不同线程数下 precond 结果跨线程数 `max_ulp ≤ 8`（precond 内部含 reduction，A3b 阈值略放宽到 8 ULP）
+
+**Go/No-Go → P8-tune**：P8-precond 未达到 `nfeLS / nfe` 下降目标不进入 P8-tune（先调 P_gw 的实现，或回退到诊断状态）。
+
+**风险**：
+- 不良预条件器导致 Krylov 不收敛 → CVODE 报 `CONV_FAILURE`；用低阶 precond（Jacobi）先跑通
+- precond setup 太频繁吃掉收益；用 lagged update 缓解
+- 物理块边界处理错误（Y_surf 与 Y_unsat 的 infiltration 耦合若完全忽略可能影响收敛）
+
+---
+
+#### P8-tune：SPGMR maxl / restart / EpsLin 调优
+
+**目标**：在 preconditioned SPGMR 基础上微调 Krylov 参数，进一步降低 `nli`（总 Krylov iter 数）和 wall-clock。
+
+> **前置**：P8-precond 必须通过 A4；调 maxl 在无 precond 下意义不大（条件数太差，加再多维度也不收敛）。
+
+| # | 任务 | 涉及文件 | 说明 |
+|---|---|---|---|
+| P8-tune.1 | maxl sweep | `cvode_config.cpp` L176 | `SUNLinSol_SPGMR(udata, PREC_LEFT, MAXL, sunctx)`；测 MAXL ∈ {5, 10, 20, 30, 50}；记录每档的 `nli/nni` 和 wall-clock |
+| P8-tune.2 | EpsLin 调整 | `cvode_config.cpp` | `CVodeSetEpsLin(cvode_mem, epslin)`；默认 0.05，可降到 0.01 提升精度但增 iter，或升到 0.1 减 iter 但损失精度。**只在 A4 容差内调整** |
+| P8-tune.3 | restart 策略 | SUNDIALS API | `SUNLinSol_SPGMRSetMaxRestarts(LS, maxRestarts)`；默认 0（无 restart），可设 1–3，与 maxl 配合：高 maxl + 少 restart 更稳 |
+| P8-tune.4 | Gram-Schmidt 类型 | SUNDIALS API | `SUNLinSol_SPGMRSetGSType(LS, MODIFIED_GS)` vs `CLASSICAL_GS`；MGS 数值稳定但稍慢，CGS 快但需要确认条件数足够好 |
+| P8-tune.5 | 决策矩阵 | `tools/p8_tune_sweep.py` | 在 medium / large 两个 benchmark 上跑全参数 grid sweep；输出 best maxl/EpsLin/restart 组合 |
+
+##### P8-tune 验收（A4）
+
+- [ ] A4 通用项通过
+- [ ] wall-clock 比 P8-precond 进一步下降 ≥ 10%（medium）/ ≥ 15%（large）
+- [ ] `nli / nni` 比值下降（更少 Krylov iter 完成同样的 newton iter）
+- [ ] 选定参数写入 `Model_Control.hpp` 或 manifest，每个 benchmark 独立标定
+
+**Go/No-Go → P8-NVector**：P8-tune 完成（无论是否大幅提速）即可进入下一阶段——P8-tune 收益是渐进的，没有"必须达到 X×"的硬门槛。
+
+---
+
+#### P8-NVector：OpenMP N_Vector backend（原 P8a，保留 + 规模门槛收紧）
+
+> **位置变更**：v1.0 把 N_Vector 当成"速度主线第一步"，但根据 §4.17 现状，N_Vector ops 在 matrix-free SPGMR 中占比远不如 RHS 评估本身。先做 precond（减少 nfeLS）比先并行 N_Vector ops 收益大得多。v1.1 把 P8-NVector 排到 precond/tune 之后。
 
 **目标**：评估并有条件地将 `N_VNew_Serial` 切换为 `N_VNew_OpenMP`，加速 CVODE 内部 vector ops（norm、dot、scale、linear combination）。
 
-**宏配置**（在 P7 基础上变更一项）：
+**宏配置**（在 P7/P8-precond/P8-tune 基础上变更一项）：
 
-| 宏 | P7 值 | P8a 值 | 变更说明 |
+| 宏 | 当前值 | P8-NVector 值 | 变更说明 |
 |---|---|---|---|
 | `SHUD_ENABLE_OPENMP_RHS` | ON | ON | 不变 |
 | `SHUD_USE_OPENMP_NVECTOR` | OFF | **ON**（有条件） | 仅当评估通过后启用 |
 | `SHUD_LEGACY_OMP_RHS` | OFF | OFF | 不变 |
 
-由于 S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8a 只需翻转 `SHUD_USE_OPENMP_NVECTOR` 开关——`shud.cpp` 中 `N_VNew_*` 创建逻辑已由该宏控制，`f.cpp` 中数据访问不受影响（generic 接口）。`N_VDestroy` 已在 S1d.5 统一为 generic 版本，无类型不匹配风险。
+S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector 只需翻转 `SHUD_USE_OPENMP_NVECTOR` 开关。`N_VDestroy` 已在 S1d.5 统一为 generic 版本。
 
-> **规模门槛**：SUNDIALS 文档明确指出，OpenMP/Pthreads N_Vector 的线程创建和同步开销在向量长度 **≈ 100,000** 以下时可能无法被并行计算抵消。SHUD 的 `NumY = 3*NumEle + NumRiv + NumLake`，许多实际流域的 NumY 远低于此门槛。因此 P8a 不是无条件启用，而是需要**先评估再决策**。
+> **规模门槛**：SUNDIALS 文档明确，OpenMP/Pthreads N_Vector 的线程创建和同步开销在向量长度 **≈ 100,000** 以下时可能无法被并行计算抵消。SHUD 的 `NumY = 3*NumEle + NumRiv + NumLake`，许多实际流域 NumY 远低于此门槛。**P8-NVector 是有条件启用**。
 
 | # | 任务 | 涉及文件 | 说明 |
 |---|---|---|---|
-| P8a.1 | 规模评估 | — | 计算目标 benchmark 算例的 NumY；若所有 benchmark 的 NumY < 50,000，**跳过 P8a**，RHS OpenMP + serial N_Vector 即为 production baseline |
-| P8a.2 | vector op profiling | S5c 诊断 timer | 在 P7 结果上测量 CVODE vector ops（norm/dot/scale）占总 solver 时间的比例；若 < 10%，即使 NumY 足够大，OpenMP N_Vector 收益也有限 |
-| P8a.3 | 有条件切换 | `shud.cpp`, `CMakeLists.txt` | 仅当 P8a.1 和 P8a.2 均表明有收益时：CMake 中 `SHUD_USE_OPENMP_NVECTOR=ON`（`shud.cpp` 创建/销毁逻辑已在 S1d.5 准备就绪，无需额外代码改动） |
-| P8a.4 | A/B 性能对比 | — | serial N_Vector vs OpenMP N_Vector 端到端 wall time 对比；若 OpenMP 版本更慢，回退到 `SHUD_USE_OPENMP_NVECTOR=OFF` |
-| P8a.5 | 记录 reduction 行为 | — | `N_VDotProd_OpenMP` 使用 `omp reduction(+:sum)`，结果随线程数可能有 ULP 级差异；记录并确认在容差内 |
+| P8-NVector.1 | 规模评估 | — | 若所有 benchmark 的 NumY < 50,000，**跳过 P8-NVector**，preconditioned SPGMR + serial N_Vector 即为 production baseline |
+| P8-NVector.2 | vector op profiling | S5c 诊断 timer + S0.12 baseline | 测量 N_Vector ops（含 P8-precond 内部的 PSetup/PSolve 调用的 vector ops）占总 solver 时间比例；< 10% 即使 NumY 足够大也跳过 |
+| P8-NVector.3 | 有条件切换 | CMake | `SHUD_USE_OPENMP_NVECTOR=ON`（创建/销毁已在 S1d.5 就绪） |
+| P8-NVector.4 | A/B 性能对比 | — | serial vs OpenMP N_Vector 端到端；OpenMP 更慢则回退 |
+| P8-NVector.5 | 跨线程数 reduction 行为 | — | `N_VDotProd_OpenMP` 用 `reduction(+:sum)`，跨线程数 ULP 级差异；记录并确认在 A3b/A4 容差内 |
 
-**决策矩阵**：
+**决策矩阵**（与 v1.0 一致）：
 
 | NumY | vector op 占比 | 决策 |
 |---|---|---|
-| < 50,000 | 任意 | **跳过**：serial N_Vector 为 production baseline |
-| 50,000 – 100,000 | < 10% | **跳过**：收益不足以覆盖开销 |
-| 50,000 – 100,000 | ≥ 10% | **试验**：A/B 对比决定 |
-| > 100,000 | 任意 | **启用**：但仍需 A/B 对比确认实际加速 |
+| < 50,000 | 任意 | **跳过** |
+| 50,000 – 100,000 | < 10% | **跳过** |
+| 50,000 – 100,000 | ≥ 10% | **试验**：A/B 决定 |
+| > 100,000 | 任意 | **启用**：仍需 A/B |
 
 **风险**：
-- `N_VDotProd` / `N_VL1Norm` 的 reduction 顺序随线程数变化 → CVODE 收敛路径微变 → 自适应步长放大差异
-- 小流域启用 OpenMP N_Vector 可能因线程同步开销**反而更慢**
-- 需对比 P7 strict 结果确认偏差量级
+- `N_VDotProd_OpenMP` 的 reduction 顺序随线程数变化 → CVODE 收敛路径微变 → 自适应步长可能放大差异
+- 小流域反而更慢（开销吃光收益）
+- 与 P8-precond 的 PSolve 内部串行 vector ops 可能产生混合并行 — 需 profile 确认是否需要 nested parallelism（默认禁用）
 
-**Go/No-Go → P8b**：P8a 评估/验收完成后进入 P8b（无论最终决策是启用还是跳过）。
+**Go/No-Go → P8-KLU**：P8-NVector 评估/验收完成即可（启用或跳过都算通过）。
 
 ---
 
-#### P8b：稀疏矩阵 + KLU 直接解
+#### P8-KLU：稀疏 Jacobian + KLU 直接解（评估性，原 P8b 大改）
 
-**目标**：为中小规模流域引入稀疏 Jacobian + KLU 直接求解器，替代 CVODE 默认的 dense solver。
+> **位置变更**：v1.0 把 KLU 排在 N_Vector 之后、Krylov 之前，前提是"用 KLU 替代 dense"。§4.17 修正后，KLU 实际上是与 preconditioned SPGMR **竞争**关系，**不是替代关系**：
+> - preconditioned SPGMR：iterative，需要 PSolve 但不需要显式 Jacobian
+> - KLU：direct，需要显式 sparsity + 数值 Jacobian（colored FD 或解析）
+>
+> 对中等规模流域（NumY 5k–50k）KLU 通常更稳更快；对大规模（NumY > 100k）KLU 内存爆炸，SPGMR 必胜。SHUD 的拓扑 sparsity 大致是 element 5–7 邻居 + river 2 邻居 + segment 1，按 NumY 估 nnz ≈ 7–10 × NumY，对中等规模是可接受的。
 
-| 任务 | 涉及文件 | 说明 |
+**目标**：评估 KLU 在 SHUD 上的性能/精度，决定是否替代 preconditioned SPGMR。
+
+| # | 任务 | 涉及文件 | 说明 |
+|---|---|---|---|
+| P8-KLU.1 | sparsity pattern 复用 | `MD_jacobian.cpp`（P8-precond.4 已建） | 完整版（不只 GW 块）：element 邻接 + river up/down + segment 关联 + lake bank + BC/SS pattern；导出 CSC |
+| P8-KLU.2 | colored FD Jacobian | `MD_jacobian.cpp` | DSM-style coloring 把 sparsity 各列分组；每组用一次 RHS 评估同时算多列；总 RHS 调用 ≈ max_colors |
+| P8-KLU.3 | 解析 Jacobian（可选） | `MD_jacobian.cpp` | 若 colored FD 仍然太慢，从公式推导每个 stage 的 `dDY/dY`；工作量很大，仅在 KLU 决定走时实施 |
+| P8-KLU.4 | 集成 SUNLinSol_KLU | `cvode_config.cpp` | `LS = SUNLinSol_KLU(udata, jac_mat, sunctx)`；`CVodeSetLinearSolver(cvode_mem, LS, jac_mat)` |
+| P8-KLU.5 | sym/num factor 频率 | `cvode_config.cpp` | symbolic factorization 只做一次（pattern 不变）；numeric refactor 按 CVODE 触发的 jok 信号控制 |
+| P8-KLU.6 | A/B 对比 | — | KLU vs preconditioned SPGMR：wall-clock、内存峰值、scaling vs NumY |
+
+##### P8-KLU 决策矩阵
+
+| NumY | KLU 优势条件 | 推荐 |
 |---|---|---|
-| 构建 Jacobian sparsity pattern | 新建 `MD_jacobian.cpp` | 从拓扑（element 邻接 + river 连接 + segment 关联）导出 CSC 结构 |
-| 集成 SUNLinSol_KLU | `shud.cpp` | 替换 `CVDense` / `SUNLinSol_Dense` |
-| Jacobian 更新策略 | — | 初始全量；后续 lagged update 或 CVODE 内部 DQ 近似 |
+| < 5,000 | KLU factorization 时间 < SPGMR Krylov + precond | KLU |
+| 5,000 – 50,000 | nnz ≈ 7–10 × NumY，KLU 仍可行 | 两个都跑，选快的 |
+| 50,000 – 200,000 | KLU 内存压力上升，SPGMR + 好 precond 通常胜 | preconditioned SPGMR |
+| > 200,000 | KLU 几乎肯定内存/时间不可行 | preconditioned SPGMR 唯一选择 |
 
 **风险**：
-- KLU 需要正确的 sparsity pattern，遗漏非零元会导致求解错误
-- 稀疏 Jacobian 的差分近似需要额外 RHS 评估，小流域可能比 dense 更慢
-- 需管理 symbolic/numeric factorization 的时机
+- sparsity 遗漏非零元 → solve 错误，A4 立刻发现
+- colored FD 仍需多次 RHS（虽然比 finite-diff Jacobian 少）
+- KLU 是 LGPL，集成时需确认 SUNDIALS 编译时含 SuiteSparse
+- 大流域内存爆炸
 
-**Go/No-Go → P8c**：P8b 未通过 A4 不进入 P8c。
-
----
-
-#### P8c：GMRES / FGMRES + preconditioner
-
-**目标**：为大规模流域引入 Krylov 迭代求解器 + 物理分块预条件器。
-
-| 任务 | 涉及文件 | 说明 |
-|---|---|---|
-| 集成 SUNLinSol_SPGMR | `shud.cpp` | SUNDIALS 推荐 GMRES 作为通用 Krylov 选择；设初始 Krylov 维度 |
-| 实现 preconditioner | 新建 `MD_precond.cpp` | surface/unsat/GW/river/lake 分块对角预条件器；`CVodeSetPreconditioner()` |
-| FGMRES 备选 | — | 若 preconditioner 是 variable（如 incomplete factorization），需用 FGMRES 替代 GMRES |
-| Krylov 参数调优 | — | maxl（最大 Krylov 维度）、precond setup frequency、restart 策略 |
-
-**风险**：
-- preconditioner setup time 可能吃掉 Krylov 迭代节省的时间（需 profiling）
-- 不良预条件器导致 Krylov 不收敛 → CVODE 报 `CONV_FAILURE`
-- 对于小流域，KLU (P8b) 可能优于 Krylov；需对比选择
-
-**Go/No-Go → P9**：P8c 未通过 A4 不进入 P9。
+**Go/No-Go → P9**：P8-KLU 评估完成。若 KLU 不胜出，preconditioned SPGMR 仍为 production baseline，正常进入 P9。
 
 ---
 
@@ -1489,7 +2082,7 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 
 > **定位**：主要是**数值精度控制**优化，但也可能带来性能收益——scalar abstol 对大量级状态变量（如 GW head）过严时会导致 CVODE 步数暴增，vector tolerance 让大状态放宽容差可以直接减少步数和 RHS 调用。不过它改变 CVODE 的误差权重和收敛路径，属于物理语义变更，效果（加速还是减速）依赖具体算例。与 P8 速度主线（N_Vector backend → KLU → Krylov）正交，可在速度主线任意阶段之后独立执行。
 >
-> **推荐时机**：P8b（KLU）或 P8c（Krylov）稳定后。先确定 solver/backend 的性能基线，再评估容差调整的增量效果（加速 or 减速），避免两个变量混在一起。
+> **推荐时机**：P8-precond + P8-tune 稳定后（速度主线核心已完成）。先确定 solver/backend + 预条件器组合的性能基线，再评估容差调整的增量效果（加速 or 减速），避免两个变量混在一起。
 
 **目标**：将标量 `abstol` 替换为按变量尺度的向量 `abstol`，改善误差控制。
 
@@ -1506,7 +2099,7 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 - [ ] CVODE stats 变化可解释（预期：步数可能减少因为大状态变量容差更宽松，或增加因为小状态变量容差更严格）
 - [ ] 水量守恒不恶化
 
-**风险**：改变误差控制会改变 CVODE 收敛路径，属于物理语义变更——不同于 P8a–P8c 的纯 solver/backend 替换。需单独评估。
+**风险**：改变误差控制会改变 CVODE 收敛路径，属于物理语义变更——不同于 P8 速度主线（P8-precond / P8-tune / P8-NVector / P8-KLU）的纯 solver/backend 替换。需单独评估。
 
 ---
 
@@ -1514,7 +2107,7 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 
 > **定位**：这是一个**阈值过程定位精度**优化，不是性能优化。rootfinding 会增加额外 RHS 评估开销，改变 CVODE 事件处理路径，可能降低 wall time 性能。对雨雪分相、融雪、阈值出流、湖泊开闭等阈值过程有意义，但与 P8 速度主线正交。
 >
-> **推荐时机**：P8c（Krylov）稳定后或与 Opt-Tol 一起，作为数值过程完善的组成部分。**不是** P9 的前置条件。
+> **推荐时机**：P8 速度主线稳定后或与 Opt-Tol 一起，作为数值过程完善的组成部分。**不是** P9 的前置条件。
 
 **目标**：利用 CVODE rootfinding 机制精确定位物理阈值过程（如地表积水/消退、河道漫溢）。
 
@@ -1582,35 +2175,45 @@ for (int ir = 0; ir < NumRiv; ++ir) {
 | RISK-03 | shared floating accumulation | R3 | `PassValue()`、`fun_Seg_*`、`Flux_RiverDown` | compute/gather 拆分 | P4/P5 前 |
 | RISK-04 | OpenMP reduction 顺序不确定 | R3(strict)/R1(prod) | OpenMP §2.19.5.4 | strict 禁止；prod 用 deterministic reduction | P1–P7 |
 | RISK-05 | forcing cache 改变时间采样语义 | R2 | `TimeSeriesData.cpp` L45–L89 | 先保持 B0 语义；插值独立进入精度路线 | S5 前 |
-| RISK-06 | CVODE 改造项叠加引入不可定位的 regression | R1/R2 | SUNDIALS docs | P8a–P8c 速度主线严格串行，每步独立验收；Opt-Tol / Opt-Root 独立于速度主线；先完成 P7 再进入 P8a | P7 前 |
+| RISK-06 | CVODE 改造项叠加引入不可定位的 regression | R1/R2 | SUNDIALS docs | P8 子阶段（P8-precond → P8-tune → P8-NVector → P8-KLU）严格串行，每步独立验收；Opt-Tol / Opt-Root 独立于速度主线；先完成 P7 再进入 P8-precond | P7 前 |
 | RISK-07 | 编译器优化改变浮点行为 | R2/R3 | fast-math/FMA/版本差异 | 固定工具链；禁止 fast-math；compile manifest | 全程 |
 | RISK-11 | `f_applyDY_omp` 局部变量 data race | R3 | `MD_f_omp.cpp` L10–L16（§4.6） | S1 合并 RHS core 时修复：变量声明到循环体内或标记 private | S1 前 |
 | RISK-12 | `updateforcing()` 和 `ET()` 孤立 `#pragma omp for` + `ET()` 16 个循环外局部变量 data race | R3 | `MD_ET.cpp` L12–L14, L106–L165（§4.8, §4.11） | 移除孤立 pragma；所有 element-local scalar 移入循环体内部或显式 private | S2 前 |
 | RISK-13 | 全局变量裸指针阻碍并发 RHS | R2 | `shud.cpp` L18–L24, `Macros.hpp` L100–L108（§4.10） | P1–P7 不需要 reentrant RHS，风险不触发；迁移推迟到 P8+ / LibSHUD | P8 前 |
 | RISK-14 | `AccTemperature.getACC()` 除零 → NaN | R4 | `AccTemperature.hpp` L60–L62（§4.12） | 加 empty guard；cryosphere 算例纳入 B0 | S0 前 |
-| RISK-15 | 当前已用 OpenMP N_Vector，违反 C4 原则 | R2 | `shud.cpp` L58–L59（§4.13） | P7 strict 显式改回 N_VNew_Serial | P7 前 |
+| RISK-15 | 当前已用 OpenMP N_Vector，违反 C4 原则 | R2 | `shud.cpp` L58–L59（§4.13） | S1d.5 宏解耦后由 `SHUD_USE_OPENMP_NVECTOR` 独立控制（默认 OFF）；P7 自动用 serial N_Vector | P7 前 |
 | RISK-16 | `movePointer()` 非线程安全 | R3 | `TimeSeriesData.cpp` L116–L136（§4.14） | S5 forcing 改造时处理；并行前 movePointer 必须串行完成 | P2a 前 |
 | RISK-17 | `f_etFlux()` 中 `printf` 在并行中交错 | R0 | `MD_ET.cpp` L215–L216（§4.15） | 改为 diagnostic buffer | P2b 前 |
 | RISK-08 | 未初始化数组或旧值残留 | R4 | serial/omp update 覆盖不一致 | 统一 reset；debug 模式 fill NaN/sentinel | P1 前 |
 | RISK-09 | 诊断/日志输出破坏并行确定性 | R1/R3 | RHS 内 debug print | RHS 内只写 buffer；RHS 后串行输出 | P1 起 |
 | RISK-10 | production 被误当 strict | R2 | CVODE vector/Krylov/tree reduction | 明确 StrictOMP / ProductionOMP 模式 | P8 起 |
 | RISK-18 | `fun_Ele_sub()` lake 分支隐含依赖 `inabr` 合法性 | R2/R4 | `MD_ElementFlux.cpp` L105–L117（§4.18） | S2 加 `assert(inabr >= 0)` + 审查；若改公式推迟到 S6b 记入 `B1b_CHANGELOG.md` | S2 前（blocker） |
-| RISK-19 | `N_VDestroy_Serial` 释放 `N_VNew_OpenMP` 创建的向量 | R2/R4 | `shud.cpp` L58–L59, L111–L112（§4.19） | 改用 generic `N_VDestroy()`；P8a 前置修复 | P8a 前 |
+| RISK-19 | `N_VDestroy_Serial` 释放 `N_VNew_OpenMP` 创建的向量 | R2/R4 | `shud.cpp` L58–L59, L111–L112（§4.19） | 改用 generic `N_VDestroy()`；S1d.5 已统一为 generic 版本（P8-NVector 启用前已就绪） | P8-NVector 前 |
 | RISK-20 | `updateElement()` 在 `updateforcing()` 和 `f_loop()` 中重复调用 | R0 | `MD_ET.cpp` L22, `MD_f.cpp` L21（§4.20） | 幂等函数，当前无害；S1b 纯搬运保持不变；S2/S3 审查是否消除冗余 | S3 前 |
+| RISK-21 | RHS 内多次 fork-join 吃光并行收益 | R1 | v1.0 P7 "打开所有 P1–P6 parallel region"会产生 8–12 次 fork-join/RHS | v1.1 P7 强制单 parallel 区 + `#pragma omp for nowait/barrier/single` 组合（见 §6 P7.2 规则）；NumEle < OMP_CUTOFF 走 serial | P7 |
+| RISK-22 | `_Element` fat AoS + jagged `double**` 拖垮 cache | R1 | `Element.hpp` L63–L67, `Model_Data.hpp` L121–L122（§4.22.1, §4.22.2） | S5d.1 抽 SoA `ElementHotData`；S5d.2 jagged → 一维；保持 bitwise = B1a | S5d |
+| RISK-23 | 串行 first-touch + 无线程绑定导致 NUMA 跨节点访问 | R1 | `Model_Data::malloc_EleRiv()`, `LoadIC()`（§4.22.3, §4.22.4） | S5d.3 parallel first-touch；S5d.4 `OMP_PROC_BIND=close OMP_PLACES=cores` 写入 manifest 和 run script | S5d |
+| RISK-24 | v1.0 P8 设计基于错误的 solver 假设 | R2 | §4.17 修正：基线是 matrix-free SPGMR 非 dense | v1.1 P8 重排为 precond → tune → NVector → KLU；P8-KLU 改为评估性子阶段 | P8 |
+| RISK-25 | profile 前盲目并行 RHS，Amdahl 上限低 | R2 | RHS 占 wall-clock 比例未实测 | S0.12 强制门控：占比 < 50% 触发优先级重排；< 30% 触发战略暂停 | S1 前 |
+| RISK-26 | 本地 Mac profile 数字误当目标平台承诺 | R2 | Apple Silicon 异构核心 + UMA + libomp 弱绑定，与 Linux 多 socket 集群性能特征差异大 | `docs/profile_platform.md` 强制声明两平台角色；P7/P8 量化加速比验收**只认目标平台**；两平台占比差 > 10% 触发决策复审；S5d NUMA 验收在 Apple Silicon 上 N/A，目标平台必须全验 | P7 验收前 |
 
 ### 7.3 阶段 go/no-go 汇总
 
 | 进入阶段 | 必须满足的条件 |
 |---|---|
-| → S1 | B0 已锁定；单线程自复现；编译环境固定 |
+| → S1 | B0 已锁定；单线程自复现；编译环境固定；**S0.12 profile_B0.yaml 已产出 + profile_decision.md 已签署 + profile_platform.md 已声明两平台角色**（§5 S0.12） |
 | → S3 | 唯一 RHS core 初版完成；`policy=Serial` 与 B0 bitwise identical |
-| → S6a (B1a) | compute/gather 拆分完成；topology manifest 可用；B1a == B0 bitwise identical |
+| → S5d | S5a/b/c 完成；B1a 数值已稳定（S5d 只换 layout 不改运算） |
+| → S6a (B1a) | compute/gather 拆分完成；topology manifest 可用；**S5d 全 4 子项 bitwise = B1a 验证通过**；B1a == B0 bitwise identical |
 | → S6b (B1b) | B1a 已锁定；所有待修 bug 清单已确定 |
-| → P1 | B1b 已锁定；strict 编译选项确定；不存在共享浮点 `+=` |
+| → P1 | B1b 已锁定；strict 编译选项确定；不存在共享浮点 `+=`；**`OMP_PROC_BIND=close OMP_PLACES=cores` 已写入 manifest** |
 | → P4/P5 | P1–P2b–P3 bitwise 通过；segment flux 函数只写 `Qseg*`；gather list 排序与 B1b 一致 |
 | → P7 | P1–P6 每阶段 RHS snapshot 均 bitwise identical |
-| → P8 | P7 full RHS OpenMP + serial CVODE 通过；production tolerance 已定义 |
-| → P9 | P8 solver 路径已稳定；production 结果 deterministic；与 B1b 误差在容差内 |
+| → P8-precond | P7 通过 A3a + A3b（A3c 加分不强制）；**`grep -c '#pragma omp parallel' MD_rhs_core.cpp` == 1**（fork-join 验证）；P7 性能验收 M 列通过 |
+| → P8-tune | P8-precond 通过 A4；`nfeLS / nfe` 下降 ≥ 30% |
+| → P8-NVector | P8-tune 完成；NumY 评估完成 |
+| → P8-KLU | P8-NVector 评估完成；sparsity pattern 可构造 + colored FD Jacobian 可行 |
+| → P9 | P8 速度主线（至少 P8-precond + P8-tune）已稳定；production 结果 deterministic；与 B1b 误差在 §2.3 容差内 |
 
 ---
 
@@ -1745,13 +2348,21 @@ first_mismatch = none
 |---|---|---|
 | B0 benchmark set | `benchmarks/<case>/manifest.yaml` + 输入数据 + B0 归档输出；至少 5 类算例 | S0 |
 | RHS snapshot harness | 固定 t/Y，导出所有关键 flux 和 DY 数组 | S0 |
-| compile manifest | 编译器/版本/选项/SUNDIALS 版本 | S0 |
+| compile manifest | 编译器/版本/选项/SUNDIALS 版本 + `OMP_PROC_BIND/PLACES` | S0 |
+| **profile_B0.yaml × N × 2 平台** | 每个 benchmark 的 RHS / CVODE / forcing / ET / I/O 占比与 CVODE stats；本地开发平台 + 目标部署平台各一份 | S0.12 |
+| **docs/profile_decision.md** | profile gate 触发的优先级决策记录（两平台决策一致性已检查）| S0.12 |
+| **docs/profile_platform.md** | 本地开发平台 vs 目标部署平台的角色分工与硬件声明；Apple Silicon 补偿规则 | S0.12 |
 | B1a reference result | 重构等价单线程锁定输出（== B0） | S6a |
 | B1b reference result | bug-fix 后 parallel-ready 锁定输出 | S6c |
 | B1b_CHANGELOG.md | B0→B1b 差异说明（所有 bug fix 逐项归因） | S6b |
 | B1a_vs_B1b_report | B1a 与 B1b 差异报告 | S6b |
+| **S5d layout report** | SoA 改造前后 sizeof / cache miss / wall-clock 对比；NUMA 探测结果 | S5d |
+| **tools/run_omp.sh + numa_check.sh** | 标准运行包装脚本 | S5d.4 |
 | topology manifest | adjacency list 排序规则（YAML/JSON） | S4 |
 | strict OpenMP report | 每阶段与 B1b 的 bitwise 对比报告 | P1–P7 |
+| **P7_perf_report.md** | P7 加速比实测（按 §1.1.1 流域档位 × 线程数）+ fork-join 计数验证 | P7 |
+| **P7_A3c_status.md** | A3c（跨线程数 bitwise）达成状态 | P7 |
+| **P8 各阶段对比报告** | precond / tune / NVector / KLU 每步的 nfe/nfeLS/wall-clock 对比 | P8 |
 | production tolerance report | P-prod 与 B1b 的容差、守恒和性能报告 | P8–P9 |
 | risk register | 每阶段风险、触发条件和回滚方案 | 全程 |
 
@@ -1775,6 +2386,8 @@ first_mismatch = none
 | `Model_Data.hpp` | `src/ModelData/Model_Data.hpp` | flux arrays 声明（L121–L184）、函数声明 |
 | `shud.cpp` | `src/Model/shud.cpp` | 主求解循环，CVODE 驱动 |
 | `Macros.hpp` | `src/Model/Macros.hpp` | `iSF`/`iUS`/`iGW`/`iRIV`/`iLAKE` 状态索引宏 |
+| **`cvode_config.cpp`** | **`src/Equations/cvode_config.cpp`** | **`SetCVODE`（L149–L197）实际 solver 配置：matrix-free SPGMR + PREC_NONE + maxl=5；`PrintFinalStats`（L33–L84）已提供 nfe/nfeLS/nni/nli/nsetups/netf 全套 stats（§4.17）** |
+| `Element.hpp` | `src/classes/Element.hpp` | `_Element` 多继承结构（L63–L67），fat-AoS 来源（§4.22.1） |
 
 ### 11.2 外部依据
 
@@ -1798,4 +2411,4 @@ first_mismatch = none
 
 ---
 
-> **一句话总结**：目标是并行提速。路线是先统一 RHS core 确保路径等价（S0–S5 → B1a == B0），再修已知 bug 并锁定 B1b，然后在 B1b 上做 strict bitwise 并行证明精度不变（P1–P7），最后进入 production 并行换取最大性能（P8–P9）。每一步都有门控，不通过不前进。
+> **一句话总结（v1.2）**：目标是并行提速，量化加速比按流域规模分级（§1.1.1）。路线是先 profile（S0.12 强制门控）→ 统一 RHS core 确保路径等价（S0–S5 → B1a == B0）→ 改造数据布局解决 cache/NUMA（S5d）→ 修已知 bug 锁定 B1b → strict bitwise 并行（P1–P7，P7 单 parallel 区 + cutoff）→ production CVODE 优化（P8-precond 优先 → tune → NVector → KLU 评估）→ 最终 deterministic reduction（P9）。每一步都有量化门控和回滚 tag，profile 数据决定优先级。
