@@ -32,13 +32,18 @@
 - Upstream: `https://github.com/SHUD-System/SHUD.git`
 - Working branch on upstream: `openmp-baseline` (long-lived, derived from `3aec657`; not master)
 - Initial B0 commit: `3aec657` (master plan §S0.10)
-- Current submodule HEAD: `c9368fd85ea672e2153a99f305a1346f84c38020` (build env lockdown commit; updated at each SHUD-touching PR-merge and at B0-tag time)
+- Current submodule HEAD: `a9327b146c85b1f3a95433ab77a58d28831846a7` (PR #18 round 3: SHUD_BUILD_CFLAGS / CXX_BASE_FLAGS bypass sealed via `override :=` + 2-layer scan; updated at each SHUD-touching PR-merge and at B0-tag time)
 - Verify locally: `git -C SHUD rev-parse HEAD`
 
 ## Disallowed flags (Makefile guard)
 - `-ffast-math`, `-Ofast`, `-funsafe-math-optimizations`
-- Build fails at `make` parse time if any appear in `CFLAGS`, `CXXFLAGS`, `CPPFLAGS`, `LDFLAGS`, `MAKEOVERRIDES`, or `MAKEFLAGS`.
-- Recipes invoke `$(SHUD_BUILD_CFLAGS)` (alias of `CXX_BASE_FLAGS`) directly, so a user-supplied `make CFLAGS=…` cannot clobber the locked flag set — it is captured by the scan above and fails the build before any compile.
+- Build fails at `make` parse time if any disallowed flag appears in ANY of the 8 user-controllable carriers: `CFLAGS`, `CXXFLAGS`, `CPPFLAGS`, `LDFLAGS`, `MAKEOVERRIDES`, `MAKEFLAGS`, `SHUD_BUILD_CFLAGS`, `CXX_BASE_FLAGS`.
+- Two layers protect the lock:
+  1. **`override … :=` on `CXX_BASE_FLAGS` + `SHUD_BUILD_CFLAGS`** — per GNU make manual, the `override` directive on `:=` causes make-CLI assignments to be silently ignored. So even if the disallowed-flag scan is reverted, the recipe still uses the locked flag set.
+  2. **Two-layer disallowed-flag guard:**
+     - Layer 1 (`filter`, word-level): scans the 6 standard carriers + the 2 project-local lock variables. Catches `make shud CXXFLAGS=-Ofast` etc.
+     - Layer 2 (`findstring` on `$(MAKEOVERRIDES)`): catches CLI assignments to the lock variables (`make shud SHUD_BUILD_CFLAGS=-Ofast` / `CXX_BASE_FLAGS=-Ofast`). Without this layer, the `override` directive would silently drop the injection, leaving the user mistakenly thinking their flag was accepted. Layer 2 escalates to a loud `$(error …)` with `MAKEOVERRIDES` contents echoed.
+- Recipes invoke `$(SHUD_BUILD_CFLAGS)` (alias of `CXX_BASE_FLAGS`) directly, so a user-supplied `make CFLAGS=…` cannot clobber the locked flag set — it is captured by the scan and fails the build before any compile.
 - Compiler default is pinned via `$(origin CXX)` check (legacy `CXX ?= g++` was a no-op vs GNU make's built-in `c++`); env / CLI `CXX=...` is still honored.
 
 ## SUNDIALS version + install-completeness guard
@@ -67,4 +72,5 @@
 
 ## CHANGELOG
 - `fea5922` (PR #16 / issue #3): initial B0 build-environment lockdown — locked flag set, SUNDIALS major-version guard, idempotent `./configure`, macOS libomp discovery via `brew --prefix`.
-- This PR (#18) — invariant-closure pass: sealed `CFLAGS` / `CPPFLAGS` / `LDFLAGS` bypass paths in the disallowed-flag scan; pinned `CXX` via `$(origin CXX)` so `c++` no longer wins by default; tightened SUNDIALS guard with anchored regex on MAJOR + new MINOR check + `libsundials_cvode.*` / `libsundials_nvecserial.*` / (for omp) `libsundials_nvecopenmp.*` stat; added `check_sundials_omp` for the OpenMP target; added macOS libomp `$(error)` on `shud_omp`; cleaned bare-`-L` token via `$(if …)`; configure always re-extracts `cvode-6.0.0/`; documented `SUNDIALS_DIR` override discipline.
+- PR #18 round 2 (`c9368fd` in SHUD): invariant-closure round 2 — sealed `CFLAGS` / `CPPFLAGS` / `LDFLAGS` bypass paths in the disallowed-flag scan; pinned `CXX` via `$(origin CXX)` so `c++` no longer wins by default; tightened SUNDIALS guard with anchored regex on MAJOR + new MINOR check + `libsundials_cvode.*` / `libsundials_nvecserial.*` / (for omp) `libsundials_nvecopenmp.*` stat; added `check_sundials_omp` for the OpenMP target; added macOS libomp `$(error)` on `shud_omp`; cleaned bare-`-L` token via `$(if …)`; configure always re-extracts `cvode-6.0.0/`; documented `SUNDIALS_DIR` override discipline.
+- PR #18 round 3 (`a9327b1` in SHUD): invariant-closure round 3 — sealed `SHUD_BUILD_CFLAGS` / `CXX_BASE_FLAGS` bypass paths surfaced by round-2 verifier. Two-tier protection: (1) `override … :=` on both lock variables (silently ignores make-CLI override per GNU make semantics); (2) two-layer disallowed-flag guard — Layer 1 `filter` extended to include the 2 lock variables (defense-in-depth), Layer 2 new `findstring` scan on `$(MAKEOVERRIDES)` catches CLI assignments to the lock variables and escalates `override`'s silent drop into a loud `$(error)`. Manifest §"Disallowed flags" updated to enumerate all 8 carriers.
