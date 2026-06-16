@@ -2,3 +2,9 @@
 
 # my-agents installed projections (local only)
 .claude/
+
+# rSHUD source clone (reference only, not part of this repo)
+tools/rSHUD/
+
+# Agent guide contains server endpoints + paths — keep local-only
+CLAUDE.md
