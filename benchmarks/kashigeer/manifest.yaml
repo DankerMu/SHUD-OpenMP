@@ -1,0 +1,58 @@
+# benchmarks/kashigeer/manifest.yaml
+# B-Medium, NWM kashigeer basin — local & server endpoints
+# River/PassValue topology stress test: NumRiv/NumEle = 0.77 (extreme dense river network).
+# Field schema covers §S0.2 template + project extensions; see
+# openspec/changes/s0-baseline-lock/specs/benchmark-registry/spec.md.
+
+project_name: "ksge"                              # SHUD project name (input subdir)
+description: "NWM kashigeer (ksge project) basin; river/PassValue topology stress test (NumRiv/NumEle=0.77)"
+
+# --- Basin scale ---
+NumEle: 3204
+NumRiv: 2456
+NumLake: 0
+NumY: 12068            # = 3*3204 + 2456 + 0
+
+# --- Input ---
+input_dir: "SHUD/Basins/kashigeer/input/ksge/"
+forcing_dir: "SHUD/Basins/kashigeer/forcing/"
+forcing_duration_days: 2191                       # END - START = 22279 - 20088 (epoch 1951-01-01)
+has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para; Tarim glacier basin
+has_lake: false
+has_BC_SS: false
+dry_wet_transition: true                          # arid Tarim headwater
+
+# --- Run ---
+run_command: "cd SHUD/Basins/kashigeer && ../../shud ksge"
+threads: 1
+expected_walltime_sec: null                       # TODO measured @ S0.8
+
+# --- RHS snapshot probe ---
+snapshot_probe:
+  t_values: [86400, 864000, 8640000]              # 1 d / 10 d / 100 d
+  Y_source: "cvode_state"
+  arrays_to_dump:
+    - "DY"
+    - "QeleSurf"
+    - "QeleSub"
+    - "QrivSurf"
+    - "QrivSub"
+    - "flux_ET"
+
+# --- Output bitwise comparison ---
+output_compare:
+  full_run_regression: true
+  output_files:
+    - "output/ksge.out/ksge.eleysurf.dat"
+    - "output/ksge.out/ksge.eleyunsat.dat"
+    - "output/ksge.out/ksge.eleygw.dat"
+    - "output/ksge.out/ksge.eleysnow.dat"
+    - "output/ksge.out/ksge.rivystage.dat"
+    - "output/ksge.out/ksge.rivqdown.dat"
+  cvode_stats_file: "output/ksge.out/ksge.SHUD"
+  water_balance_file: "output/ksge.out/ksge.flood.csv"
+
+# --- Project extensions ---
+endpoint: "local-and-server"
+derived_from: null
+refine_factor: null

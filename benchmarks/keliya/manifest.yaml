@@ -1,0 +1,59 @@
+# benchmarks/keliya/manifest.yaml
+# B-Small, NWM keliya basin — local & server endpoints
+# Master plan §S0.2 + §S0.12 case×endpoint split.
+# Field schema covers §S0.2 template + project extensions (endpoint /
+# derived_from / refine_factor); see openspec/changes/s0-baseline-lock/
+# specs/benchmark-registry/spec.md.
+
+project_name: "keliya"
+description: "NWM keliya basin (arid Tarim headwater); CI primary case, OMP_CUTOFF serial fallback, A0 repeatability"
+
+# --- Basin scale ---
+NumEle: 484
+NumRiv: 333
+NumLake: 0
+NumY: 1785             # = 3*NumEle + NumRiv + NumLake
+
+# --- Input ---
+input_dir: "SHUD/Basins/keliya/input/keliya/"   # local path; server path resolved per CLAUDE.md
+forcing_dir: "SHUD/Basins/keliya/forcing/"       # tsd.forc line 2 is rewritten per-host by tools/fix_case_paths
+forcing_duration_days: 1460                       # END - START = 13513 - 12053 (epoch 1951-01-01)
+has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para; Tarim glacier/snow melt
+has_lake: false
+has_BC_SS: false                                  # no ELEBC*/RivBC*/LakeBC* files
+dry_wet_transition: true                          # arid headwater, seasonal wet/dry contrast
+
+# --- Run ---
+run_command: "cd SHUD/Basins/keliya && ../../shud keliya"
+threads: 1                                        # S0–S6 baseline; P1+ extends to [1,2,4,8]
+expected_walltime_sec: null                       # TODO measured @ S0.8 (B0 3-run benchmark)
+
+# --- RHS snapshot probe (master plan §S0.2 + §6 S0 snapshot tooling) ---
+snapshot_probe:
+  t_values: [86400, 864000, 8640000]              # 1 d / 10 d / 100 d (forcing_duration >> 100 d)
+  Y_source: "cvode_state"
+  arrays_to_dump:
+    - "DY"
+    - "QeleSurf"
+    - "QeleSub"
+    - "QrivSurf"
+    - "QrivSub"
+    - "flux_ET"
+
+# --- Output bitwise comparison (B0 archive set) ---
+output_compare:
+  full_run_regression: true
+  output_files:
+    - "output/keliya.out/keliya.eleysurf.dat"
+    - "output/keliya.out/keliya.eleyunsat.dat"
+    - "output/keliya.out/keliya.eleygw.dat"
+    - "output/keliya.out/keliya.eleysnow.dat"
+    - "output/keliya.out/keliya.rivystage.dat"
+    - "output/keliya.out/keliya.rivqdown.dat"
+  cvode_stats_file: "output/keliya.out/keliya.SHUD"
+  water_balance_file: "output/keliya.out/keliya.flood.csv"
+
+# --- Project extensions (master plan §S0.12) ---
+endpoint: "local-and-server"
+derived_from: null
+refine_factor: null
