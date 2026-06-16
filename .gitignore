@@ -8,3 +8,6 @@ tools/rSHUD/
 
 # Agent guide contains server endpoints + paths — keep local-only
 CLAUDE.md
+
+# OpenSpec transient changes (glossary.md & specs stay tracked)
+openspec/changes/
