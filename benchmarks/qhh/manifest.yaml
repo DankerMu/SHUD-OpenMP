@@ -1,0 +1,65 @@
+# benchmarks/qhh/manifest.yaml
+# B-Medium, NWM qhh basin — local & server endpoints
+# UNIQUE lake-path coverage (the only benchmark case with NumLake > 0).
+# Field schema covers §S0.2 template + project extensions; see
+# openspec/changes/s0-baseline-lock/specs/benchmark-registry/spec.md.
+#
+# IMPORTANT: this is the NWM-version qhh (386 stations, start 1979-01-01).
+# Not to be confused with the SHUD upstream demo at SHUD/input/qhh
+# (1-station forcing.csv, start 2002) — see CLAUDE.md.
+
+project_name: "qhh"
+description: "NWM qhh basin with one lake; sole NumLake>0 case (covers lake vertical/horizontal/DY paths)"
+
+# --- Basin scale ---
+NumEle: 4773
+NumRiv: 1633
+NumLake: 1
+NumY: 15953            # = 3*4773 + 1633 + 1
+
+# --- Input ---
+input_dir: "SHUD/Basins/qhh/input/qhh/"
+forcing_dir: "SHUD/Basins/qhh/forcing/"
+forcing_duration_days: 2557                       # END - START = 10958 - 8401 (epoch 1979-01-01)
+has_cryosphere: false                             # CRYOSPHERE=0 in cfg.para
+has_lake: true                                    # qhh.lake.{sp,ic,bathy} present, 1 lake
+has_BC_SS: false
+dry_wet_transition: false                         # Qinghai Lake region
+
+# --- Run ---
+run_command: "cd SHUD/Basins/qhh && ../../shud qhh"
+threads: 1
+expected_walltime_sec: null                       # TODO measured @ S0.8
+
+# --- RHS snapshot probe ---
+snapshot_probe:
+  t_values: [86400, 864000, 8640000]              # 1 d / 10 d / 100 d
+  Y_source: "cvode_state"
+  arrays_to_dump:
+    - "DY"
+    - "QeleSurf"
+    - "QeleSub"
+    - "QrivSurf"
+    - "QrivSub"
+    - "flux_ET"
+
+# --- Output bitwise comparison ---
+output_compare:
+  full_run_regression: true
+  output_files:
+    - "output/qhh.out/qhh.eleysurf.dat"
+    - "output/qhh.out/qhh.eleyunsat.dat"
+    - "output/qhh.out/qhh.eleygw.dat"
+    - "output/qhh.out/qhh.eleysnow.dat"
+    - "output/qhh.out/qhh.rivystage.dat"
+    - "output/qhh.out/qhh.rivqdown.dat"
+    - "output/qhh.out/qhh.lakystage.dat"          # has_lake=true → lake outputs present
+    - "output/qhh.out/qhh.lakqrivin.dat"
+    - "output/qhh.out/qhh.lakqrivout.dat"
+  cvode_stats_file: "output/qhh.out/qhh.SHUD"
+  water_balance_file: "output/qhh.out/qhh.flood.csv"
+
+# --- Project extensions ---
+endpoint: "local-and-server"
+derived_from: null
+refine_factor: null

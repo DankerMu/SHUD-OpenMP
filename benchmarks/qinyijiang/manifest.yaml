@@ -1,0 +1,58 @@
+# benchmarks/qinyijiang/manifest.yaml
+# B-Medium (low end), NWM qinyijiang basin — local & server endpoints
+# Sparse-river typical Medium load.
+# Field schema covers §S0.2 template + project extensions; see
+# openspec/changes/s0-baseline-lock/specs/benchmark-registry/spec.md.
+
+project_name: "nanlin"                            # SHUD project name (input subdir)
+description: "NWM qinyijiang (a.k.a. nanlin project) basin; Medium-low, sparse river network"
+
+# --- Basin scale ---
+NumEle: 3155
+NumRiv: 319
+NumLake: 0
+NumY: 9784             # = 3*3155 + 319 + 0
+
+# --- Input ---
+input_dir: "SHUD/Basins/qinyijiang/input/nanlin/"
+forcing_dir: "SHUD/Basins/qinyijiang/forcing/"
+forcing_duration_days: 1095                       # END - START = 1461 - 366 (epoch 1955-01-01)
+has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para
+has_lake: false
+has_BC_SS: false
+dry_wet_transition: false                         # humid sub-tropical China
+
+# --- Run ---
+run_command: "cd SHUD/Basins/qinyijiang && ../../shud nanlin"
+threads: 1
+expected_walltime_sec: null                       # TODO measured @ S0.8
+
+# --- RHS snapshot probe ---
+snapshot_probe:
+  t_values: [86400, 864000, 8640000]              # 1 d / 10 d / 100 d (1095 > 100 d)
+  Y_source: "cvode_state"
+  arrays_to_dump:
+    - "DY"
+    - "QeleSurf"
+    - "QeleSub"
+    - "QrivSurf"
+    - "QrivSub"
+    - "flux_ET"
+
+# --- Output bitwise comparison ---
+output_compare:
+  full_run_regression: true
+  output_files:
+    - "output/nanlin.out/nanlin.eleysurf.dat"
+    - "output/nanlin.out/nanlin.eleyunsat.dat"
+    - "output/nanlin.out/nanlin.eleygw.dat"
+    - "output/nanlin.out/nanlin.eleysnow.dat"
+    - "output/nanlin.out/nanlin.rivystage.dat"
+    - "output/nanlin.out/nanlin.rivqdown.dat"
+  cvode_stats_file: "output/nanlin.out/nanlin.SHUD"
+  water_balance_file: "output/nanlin.out/nanlin.flood.csv"
+
+# --- Project extensions ---
+endpoint: "local-and-server"
+derived_from: null
+refine_factor: null

@@ -1,0 +1,58 @@
+# benchmarks/xinanjiang_upstream/manifest.yaml
+# B-Small backup, NWM xinanjiang upstream — local & server endpoints
+# Sits just below OMP_CUTOFF=1024 threshold (NumEle=801).
+# Field schema covers §S0.2 template + project extensions; see
+# openspec/changes/s0-baseline-lock/specs/benchmark-registry/spec.md.
+
+project_name: "xinanjiang"
+description: "NWM xinanjiang upstream basin; Small backup, OMP_CUTOFF=1024 boundary case"
+
+# --- Basin scale ---
+NumEle: 801
+NumRiv: 216
+NumLake: 0
+NumY: 2619             # = 3*801 + 216 + 0
+
+# --- Input ---
+input_dir: "SHUD/Basins/xinanjiang_upstream/input/xinanjiang/"
+forcing_dir: "SHUD/Basins/xinanjiang_upstream/forcing/"
+forcing_duration_days: 4747                       # END - START = 4747 - 0 (epoch 1958-01-01)
+has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para (mountain headwater)
+has_lake: false
+has_BC_SS: false
+dry_wet_transition: false                         # humid sub-tropical basin
+
+# --- Run ---
+run_command: "cd SHUD/Basins/xinanjiang_upstream && ../../shud xinanjiang"
+threads: 1
+expected_walltime_sec: null                       # TODO measured @ S0.8
+
+# --- RHS snapshot probe ---
+snapshot_probe:
+  t_values: [86400, 864000, 8640000]              # 1 d / 10 d / 100 d
+  Y_source: "cvode_state"
+  arrays_to_dump:
+    - "DY"
+    - "QeleSurf"
+    - "QeleSub"
+    - "QrivSurf"
+    - "QrivSub"
+    - "flux_ET"
+
+# --- Output bitwise comparison ---
+output_compare:
+  full_run_regression: true
+  output_files:
+    - "output/xinanjiang.out/xinanjiang.eleysurf.dat"
+    - "output/xinanjiang.out/xinanjiang.eleyunsat.dat"
+    - "output/xinanjiang.out/xinanjiang.eleygw.dat"
+    - "output/xinanjiang.out/xinanjiang.eleysnow.dat"
+    - "output/xinanjiang.out/xinanjiang.rivystage.dat"
+    - "output/xinanjiang.out/xinanjiang.rivqdown.dat"
+  cvode_stats_file: "output/xinanjiang.out/xinanjiang.SHUD"
+  water_balance_file: "output/xinanjiang.out/xinanjiang.flood.csv"
+
+# --- Project extensions ---
+endpoint: "local-and-server"
+derived_from: null
+refine_factor: null

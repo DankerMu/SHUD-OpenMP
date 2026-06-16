@@ -1,0 +1,65 @@
+# benchmarks/heihe/manifest.yaml
+# B-Medium high-end, NWM heihe basin — SERVER-ONLY
+#
+# WARNING: forcing dataset is 12 GB+; per CLAUDE.md and master plan §S0.12
+# this case is processed only on the production Linux endpoint
+# (server: /scratch/frd_muziyao/SHUD-OpenMP, NWM data root:
+# /volume/data/nwm/Basins/heihe). DO NOT download forcing locally,
+# DO NOT exercise this case in the local CI matrix. Server endpoint
+# owns baseline runs, profile_B0, and the §1.1.1 speedup acceptance.
+#
+# Field schema covers §S0.2 template + project extensions; see
+# openspec/changes/s0-baseline-lock/specs/benchmark-registry/spec.md.
+
+project_name: "heihe"
+description: "NWM heihe basin (Hexi inland river); Medium-high real case with cryosphere (glacier/snowmelt)"
+
+# --- Basin scale ---
+NumEle: 6335
+NumRiv: 2352
+NumLake: 0
+NumY: 21357            # = 3*6335 + 2352 + 0
+
+# --- Input ---
+input_dir: "SHUD/Basins/heihe/input/heihe/"       # local placeholder path; server resolves under data root
+forcing_dir: "<server-data-root>/heihe/forcing/"   # placeholder; real path lives only on server (see CLAUDE.md)
+forcing_duration_days: 14610                       # ~40 years NWM coverage; refined after server-side fixup (§S0.8)
+has_cryosphere: true                              # Qilian glacier + snowmelt dominated
+has_lake: false
+has_BC_SS: false
+dry_wet_transition: true                          # arid inland Hexi basin
+
+# --- Run ---
+run_command: "cd SHUD/Basins/heihe && ../../shud heihe"
+threads: 1
+expected_walltime_sec: null                       # TODO measured @ S0.8 on server
+
+# --- RHS snapshot probe ---
+snapshot_probe:
+  t_values: [86400, 864000, 8640000]              # 1 d / 10 d / 100 d
+  Y_source: "cvode_state"
+  arrays_to_dump:
+    - "DY"
+    - "QeleSurf"
+    - "QeleSub"
+    - "QrivSurf"
+    - "QrivSub"
+    - "flux_ET"
+
+# --- Output bitwise comparison ---
+output_compare:
+  full_run_regression: true
+  output_files:
+    - "output/heihe.out/heihe.eleysurf.dat"
+    - "output/heihe.out/heihe.eleyunsat.dat"
+    - "output/heihe.out/heihe.eleygw.dat"
+    - "output/heihe.out/heihe.eleysnow.dat"
+    - "output/heihe.out/heihe.rivystage.dat"
+    - "output/heihe.out/heihe.rivqdown.dat"
+  cvode_stats_file: "output/heihe.out/heihe.SHUD"
+  water_balance_file: "output/heihe.out/heihe.flood.csv"
+
+# --- Project extensions ---
+endpoint: "server-only"
+derived_from: null
+refine_factor: null
