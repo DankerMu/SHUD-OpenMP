@@ -73,21 +73,17 @@ Per `status-matrix` spec L47 + master plan §S0 A0 acceptance gate. Each item ma
 | 8 | docs/profile_platform.md 声明                         | PASS     | `docs/profile_platform.md` (#15 PR #32) — local + target + decision_consistency 三段齐                                                                  |
 | 9 | docs/profile_decision.md 已签署                       | PASS     | `docs/profile_decision.md` (#15 PR #32 + S0-13 #17 signature) — DankerMu signed against outer `a860eae5` + SHUD `78c37a1` via delegated grant 2026-06-17 |
 
-**B0-tag-applied**: `pending-post-merge` _(flips to `true` in a trivial follow-up PR after `git push origin B0-tag` returns success)_
+**B0-tag-applied**: `true`
 **B0-tag-date**: `2026-06-17`
 
-### B0-tag application status
+### B0-tag applied (2026-06-17)
 
-All 9 A0 checklist items PASS — the gate is open. The tag itself is a
-post-merge maintainer action:
+All 9 A0 checklist items PASS. `B0-tag` is live on origin:
 
-1. Squash-merge PR #35 onto `baseline/current` → new commit SHA `M`.
-2. `git tag -a B0-tag M -m "S0 baseline lock — see docs/build_manifest.md § B0-tag"` then `git push origin B0-tag`.
-3. Open a trivial follow-up PR that flips `B0-tag-applied` from `pending-post-merge` to `true` in this file + a matching update in `docs/build_manifest.md` "B0-tag application status".
-
-Until step 2 completes, `git rev-parse B0-tag` returns exit 128 — the
-`docs/build_manifest.md` § "B0-tag (S0-13 / #17)" verify recipes
-explicitly call out this window.
+- Tag object SHA: `95ddc375ffa58115fd5c0a808dde80e9713b4c93` (annotated)
+- Points to commit: `884cfb13ba08ebae02dd64e371c4a19a536b4e26` (squash-merge of PR #35 onto `baseline/current`)
+- SHUD submodule pin: `78c37a1061de4112bc7c297bb7bd1f107432e6f2`
+- Verify: `git rev-parse B0-tag` returns the tag object SHA; `git rev-parse B0-tag^{}` returns the commit; `git ls-remote --tags origin | grep B0-tag` shows the tag on origin.
 
 ## Stage status guidance
 
