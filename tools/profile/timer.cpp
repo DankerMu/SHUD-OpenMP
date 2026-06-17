@@ -140,6 +140,10 @@ void dump(const char *yaml_path) {
     /* CVODE stats placeholder — #10 ships the empty subtree; populated
      * in a later stage when CVODE-stat ingestion lands. */
     std::fprintf(fp, "cvode_stats:\n");
+    /* Spec rhs-profile-gate requires `ratio_nfeLS_over_nfe` in the
+     * top-level yaml; #10 ships the placeholder (0.0). Real value will
+     * be sourced from cvode_stats.txt during S0-10 ingestion. */
+    std::fprintf(fp, "ratio_nfeLS_over_nfe: 0.0\n");
     std::fclose(fp);
 }
 
