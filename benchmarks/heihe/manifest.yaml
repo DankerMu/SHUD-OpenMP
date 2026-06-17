@@ -3,8 +3,8 @@
 #
 # WARNING: forcing dataset is 12 GB+; per CLAUDE.md and master plan §S0.12
 # this case is processed only on the production Linux endpoint
-# (server: /scratch/frd_muziyao/SHUD-OpenMP, NWM data root:
-# /volume/data/nwm/Basins/heihe). DO NOT download forcing locally,
+# (server: <server-scratch-root>/SHUD-OpenMP, NWM data root:
+# <server-data-root>/nwm/Basins/heihe). DO NOT download forcing locally,
 # DO NOT exercise this case in the local CI matrix. Server endpoint
 # owns baseline runs, profile_B0, and the §1.1.1 speedup acceptance.
 #

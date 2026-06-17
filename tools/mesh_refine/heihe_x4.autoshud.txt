@@ -1,18 +1,23 @@
 # heihe_x4 — B-Large benchmark (server-only) for OpenMP scale-test
 # Derived from heihe via 4× NumCells refinement (6335 → ~25340)
 # Calibration NOT a goal: benchmark scope is mesh-topology + scale-test load only.
-# Raster paths verified server-side (frd_muziyao). Hydrology validation deferred.
+# Raster paths verified server-side (<user>). Hydrology validation deferred.
+#
+# This file is a TEMPLATE: paths use placeholders <server-scratch-root> and
+# <server-data-root>. Run via tools/mesh_refine/run_heihe_x4.sh, which
+# substitutes the placeholders with env-resolved paths into a runtime cfg
+# before invoking AutoSHUD's Rscript steps.
 
 # Basic
 prjname heihe_x4
 startyear 2003
 endyear 2005
-dir.out /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x4
+dir.out <server-scratch-root>/SHUD-OpenMP/SHUD/Basins/heihe_x4
 
 # Spatial Data — heihe boundary + river reused (4x refinement triangulates within same domain)
-fsp.wbd /volume/data/nwm/Basins/heihe/input/heihe/gis/domain.shp
-fsp.stm /volume/data/nwm/Basins/heihe/input/heihe/gis/river.shp
-fr.dem /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x4/dem/heihe_dem_mosaic.tif
+fsp.wbd <server-data-root>/nwm/Basins/heihe/input/heihe/gis/domain.shp
+fsp.stm <server-data-root>/nwm/Basins/heihe/input/heihe/gis/river.shp
+fr.dem <server-scratch-root>/SHUD-OpenMP/SHUD/Basins/heihe_x4/dem/heihe_dem_mosaic.tif
 
 # Forcing — CMFD2.0 0.1° subset
 # 0 LDAS mode: 0.1 CLDAS, 0.2 FLDAS, 0.3 GLDAS, 0.4 NLDAS, 0.5 CMFD, 0.6 CMIP6
@@ -21,18 +26,18 @@ fr.dem /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x4/dem/heihe_dem_mosai
 # forcing source for this basin. AutoSHUD's glob2rx('prec_CMFD_*YEAR*.nc')
 # pattern accepts V0200 file names without modification.
 Forcing 0.5
-dir.ldas /volume/data/ForcingData/CMFD2.0/Data_forcing_03hr_010deg
-dout.forc /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x4/forcing
+dir.ldas <server-data-root>/ForcingData/CMFD2.0/Data_forcing_03hr_010deg
+dout.forc <server-scratch-root>/SHUD-OpenMP/SHUD/Basins/heihe_x4/forcing
 
 # Soil/Geol — HWSD global mode (Soil 0.1)
 # When Soil=0.1, AutoSHUD uses dir.soil; fn.soil/fa.soil are ignored.
 Soil 0.1
-dir.soil /volume/data/SpatialData/World/Soil/HWSD/HWSD_RASTER
+dir.soil <server-data-root>/SpatialData/World/Soil/HWSD/HWSD_RASTER
 
 # Landuse — USGS LCI global mode (Landuse 0.1)
 Landuse 0.1
-fn.landuse /volume/data/SpatialData/World/Landuse/USGS_LCI/LCType.tif
-tab.landuse /volume/data/SpatialData/World/Landuse/USGS_LCI/LCType.tif
+fn.landuse <server-data-root>/SpatialData/World/Landuse/USGS_LCI/LCType.tif
+tab.landuse <server-data-root>/SpatialData/World/Landuse/USGS_LCI/LCType.tif
 
 # Mesh-gen parameters — sized for ~25340 NumEle over 140908 km² basin
 # a.max = min(AA1/NumCells, AreaMax) → with NumCells=25340 → ~5.56 km² per element

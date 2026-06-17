@@ -117,6 +117,23 @@ sha256_of_manifest() {
 }
 
 # -----------------------------------------------------------------------------
+# Path sanitizer for committable audit trails
+# -----------------------------------------------------------------------------
+# Replace personal scratch / home / users roots with `<server-scratch-root>` /
+# `<server-home-root>` placeholders so `repeatability.txt` (which lands in
+# git history) cannot leak an operator's account name. Idempotent: a path
+# that already has placeholders, or one outside the known scratch trees,
+# passes through unchanged. No-op on local Mac (HOME / scratch paths there
+# don't match the patterns).
+sanitize_path() {
+    local p="$1"
+    p="${p//\/scratch\/$USER/<server-scratch-root>}"
+    p="${p//\/home\/$USER/<server-home-root>}"
+    p="${p//\/users\/$USER/<server-home-root>}"
+    echo "$p"
+}
+
+# -----------------------------------------------------------------------------
 # Minimal YAML parser (purpose-built for our manifest shape)
 # Extracts:
 #   PROJECT_NAME          = project_name
@@ -451,7 +468,7 @@ DATE_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "verdict: PASS"
     echo "date: $DATE_ISO"
     echo "wall_times_sec: $(IFS=,; echo "${WALLS[*]}")"
-    echo "binary: $SHUD_BIN"
+    echo "binary: $(sanitize_path "$SHUD_BIN")"
     echo "binary_sha256: $(sha256_of_file "$SHUD_BIN")"
     echo "host: $(uname -srm)"
     echo "cfg_window_days: 90"
