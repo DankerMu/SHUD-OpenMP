@@ -61,7 +61,7 @@ output_compare:
     - "output/heihe_x4.out/heihe_x4.eleysnow.dat"
     - "output/heihe_x4.out/heihe_x4.rivystage.dat"
     - "output/heihe_x4.out/heihe_x4.rivqdown.dat"
-  cvode_stats_file: "output/heihe_x4.out/heihe_x4.SHUD"
+  cvode_stats_file: "output/heihe_x4.out/cvode_stats.txt"
   water_balance_file: "output/heihe_x4.out/heihe_x4.flood.csv"
 
 # --- Project extensions ---
