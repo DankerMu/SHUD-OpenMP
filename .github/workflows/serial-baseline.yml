@@ -105,6 +105,12 @@ jobs:
     # is meaningful only on this image. Do not promote to ubuntu-latest.
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # Repo-wide default is contents:read only; the matrix-proposer step needs
+    # pull-requests:write for `gh pr comment` + `gh pr view`. Scoped at job
+    # level to keep the rest of the job at minimum privilege.
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       # -----------------------------------------------------------------------
@@ -418,3 +424,79 @@ jobs:
             default_cvode_stats.txt
             snapshot_compare.log
             snapshots_new/**
+
+      # ----------------------------------------------------------------------
+      # Step: propose-status-matrix-update (S0-12 / openMP #16)
+      #
+      # Per `openspec/.../specs/status-matrix/spec.md` Requirement
+      # "Matrix updated by CI on baseline runs": on a PR that runs the real
+      # compare path (data_available=true and the SHA256/snapshot gates all
+      # PASS), comment a suggested diff for `docs/status_matrix.md` updating
+      # the (B0, keliya) cell to PASS for the merging commit. Maintainer
+      # applies via a follow-up PR; CI never push back to baseline/current
+      # (per spec L19 — avoids concurrent-write races and partial writes
+      # under skip-label PRs).
+      #
+      # Skip conditions (any one suppresses the proposer):
+      #   - PR carries `skip-baseline-ci` label (workflow already early-exits)
+      #   - This is a push event (no PR to comment on)
+      #   - Data probe set `data_available=false` (no real compare to attest)
+      #   - Any earlier step failed (already covered by `if: success()`)
+      # ----------------------------------------------------------------------
+      - name: Propose status-matrix update
+        if: >
+          success() &&
+          steps.skip_check.outputs.skipped != 'true' &&
+          github.event_name == 'pull_request' &&
+          steps.data_probe.outputs.data_available == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Compose the suggested matrix diff. Per spec scenario "CI proposes
+          # update via PR comment", the comment SHOULD include a diff-style
+          # snippet a maintainer can copy verbatim into a follow-up PR.
+          cat > /tmp/matrix_comment.md <<EOF
+          <!-- s0-12-matrix-proposer -->
+          ## 🟢 Status matrix update proposal (CI auto-generated)
+
+          The serial-baseline workflow built + compared keliya at commit
+          \`$COMMIT_SHA\` and the (B0, keliya) cell is PASS as of this run.
+          Per \`status-matrix\` spec L19, CI does **not** push to
+          \`baseline/current\` directly. Maintainer to apply the suggested
+          edit below via a follow-up PR (or merge this PR if it already
+          touches \`docs/status_matrix.md\`).
+
+          \`\`\`diff
+          --- a/docs/status_matrix.md
+          +++ b/docs/status_matrix.md
+          @@ B0 row evidence @@
+          -| keliya | PASS | ... (#11 PR #26) ... |
+          +| keliya | PASS | ... (#11 PR #26) + CI confirmed @ \`$COMMIT_SHA\` |
+          \`\`\`
+
+          ### What was actually verified
+
+          - Default build (\`SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0\`) → keliya
+            output SHA256 matches \`benchmarks/keliya/B0_output/keliya.rivqdown.dat\`
+          - Profile-on build (\`SHUD_ENABLE_PROFILE=1\`) → bitwise neutral to default
+          - Dump-on build (\`SHUD_DUMP_RHS=1\`) → snapshot matches
+            \`benchmarks/keliya/B0_output/snapshot_t*.bin\`
+
+          Other rows / cells in the matrix are not affected by this run.
+          EOF
+
+          # Idempotency: match on a stable HTML-comment marker that survives
+          # title edits, emoji rendering changes, and user-added prefixes.
+          # `gh pr view` errors propagate (no 2>/dev/null swallow) so a 403
+          # surfaces loudly instead of silently posting a duplicate.
+          existing=$(gh pr view "$PR_NUM" --json comments \
+            --jq '.comments[] | select(.body | contains("<!-- s0-12-matrix-proposer -->")) | .url' \
+            | head -1)
+          if [[ -n "$existing" ]]; then
+            echo "::notice title=status-matrix proposer::existing proposer comment found at $existing; skipping duplicate"
+            exit 0
+          fi
+          gh pr comment "$PR_NUM" --body-file /tmp/matrix_comment.md
+          echo "::notice title=status-matrix proposer::posted (B0, keliya) PASS suggestion to PR #$PR_NUM"
