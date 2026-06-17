@@ -1,0 +1,34 @@
+# benchmarks/keliya/profile_B0.target.yaml
+# S0-11 / openMP #15 — target-platform profile.
+# Generated on the Linux server endpoint (Slurm compute node, single-thread B0).
+
+target_platform:
+  os: Linux 6.8.0-90-generic x86_64
+  cpu: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz; 2 sockets x 20 cores (40 logical, 1 thread/core)
+  numa: 2 nodes (node0 cpus 0-19, node1 cpus 20-39); ~96 GB per node
+  compiler: gcc 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1)
+  flags: -O2 -g -ffp-contract=off -fno-fast-math -std=c++14 (serial B0; no -fopenmp)
+  slurm_node: cn08
+  binary_sha256: 6808894b52ed79669ea563451377f99096c37992d890fad09219015da0773c98
+generated_by: claude-code-s0-11-issue-15
+generated_on: 2026-06-17
+commit_hash:
+  outer: ecef3fbe6ad6971ac8dc2ff6a888ece8db8fae83
+  shud: 78c37a1061de4112bc7c297bb7bd1f107432e6f2
+
+# SHUD profile (S0-10, openMP #14)
+# Units: seconds. t_CVODE_internal and t_other are
+# derived; raw measurements in extras: section.
+buckets:
+  t_RHS_kernel: 39.263970130
+  t_RHS_total: 39.305381383
+  t_CVODE_internal: 28.822263806
+  t_forcing_io: 6.405558076
+  t_ET: 0.099488216
+  t_output: 0.019189265
+  t_other: 5.032110785
+extras:
+  t_CVODE_raw: 68.127645189
+  t_wall_total: 79.683991531
+cvode_stats:
+ratio_nfeLS_over_nfe: 0.0
