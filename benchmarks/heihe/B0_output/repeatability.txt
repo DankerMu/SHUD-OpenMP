@@ -6,7 +6,7 @@ sha256_run3: 675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67
 verdict: PASS
 date: 2026-06-17T11:00:34Z
 wall_times_sec: 522,505,528
-binary: /scratch/frd_muziyao/SHUD-OpenMP/SHUD/shud
+binary: <server-scratch-root>/SHUD-OpenMP/SHUD/shud
 binary_sha256: 00ea9d803dcfa13fddb2c7ef73a95776d0b345d5c525157d5f56f613d8df6a1a
 host: Linux 6.8.0-90-generic x86_64
 cfg_window_days: 90
