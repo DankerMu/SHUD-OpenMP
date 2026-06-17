@@ -67,3 +67,20 @@ are archived normally under #11 / #12.
          opens ksge.sp.rivseg) ...
     Reading fail, file = .../forcing/X76.45Y38.05.csv
     EXIT with error code 12(FILEIO)
+
+# S0-13 / #17 reclassification (2026-06-17)
+
+Per amended `status-matrix` + `rhs-profile-gate` specs (PR for #17),
+`kashigeer` is reclassified from `local-and-server` to
+`deferred-upstream` in `benchmarks/INDEX.md`. The case remains
+manifest-registered as a placeholder (7-case registry preserved); A0
+acceptance scenarios 2 / 3 / 4 explicitly EXCLUDE deferred-upstream
+cases. Aggregate B0 cell is computed as
+"PASS iff all non-N/A cells are PASS" — kashigeer's
+`N/A (deferred-upstream)` value does NOT block aggregate or B0-tag.
+
+This reclassification is a spec-level decision, not a resolution of
+the upstream data gap. The three resolution paths above (forcing
+re-curation / mesh regeneration / registry reclassification) remain
+the only routes to flip the cell from N/A to a real verdict in a
+future S-stage.

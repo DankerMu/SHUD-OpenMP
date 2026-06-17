@@ -32,8 +32,33 @@
 - Upstream: `https://github.com/SHUD-System/SHUD.git`
 - Working branch on upstream: `openmp-baseline` (long-lived, derived from `3aec657`; not master)
 - Initial B0 commit: `3aec657` (master plan §S0.10)
-- Current submodule HEAD: `a016beb2027caf0d436918a44dd067ea191bc733` (PR #18 round 5: W-R4 Warning-closure — `override DISALLOWED_FLAGS`, Layer 2 replaced with anchored `=value` iteration so paths containing `-Ofast` substring no longer false-positive; updated at each SHUD-touching PR-merge and at B0-tag time)
+- Current submodule HEAD: `78c37a1061de4112bc7c297bb7bd1f107432e6f2` (S0-10 / #14 timer instrumentation @ PROFILE=0/DUMP=0; updated at each SHUD-touching PR-merge and at B0-tag time)
 - Verify locally: `git -C SHUD rev-parse HEAD`
+
+## B0-tag (S0-13 / #17)
+
+The `B0-tag` lightweight git tag pins the exact `(outer, SHUD submodule)`
+commit pair that the A0 acceptance gate certified. B1a regression checks
+diff against `git show B0-tag:benchmarks/<case>/B0_output/` byte-for-byte.
+
+- **Outer repo tag**: `B0-tag` on `baseline/current` at the commit that
+  merged S0-13 PR. Verify: `git rev-parse B0-tag`.
+- **SHUD submodule pin at B0-tag**: `78c37a1061de4112bc7c297bb7bd1f107432e6f2`
+  (the submodule pointer captured by the outer tag commit). Verify:
+  `git show B0-tag --stat -- SHUD`.
+- **Date**: 2026-06-17
+- **Authority for "what's in B0"**: `docs/status_matrix.md` B0 row
+  (5 PASS local + heihe PASS @ server + heihe_x4 PASS @ server +
+  kashigeer N/A deferred-upstream); A0 Acceptance Checklist 9/9 PASS
+  per S0-13 spec amendment.
+- **Manifest digests** (SHA256 of each `benchmarks/<case>/manifest.yaml`
+  at B0-tag): see `benchmarks/INDEX.md` row evidence + `git show B0-tag`
+  for the recursive tree of B0 archive files.
+- **Branch protection**: `baseline/current` has the
+  `.github/workflows/serial-baseline.yml` `build-and-compare` required
+  check enabled at B0-tag time. The `skip-baseline-ci` label-bypass
+  privilege is removed at B0-tag merge so subsequent S1+ PRs cannot
+  silently land without baseline verification.
 
 ## Disallowed flags (Makefile guard)
 - `-ffast-math`, `-Ofast`, `-funsafe-math-optimizations`
@@ -69,7 +94,16 @@
 - Install size: `26M`
 - Path: `SHUD/InstallSundials/`
 
-## CHANGELOG
+## CHANGELOG (S0-13 amendment)
+
+- S0-13 / #17: kashigeer reclassified from `local-and-server` to
+  `deferred-upstream` in `benchmarks/INDEX.md`; `status-matrix` +
+  `rhs-profile-gate` specs amended so deferred-upstream cells are
+  N/A-not-blocking; `B0-tag` section added above; `docs/profile_decision.md`
+  signed by DankerMu against outer `a860eae5` + SHUD `78c37a1` via
+  delegated grant 2026-06-17.
+
+## Prior CHANGELOG
 - `fea5922` (PR #16 / issue #3): initial B0 build-environment lockdown — locked flag set, SUNDIALS major-version guard, idempotent `./configure`, macOS libomp discovery via `brew --prefix`.
 - PR #18 round 2 (`c9368fd` in SHUD): invariant-closure round 2 — sealed `CFLAGS` / `CPPFLAGS` / `LDFLAGS` bypass paths in the disallowed-flag scan; pinned `CXX` via `$(origin CXX)` so `c++` no longer wins by default; tightened SUNDIALS guard with anchored regex on MAJOR + new MINOR check + `libsundials_cvode.*` / `libsundials_nvecserial.*` / (for omp) `libsundials_nvecopenmp.*` stat; added `check_sundials_omp` for the OpenMP target; added macOS libomp `$(error)` on `shud_omp`; cleaned bare-`-L` token via `$(if …)`; configure always re-extracts `cvode-6.0.0/`; documented `SUNDIALS_DIR` override discipline.
 - PR #18 round 3 (`a9327b1` in SHUD): invariant-closure round 3 — sealed `SHUD_BUILD_CFLAGS` / `CXX_BASE_FLAGS` bypass paths surfaced by round-2 verifier. Two-tier protection: (1) `override … :=` on both lock variables (silently ignores make-CLI override per GNU make semantics); (2) two-layer disallowed-flag guard — Layer 1 `filter` extended to include the 2 lock variables (defense-in-depth), Layer 2 new `findstring` scan on `$(MAKEOVERRIDES)` catches CLI assignments to the lock variables and escalates `override`'s silent drop into a loud `$(error)`. Manifest §"Disallowed flags" updated to enumerate all 8 carriers.

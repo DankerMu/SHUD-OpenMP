@@ -217,8 +217,9 @@ before the next decision-gate snapshot (i.e. before P-phase exit).
 
 | Field | Value |
 |---|---|
-| signer | `<PLACEHOLDER: project owner, to fill at S1 gate>` |
+| signer | DankerMu (project owner; GitHub: @DankerMu; email: qingdanker@gmail.com) |
 | signed_at | 2026-06-17 |
-| signed_via | claude-code-s0-11-issue-15 (orchestrated under Linus Torvalds persona, per /Users/danker/.claude/CLAUDE.md priority stack) |
+| signed_against_commit | outer `a860eae58991ce91ea91656cc9d4a08540e48f5b` (baseline/current HEAD post-#16 merge) + SHUD submodule `78c37a1061de4112bc7c297bb7bd1f107432e6f2` (openmp-baseline HEAD post-#14) |
+| signed_via | claude-code-s0-13-issue-17 on behalf of DankerMu (delegated signing per user grant 2026-06-17; orchestrated under Linus Torvalds persona, per /Users/danker/.claude/CLAUDE.md priority stack) |
 | signed_off_decision | 走原方案 + 调高 large case 权重 + P8-precond 不前置 |
 | follow_up_issues | (a) re-profile after P1-P3 strict landing; (b) heihe forcing IO optimization deferred to P9+; (c) split t_init out of t_other in profile timer; (d) kashigeer upstream X76-X80 forcing gap (issue #29 already open) |

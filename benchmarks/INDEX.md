@@ -12,7 +12,11 @@ Cases are bucketed by NumEle into **B-Small** (< 1 000), **B-Medium**
 speedup goals are bucketed the same way. The `endpoint` column makes the
 §S0.12 cross-platform split schema-explicit: `local-and-server` runs on
 both, `server-only` runs on the production Linux node only (forcing too
-heavy to localize, or mesh derived on server). `tailanhe` is a local
+heavy to localize, or mesh derived on server), `deferred-upstream` is
+upstream-data-gap blocked on both endpoints (case stays registered as a
+manifest placeholder + `B0_output/DEFERRED.txt`; excluded from A0
+bitwise / cvode_stats / snapshot scenarios per amended
+`status-matrix` + `rhs-profile-gate` specs). `tailanhe` is a local
 auxiliary case (not in this registry).
 
 | Case ID               | NumEle  | endpoint           | Use / notes                                                                 | Source                                          |
@@ -20,7 +24,7 @@ auxiliary case (not in this registry).
 | `keliya`              |    484  | local-and-server   | B-Small, CI primary; OMP_CUTOFF serial-fallback, A0 repeatability anchor    | NWM dataset (Tarim, arid)                       |
 | `xinanjiang_upstream` |    801  | local-and-server   | B-Small backup; sits on OMP_CUTOFF=1024 boundary                            | NWM dataset (Yangtze sub-basin)                 |
 | `qinyijiang`          |  3 155  | local-and-server   | B-Medium low; sparse river network typical load                             | NWM dataset (project name: `nanlin`)            |
-| `kashigeer`           |  3 204  | local-and-server   | B-Medium; river/PassValue topology stress test (NumRiv/NumEle = 0.77)       | NWM dataset (project name: `ksge`)              |
+| `kashigeer`           |  3 204  | deferred-upstream  | B-Medium; river/PassValue topology stress test (NumRiv/NumEle = 0.77); **upstream forcing X76 band missing on both endpoints — `B0_output/DEFERRED.txt` documents resolution paths (S0-13 spec amendment)** | NWM dataset (project name: `ksge`)              |
 | `qhh` (NWM version)   |  4 773  | local-and-server   | B-Medium; **sole `has_lake: true` case** — covers lake vertical/horizontal/DY | NWM dataset (Qinghai Lake; not the SHUD demo)   |
 | `heihe`               |  6 335  | server-only        | B-Medium high; forcing 12 GB+, cryosphere path coverage                     | NWM dataset (Hexi inland river)                 |
 | `heihe_x4`            | 40 046  | server-only        | B-Large; AutoSHUD-refined from `heihe` (NumCells=25340, 4× baseline 6335)   | AutoSHUD v2.5.0 (patched) + rSHUD v2.5.0 master |
