@@ -49,7 +49,7 @@ output_compare:
     - "output/xinanjiang.out/xinanjiang.eleysnow.dat"
     - "output/xinanjiang.out/xinanjiang.rivystage.dat"
     - "output/xinanjiang.out/xinanjiang.rivqdown.dat"
-  cvode_stats_file: "output/xinanjiang.out/xinanjiang.SHUD"
+  cvode_stats_file: "output/xinanjiang.out/cvode_stats.txt"
   water_balance_file: "output/xinanjiang.out/xinanjiang.flood.csv"
 
 # --- Project extensions ---

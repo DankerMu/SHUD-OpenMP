@@ -49,7 +49,7 @@ output_compare:
     - "output/nanlin.out/nanlin.eleysnow.dat"
     - "output/nanlin.out/nanlin.rivystage.dat"
     - "output/nanlin.out/nanlin.rivqdown.dat"
-  cvode_stats_file: "output/nanlin.out/nanlin.SHUD"
+  cvode_stats_file: "output/nanlin.out/cvode_stats.txt"
   water_balance_file: "output/nanlin.out/nanlin.flood.csv"
 
 # --- Project extensions ---
