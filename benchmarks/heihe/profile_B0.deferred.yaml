@@ -11,7 +11,7 @@ reason: |
   NWM heihe forcing is ~12 GB (server-only per CLAUDE.md
   "双端实验环境" §). The local Apple-Silicon Mac development host
   does not carry the full forcing tree; profile must be regenerated on
-  the Linux server endpoint (/scratch/frd_muziyao/SHUD-OpenMP) where
+  the Linux server endpoint (<server-scratch-root>/SHUD-OpenMP) where
   the authoritative CMFD2.0 dataset and the Slurm-orchestrated
   compute nodes live.
 resolution_issue: 15
