@@ -8,7 +8,7 @@
 # `SHUD/Basins/kashigeer/input/ksge/ksge.tsd.forc` declares 941
 # forcing stations starting with `X76.45Y38.05.csv`. The X76-X80
 # band is MISSING from both the local clone and the server NWM
-# data root (`/volume/data/nwm/Basins/kashigeer/forcing/`), so
+# data root (`<server-data-root>/Basins/kashigeer/forcing/`), so
 # `./shud ksge` aborts at exit code 12 (FILEIO) before CVODE
 # constructs, and `shud_profile::dump()` is never reached.
 
