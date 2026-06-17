@@ -1,0 +1,19 @@
+case: qhh
+runs: 3
+sha256_run1: 3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e
+sha256_run2: 3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e
+sha256_run3: 3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e
+verdict: PASS
+date: 2026-06-17T10:04:24Z
+wall_times_sec: 82,80,81
+binary: /Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/shud
+binary_sha256: fc3dd0e58c21e4463f1ccaef198715d997b305c4ac8d8cd47a300e2a498bfa51
+host: Darwin 24.6.0 arm64
+cfg_window_days: 90
+missing_manifest_files: 5
+missing_manifest_files_note: cfg.para DT_*=0 for these channels; pre-existing NWM deployment gap, see S0-4 / issue #11
+missing_file: output/qhh.out/qhh.eleysurf.dat
+missing_file: output/qhh.out/qhh.eleyunsat.dat
+missing_file: output/qhh.out/qhh.eleygw.dat
+missing_file: output/qhh.out/qhh.eleysnow.dat
+missing_file: output/qhh.out/qhh.rivystage.dat
