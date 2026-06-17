@@ -4,8 +4,17 @@
 # benchmarks/kashigeer/B0_output/DEFERRED.txt from S0-8c / #29).
 
 case: kashigeer
-status: deferred-upstream
-expected_endpoint: deferred-upstream
+# Spec literal (rhs-profile-gate spec.md L34) requires `status: deferred-to-server`
+# and `expected_endpoint: server`. kashigeer's actual deferral mode is
+# `deferred-upstream-data-gap` (the X76-X80 forcing band missing in the NWM
+# slice — see #29 / B0_output/DEFERRED.txt — affects BOTH local + server
+# endpoints, so "server" is technically not a true resolution endpoint).
+# Use the spec literal for parser compatibility, surface the semantic truth
+# in `status_detail` / `expected_endpoint_detail`.
+status: deferred-to-server
+status_detail: deferred-upstream-data-gap
+expected_endpoint: server
+expected_endpoint_detail: any-endpoint-blocked-until-upstream-fix
 deferred_at: 2026-06-17
 reason: |
   Upstream NWM forcing data gap, same root cause as S0-8c / #29 / #12.
@@ -29,7 +38,7 @@ spec_count_note: |
   consequence of #29 reclassifying kashigeer endpoint to
   `deferred-upstream`; spec amendment to count is tracked separately
   and is not within #14 scope.
-resolution_issue: see-DEFERRED-txt
+resolution_issue: 29
 resolution_path: |
   Either (a) redeploy a matching X76–X80 NWM forcing slice for
   kashigeer, (b) regenerate kashigeer mesh against the X80–X84 forcing,
