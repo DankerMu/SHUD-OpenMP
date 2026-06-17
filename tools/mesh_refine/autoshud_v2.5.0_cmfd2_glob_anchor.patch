@@ -1,0 +1,38 @@
+# AutoSHUD v2.5.0 CMFD-2.0 glob anchor — root-cause patch (#7 work-around for B-Large heihe_x4)
+#
+# Problem: glob `paste0(tolower(vn), '_CMFD_*', yr, '*.nc')` matches BOTH target
+#   year files `*_<yr>{01..12}.nc` AND collision files `*_20<yr-1900>{01..12}.nc`
+#   (e.g. yr=2003 → 12 prec_*_200301..12.nc + 1 prec_*_202003.nc → 13 files)
+#
+# CMFD V1.x ended at 2018 so the collision was harmless. CMFD V0200 (CMFD 2.0)
+# extended coverage to 2024 → glob now silently picks up `_202003.nc` when
+# yr=2003, causing CMFD_NC2RDS to over-write the time axis and Step2 to crash
+# with "subscript out of bounds" at the dispatch_forcing stage.
+#
+# Fix: anchor yr with `_` prefix + restrict trailing wildcard to 2-char month.
+#   - `_CMFD_*` → `_CMFD_*_` (prepend `_` separator)
+#   - `*.nc`    → `??.nc`    (R glob2rx supports `?`, not `[01][0-9]`)
+#
+# Verified across yr={2003,2004,2005} × vn={Prec,Pres,SHum,LRad,RHum}:
+#   - 12/12 expected files per (yr, vn)
+#   - 0 collisions
+#
+# Apply: cd <NWM/AutoSHUD checkout at v2.5.0> && git apply <this file>
+# Status: NOT yet merged upstream — proposed as PR to SHUD-System/AutoSHUD
+# Tracking: SHUD-OpenMP issue #7
+
+diff --git a/Rfunction/CMFD_NC2RDS.R b/Rfunction/CMFD_NC2RDS.R
+index f993045..9a035a2 100644
+--- a/Rfunction/CMFD_NC2RDS.R
++++ b/Rfunction/CMFD_NC2RDS.R
+@@ -41,8 +41,8 @@ for (iyr in 1:nyr) {
+     vn = varnames[ivn]
+     message('\t', ivn, '/', nv, '\t', vn)
+     path = file.path(xfg$dir.ldas, vn)
+-    fns = list.files(path, pattern = glob2rx(paste0(tolower(vn), '_CMFD_*', yr, '*.nc')), full.names = F)
+-    ffns = list.files(path, pattern = glob2rx(paste0(tolower(vn), '_CMFD_*', yr, '*.nc')), full.names = T)
++    fns = list.files(path, pattern = glob2rx(paste0(tolower(vn), '_CMFD_*_', yr, '??.nc')), full.names = F)
++    ffns = list.files(path, pattern = glob2rx(paste0(tolower(vn), '_CMFD_*_', yr, '??.nc')), full.names = T)
+     nf = length(fns)
+     pnt = 0;
+     for(i in 1:nf){ # vn in the whole year
