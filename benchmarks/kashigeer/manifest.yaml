@@ -53,6 +53,6 @@ output_compare:
   water_balance_file: "output/ksge.out/ksge.flood.csv"
 
 # --- Project extensions ---
-endpoint: "local-and-server"
+endpoint: "deferred-upstream"  # S0-13 amendment: X76 forcing band missing on both endpoints; see B0_output/DEFERRED.txt
 derived_from: null
 refine_factor: null

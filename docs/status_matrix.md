@@ -66,19 +66,28 @@ Per `status-matrix` spec L47 + master plan §S0 A0 acceptance gate. Each item ma
 | 1 | 7 manifest 完整 (registry + INDEX)                    | PASS     | `benchmarks/INDEX.md` + 7 × `benchmarks/<case>/manifest.yaml` (#6 PR #22 + #28 PR rename); kashigeer kept as placeholder + DEFERRED.txt per amended spec |
 | 2 | 各非 deferred-upstream case 3 次 bitwise              | PASS     | 6 cases PASS (keliya / xinanjiang_upstream / qinyijiang / qhh local + heihe / heihe_x4 server via Slurm 8256); kashigeer excluded per S0-13 spec amendment |
 | 3 | 同上 case 的 cvode_stats 三次一致                     | PASS     | Same 6 cases PASS (cvode_stats.txt in each B0_output); kashigeer excluded                                                                                  |
-| 4 | snapshot probe 三次一致                               | PASS     | 5 cases × 3 snapshot_t*.bin in repo (#9 PR #24); heihe* + kashigeer are server-only / deferred-upstream and out of snapshot scope                       |
+| 4 | snapshot probe 三次一致                               | PASS     | 4 cases × 3 = 12 snapshot_t*.bin in repo (`keliya` / `xinanjiang_upstream` / `qinyijiang` / `qhh`, #9 PR #24); heihe + heihe_x4 server-only (out of snapshot scope per amended spec); kashigeer excluded as deferred-upstream |
 | 5 | tools/rhs_snapshot + tools/compare_snapshot 可独立调用 | PASS     | `tools/rhs_snapshot/` + `tools/compare_snapshot/` build cleanly + invoked in #9 (PR #24 + CI #13)                                                       |
 | 6 | CI 自动 pass/fail                                     | PASS     | `.github/workflows/serial-baseline.yml` (S0-9 / #13 PR #30) green on push + PR; skip-label honored                                                       |
 | 7 | profile_B0.yaml × 4 real + 3 deferred (local) + .target.yaml × 6 real + 1 deferred | PASS     | Amended spec: 4 local real (keliya/xinanjiang_upstream/qinyijiang/qhh) + 3 deferred (heihe/heihe_x4/kashigeer); 6 target real + 1 deferred (kashigeer) (#14 PR #31 + #15 PR #32 + S0-13 amendment) |
 | 8 | docs/profile_platform.md 声明                         | PASS     | `docs/profile_platform.md` (#15 PR #32) — local + target + decision_consistency 三段齐                                                                  |
 | 9 | docs/profile_decision.md 已签署                       | PASS     | `docs/profile_decision.md` (#15 PR #32 + S0-13 #17 signature) — DankerMu signed against outer `a860eae5` + SHUD `78c37a1` via delegated grant 2026-06-17 |
 
-**B0-tag-applied**: `true`
+**B0-tag-applied**: `pending-post-merge` _(flips to `true` in a trivial follow-up PR after `git push origin B0-tag` returns success)_
 **B0-tag-date**: `2026-06-17`
 
-### B0-tag applied
+### B0-tag application status
 
-All 9 A0 checklist items PASS. `B0-tag` pushed on `baseline/current` HEAD at the commit that merged S0-13 PR. See `docs/build_manifest.md` § "B0-tag (S0-13 / #17)" for the (outer, SHUD submodule) commit pair pinned by the tag.
+All 9 A0 checklist items PASS — the gate is open. The tag itself is a
+post-merge maintainer action:
+
+1. Squash-merge PR #35 onto `baseline/current` → new commit SHA `M`.
+2. `git tag -a B0-tag M -m "S0 baseline lock — see docs/build_manifest.md § B0-tag"` then `git push origin B0-tag`.
+3. Open a trivial follow-up PR that flips `B0-tag-applied` from `pending-post-merge` to `true` in this file + a matching update in `docs/build_manifest.md` "B0-tag application status".
+
+Until step 2 completes, `git rev-parse B0-tag` returns exit 128 — the
+`docs/build_manifest.md` § "B0-tag (S0-13 / #17)" verify recipes
+explicitly call out this window.
 
 ## Stage status guidance
 
