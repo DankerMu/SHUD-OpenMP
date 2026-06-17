@@ -1,0 +1,18 @@
+case: xinanjiang_upstream
+runs: 3
+sha256_run1: fe6dd4edc94c9581f382d1c732c28c7cc56dda857793b70ed8b989fea1fef394
+sha256_run2: fe6dd4edc94c9581f382d1c732c28c7cc56dda857793b70ed8b989fea1fef394
+sha256_run3: fe6dd4edc94c9581f382d1c732c28c7cc56dda857793b70ed8b989fea1fef394
+verdict: PASS
+date: 2026-06-17T09:38:41Z
+wall_times_sec: 5,4,5
+binary: /Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/shud
+binary_sha256: fc3dd0e58c21e4463f1ccaef198715d997b305c4ac8d8cd47a300e2a498bfa51
+host: Darwin 24.6.0 arm64
+cfg_window_days: 90
+missing_manifest_files: 4
+missing_manifest_files_note: cfg.para DT_*=0 for these channels; pre-existing NWM deployment gap, see S0-4 / issue #11
+missing_file: output/xinanjiang.out/xinanjiang.eleysurf.dat
+missing_file: output/xinanjiang.out/xinanjiang.eleyunsat.dat
+missing_file: output/xinanjiang.out/xinanjiang.eleysnow.dat
+missing_file: output/xinanjiang.out/xinanjiang.rivystage.dat
