@@ -778,12 +778,12 @@ ratio_nfeLS_over_nfe: 2.88   # Krylov DQ Jv 占比；> 2 表示线性求解迭�
 | `qinyijiang` (3,155), `kashigeer` (3,204) | ✓ baseline + 开发 | ✓ 加速比验收 | Medium，本地分钟级 |
 | `qhh` NWM 版 (4,773 +lake) | ✓ baseline + 开发 + lake 路径调试 | ✓ 加速比验收 | 唯一 lake case |
 | `heihe` (6,335) | ✗（forcing 12G 不本地化） | ✓ baseline + 加速比验收 | Medium 高端 |
-| `heihe_x4` (Large, ~25k) | ✗ | ✓ **rSHUD 生成** + baseline + 验收 | rSHUD v2.0.0 已就绪（具体 R library 路径见 `CLAUDE.md`） |
+| `heihe_x4` (Large, 40,046) | ✗ | ✓ **AutoSHUD 生成 (S0-5 已交付)** + baseline + 验收 | NWM/AutoSHUD v2.5.0 + glob-anchor patch；rSHUD v2.5.0（路径见 `CLAUDE.md`） |
 | `heihe_x16` (XLarge, ~100k) | ✗ | ✓ 同上（推到 P8 前） | 进 P8 阶段补 |
 
 **铁律**：§1.1.1 量化加速比目标的**所有列只在服务器验收**；本地 Mac 仅供开发期判断方向、跑小 case 的 A3a bitwise 与 cutoff 验证。Mac 数字不计入 go/no-go（详见上方"Apple Silicon 专用补偿"）。
 
-**rSHUD 工具链状态**：源码副本已 clone 到 `tools/rSHUD/`（本地 reference，git ignored）；服务器上装的是 v2.0.0 可用版。mesh 加密 API：`shud.triangle(wb=boundary, q=30, a=AreaMax)`——加密时把 `a` 除以 4（→ heihe_x4）或 16（→ heihe_x16），其余 GIS 输入复用 heihe 原数据。
+**mesh 加密工具链**：实际采用 `NWM/AutoSHUD` 全流水线 (Path A) — Step1 (DEM/wbd/raster subset) → Step2 (CMFD2.0 forcing + HWSD/USGS LC 切片) → Step3 (triangulate + write SHUD input)。NumCells 参数控 a.max = min(AA1/NumCells, AreaMax)，heihe_x4 用 NumCells=25340 实测 NumEle=40046。AutoSHUD 当前 master HEAD = v2.5.0 tag = commit `32bf6b4`，含 `tools/mesh_refine/autoshud_v2.5.0_cmfd2_glob_anchor.patch` 才能跑通 CMFD2.0（详见 §S0.2 forcing 约定）。rSHUD 源码副本仍在 `tools/rSHUD/`（本地 reference，git ignored）。
 
 ##### `docs/profile_platform.md` 模板（强制产出物）
 
@@ -921,11 +921,12 @@ output_compare:
 
 | Case ID | NumEle（目标）| 来源 | 档位 | 用途 |
 |---|---|---|---|---|
-| `heihe_x4` | ~25,000 | **rSHUD v2.0.0 从 heihe 4× 加密生成**（在服务器跑） | Large | §1.1.1 Large 列加速比验收、P8-NVector NumY 门槛 |
-| `heihe_x16`（推到 P8 前补）| ~100,000 | rSHUD 16× 加密 | XLarge | §1.1.1 XLarge 列 + P8-KLU 内存评估 |
+| `heihe_x4` | 40,046（实测；NumCells=25340 配 q=30/MinAngle=30 实际 1.58×） | **AutoSHUD v2.5.0 patched 在服务器从 heihe 4× 加密生成**（S0-5 已交付） | Large | §1.1.1 Large 列加速比验收、P8-NVector NumY 门槛 |
+| `heihe_x16`（推到 P8 前补）| ~100,000 | AutoSHUD 同流程 16× 加密 | XLarge | §1.1.1 XLarge 列 + P8-KLU 内存评估 |
 
 > **数据位置约定**：
 > - NWM case 数据在 `SHUD/Basins/<case>/`（与服务器侧目录结构同构，具体服务器路径见 `CLAUDE.md`）；目录靠 SHUD submodule 的 `.git/info/exclude` 排除，不进版本控制。
+> - **forcing 唯一权威源 = CMFD V0200 (CMFD2.0)**，1.0 (V0106) 已淘汰（heihe NE 角 Juyan Lake 全 NA、且 2018 截止）。AutoSHUD ≤v2.5.0 的 `CMFD_NC2RDS.R` glob 在 CMFD2.0 数据扩到 2020+ 时撞 yr collision（`*2003*` 匹配 200301-200312 + 202003.nc），用 `tools/mesh_refine/autoshud_v2.5.0_cmfd2_glob_anchor.patch` 锚定即可。
 > - `heihe` forcing 12G、`HHY` forcing 9.7G **不下载到本地**，按 §S0.12 跨平台分工只在服务器跑。
 > - **SHUD 自带的 `SHUD/input/{ccw, heihe, qhh}` 仅用于 `./shud <name>` 跑通验证，不入 benchmark 集**——尤其与 NWM 同名的 `qhh` 是不同 case：自带版 1 站 `forcing.csv`、起始 2002，demo 用；NWM 版 386 站 `forcing/X*.csv`、起始 1979，科研用。两套不可混用。
 > - **BC/SS、dry/wet、cryosphere 特征覆盖**：由 `heihe`（冰川/积雪融水）+ `qinyijiang/qhh`（BC/SS 视 cfg 确认）覆盖；S0 实际跑 case 时在 manifest 里标 `has_cryosphere: true` 等字段，不再单列抽象 case ID。
@@ -2370,7 +2371,8 @@ first_mismatch = none
 | 交付物 | 内容 | 阶段 |
 |---|---|---|
 | B0 benchmark set | `benchmarks/<case>/manifest.yaml` + 输入数据 + B0 归档输出；6 类 NWM 算例（具体清单见 §S0.2）+ B-Large 一类 | S0 |
-| **B-Large mesh**（`heihe_x4`，NumEle ~25k） | rSHUD v2.0.0 在服务器对 heihe 4× 加密生成；本地仅同步 `input/heihe_x4/` ~30M | S0（mesh 加密阶段）|
+| **B-Large mesh**（`heihe_x4`，NumEle 40,046） | AutoSHUD v2.5.0 patched 在服务器对 heihe 全流水线（Step1-3 + CMFD2.0 forcing）4× 加密生成；本地仅同步 `input/heihe_x4/` ~30M（forcing 留服务器） | S0-5 已交付 |
+| **tools/mesh_refine/** | `heihe_x4.autoshud.txt`（配置）+ `build_dem_mosaic.sh`（DEM 拼合）+ `run_heihe_x4.sh`（driver）+ `autoshud_v2.5.0_cmfd2_glob_anchor.patch`（CMFD2.0 glob 锚定） | S0-5 |
 | **tools/rSHUD/**（local clone） | mesh 加密 API reference（git ignored，`shud.triangle(a=AreaMax/4)`）| S0 |
 | RHS snapshot harness | 固定 t/Y，导出所有关键 flux 和 DY 数组 | S0 |
 | compile manifest | 编译器/版本/选项/SUNDIALS 版本 + `OMP_PROC_BIND/PLACES` | S0 |

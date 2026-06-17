@@ -23,12 +23,7 @@ auxiliary case (not in this registry).
 | `kashigeer`           |  3 204  | local-and-server   | B-Medium; river/PassValue topology stress test (NumRiv/NumEle = 0.77)       | NWM dataset (project name: `ksge`)              |
 | `qhh` (NWM version)   |  4 773  | local-and-server   | B-Medium; **sole `has_lake: true` case** — covers lake vertical/horizontal/DY | NWM dataset (Qinghai Lake; not the SHUD demo)   |
 | `heihe`               |  6 335  | server-only        | B-Medium high; forcing 12 GB+, cryosphere path coverage                     | NWM dataset (Hexi inland river)                 |
-| `heihe_x4`            | ~25 000 | server-only        | B-Large; rSHUD-refined from `heihe` (`a / 4`). **Pending S0-5 / issue #7**  | rSHUD v2.0.0 mesh refinement on server          |
-
-> `heihe_x4/manifest.yaml` is intentionally absent at S0-3 — it lands together
-> with the server-side rSHUD refinement run in S0-5 (master plan §5 S0.5,
-> tasks block 5, issue #7). `tools/check_manifest.py --all` skips missing
-> directories under `benchmarks/` rather than FAILing.
+| `heihe_x4`            | 40 046  | server-only        | B-Large; AutoSHUD-refined from `heihe` (NumCells=25340, 4× baseline 6335)   | AutoSHUD v2.5.0 (patched) + rSHUD v2.5.0 master |
 
 > `heihe_x16` (XLarge, ~100 000) is deferred until P8 (master plan §5 S0.5
 > note) and is **not** registered here.
