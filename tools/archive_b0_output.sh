@@ -310,8 +310,13 @@ write_sha_manifest() {
     # (record_missing=1); subsequent runs just rebuild the hash manifest.
     for f in "${OUTPUT_FILES[@]}"; do
         if [[ "$has_lake_lc" == "false" ]]; then
+            # SHUD lake outputs follow the `<proj>.lak<channel>.dat` convention
+            # (see SHUD/src/classes/IO.cpp:169-176). Anchor the skip pattern on
+            # `.lak<letter>...dat` to avoid false positives on unrelated
+            # channels containing the substring "lak" (e.g. `polakov.dat`,
+            # `flakecount.dat`). PR #26 review follow-up.
             case "$f" in
-                *lak*|*lake*) continue;;
+                *.lak[a-z]*.dat) continue;;
             esac
         fi
         abs="$case_dir/$f"
@@ -423,8 +428,9 @@ mkdir -p "$ARCHIVE_DIR"
 HAS_LAKE_LC="$(printf '%s' "$HAS_LAKE" | tr '[:upper:]' '[:lower:]')"
 for f in "${OUTPUT_FILES[@]}"; do
     if [[ "$HAS_LAKE_LC" == "false" ]]; then
+        # See write_sha_manifest() above for the rationale.
         case "$f" in
-            *lak*|*lake*) continue;;
+            *.lak[a-z]*.dat) continue;;
         esac
     fi
     if [[ ! -f "$CASE_DIR/$f" ]]; then
