@@ -1,0 +1,15 @@
+nfe=6775
+nfeLS=12214
+nni=6774
+nli=12214
+nsetups=0
+netf=0
+nst=6571
+npe=0
+nps=0
+ncfn=2
+ncfl=64
+lenrw=277730
+leniw=53
+lenrwLS=256338
+leniwLS=42

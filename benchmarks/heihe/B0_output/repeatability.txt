@@ -1,0 +1,19 @@
+case: heihe
+runs: 3
+sha256_run1: 675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67
+sha256_run2: 675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67
+sha256_run3: 675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67
+verdict: PASS
+date: 2026-06-17T11:00:34Z
+wall_times_sec: 522,505,528
+binary: /scratch/frd_muziyao/SHUD-OpenMP/SHUD/shud
+binary_sha256: 00ea9d803dcfa13fddb2c7ef73a95776d0b345d5c525157d5f56f613d8df6a1a
+host: Linux 6.8.0-90-generic x86_64
+cfg_window_days: 90
+missing_manifest_files: 5
+missing_manifest_files_note: cfg.para DT_*=0 for these channels; pre-existing NWM deployment gap, see S0-4 / issue #11
+missing_file: output/heihe.out/heihe.eleysurf.dat
+missing_file: output/heihe.out/heihe.eleyunsat.dat
+missing_file: output/heihe.out/heihe.eleygw.dat
+missing_file: output/heihe.out/heihe.eleysnow.dat
+missing_file: output/heihe.out/heihe.rivystage.dat

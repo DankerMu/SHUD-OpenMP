@@ -1,55 +1,69 @@
 case: kashigeer
 status: DEFERRED
 deferred_at: 2026-06-17
-deferred_by: tools/archive_b0_output.sh skip list (issue #11 / S0-8b)
-reason: forcing-set-incomplete
+deferred_by: tools/archive_b0_output.sh skip list (issues #11 / S0-8b + #12 / S0-8c)
+reason: forcing-set-corrupt-upstream
 
-# What's wrong
+# What's wrong (updated by S0-8c / #12 with server-side evidence)
 
 `SHUD/Basins/kashigeer/input/ksge/ksge.tsd.forc` declares 941 forcing
-stations starting with `X76.45Y38.05.csv`, but `SHUD/Basins/kashigeer/
-forcing/` only ships 403 CSV files and the very first station (the entire
-`X76.*` column band) is missing. Running `./shud ksge` aborts immediately
-with `Reading fail, file = .../forcing/X76.45Y38.05.csv` and exit code
-12 (FILEIO) before CVODE is even constructed, so there is no B0 output
-to archive on the local laptop endpoint.
+stations starting with `X76.45Y38.05.csv`, but the corresponding
+`forcing/` directory ships only 403 CSV files, and the missing band
+covers the entire `X76.*` and `X77.*–X79.*` columns. Running
+`./shud ksge` aborts immediately with
+`Reading fail, file = .../forcing/X76.45Y38.05.csv` and exit code
+12 (FILEIO) before CVODE is even constructed.
 
-This is a pre-existing case-data deployment gap that long predates
-issue #11. It traces back to the NWM dataset slice that was used to
-populate `Basins/kashigeer/forcing/` during S0-2 (#4) — the forcing
-download was partial — and was not caught by S0-4 (#6) manifest checks
-because manifest registry does not cross-check tsd.forc station count
-against on-disk CSV count. The missing band (X76.*) covers Tarim
-glacier headwater grid points that AutoSHUD identified as essential
-for kashigeer but were never delivered.
+# Endpoint cross-check (S0-8c)
 
-# Why this is *not* in scope for #11
+| Endpoint | tsd.forc declared stations | Actual forcing/ CSV count | X range present |
+|---|---|---|---|
+| Local Mac `SHUD/Basins/kashigeer/forcing/` | 941 (first X76.45Y38.05) | 403 | X80.25 → X84.05 |
+| Server `/<server-data-root>/Basins/kashigeer/forcing/` | 941 (first X76.45Y38.05) | 403 | X80.25 → X84.05 |
 
-#11 (S0-8b) is the local-endpoint B0 archive driver. It SHALL skip
-cases that cannot be executed because of upstream input data issues,
-since fabricating a B0 baseline on partial forcing would silently
-produce a misleading hash that future B1a/B1b comparisons would lock
-themselves against.
+The two endpoints carry the *same* incomplete forcing slice. This is
+NOT a local-deployment regression from S0-2 (#4); it is an upstream
+NWM dataset gap where the `kashigeer/forcing/` directory was populated
+from a different X-band (X80–X84, looks like an adjacent basin slice
+such as the Kuqa or Tarim mainstem) than the metadata
+(`ksge.tsd.forc`) demands (X76–X80 Tarim glacier headwater).
 
-# Pointer for resolution
+# Why this is *not* in scope for #11 / #12
 
-S0-8c (#12) covers the server-side B0 archive workflow where the
-authoritative NWM forcing tree lives at /volume/data/nwm/Basins on the
-production node. Restoring the full 941-station kashigeer forcing set
-SHOULD happen there as a follow-up to (or alongside) #12, then the
-local-endpoint archive run for kashigeer can be re-attempted under
-issue #11 (re-open or follow-up issue), or it can be reclassified as
-server-only in benchmarks/INDEX.md.
+#11 (S0-8b) is the local-endpoint B0 archive driver and #12 (S0-8c) is
+the server-endpoint counterpart. Both SHALL skip cases that cannot be
+executed because of upstream input data issues, since fabricating a
+B0 baseline on partial forcing would silently produce a misleading
+hash that future B1a/B1b comparisons would lock themselves against.
 
-Until then this DEFERRED.txt is the placeholder occupying
-benchmarks/kashigeer/B0_output/. The other four NWM local-endpoint
-cases (keliya, xinanjiang_upstream, qinyijiang, qhh) are archived
-normally under #11.
+# Resolution paths (pick one, all out of scope for #11 / #12)
 
-# Reproduction
+1. **Re-deploy authoritative kashigeer forcing** — locate the
+   matching X76–X80 NWM slice (possibly from a different AutoSHUD
+   run or a sibling NWM dump), replace
+   `<server-data-root>/Basins/kashigeer/forcing/`, then
+   re-run the archive on both endpoints.
 
-$ cd SHUD/Basins/kashigeer && ../../shud ksge
-... (prints SHUD banner, opens ksge.cfg.para, opens ksge.sp.riv,
-     opens ksge.sp.rivseg) ...
-Reading fail, file = .../forcing/X76.45Y38.05.csv
-EXIT with error code 12(FILEIO)
+2. **Regenerate kashigeer mesh against the available X80–X84 slice**
+   — re-run AutoSHUD on the X80–X84 forcing tree to produce a
+   matching `kashigeer.tsd.forc` station list. This invalidates the
+   current mesh / stream network and is essentially a new
+   benchmark case.
+
+3. **Reclassify kashigeer** — mark `kashigeer` `endpoint: deferred-upstream`
+   in `benchmarks/INDEX.md` and remove it from the NWM-6 reference
+   set, leaving NWM-5 (keliya / xinanjiang_upstream / qinyijiang /
+   qhh / heihe) as the working set. heihe_x4 (Large) and an
+   eventual heihe_x16 (XLarge) cover the high-end size class.
+
+Until then this DEFERRED.txt occupies `benchmarks/kashigeer/B0_output/`
+on both endpoints; the four NWM local cases plus heihe (server)
+are archived normally under #11 / #12.
+
+# Reproduction (both endpoints)
+
+    $ cd SHUD/Basins/kashigeer && ../../shud ksge
+    ... (prints SHUD banner, opens ksge.cfg.para, opens ksge.sp.riv,
+         opens ksge.sp.rivseg) ...
+    Reading fail, file = .../forcing/X76.45Y38.05.csv
+    EXIT with error code 12(FILEIO)
