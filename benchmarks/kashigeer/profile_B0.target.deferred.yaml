@@ -1,0 +1,56 @@
+# benchmarks/kashigeer/profile_B0.target.deferred.yaml
+# S0-11 / openMP #15 — target-platform profile DEFERRED.
+#
+# kashigeer cannot produce profile_B0.target.yaml on the server
+# endpoint for the SAME root cause that blocks local generation:
+# upstream NWM forcing dataset for this case carries only the
+# X80.25-X84.05 band (403 CSV files), while
+# `SHUD/Basins/kashigeer/input/ksge/ksge.tsd.forc` declares 941
+# forcing stations starting with `X76.45Y38.05.csv`. The X76-X80
+# band is MISSING from both the local clone and the server NWM
+# data root (`/volume/data/nwm/Basins/kashigeer/forcing/`), so
+# `./shud ksge` aborts at exit code 12 (FILEIO) before CVODE
+# constructs, and `shud_profile::dump()` is never reached.
+
+case: kashigeer
+status: deferred-upstream-data-gap
+expected_endpoint: server
+expected_endpoint_detail: |
+  Endpoint label retained as `server` to satisfy the literal of
+  rhs-profile-gate spec.md "Target profiles uploaded to PR with origin
+  metadata" scenario. Semantic reality: this is NOT a
+  local-vs-server endpoint mismatch — both endpoints share the same
+  upstream gap. Remediation is dataset-level, not endpoint-level.
+deferred_at: 2026-06-17
+resolution_issue: 29
+resolution_path: |
+  Same as benchmarks/kashigeer/profile_B0.deferred.yaml (S0-10 / #14):
+    (a) redeploy a matching X76-X80 NWM forcing slice for kashigeer,
+    (b) regenerate kashigeer mesh against the X80-X84 forcing band,
+    (c) reclassify kashigeer in benchmarks/INDEX.md and remove it
+        from the NWM-6 reference set.
+  See benchmarks/kashigeer/B0_output/DEFERRED.txt for full path
+  catalogue. None of the three paths is in #15 scope.
+
+target_platform:
+  os: Linux 6.8.0-90-generic x86_64
+  cpu: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz; 2 sockets x 20 cores (40 logical, 1 thread/core)
+  numa: 2 nodes (node0 cpus 0-19, node1 cpus 20-39); ~96 GB per node
+  compiler: gcc 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1)
+  flags: -O2 -g -ffp-contract=off -fno-fast-math -std=c++14 (serial B0; no -fopenmp)
+  slurm_node: not-launched
+  binary_sha256: 6808894b52ed79669ea563451377f99096c37992d890fad09219015da0773c98
+generated_by: claude-code-s0-11-issue-15
+generated_on: 2026-06-17
+commit_hash:
+  outer: ecef3fbe6ad6971ac8dc2ff6a888ece8db8fae83
+  shud: 78c37a1061de4112bc7c297bb7bd1f107432e6f2
+
+spec_count_note: |
+  rhs-profile-gate spec.md "Target profiles uploaded to PR with origin
+  metadata" requires 7 `benchmarks/<case>/profile_B0.target.yaml`
+  files. With this upstream-deferred kashigeer placeholder the actual
+  target-side count is `6 real + 1 deferred-upstream-data-gap`.
+  Same deviation pattern as local-side (S0-10 / #14) — the spec
+  literal-count amendment is tracked separately and is not within
+  #15 scope.
