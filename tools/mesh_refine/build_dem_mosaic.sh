@@ -1,12 +1,15 @@
 #!/bin/bash
 # Build heihe DEM mosaic from 36 ASTER GDEM v3 tiles (N37-N42 × E097-E102).
 # heihe basin bbox (verified via sf::st_bbox of domain.shp): 97.08-102.02E, 37.72-42.72N.
-# Server-only: ASTER tiles live under /volume/data/SpatialData/World/DEM/Aster_GDEM.
+# Server-only: ASTER tiles live under <server-data-root>/SpatialData/World/DEM/Aster_GDEM.
+# Set REPO and ASTER env vars to your server paths; defaults are placeholder
+# strings that fail loudly if unset so credential leaks cannot ride in via
+# committed defaults.
 set -euo pipefail
 
-REPO=${REPO:-/scratch/frd_muziyao/SHUD-OpenMP}
+REPO=${REPO:-<server-scratch-root>/SHUD-OpenMP}
 OUT_DIR=$REPO/SHUD/Basins/heihe_x4/dem
-ASTER=/volume/data/SpatialData/World/DEM/Aster_GDEM
+ASTER=${ASTER:-<server-data-root>/SpatialData/World/DEM/Aster_GDEM}
 OUT_TIF=$OUT_DIR/heihe_dem_mosaic.tif
 VRT=$OUT_DIR/heihe_dem.vrt
 
