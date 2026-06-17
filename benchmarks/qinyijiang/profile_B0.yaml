@@ -1,0 +1,16 @@
+# SHUD profile (S0-10, openMP #14)
+# Units: seconds. t_CVODE_internal and t_other are
+# derived; raw measurements in extras: section.
+buckets:
+  t_RHS_kernel: 117.157959885
+  t_RHS_total: 117.181820620
+  t_CVODE_internal: 110.390906728
+  t_forcing_io: 1.441771230
+  t_ET: 0.124844006
+  t_output: 0.002710414
+  t_other: 0.309143627
+extras:
+  t_CVODE_raw: 227.572727348
+  t_wall_total: 229.451196625
+cvode_stats:
+ratio_nfeLS_over_nfe: 0.0

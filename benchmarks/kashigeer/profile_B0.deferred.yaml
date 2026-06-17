@@ -1,0 +1,49 @@
+# benchmarks/kashigeer/profile_B0.deferred.yaml
+# S0-10 / openMP #14 — kashigeer cannot produce a local profile_B0.yaml
+# because the upstream forcing dataset is incomplete (see
+# benchmarks/kashigeer/B0_output/DEFERRED.txt from S0-8c / #29).
+
+case: kashigeer
+# Spec literal (rhs-profile-gate spec.md L34) requires `status: deferred-to-server`
+# and `expected_endpoint: server`. kashigeer's actual deferral mode is
+# `deferred-upstream-data-gap` (the X76-X80 forcing band missing in the NWM
+# slice — see #29 / B0_output/DEFERRED.txt — affects BOTH local + server
+# endpoints, so "server" is technically not a true resolution endpoint).
+# Use the spec literal for parser compatibility, surface the semantic truth
+# in `status_detail` / `expected_endpoint_detail`.
+status: deferred-to-server
+status_detail: deferred-upstream-data-gap
+expected_endpoint: server
+expected_endpoint_detail: any-endpoint-blocked-until-upstream-fix
+deferred_at: 2026-06-17
+reason: |
+  Upstream NWM forcing data gap, same root cause as S0-8c / #29 / #12.
+  `SHUD/Basins/kashigeer/input/ksge/ksge.tsd.forc` declares 941
+  forcing stations starting with X76.45Y38.05.csv, but the actual
+  forcing/ directory carries only 403 CSV files in the X80.25–X84.05
+  band (i.e. a different sub-basin slice). Running `./shud ksge`
+  aborts immediately with `Reading fail, file = .../forcing/X76.45Y38.05.csv`
+  at exit code 12 (FILEIO) — long before CVODE constructs, let alone
+  the profile dump.
+
+  Because no .dat is produced, no profile_B0.yaml can be produced
+  either — the bucket timers never fire and shud_profile::dump() is
+  never reached.
+spec_count_note: |
+  openspec/changes/s0-baseline-lock/specs/rhs-profile-gate/spec.md
+  Scenario "Local profile covers 5 real runs + 2 deferred placeholders"
+  expects `ls benchmarks/*/profile_B0.yaml | wc -l == 5`. With this
+  upstream-deferred kashigeer placeholder the actual local count is
+  `4 real + 3 deferred (heihe / heihe_x4 / kashigeer)`. This is a
+  consequence of #29 reclassifying kashigeer endpoint to
+  `deferred-upstream`; spec amendment to count is tracked separately
+  and is not within #14 scope.
+resolution_issue: 29
+resolution_path: |
+  Either (a) redeploy a matching X76–X80 NWM forcing slice for
+  kashigeer, (b) regenerate kashigeer mesh against the X80–X84 forcing,
+  or (c) reclassify kashigeer in benchmarks/INDEX.md and remove it
+  from the NWM-6 reference set — full path catalogue in
+  benchmarks/kashigeer/B0_output/DEFERRED.txt.
+generated_by: claude-code-s0-10-issue-14
+generated_on: 2026-06-17

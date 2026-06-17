@@ -1,0 +1,25 @@
+# benchmarks/heihe/profile_B0.deferred.yaml
+# S0-10 / openMP #14 — local-platform profile placeholder for heihe.
+# Real profile generation deferred to the server endpoint per CLAUDE.md
+# case × endpoint matrix.
+
+case: heihe
+status: deferred-to-server
+expected_endpoint: server
+deferred_at: 2026-06-17
+reason: |
+  NWM heihe forcing is ~12 GB (server-only per CLAUDE.md
+  "双端实验环境" §). The local Apple-Silicon Mac development host
+  does not carry the full forcing tree; profile must be regenerated on
+  the Linux server endpoint (<server-scratch-root>/SHUD-OpenMP) where
+  the authoritative CMFD2.0 dataset and the Slurm-orchestrated
+  compute nodes live.
+resolution_issue: 15
+resolution_path: |
+  GitHub issue #15 [S0-11] will run the same SHUD_ENABLE_PROFILE=1
+  binary on the target deployment platform (single-socket 8-core
+  x86_64 Linux) and emit benchmarks/heihe/profile_B0.target.yaml.
+  The local placeholder here documents that the project intentionally
+  skipped local generation, not that it failed silently.
+generated_by: claude-code-s0-10-issue-14
+generated_on: 2026-06-17

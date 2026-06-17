@@ -1,0 +1,22 @@
+# benchmarks/heihe_x4/profile_B0.deferred.yaml
+# S0-10 / openMP #14 — local-platform profile placeholder for heihe_x4.
+# Real profile generation deferred to the server endpoint per CLAUDE.md
+# case × endpoint matrix.
+
+case: heihe_x4
+status: deferred-to-server
+expected_endpoint: server
+deferred_at: 2026-06-17
+reason: |
+  heihe_x4 (Large, ~25k elements) is generated on the server by
+  rSHUD v2.5.0 master from a 4x mesh-refinement of the heihe basin
+  (per CLAUDE.md). The Mac development host does not ship the rSHUD
+  refinement output nor the matching forcing slice — the case lives
+  exclusively under the server endpoint's /Basins/ tree.
+resolution_issue: 15
+resolution_path: |
+  GitHub issue #15 [S0-11] will run the same SHUD_ENABLE_PROFILE=1
+  binary on the target deployment platform and emit
+  benchmarks/heihe_x4/profile_B0.target.yaml.
+generated_by: claude-code-s0-10-issue-14
+generated_on: 2026-06-17
