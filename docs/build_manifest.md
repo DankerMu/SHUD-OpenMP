@@ -91,13 +91,16 @@ diff against `git show B0-tag:benchmarks/<case>/B0_output/` byte-for-byte.
 
 | Field | Value |
 |---|---|
-| `B0-tag-target-commit` | post-squash-merge of PR #35 onto `baseline/current` |
-| `B0-tag-applied` | `pending-post-merge` (will be flipped to `true` in a follow-up trivial PR after `git push origin B0-tag` returns success) |
-| `B0-tag-date` | `2026-06-17` (signing date; actual `git tag` push date may slip a few minutes) |
+| `B0-tag-applied` | `true` |
+| `B0-tag-date` | `2026-06-17` |
+| `B0-tag-object-sha` | `95ddc375ffa58115fd5c0a808dde80e9713b4c93` (annotated) |
+| `B0-tag-commit-sha` | `884cfb13ba08ebae02dd64e371c4a19a536b4e26` (squash-merge of PR #35 onto `baseline/current`) |
+| `SHUD-submodule-pin` | `78c37a1061de4112bc7c297bb7bd1f107432e6f2` |
 
-The `docs/status_matrix.md` field of the same name carries the same
-semantics — both flip together in the follow-up commit. Until then,
-`git rev-parse B0-tag` returns exit 128.
+The verify recipes in the section above (`git rev-parse B0-tag`,
+`git show B0-tag --stat -- SHUD`, `git ls-remote --tags origin | grep B0-tag`)
+all return success post tag-push (2026-06-17). The "Section validity"
+note in the parent section is now historical — kept for the audit trail.
 
 ## Disallowed flags (Makefile guard)
 - `-ffast-math`, `-Ofast`, `-funsafe-math-optimizations`

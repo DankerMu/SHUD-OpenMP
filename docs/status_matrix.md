@@ -73,7 +73,7 @@ Per `status-matrix` spec L47 + master plan §S0 A0 acceptance gate. Each item ma
 | 8 | docs/profile_platform.md 声明                         | PASS     | `docs/profile_platform.md` (#15 PR #32) — local + target + decision_consistency 三段齐                                                                  |
 | 9 | docs/profile_decision.md 已签署                       | PASS     | `docs/profile_decision.md` (#15 PR #32 + S0-13 #17 signature) — DankerMu signed against outer `a860eae5` + SHUD `78c37a1` via delegated grant 2026-06-17 |
 
-**B0-tag-applied**: `pending-post-merge` _(flips to `true` in a trivial follow-up PR after `git push origin B0-tag` returns success)_
+**B0-tag-applied**: `true`
 **B0-tag-date**: `2026-06-17`
 
 ### B0-tag application status
