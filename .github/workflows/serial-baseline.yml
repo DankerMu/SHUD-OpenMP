@@ -105,6 +105,12 @@ jobs:
     # is meaningful only on this image. Do not promote to ubuntu-latest.
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # Repo-wide default is contents:read only; the matrix-proposer step needs
+    # pull-requests:write for `gh pr comment` + `gh pr view`. Scoped at job
+    # level to keep the rest of the job at minimum privilege.
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       # -----------------------------------------------------------------------
@@ -452,6 +458,7 @@ jobs:
           # update via PR comment", the comment SHOULD include a diff-style
           # snippet a maintainer can copy verbatim into a follow-up PR.
           cat > /tmp/matrix_comment.md <<EOF
+          <!-- s0-12-matrix-proposer -->
           ## 🟢 Status matrix update proposal (CI auto-generated)
 
           The serial-baseline workflow built + compared keliya at commit
@@ -480,11 +487,13 @@ jobs:
           Other rows / cells in the matrix are not affected by this run.
           EOF
 
-          # Idempotency: if a previous run already left this comment on the
-          # PR, skip to avoid spam. Match by the auto-generated header.
+          # Idempotency: match on a stable HTML-comment marker that survives
+          # title edits, emoji rendering changes, and user-added prefixes.
+          # `gh pr view` errors propagate (no 2>/dev/null swallow) so a 403
+          # surfaces loudly instead of silently posting a duplicate.
           existing=$(gh pr view "$PR_NUM" --json comments \
-            --jq '.comments[] | select(.body | startswith("## 🟢 Status matrix update proposal")) | .url' \
-            2>/dev/null | head -1)
+            --jq '.comments[] | select(.body | contains("<!-- s0-12-matrix-proposer -->")) | .url' \
+            | head -1)
           if [[ -n "$existing" ]]; then
             echo "::notice title=status-matrix proposer::existing proposer comment found at $existing; skipping duplicate"
             exit 0
