@@ -83,7 +83,7 @@ EXTENSION_FIELDS: dict[str, tuple[type, ...]] = {
     "refine_factor": (int, type(None)),
 }
 
-VALID_ENDPOINTS = {"local-and-server", "server-only", "local-only"}
+VALID_ENDPOINTS = {"local-and-server", "server-only", "local-only", "deferred-upstream"}
 
 SNAPSHOT_REQUIRED_KEYS = ("t_values", "Y_source", "arrays_to_dump")
 OUTPUT_COMPARE_REQUIRED_KEYS = (

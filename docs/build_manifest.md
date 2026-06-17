@@ -32,8 +32,72 @@
 - Upstream: `https://github.com/SHUD-System/SHUD.git`
 - Working branch on upstream: `openmp-baseline` (long-lived, derived from `3aec657`; not master)
 - Initial B0 commit: `3aec657` (master plan §S0.10)
-- Current submodule HEAD: `a016beb2027caf0d436918a44dd067ea191bc733` (PR #18 round 5: W-R4 Warning-closure — `override DISALLOWED_FLAGS`, Layer 2 replaced with anchored `=value` iteration so paths containing `-Ofast` substring no longer false-positive; updated at each SHUD-touching PR-merge and at B0-tag time)
+- Current submodule HEAD: `78c37a1061de4112bc7c297bb7bd1f107432e6f2` (S0-10 / #14 timer instrumentation @ PROFILE=0/DUMP=0; updated at each SHUD-touching PR-merge and at B0-tag time)
 - Verify locally: `git -C SHUD rev-parse HEAD`
+
+## B0-tag (S0-13 / #17)
+
+The `B0-tag` lightweight git tag pins the exact `(outer, SHUD submodule)`
+commit pair that the A0 acceptance gate certified. B1a regression checks
+diff against `git show B0-tag:benchmarks/<case>/B0_output/` byte-for-byte.
+
+> **Section validity**: the recipes below (`git rev-parse B0-tag`,
+> `git show B0-tag --stat -- SHUD`) only succeed once the project owner
+> has run `git tag -a B0-tag <merge-commit-sha>` + `git push origin
+> B0-tag` post-merge of S0-13 PR. Until then, `B0-tag` does NOT exist.
+> See `## B0-tag application status` below for the live state.
+
+- **Outer repo tag**: `B0-tag` to be pushed on `baseline/current` at the
+  squash-merge commit of S0-13 PR (#35). Post-tag verify:
+  `git rev-parse B0-tag`.
+- **SHUD submodule pin at B0-tag**: `78c37a1061de4112bc7c297bb7bd1f107432e6f2`
+  (the submodule pointer captured by the outer tag commit). Post-tag
+  verify: `git show B0-tag --stat -- SHUD`.
+- **Date**: 2026-06-17
+- **Tagger**: DankerMu (project owner; GitHub `@DankerMu`); the tag push
+  itself is executed by claude-code on behalf of DankerMu per the same
+  delegated grant 2026-06-17 used in `docs/profile_decision.md`
+  signature. The grant authorizes orchestrated proxy tag push; the tag
+  message records `Tagger: DankerMu (delegated via claude-code)`.
+- **Authority for "what's in B0"**: `docs/status_matrix.md` B0 row
+  (4 PASS local + heihe PASS @ server + heihe_x4 PASS @ server +
+  kashigeer N/A deferred-upstream = 6 PASS + 1 N/A); A0 Acceptance
+  Checklist 9/9 PASS per S0-13 spec amendment.
+
+- **Manifest digests** (SHA256 of each `benchmarks/<case>/manifest.yaml`
+  at B0-tag merge commit):
+
+  | Case                | SHA256 of `manifest.yaml`                                            |
+  |---------------------|----------------------------------------------------------------------|
+  | `keliya`             | `db9e19eceb2a99027cf06be37b72b61d2f049b282650aa514cd8a1008678e8aa` |
+  | `xinanjiang_upstream`| `e1ff2c61e112aa32bb816bacada8f70561cc62283ae58530ad302680b6e75aef` |
+  | `qinyijiang`         | `75679b91f9bfbb53741b90f1a748ccee1b95a1342c1a4d7042533d1626a4b496` |
+  | `kashigeer`          | `5a856f370eb3c3aa302a94b44bbc297c512ab2b6e94e0ed12e2c22cd5fe9e942` |
+  | `qhh`                | `65dc067a6930d4485f7f88111fecee5e9a7d050239c95f7b1deb6caad14e5033` |
+  | `heihe`              | `c98569188a60ed74b134910e478eadca21711d32aaed7c3e710426604b9b386b` |
+  | `heihe_x4`           | `18f71e3dbf2355a121140119cb2649824eed785c97ccbd1cfbc19e9fa4afafb7` |
+
+  Compute via: `shasum -a 256 benchmarks/<case>/manifest.yaml` (or
+  `sha256sum` on Linux). Mismatch at B1a regression check is a hard
+  FAIL: the registry state at B1a MUST equal the B0-tag pinned state.
+
+- **Branch protection**: `baseline/current` has the
+  `.github/workflows/serial-baseline.yml` `build-and-compare` required
+  check enabled at B0-tag time. The `skip-baseline-ci` label-bypass
+  privilege is removed at B0-tag merge so subsequent S1+ PRs cannot
+  silently land without baseline verification.
+
+## B0-tag application status
+
+| Field | Value |
+|---|---|
+| `B0-tag-target-commit` | post-squash-merge of PR #35 onto `baseline/current` |
+| `B0-tag-applied` | `pending-post-merge` (will be flipped to `true` in a follow-up trivial PR after `git push origin B0-tag` returns success) |
+| `B0-tag-date` | `2026-06-17` (signing date; actual `git tag` push date may slip a few minutes) |
+
+The `docs/status_matrix.md` field of the same name carries the same
+semantics — both flip together in the follow-up commit. Until then,
+`git rev-parse B0-tag` returns exit 128.
 
 ## Disallowed flags (Makefile guard)
 - `-ffast-math`, `-Ofast`, `-funsafe-math-optimizations`
@@ -69,7 +133,16 @@
 - Install size: `26M`
 - Path: `SHUD/InstallSundials/`
 
-## CHANGELOG
+## CHANGELOG (S0-13 amendment)
+
+- S0-13 / #17: kashigeer reclassified from `local-and-server` to
+  `deferred-upstream` in `benchmarks/INDEX.md`; `status-matrix` +
+  `rhs-profile-gate` specs amended so deferred-upstream cells are
+  N/A-not-blocking; `B0-tag` section added above; `docs/profile_decision.md`
+  signed by DankerMu against outer `a860eae5` + SHUD `78c37a1` via
+  delegated grant 2026-06-17.
+
+## Prior CHANGELOG
 - `fea5922` (PR #16 / issue #3): initial B0 build-environment lockdown — locked flag set, SUNDIALS major-version guard, idempotent `./configure`, macOS libomp discovery via `brew --prefix`.
 - PR #18 round 2 (`c9368fd` in SHUD): invariant-closure round 2 — sealed `CFLAGS` / `CPPFLAGS` / `LDFLAGS` bypass paths in the disallowed-flag scan; pinned `CXX` via `$(origin CXX)` so `c++` no longer wins by default; tightened SUNDIALS guard with anchored regex on MAJOR + new MINOR check + `libsundials_cvode.*` / `libsundials_nvecserial.*` / (for omp) `libsundials_nvecopenmp.*` stat; added `check_sundials_omp` for the OpenMP target; added macOS libomp `$(error)` on `shud_omp`; cleaned bare-`-L` token via `$(if …)`; configure always re-extracts `cvode-6.0.0/`; documented `SUNDIALS_DIR` override discipline.
 - PR #18 round 3 (`a9327b1` in SHUD): invariant-closure round 3 — sealed `SHUD_BUILD_CFLAGS` / `CXX_BASE_FLAGS` bypass paths surfaced by round-2 verifier. Two-tier protection: (1) `override … :=` on both lock variables (silently ignores make-CLI override per GNU make semantics); (2) two-layer disallowed-flag guard — Layer 1 `filter` extended to include the 2 lock variables (defense-in-depth), Layer 2 new `findstring` scan on `$(MAKEOVERRIDES)` catches CLI assignments to the lock variables and escalates `override`'s silent drop into a loud `$(error)`. Manifest §"Disallowed flags" updated to enumerate all 8 carriers.
