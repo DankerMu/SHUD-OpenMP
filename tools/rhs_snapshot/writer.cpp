@@ -1,11 +1,18 @@
 /* writer.cpp — standalone snapshot writer (S0-7, openmp issue #9).
  *
  * Pure libc / C++17. See writer.h header doc for layout and constraints.
+ *
+ * #43 (S1-pre-B) adds `compose_snapshot_filename` + `compose_snapshot_filename_from_env`
+ * to mirror SHUD_DUMP_FNAME_SUFFIX disambiguation; kept in lock-step
+ * with `SHUD/src/ModelData/MD_rhs_dump.cpp::init_config()` and the
+ * snprintf in `shud_rhs_dump_point()` (per SCHEMA DUPLICATION NOTE
+ * at MD_rhs_dump.cpp:10-19).
  */
 #include "writer.h"
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -55,6 +62,31 @@ int write_snapshot(const std::string&             path,
 
     std::fclose(fp);
     return 0;
+}
+
+std::string compose_snapshot_filename(double             t_value,
+                                      const std::string& suffix) {
+    /* Path-traversal guard: mirror MD_rhs_dump.cpp init_config(). */
+    if (!suffix.empty()) {
+        if (suffix.find('/')  != std::string::npos ||
+            suffix.find('\\') != std::string::npos) {
+            return std::string();
+        }
+    }
+    char buf[128];
+    if (suffix.empty()) {
+        std::snprintf(buf, sizeof(buf), "snapshot_t%.0f.bin", t_value);
+    } else {
+        std::snprintf(buf, sizeof(buf), "snapshot_t%.0f_%s.bin",
+                      t_value, suffix.c_str());
+    }
+    return std::string(buf);
+}
+
+std::string compose_snapshot_filename_from_env(double t_value) {
+    const char *sfx = std::getenv("SHUD_DUMP_FNAME_SUFFIX");
+    const std::string suffix = (sfx && sfx[0]) ? sfx : "";
+    return compose_snapshot_filename(t_value, suffix);
 }
 
 }  /* namespace shud_snap */

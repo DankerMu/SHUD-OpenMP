@@ -139,6 +139,94 @@ done
 
 > Sanity check note：全 4 case 的新 1d golden（`snapshot_t86400.bin`）与旧 S0-7 4-year-run goldens 在**同绝对仿真时间**（abs_min = START_day × 1440 + 1440）byte-equal（verified with `tools/compare_snapshot`）。这证明：新归档命令实际驱动的 B0 binary + B0 cfg.para forcing 早期段 → byte-equal output。新旧 goldens 在 spec 角色上不同——新 goldens（case-relative seconds 命名）是 S1 B1a CI 的唯一权威基准；旧 goldens 仅作 historical reference 共存于 archive 目录。
 
+### Before-PassValue 12 张 golden
+
+为支持 S1b 阶段的 PassValue 边界 snapshot 比对（design.md D11 + D13；tasks.md task 0.1b），在 pre-S1a 第二轮归档 12 张 before-PassValue snapshot golden（4 case × 3 t_values，与上面 12 张 after-PassValue golden 同 t-集合 `[86400, 2592000, 7776000]`）。这组 golden 由 `MD_f.cpp:51` PassValue() 调用**之前**插入的 `shud_rhs_dump_point("f_loop_before_passvalue", t, QeleSurfTot, NumEle)` 钩子产生，与现有 12 张 `snapshot_t<v>.bin`（来自 `MD_update.cpp:151` "f_update" 钩子，即 f_update 末端 DY=0 数组）**语义对照**：
+
+| Snapshot 后缀 | 来源 site tag | 钩子位点 | 实际 dump payload | 语义 |
+|---|---|---|---|---|
+| 无（`snapshot_t<v>.bin`） | `"f_update"` | `SHUD/src/ModelData/MD_update.cpp:151` | `DY[0..NumY-1]`（已被 L147-149 reset to 0） | f_update 末端 RHS clear 后 baseline |
+| `_before_passvalue.bin` | `"f_loop_before_passvalue"` | `SHUD/src/ModelData/MD_f.cpp:51`（PassValue 之前） | `QeleSurfTot[0..NumEle-1]`（per-element overland flux 聚合） | f_loop 内 lake→ET→element→segment→river DY 计算完毕、river-segment 共享回写之前的 Model_Data flux 状态 |
+
+**SHUD_DUMP_FNAME_SUFFIX 写入器扩展**：两个 site 在同一 run 内 dump 同一 t_value 会因为旧写入器只输出 `snapshot_t<v>.bin` 而 collision overwrite，#43 在 `SHUD/src/ModelData/MD_rhs_dump.cpp::init_config()` 引入新环境变量 `SHUD_DUMP_FNAME_SUFFIX`：
+
+- 默认空字符串 → filename 保持 `snapshot_t<v>.bin`（与 PR #53 的 12 张文件名 + SHA256 完全 back-compat）
+- 非空 → filename 改为 `snapshot_t<v>_<suffix>.bin`（#43 用 `before_passvalue`）
+- 路径分隔符 `/` 或 `\\` 被拒绝（path-traversal guard，setting `c.disabled = true` + stderr 提示）
+- 全部扩展在 `#ifdef SHUD_DUMP_RHS` 内 → DUMP=0 编译产物字节零变更（compile-switch neutrality 硬契约，本次 4 case 全部 PASS）
+
+写入器副本 `tools/rhs_snapshot/writer.cpp` 同步增加 `compose_snapshot_filename()` + `compose_snapshot_filename_from_env()`（per MD_rhs_dump.cpp:10-19 SCHEMA DUPLICATION NOTE），以便未来外层 profile 工具走 writer 时行为一致。
+
+**重新归档命令**（B0-tag binary + #43 patch，90-day cfg.para 截断，本地 macOS Apple Silicon Apple Clang 17.0.0）：
+
+```bash
+cd SHUD && make clean && make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 shud && cd ..
+
+for c in keliya:keliya:12053 xinanjiang_upstream:xinanjiang:0 \
+         qinyijiang:nanlin:366 qhh:qhh:8401; do
+  case=$(echo "$c" | cut -d: -f1)
+  proj=$(echo "$c" | cut -d: -f2)
+  start_day=$(echo "$c" | cut -d: -f3)
+  start_min=$((start_day * 1440))
+  abs_t="$((start_min + 1440)),$((start_min + 43200)),$((start_min + 129600))"
+  staging="/tmp/snapshot_staging_$case"
+  rm -rf "$staging" && mkdir -p "$staging"
+  cd SHUD/Basins/$case
+  rm -rf output/$proj.out
+  SHUD_DUMP_T_VALUES="$abs_t" SHUD_DUMP_T_TOL=60 \
+  SHUD_DUMP_OUTPUT_DIR="$staging" SHUD_DUMP_CASE_ID="$proj" \
+  SHUD_DUMP_SITE="f_loop_before_passvalue" \
+  SHUD_DUMP_FNAME_SUFFIX="before_passvalue" \
+    ../../shud $proj
+  cd ../../..
+  # 文件名 abs-min → case-relative-sec rename + 复制到 benchmarks/
+  for rel_sec in 86400 2592000 7776000; do
+    case "$rel_sec" in
+      86400) abs_min=$((start_min + 1440)) ;;
+      2592000) abs_min=$((start_min + 43200)) ;;
+      7776000) abs_min=$((start_min + 129600)) ;;
+    esac
+    cp "$staging/snapshot_t${abs_min}_before_passvalue.bin" \
+       "benchmarks/$case/B0_output/snapshot_t${rel_sec}_before_passvalue.bin"
+  done
+done
+```
+
+**12 张 before-PassValue golden SHA256**（2026-06-18 archived；本地 macOS Apple Silicon、Apple Clang 17.0.0；server re-archival 在 S1a 流程内手动一致性验证）：
+
+| Case                  | t_value (s) | File                                                                          | SHA256                                                             |
+|-----------------------|-------------|-------------------------------------------------------------------------------|--------------------------------------------------------------------|
+| `keliya`              | `86400`     | `benchmarks/keliya/B0_output/snapshot_t86400_before_passvalue.bin`            | `672a6213379d8c767944f40c3d254ab36ee757e891fe1cb64f5e327143567580` |
+| `keliya`              | `2592000`   | `benchmarks/keliya/B0_output/snapshot_t2592000_before_passvalue.bin`          | `69c2130f7414f3bdeff0d66a35f481a79f0bf62177144b624c8c05b60705f5a7` |
+| `keliya`              | `7776000`   | `benchmarks/keliya/B0_output/snapshot_t7776000_before_passvalue.bin`          | `a0960a5cabbcea03a94bc853ddcbfa99489ef74f03c0ecd74c848a7556f9593d` |
+| `xinanjiang_upstream` | `86400`     | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t86400_before_passvalue.bin`   | `bcef647d172f876e78147c3b3980e6109595e7f5487ad83ccec717de6b8231f8` |
+| `xinanjiang_upstream` | `2592000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t2592000_before_passvalue.bin` | `253be23a084c7654fea502109c2d065ad6c0dee203d15ff2605f7c565293455d` |
+| `xinanjiang_upstream` | `7776000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t7776000_before_passvalue.bin` | `c88c2f60e07472b9dd3df0a564bdcf8c0e5e04cb4389cd6831f30c4b97c13b7a` |
+| `qinyijiang`          | `86400`     | `benchmarks/qinyijiang/B0_output/snapshot_t86400_before_passvalue.bin`        | `11e7094a0903b02b17298b1cb2fbbf8ea00e39edce6572384e04fddbe90e6ade` |
+| `qinyijiang`          | `2592000`   | `benchmarks/qinyijiang/B0_output/snapshot_t2592000_before_passvalue.bin`      | `967f24098369c91d50a2373ae28289d9a6f99fc33317a047a5fc13a575111fe1` |
+| `qinyijiang`          | `7776000`   | `benchmarks/qinyijiang/B0_output/snapshot_t7776000_before_passvalue.bin`      | `21ef1b184007925c7daa5837f036bcba8b3321f08391fd027ce70ab6c3c40ada` |
+| `qhh`                 | `86400`     | `benchmarks/qhh/B0_output/snapshot_t86400_before_passvalue.bin`               | `69e602f8f7a4d1769f95951af551490e07b33bda6e9274d8f7b6435a68e7ca75` |
+| `qhh`                 | `2592000`   | `benchmarks/qhh/B0_output/snapshot_t2592000_before_passvalue.bin`             | `73dd9ea2cb34790fa000553ea3c59e1b6e3f2e260dcaf14d5a4dbca1667b2a63` |
+| `qhh`                 | `7776000`   | `benchmarks/qhh/B0_output/snapshot_t7776000_before_passvalue.bin`             | `fb292950c267b6b888a0d1df97ddd4cb21eade3b1d77bf9a3605a1d841987503` |
+
+算法：`shasum -a 256 benchmarks/<case>/B0_output/snapshot_t<v>_before_passvalue.bin`（Linux 上用 `sha256sum`）。文件 size = `40 (FileHeader) + 12 (RecordHeader) + 4 (name_len) + 2 ("DY") + 8 (nelem) + 8 * NumEle (payload)`：keliya `3938 B` (NumEle=484)、xinanjiang_upstream `6474 B` (NumEle=801)、qinyijiang `25306 B` (NumEle=3155)、qhh `38250 B` (NumEle=4773)，与各 case `Model_Data::QeleSurfTot` 长度一致；binary header 与 `tools/rhs_snapshot/format.h v1` 完全相同（version 1, magic "SHRH"）。
+
+**PR #53 12 张 after-PassValue golden 仍 unchanged**：本节扩展不修改 PR #53 已落入的 12 张 `snapshot_t<v>.bin`，文件名 + SHA256 全部稳定（实测同 commit 内对比，全 12 张 byte-equal vs L123-134 列表）。`SHUD_DUMP_FNAME_SUFFIX` 默认空字符串保证 back-compat。
+
+**SHUD_DUMP_FNAME_SUFFIX 启用方式**（任意需要二者并存的 dump run 通用模式）：
+
+```bash
+# After-PassValue (legacy filename，与 PR #53 golden 对齐):
+SHUD_DUMP_SITE=f_update                                  ./shud <proj>
+# Before-PassValue (新 #43 钩子 + 新文件名):
+SHUD_DUMP_SITE=f_loop_before_passvalue \
+SHUD_DUMP_FNAME_SUFFIX=before_passvalue                  ./shud <proj>
+```
+
+两组命令对同一 run 跑出**不同**文件（无 collision overwrite），同 `SHUD_DUMP_OUTPUT_DIR` 可并存。
+
+**Cross-reference**：design.md D13 给出 site / writer / filename 三层 reconciliation 的完整契约；本节是 D13 + D11 落地的部署侧记录。
+
 ### 1.5.a 部署层 cfg.para 模板（S1a #44 周期性 IC backup probe 用）
 
 S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day, minutes）触发周期性 IC backup（`MD_update.cpp:234` 的 `PrintInit` 调用）；B1a 重构后 `rhs_core(ExecPolicy::Serial)` 路径下 backup 时刻的 RHS 评估状态 vs B0 binary 同时刻 byte-equal。**SHUD 本身没有 CVODE re-init 路径**（grep 验证 `CVodeReInit` 0 hits）；warm-restart 本质是"中途 IC 持久化 + 下次冷启动 from .ic"，不是 mid-run state 注入。本 issue (#42) 仅交付**模板/文档片段**，实际跑由 S1a #44 执行。
