@@ -232,7 +232,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          count=$(gh label list --repo "$GITHUB_REPOSITORY" --search skip-baseline-ci --json name --jq 'length')
+          # `--search` does fuzzy match against name+description and false-positives on
+          # e.g. `s1-ci` label whose description contains "skip"-related tokens.
+          # Use exact name match via --jq select() to avoid that.
+          count=$(gh label list --repo "$GITHUB_REPOSITORY" --json name --jq '[.[] | select(.name == "skip-baseline-ci")] | length')
           if [[ "$count" != "0" ]]; then
             echo "::error title=skip-baseline-ci label exists::skip-baseline-ci label MUST NOT exist; deleted in PR #35 (S0-13). Re-delete via: gh label delete skip-baseline-ci --repo $GITHUB_REPOSITORY --yes"
             exit 1
