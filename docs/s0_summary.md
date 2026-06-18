@@ -26,13 +26,12 @@ A0 验收 9 项全过。
 - `docs/`：`status_matrix.md` 是阶段 go/no-go 唯一真实状态来源；`profile_decision.md` 是决策依据；`build_manifest.md` 是编译环境合约。本文件是一次性总结，**不会再更新**。
 - `.github/workflows/serial-baseline.yml`：每个 PR 自动跑 3 种 build 然后 keliya bitwise 对比 B0。`baseline/current` 现在要求这个 check 通过才能 merge。
 
-## 已知没解决的问题
+## 进入 S1 前要处理的事
 
-- **kashigeer** 跑不了：上游 NWM 数据缺 X76-X80 forcing band，双端都缺。spec 已经把它标成 `deferred-upstream`，A0 验收排除它。要么重新拉数据，要么换 case 集合，二选一不在工程范围内。
-- **heihe forcing IO 占 79%**：RHS 并行化 Amdahl 上限只有 1.14×。决策文档建议把 forcing IO 并行化从 P9+ 提前到与 P1 并行做。
-- **xinanjiang_upstream `t_other` 22%**：是 startup 摊销，不是 profile 工具坏。等 timer 加一个 `t_init` 桶就分得清。
-- **CI 跑不到真正的对比**：GitHub runner 上没部署 keliya 的 forcing 数据，CI 只到 build 步就停。早期 S1 应该解决这个。
-- 还有几个文档漂移 / yaml 子树形状的小事，不影响 B1a 起步。
+只有两件，都不阻塞 B1a 起步：
+
+- **heihe forcing IO 占 79%**：RHS 并行化 Amdahl 上限只有 1.14×。决策文档建议把 forcing IO 并行化从 P9+ 提前到与 P1 并行排上来。
+- **xinanjiang_upstream `t_other` 22%**：profile 时间桶切得不够细，FortranIO init / mesh load / config 解析这些几秒 fixed-cost 被短跑（19.7s wall）的小 case 稀释不掉，全掉进 t_other。给 timer 加一个 `t_init` 桶就分出来了。B1a 阶段不影响，P1 开始算加速比之前补一下，避免分母被污染。
 
 ## 下一步：S1
 
