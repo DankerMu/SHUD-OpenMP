@@ -29,7 +29,7 @@ expected_walltime_sec: null                       # TODO measured @ S0.8
 
 # --- RHS snapshot probe ---
 snapshot_probe:
-  t_values: [86400, 864000, 8640000]              # 1 d / 10 d / 100 d (1095 > 100 d)
+  t_values: [86400, 2592000, 7776000]             # 1 d / 30 d / 90 d (S1-pre re-archival; 90 d window per CLAUDE.md)
   Y_source: "cvode_state"
   arrays_to_dump:
     - "DY"

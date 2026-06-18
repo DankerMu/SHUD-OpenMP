@@ -76,6 +76,97 @@
 
 上一节的验证命令（`git rev-parse B0-tag`、`git show B0-tag --stat -- SHUD`、`git ls-remote --tags origin | grep B0-tag`）在 tag push（2026-06-17）后都成功。上一节的 "Section validity" 提示已是历史信息——保留以备审计。
 
+## S1-pre snapshot golden re-archival
+
+为支持 S1（B1a refactor-equivalent serial reference），在 pre-S1a 重新归档 12 张 after-PassValue snapshot golden（4 case × 3 t_values）。
+
+**理由**：原 S0-7 12 张 golden 由 4-year full run 产生，timestamps（绝对分钟，如 keliya `t=17,357,760` ≈ START+1d、qhh `t=12,241,440` ≈ START+100d、qinyijiang `t=671,040` ≈ START+100d、xinanjiang_upstream `t=144,000` = START+100d）覆盖到 case-relative 100 day mark；S1 CI 与本地 bitwise gate 全部在 ≤90 天截断窗口运行（CLAUDE.md "所有 case 一律 ≤90 天截断"），第三张 100d snapshot 不可达，必须按新 t_values 重新归档。
+
+**新统一 t_values（case-relative seconds）**：`[86400, 2592000, 7776000]` = 1 d / 30 d / 90 d，全部 ≤ 90 天窗口。
+
+**Hook 单位换算契约**：`MD_rhs_dump.cpp` 的 `SHUD_DUMP_T_VALUES` 接收**绝对分钟数**（SHUD t-unit = minutes，见 `MD_rhs_dump.h` line 59 + format header）。Runner 必须把 manifest 的 case-relative seconds 转成绝对分钟：`abs_min = START_day × 1440 + (case_rel_sec / 60)`。Archive 文件命名采用 case-relative seconds（`snapshot_t<sec>.bin`）以与 manifest `snapshot_probe.t_values` 对齐；hook 默认输出文件名是绝对分钟（`snapshot_t<abs_min>.bin`），归档前需 rename。
+
+**重新归档命令**（B0-tag binary，90-day cfg.para 截断）：
+
+```bash
+git checkout B0-tag
+cd SHUD && git checkout 78c37a1 && cd ..
+git submodule update --recursive
+cd SHUD && make clean && make shud SHUD_DUMP_RHS=1 && cd ..
+# 部署层 cfg.para 截断（gitignored via SHUD/.git/info/exclude → /Basins/）：
+# 每个 case 设 END = START + 90 day
+# 然后对每个 case 跑 SHUD 同时把 t_values 转绝对分钟传 hook，再 rename 归档：
+for case_proj in "keliya keliya" "xinanjiang_upstream xinanjiang" "qinyijiang nanlin" "qhh qhh"; do
+  set -- $case_proj
+  case=$1; proj=$2
+  start_day=$(awk '$1=="START" {print $2; exit}' SHUD/Basins/$case/input/$proj/$proj.cfg.para)
+  start_min=$((start_day * 1440))
+  # offsets: 1d=1440 min, 30d=43200 min, 90d=129600 min
+  abs_t="$((start_min + 1440)),$((start_min + 43200)),$((start_min + 129600))"
+  cd SHUD/Basins/$case
+  rm -rf output/$proj.out
+  SHUD_DUMP_T_VALUES="$abs_t" \
+  SHUD_DUMP_T_TOL=60 \
+  SHUD_DUMP_OUTPUT_DIR="$(pwd)/output/$proj.out" \
+  SHUD_DUMP_CASE_ID="$proj" \
+  SHUD_DUMP_SITE="f_update" \
+  ../../shud $proj
+  cd ../../..
+  # rename to case-relative seconds + cp to archive (per-case mapping in tools/rhs_snapshot/README)
+done
+```
+
+**12 张新 golden SHA256**（B0-tag = `884cfb13` outer + SHUD pin `78c37a1`，2026-06-18 archived；本地 macOS Apple Silicon、Apple Clang 17.0.0；server re-archival 在 S1a #44 验证一致）：
+
+| Case                  | t_value (s) | File                                                       | SHA256                                                             |
+|-----------------------|-------------|------------------------------------------------------------|--------------------------------------------------------------------|
+| `keliya`              | `86400`     | `benchmarks/keliya/B0_output/snapshot_t86400.bin`          | `53b078c56edd9f907e791cb9850e75f939d193a31025ecc9d0e1f080e9340c06` |
+| `keliya`              | `2592000`   | `benchmarks/keliya/B0_output/snapshot_t2592000.bin`        | `e8361a54416135a2840b037de06c85fb3ec02617625876fcca5639d1ea5be9d1` |
+| `keliya`              | `7776000`   | `benchmarks/keliya/B0_output/snapshot_t7776000.bin`        | `7e55dd5727602b234880650b3f8933902e601d319414be3e2d49770947666f94` |
+| `xinanjiang_upstream` | `86400`     | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t86400.bin`   | `68b37777f57d48dd86ffa6d3d2fa0262ad8f5bc87d5d1bb0009c1d42af93cee4` |
+| `xinanjiang_upstream` | `2592000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t2592000.bin` | `9a008094e8929b9e71a06f83cf43528a887a6628059f0e3b13d4c9008298627d` |
+| `xinanjiang_upstream` | `7776000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t7776000.bin` | `5557a4c3b77eb1ec090054ff31b4a3d536536709a1446e66bd6f96a69ae8c977` |
+| `qinyijiang`          | `86400`     | `benchmarks/qinyijiang/B0_output/snapshot_t86400.bin`      | `b252aaf6e1a05e9ada4898ec41b7836dffa6b4ce8613c566664b12fd4de20b56` |
+| `qinyijiang`          | `2592000`   | `benchmarks/qinyijiang/B0_output/snapshot_t2592000.bin`    | `ef4ac2c84163c5f63215367b3d97f981092ccaf7783b13924d027ebc00af61a4` |
+| `qinyijiang`          | `7776000`   | `benchmarks/qinyijiang/B0_output/snapshot_t7776000.bin`    | `3348dc00ccea1f83be28c5afcb0c8c9ebdd335e14bd29affe3237987e93ca671` |
+| `qhh`                 | `86400`     | `benchmarks/qhh/B0_output/snapshot_t86400.bin`             | `588307a13ad8c8711bfa4db08c896b1e679cb4848777fcc0f42b79e2e2ce1e9e` |
+| `qhh`                 | `2592000`   | `benchmarks/qhh/B0_output/snapshot_t2592000.bin`           | `0aefb90c8586948b6eae285a3bdf13313fbef6269ce1bf61f1dbcf9fb3d58ca0` |
+| `qhh`                 | `7776000`   | `benchmarks/qhh/B0_output/snapshot_t7776000.bin`           | `218dbc817992798f466eab3e7102c7a493826a4cab9ced36961aa04e2243aa6a` |
+
+算法：`shasum -a 256 benchmarks/<case>/B0_output/snapshot_t<v>.bin`（Linux 上用 `sha256sum`）。binary 内 `RecordHeader.t_value` 字段保留**绝对分钟**（不可改、跟 hook spec 一致；见 `format.h`）；只文件名是 case-relative seconds（对齐 manifest）。
+
+**旧 S0-7 golden 处理**：保留作 historical reference（不删除）。命名是绝对分钟（如 `snapshot_t17357760.bin`、`snapshot_t17370720.bin`、`snapshot_t17500320.bin`），与新归档（case-relative seconds 命名）**文件名不冲突**，共存于同一 archive 目录。manifest.yaml 的 `snapshot_probe.t_values` 已 point 到新 t_values；下游 S1 bitwise gate 一律使用**新 golden**。
+
+> Sanity check note：全 4 case 的新 1d golden（`snapshot_t86400.bin`）与旧 S0-7 4-year-run goldens 在**同绝对仿真时间**（abs_min = START_day × 1440 + 1440）byte-equal（verified with `tools/compare_snapshot`）。这证明：新归档命令实际驱动的 B0 binary + B0 cfg.para forcing 早期段 → byte-equal output。新旧 goldens 在 spec 角色上不同——新 goldens（case-relative seconds 命名）是 S1 B1a CI 的唯一权威基准；旧 goldens 仅作 historical reference 共存于 archive 目录。
+
+### 1.5.a 部署层 cfg.para 模板（S1a #44 周期性 IC backup probe 用）
+
+S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day, minutes）触发周期性 IC backup（`MD_update.cpp:234` 的 `PrintInit` 调用）；B1a 重构后 `rhs_core(ExecPolicy::Serial)` 路径下 backup 时刻的 RHS 评估状态 vs B0 binary 同时刻 byte-equal。**SHUD 本身没有 CVODE re-init 路径**（grep 验证 `CVodeReInit` 0 hits）；warm-restart 本质是"中途 IC 持久化 + 下次冷启动 from .ic"，不是 mid-run state 注入。本 issue (#42) 仅交付**模板/文档片段**，实际跑由 S1a #44 执行。
+
+```text
+# 部署层 cfg.para override 示例
+# 文件：SHUD/Basins/keliya/input/keliya/keliya.cfg.para
+#
+# 在 90 天窗口内触发周期性 IC backup：
+#   START          12053    # day-index, 1951-01-01 epoch
+#   END            12143    # = START + 90, 项目级铁律截断
+#   INIT_MODE      3        # INIT_MODE = 3 (default): load IC from .ic file at startup;
+#                           # 与 Update_IC_STEP 配合使下次 cold restart 从最近 backup 起步
+#   Update_IC_STEP 43200    # 43200 min = 30 day; window markers at +30, +60, +90 day
+#                           # (SHUD 解析 keyword 大小写不敏感；单位 = 分钟，
+#                           #  默认 1440 见 Model_Control.hpp:111)
+#
+# 此 override 由 SHUD/.git/info/exclude 的 /Basins/ pattern 屏蔽，
+# 不污染 SHUD submodule、不入 outer repo PR、按 case 部署时直接 in-place 改。
+```
+
+**注意事项**（给 #44）：
+- `Update_IC_STEP` 单位是**分钟**（非 day-index）；30 day 必须写 `43200`，不能写 `30`。SHUD 在 `MD_update.cpp:234` 用 `t_long % CS.UpdateICStep` 判定 backup boundary（`t_long` 也是分钟单位），写 30 会让每 30 min 触发一次。
+- backup 边界点必须落在 ≤ END（即 `START_min + Update_IC_STEP` 与 `START_min + 2*Update_IC_STEP` 都 ≤ `START_min + 90*1440`）。43200 min step 在 90 day 窗口里给 2 个中途触发点（+30 day、+60 day）+ 1 个边界（+90 day），足够覆盖周期性 backup 路径。
+- B1a bitwise gate by #44 task 1.5.a：在 backup boundary 时刻（`t mod Update_IC_STEP == 0`，例如 +30d / +60d）dump RHS snapshot，与 B0 binary 跑同输入到同时刻的 snapshot byte-equal。注意 SHUD 不做 mid-run CVODE state 注入，因此 backup 本身只是文件持久化、不影响后续积分；本 probe 只验证 backup boundary 那一拍的 RHS 评估状态 B1a vs B0 byte-equal。
+
+**CI hookup follow-up（不在 #42 范围）**：`.github/workflows/serial-baseline.yml` 的 `SHUD_DUMP_T_VALUES` 当前仍 hardcode 旧 abs-min `[17357760, 17370720, 17500320]`，90-day 截断下不命中、silent skip via `::notice`。新 12 张 golden **尚未由 PR CI 验证**；S1a #44 启动前必须由后续 PR（追加进 #43 或新开 issue）改 workflow env → keliya 新 t-values 的 abs-min `[17357760, 17399520, 17485920]`（`START_day=12053 × 1440 + {1440, 43200, 129600} min`）+ remove silent-skip 路径。其它 case 同公式：xinanjiang_upstream (START=0) `[1440, 43200, 129600]`；qinyijiang (START=366) `[528480, 570240, 656640]`；qhh (START=8401) `[12098880, 12140640, 12227040]`。**B1a CI gate 不可在该修复前 flip 到新 goldens**。
+
 ## 禁用 flag（Makefile 守卫）
 - `-ffast-math`、`-Ofast`、`-funsafe-math-optimizations`
 - 二进制正确性在任何形式的注入（CLI、env、MAKEFLAGS 等）下都契约保证。用户面"显性报错"UX 只对 CLI 形式提供；针对两个项目内 lock 变量的 env 形式注入是静默（二进制安全，但不会 emit `$(error …)`——见下面 Layer 3 警示）。
