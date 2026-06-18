@@ -1,84 +1,68 @@
 # =============================================================================
-# serial-baseline.yml — SHUD-OpenMP S0-9 CI gate
+# serial-baseline.yml — SHUD-OpenMP S0-9 + S1-ci-A CI gate
 # =============================================================================
-# Spec:  openspec/changes/s0-baseline-lock/specs/ci-serial-baseline/spec.md
-# Issue: openmp #13 (S0-9)
+# Spec:
+#   - S0  ci-serial-baseline:   openspec/changes/s0-baseline-lock/specs/ci-serial-baseline/spec.md
+#   - S1  b0-tag-ci-integration: openspec/changes/s1-rhs-core-extraction/specs/b0-tag-ci-integration/spec.md
+# Issues: openmp #13 (S0-9 initial) → #50 (S1-ci-A: matrix + grep gates + nightly)
 #
-# What this workflow does (when keliya data is available on the runner):
-#   1. Checkout repo + SHUD submodule (recursive).
-#   2. Skip-label early-exit: if PR carries `skip-baseline-ci`, exit success
-#      with an informational summary. S0 development period uses this exclusively
-#      — every S0 PR to date sets this label (#3, #4, #5, #6, #10, #11, #12 …).
-#   3. Restore SUNDIALS 6.0.x install from cache, or build it if cache misses.
-#   4. Build three SHUD serial binaries with the locked B0 flag set
-#      (-O2 -g -ffp-contract=off -fno-fast-math -std=c++14):
-#        a. default     : SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0  (the locked B0 binary)
-#        b. profile-on  : SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1  (timer neutrality check)
-#        c. dump-on     : SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0  (snapshot probe)
-#   5. Run keliya with each binary, SHA256-compare default vs B0 golden,
-#      SHA256-compare profile-on vs default (neutrality), and run
-#      tools/compare_snapshot against benchmarks/keliya/B0_output/snapshot_t*.bin.
-#   6. On any failure, upload a `baseline-failure-diff` artifact with build
-#      logs + new outputs + new snapshots + compare stdout/stderr.
+# S1-ci-A scope (issue #50):
+#   - Build matrix split on LEGACY_RHS axis (=0 default, =1 legacy fallback)
+#   - PR fast-feedback path: 2 axes × 1 case (keliya) = 2 jobs
+#   - Nightly cron + PR `full-bitwise` label: 2 axes × 4 cases = 8 jobs
+#   - Macro removal grep gates (USE_RHS_CORE / _OPENMP_ON / NV_DATA_OMP /
+#     NV_DATA_S in f.cpp / N_VDestroy_Serial) — runs unconditionally even
+#     without forcing data
+#   - LEGACY_RHS=1 axis additionally asserts the 3 `*_omp` symbols are
+#     still present in the legacy binary (spec L20-23, #49 precedent)
+#   - 90-day truncation: explicit END = START + 90 rewrite in the CI step
+#     (tools/fix_case_paths/fix_case_paths.sh does NOT touch END; see note
+#     in "Fix case paths" step below)
+#
+# Out-of-scope (deferred to #51):
+#   - fetch-tags / fetch-depth: 0 on actions/checkout
+#   - CVODE 15-key stats diff in matrix
+#   - snapshot t_values HARD-fail outside 90-day window
+#   - skip-baseline-ci label removal + label trigger types beyond full-bitwise
+#
+# Notes on #51 scope split (per issue #50 body + PR #68 cross-review):
+#   - `fetch-tags: true` + `git show B0-tag:` compare path → #51 (R68-INV-1)
+#   - CVODE 15-key per-case gate in matrix → #51 (R68-INV-2)
+#   - `pull_request.types: [labeled, unlabeled]` → #51 (R68-INV-3)
+#   - `skip-baseline-ci` label removal → #51
+# These are deliberately OUT-OF-SCOPE for #50; do NOT add them here.
 #
 # -----------------------------------------------------------------------------
 # Data strategy: STRATEGY C  (skip-label-only + scaffolded run-and-compare)
 # -----------------------------------------------------------------------------
-# NWM keliya forcing (SHUD/Basins/keliya/forcing/, ~30 MB) is local-only:
+# NWM forcing (SHUD/Basins/<case>/forcing/, 30 MB to multi-GB) is local-only:
 #   - SHUD submodule .git/info/exclude carries `/Basins/`
 #   - SHUD/.gitignore line 13 (`forcing`) matches recursively
 # Neither tree ships in the SHUD git history, so a CI runner has no path to
 # the forcing CSVs (or the 90-day-truncated cfg.para) without external data.
 #
-# Strategy C is the lowest-scope-creep option for #13 itself:
-#   - All current S0 PRs use the `skip-baseline-ci` label → the early-exit
-#     path is the hot path; getting that correct ships value immediately.
-#   - The build + run + compare steps are SCAFFOLDED: they reference real
-#     Makefile flags + real compare_snapshot invocations + real benchmark
-#     paths. A "keliya data probe" step guards them; if data is missing the
-#     steps log a clear "data not deployed in CI" notice and the workflow
-#     exits success-with-warning (so it does not green-light bad code; it
-#     simply documents that compare was skipped). When data is added later,
-#     the same scaffolded steps light up without further changes.
+# Strategy C is the lowest-scope-creep option:
+#   - The build, grep-gate, and tool selftest steps are data-INDEPENDENT and
+#     ALWAYS run (only gated by skip-label).
+#   - The run + compare steps are SCAFFOLDED, gated by a per-case data probe;
+#     when data is missing those steps log `data not deployed` notice and the
+#     job exits success-with-warning (so it does not green-light bad code; it
+#     simply documents that bitwise compare was skipped). When data is added
+#     later, the same scaffolded steps light up without further changes.
 #
-# Why not strategy A (vendor a tiny CI subset)?
-#   - Generating a 10–50 station stripped keliya requires re-running
-#     AutoSHUD + regenerating golden hashes for that subset. That work is
-#     spec-level (which 10 stations? which 90 days? what are the new
-#     snapshot timesteps?) and belongs in its own change. Doing it inside
-#     #13 collapses two specs into one PR and bypasses the openspec gate.
-#
-# Why not strategy B (GitHub release artifact)?
-#   - The forcing CSV set is ~30 MB raw / ~10 MB gzipped. Uploading as a
-#     release asset is fine, but: (a) the asset needs a stable URL keyed
-#     to the data version; (b) cache invalidation must include the data
-#     SHA256; (c) the release-asset approach hides data versioning from
-#     the openspec change history. Cleaner to do this as a follow-up with
-#     its own spec ("ci-data-deployment").
-#
-# When forcing data IS deployed in CI later (follow-up issue), the only
-# changes needed in this file are:
-#   - Replace the `Probe keliya data` early-exit branch with the chosen
-#     deployment step (rsync from artifact, gh release download, or
-#     tests/ci-keliya/ vendored subset).
-#   - The data probe currently inspects two paths:
-#       SHUD/Basins/keliya/forcing/X*.csv         (forcing CSVs)
-#       SHUD/Basins/keliya/input/keliya/keliya.cfg.para    (90d-truncated cfg)
-#     A maintainer adding data must satisfy both, or rewrite the probe.
+# Strategy A/B trade-offs are unchanged from the S0-9 header; the rationale
+# carries over to S1-ci-A (matrix expansion does not change the data story).
 #
 # -----------------------------------------------------------------------------
-# Removing the skip-label at B0-tag time:
+# Removing the skip-label at B0-tag time (deferred to #51):
 # -----------------------------------------------------------------------------
 # When B0-tag is cut and S0 ships, branch protection on main / baseline/current
 # MUST mark `serial-baseline / build-and-compare` as a required check, and
 # the `skip-baseline-ci` label MUST be deleted from the repo (so PRs cannot
-# set it). Per the spec:
-#   - skip-label-honored scenario: applies BEFORE B0-tag (current state)
-#   - skip-label-rejected scenario: applies AFTER B0-tag (delete the label
-#     so the contains() check below trivially evaluates false)
-# Deleting the label org-side is sufficient; we do not need to remove the
-# `if:` branch from the YAML — once no PR can apply the label, the branch
-# is dead code that documents the transition.
+# set it). Per the S0-9 spec scenario, deleting the label org-side is
+# sufficient; the `if:` branch below evaluates trivially false once no PR
+# can apply the label. Removal of the early-exit branch itself is tracked
+# in #51.
 # =============================================================================
 
 name: serial-baseline
@@ -91,25 +75,80 @@ on:
     branches:
       - main
       - baseline/current
+  # S1-ci-A (#50): nightly cron triggers the 8-job full-bitwise matrix
+  # (2 LEGACY_RHS axes × 4 cases). Per b0-tag-ci-integration spec L213-218
+  # "nightly cron 03:00 UTC 跑全 4 case", the schedule runs on the default
+  # branch HEAD (GitHub Actions cron always runs on the default branch, which
+  # is `main` here; nightly verifies whatever was last merged into main).
+  schedule:
+    - cron: '0 3 * * *'
 
 # Cancel superseded runs on the same ref so PR push spam does not pile up
 # in the queue. Each push to a PR cancels the previous in-flight job.
+# Scheduled runs do not collide with PR refs so cron jobs survive.
 concurrency:
   group: serial-baseline-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1 — setup: emit the build matrix JSON
+  # ---------------------------------------------------------------------------
+  # Per b0-tag-ci-integration spec "CI build matrix 跑 LEGACY_RHS=0 与 =1 两轴"
+  # (L276-301) and "PR fast-feedback 路径只跑 keliya" (L36-52):
+  #
+  #   - PR default (no full-bitwise label, not a schedule event):
+  #       2 axes × 1 case (keliya) = 2 jobs, wall-clock ≤ 4 min
+  #   - PR with `full-bitwise` label OR schedule (nightly cron):
+  #       2 axes × 4 cases = 8 jobs, timeout ≥ 25 min
+  #
+  # Emitting the matrix from a separate setup job avoids 8 stub matrix entries
+  # gated by `if:` (which would still show as skipped checks on the PR UI,
+  # confusing readers). The matrix JSON is exposed via job outputs and the
+  # consumer job pulls it via `fromJson(needs.setup.outputs.matrix)`.
+  setup:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      mode: ${{ steps.matrix.outputs.mode }}
+    steps:
+      - name: Notice excluded cases (spec b0-tag-ci-integration L18-28)
+        run: |
+          echo "::notice title=Excluded cases::kashigeer endpoint=deferred-upstream (per S0-13 spec amendment); heihe / heihe_x4 endpoint=server-only (no forcing data on GitHub runner). See benchmarks/INDEX.md for the full case×endpoint matrix."
+
+      - name: Compute build matrix (fast-feedback vs full-bitwise)
+        id: matrix
+        run: |
+          # `contains()` returns string "true"/"false"; quote both sides
+          # to keep bash test happy on PR events where labels may be empty.
+          full_bitwise_label="${{ contains(github.event.pull_request.labels.*.name, 'full-bitwise') }}"
+          if [[ "${{ github.event_name }}" == "schedule" || "$full_bitwise_label" == "true" ]]; then
+            # 8-job full matrix: 2 axes × 4 cases
+            echo 'matrix={"rhs_path":["LEGACY_RHS=0","LEGACY_RHS=1"],"case":["keliya","xinanjiang_upstream","qinyijiang","qhh"]}' >> "$GITHUB_OUTPUT"
+            echo 'mode=full-bitwise' >> "$GITHUB_OUTPUT"
+            echo "::notice title=serial-baseline matrix mode::full-bitwise (2 axes × 4 cases = 8 jobs); trigger=${{ github.event_name }} full_bitwise_label=$full_bitwise_label"
+          else
+            # 2-job PR fast-feedback: 2 axes × 1 case (keliya)
+            echo 'matrix={"rhs_path":["LEGACY_RHS=0","LEGACY_RHS=1"],"case":["keliya"]}' >> "$GITHUB_OUTPUT"
+            echo 'mode=fast-feedback' >> "$GITHUB_OUTPUT"
+            echo "::notice title=serial-baseline matrix mode::fast-feedback (2 axes × 1 case = 2 jobs, keliya only); add `full-bitwise` label or wait for nightly cron to run all 4 cases"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Job 2 — build-and-compare: matrix consumer
+  # ---------------------------------------------------------------------------
   build-and-compare:
-    # F26 (PR #54 round-3): tool selftests inlined into build-and-compare
-    # so the single required check covers both helper-script regression
-    # detection and the longer bitwise matrix. g++/make are pre-installed
-    # on ubuntu-22.04; no apt-get step needed. Skip-label guard on the
-    # selftest steps mirrors the rest of the job for consistent UX.
+    needs: setup
     # Spec mandates ubuntu-22.04 hard requirement: the locked-flag B0 golden
     # was generated against gcc/g++ on Ubuntu 22.04, so bitwise comparison
     # is meaningful only on this image. Do not promote to ubuntu-latest.
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    # Timeout selected per spec L52 (full-bitwise ≥ 15 min, increased to 25
+    # in S1 L293 to accommodate 4-case serial × 2-axis parallel).
+    # Each individual matrix job stays under 25 min; the GitHub Actions UI
+    # parallelizes per matrix entry up to the runner quota.
+    timeout-minutes: 25
     # Repo-wide default is contents:read only; the matrix-proposer step needs
     # pull-requests:write for `gh pr comment` + `gh pr view`. Scoped at job
     # level to keep the rest of the job at minimum privilege.
@@ -117,13 +156,20 @@ jobs:
       contents: read
       pull-requests: write
 
+    strategy:
+      # Continue other matrix entries even if one fails so a single broken
+      # case does not mask other regressions.
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+
     steps:
       # -----------------------------------------------------------------------
       # Step 1 — skip-label early exit (before any expensive work)
       # -----------------------------------------------------------------------
-      # `github.event.pull_request.labels` is null on push events, so the
-      # contains() call short-circuits to false. The check only fires on PR
-      # events that explicitly carry `skip-baseline-ci`.
+      # `github.event.pull_request.labels` is null on push / schedule events,
+      # so the contains() call short-circuits to false. The check only fires
+      # on PR events that explicitly carry `skip-baseline-ci`. Label removal
+      # is tracked in #51.
       - name: Skip-label early exit
         id: skip_check
         run: |
@@ -140,7 +186,8 @@ jobs:
       # `submodules: recursive` pulls SHUD/ at the pointer pinned in the
       # outer commit. fetch-depth: 1 is sufficient for build (we do not need
       # history for SHA256 compare). The skip-label branch bypasses this so
-      # skipped runs stay sub-15-second.
+      # skipped runs stay sub-15-second. fetch-tags / fetch-depth: 0 upgrade
+      # is deferred to #51 (needed for `git show B0-tag:...` golden path).
       - name: Checkout repo with SHUD submodule
         if: steps.skip_check.outputs.skipped != 'true'
         uses: actions/checkout@v4
@@ -149,7 +196,51 @@ jobs:
           fetch-depth: 1
 
       # -----------------------------------------------------------------------
-      # Step 2.5 — tool selftests (F26 / PR #54 round-3)
+      # Step 3 — Macro removal grep gates (S1d.1 + S1d.2, post-#48 #49)
+      # -----------------------------------------------------------------------
+      # Per b0-tag-ci-integration spec L302-340 "宏移除 grep gate 作 CI 强检查":
+      # current submodule pin (`ce6ee3a`) is post-S1d.2, so all 4 grep gates
+      # MUST return zero matches. Any non-zero match indicates a regression
+      # in the macro retirement, fail the job with a structured ::error.
+      #
+      # Data-INDEPENDENT: this runs even without forcing data because it
+      # only inspects SHUD/src/ source files. Runs in <2 seconds.
+      - name: Macro removal grep gates (S1d.1 + S1d.2)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          fail=0
+
+          # USE_RHS_CORE retired post-S1d.1 (#47)
+          if grep -rn 'USE_RHS_CORE' SHUD/src/ 2>/dev/null; then
+            echo "::error title=USE_RHS_CORE not fully retired::Found above hits in SHUD/src/; S1d.1 (#47) retired this scaffold macro."
+            fail=1
+          fi
+
+          # _OPENMP_ON retired post-S1d.2 (#48)
+          if grep -rn '_OPENMP_ON' SHUD/src/ 2>/dev/null; then
+            echo "::error title=_OPENMP_ON not fully retired::Found above hits in SHUD/src/; S1d.2 (#48) replaced single-macro with 3 orthogonal macros (SHUD_ENABLE_OPENMP_RHS / SHUD_USE_OPENMP_NVECTOR / SHUD_LEGACY_OMP_RHS)."
+            fail=1
+          fi
+
+          # NV_DATA_OMP / NV_DATA_S unified to N_VGetArrayPointer in f.cpp post-S1d.2 (#48)
+          if grep -nE 'NV_DATA_OMP|NV_DATA_S' SHUD/src/Model/f.cpp 2>/dev/null; then
+            echo "::error title=NV_DATA_* not fully retired in f.cpp::Found above hits; S1d.2 (#48) unified the 6 RHS N_Vector entries on N_VGetArrayPointer."
+            fail=1
+          fi
+
+          # N_VDestroy_Serial unified to generic N_VDestroy post-S1d.2 (#48)
+          if grep -rn 'N_VDestroy_Serial' SHUD/src/ 2>/dev/null; then
+            echo "::error title=N_VDestroy_Serial not fully retired::Found above hits in SHUD/src/; S1d.2 (#48) replaced with generic N_VDestroy."
+            fail=1
+          fi
+
+          if [[ $fail -ne 0 ]]; then
+            exit 1
+          fi
+          echo "All macro removal grep gates PASS (USE_RHS_CORE / _OPENMP_ON / NV_DATA_* / N_VDestroy_Serial all returned zero matches)"
+
+      # -----------------------------------------------------------------------
+      # Step 4 — tool selftests (F26 / PR #54 round-3)
       # -----------------------------------------------------------------------
       # Helper-script regression detection runs in seconds; failing here
       # short-circuits the longer SUNDIALS install + build matrix below.
@@ -167,7 +258,7 @@ jobs:
         run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight
 
       # -----------------------------------------------------------------------
-      # Step 3 — SUNDIALS 6.0.x cache + (re)install
+      # Step 5 — SUNDIALS 6.0.x cache + (re)install
       # -----------------------------------------------------------------------
       # Cache key strategy:
       #   - "sundials-6.0.x-ubuntu-22.04-${HASH(SHUD/configure)}"
@@ -196,48 +287,50 @@ jobs:
           ./configure
 
       # -----------------------------------------------------------------------
-      # Step 4 — build three SHUD binaries
+      # Step 6 — build three SHUD binaries (axis-aware: ${{ matrix.rhs_path }})
       # -----------------------------------------------------------------------
-      # Each build is run sequentially so the second/third can reuse the
-      # first's object files? NO — SHUD's Makefile compiles single-source
-      # (all .cpp in $(SRC) compiled in one shot per target), so per-flag
-      # incremental compile does not happen. We `make clean` between builds
-      # to guarantee a fresh binary at each flag set (defensive: do not
-      # trust object-file invalidation across SHUD_DUMP_DEFINE changes).
-      # Build logs are tee'd to build_<mode>.log so the failure-artifact
-      # step can pick them up even when the build itself succeeded but
-      # the run/compare later failed.
+      # S1-ci-A (#50) splits build on LEGACY_RHS axis. For each axis (=0/=1)
+      # we still build the 3 binary modes (default / profile-on / dump-on) so
+      # the bitwise / neutrality / snapshot gates remain valid on each axis.
       #
-      # Flag names match SHUD/Makefile lines 99 (SHUD_DUMP_RHS) and ~135
-      # (SHUD_ENABLE_PROFILE) verbatim. The Makefile guards both with
-      # `$(error … must be 0 or 1, got '$(SHUD_DUMP_RHS)')`, so the explicit
-      # SHUD_DUMP_RHS=0 / SHUD_ENABLE_PROFILE=0 in each line is required.
-      - name: Build default (SHUD_DUMP_RHS=0, SHUD_ENABLE_PROFILE=0)
+      # `make clean` between modes is defensive: SHUD's Makefile compiles
+      # single-source (all .cpp in $(SRC) compiled in one shot per target),
+      # so per-flag incremental compile does not happen. We do not trust
+      # object-file invalidation across SHUD_DUMP_DEFINE / LEGACY_RHS changes.
+      # Build logs are tee'd to build_<mode>.log so the failure-artifact
+      # step can pick them up even when the build succeeded but a later
+      # step failed.
+      #
+      # Flag names match SHUD/Makefile: SHUD_DUMP_RHS (line 99), SHUD_ENABLE_PROFILE
+      # (line ~135), and LEGACY_RHS (post-S1d.1 introduction, #47). All three
+      # are guarded by `$(error … must be 0 or 1, got 'X')` rules so explicit
+      # `FOO=0` is required.
+      - name: Build default (axis ${{ matrix.rhs_path }})
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 shud 2>&1 | tee build_default.log
+          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 ${{ matrix.rhs_path }} shud 2>&1 | tee build_default.log
           cp shud shud_default
 
-      - name: Build profile-on (SHUD_DUMP_RHS=0, SHUD_ENABLE_PROFILE=1)
+      - name: Build profile-on (axis ${{ matrix.rhs_path }})
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1 shud 2>&1 | tee build_profile.log
+          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1 ${{ matrix.rhs_path }} shud 2>&1 | tee build_profile.log
           cp shud shud_profile
 
-      - name: Build dump-on (SHUD_DUMP_RHS=1, SHUD_ENABLE_PROFILE=0)
+      - name: Build dump-on (axis ${{ matrix.rhs_path }})
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 shud 2>&1 | tee build_dump.log
+          make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 ${{ matrix.rhs_path }} shud 2>&1 | tee build_dump.log
           cp shud shud_dump
 
       # -----------------------------------------------------------------------
-      # Step 5 — build compare_snapshot helper
+      # Step 7 — build compare_snapshot helper
       # -----------------------------------------------------------------------
       # Standalone C++17, no SUNDIALS link (per tools/compare_snapshot/Makefile
       # header comment). Builds in <5 s.
@@ -247,93 +340,152 @@ jobs:
         run: make all
 
       # -----------------------------------------------------------------------
-      # Step 6 — keliya data availability probe
+      # Step 8 — case data availability probe (parameterized on ${{ matrix.case }})
       # -----------------------------------------------------------------------
-      # The compare step needs BOTH of these:
-      #   - SHUD/Basins/keliya/forcing/X*.csv     (~30 MB of CMFD CSVs)
-      #   - SHUD/Basins/keliya/input/keliya/keliya.cfg.para  (must be 90d-truncated)
+      # The compare step needs BOTH of these for the active matrix case:
+      #   - SHUD/Basins/<case>/forcing/X*.csv     (forcing CSVs)
+      #   - SHUD/Basins/<case>/input/<case>/<case>.cfg.para  (must exist; END
+      #                                                       rewrite happens
+      #                                                       in step 9)
       # Neither is in the git history (see file header comment block).
-      # If absent, we skip the run+compare steps but DO NOT fail — the
-      # workflow exits success with a notice so the spec's "skip label
-      # honored" path is unambiguous and follow-up data-deployment work
-      # can plug into the existing scaffold.
-      - name: Probe keliya data availability
+      # If absent for the active case, we skip the run+compare steps but DO
+      # NOT fail — the matrix entry still PASSes (build + grep gates ran),
+      # the workflow exits success with a notice so spec's "data not deployed
+      # in CI" path is unambiguous and follow-up data-deployment work can
+      # plug into the existing scaffold.
+      - name: Probe ${{ matrix.case }} data availability
         if: steps.skip_check.outputs.skipped != 'true'
         id: data_probe
         run: |
           forcing_present=false
           input_present=false
-          if compgen -G "SHUD/Basins/keliya/forcing/X*.csv" > /dev/null; then
+          if compgen -G "SHUD/Basins/${{ matrix.case }}/forcing/X*.csv" > /dev/null; then
             forcing_present=true
           fi
-          if [[ -f "SHUD/Basins/keliya/input/keliya/keliya.cfg.para" ]]; then
+          if [[ -f "SHUD/Basins/${{ matrix.case }}/input/${{ matrix.case }}/${{ matrix.case }}.cfg.para" ]]; then
             input_present=true
           fi
           if [[ "$forcing_present" == "true" && "$input_present" == "true" ]]; then
             echo "data_available=true" >> "$GITHUB_OUTPUT"
-            echo "keliya data present; will run + compare against B0 golden"
+            echo "${{ matrix.case }} data present; will run + compare against B0 golden (axis ${{ matrix.rhs_path }})"
           else
             echo "data_available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=keliya data not deployed::CI runner has no keliya forcing/input data; build verification PASSED, run+compare SKIPPED. Track deployment in the follow-up ci-data-deployment change. forcing=$forcing_present input=$input_present"
+            echo "::notice title=${{ matrix.case }} data not deployed::CI runner has no ${{ matrix.case }} forcing/input data; build verification + grep gates PASSED, run+compare SKIPPED. forcing=$forcing_present input=$input_present"
           fi
 
       # -----------------------------------------------------------------------
-      # Step 7a — fix case paths (forcing dir absolute path + NUM_OPENMP=1)
+      # Step 9 — fix case paths + enforce 90-day truncation
       # -----------------------------------------------------------------------
-      # When keliya data lands, tsd.forc line 2 will reference a developer's
-      # local path. tools/fix_case_paths rewrites it to the CI runner's
-      # absolute path; same script already enforces NUM_OPENMP=1 (serial).
-      # The 90-day truncation must be enforced by whatever ships the data
-      # (per CLAUDE.md §90-day-truncation), so this step does not touch
-      # START/END.
-      - name: Fix case paths for CI runner
+      # tools/fix_case_paths/fix_case_paths.sh:
+      #   - rewrites tsd.forc line 2 to the CI runner's absolute forcing path
+      #   - sets NUM_OPENMP=1 (serial mode, per S0.1b)
+      #
+      # IMPORTANT: fix_case_paths.sh does NOT touch START/END. Per
+      # b0-tag-ci-integration spec L85-100 ("90-day truncation 在 CI 自动应用"),
+      # the END = START + 90 rewrite MUST happen in CI before run. We do that
+      # inline here as a deterministic awk pass against cfg.para. This keeps
+      # the script change out of scope for #50 (modifying the tool would be
+      # a separate spec change); the inline awk is the canonical
+      # deployment-layer transform per CLAUDE.md §90-day-truncation.
+      - name: Fix case paths for CI runner (${{ matrix.case }})
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: tools/fix_case_paths/fix_case_paths.sh keliya
+        run: tools/fix_case_paths/fix_case_paths.sh ${{ matrix.case }}
+
+      - name: Enforce 90-day truncation (END = START + 90)
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
+        run: |
+          cfg="SHUD/Basins/${{ matrix.case }}/input/${{ matrix.case }}/${{ matrix.case }}.cfg.para"
+          if [[ ! -f "$cfg" ]]; then
+            echo "::error title=cfg.para missing::Expected $cfg after fix_case_paths but file not found"
+            exit 1
+          fi
+          start=$(awk '$1=="START" {print $2; exit}' "$cfg")
+          if [[ -z "$start" ]]; then
+            echo "::error title=START missing in cfg.para::Could not parse START line from $cfg"
+            exit 1
+          fi
+          new_end=$((start + 90))
+          # Rewrite END in place; awk uses tab separator matching SHUD cfg.para convention.
+          tmp=$(mktemp "${cfg}.XXXXXX")
+          awk -v ne="$new_end" -v t="$(printf '\t')" '
+            $1=="END" { printf "END%s%s\n", t, ne; next }
+            { print }
+          ' "$cfg" > "$tmp"
+          mv "$tmp" "$cfg"
+          new_end_check=$(awk '$1=="END" {print $2; exit}' "$cfg")
+          if [[ "$new_end_check" != "$new_end" ]]; then
+            echo "::error title=90-day truncation verification failed::Expected END=$new_end after rewrite, got $new_end_check in $cfg"
+            exit 1
+          fi
+          echo "90-day truncation applied: START=$start, END=$new_end (delta=90) for ${{ matrix.case }}"
 
       # -----------------------------------------------------------------------
-      # Step 7b — run default + compare to B0 golden
+      # Step 10a — run default + compare to B0 golden (case-parameterized)
       # -----------------------------------------------------------------------
-      # Matches benchmarks/keliya/manifest.yaml run_command:
-      #   cd SHUD/Basins/keliya && ../../shud keliya
+      # Matches benchmarks/<case>/manifest.yaml run_command:
+      #   cd SHUD/Basins/<case> && ../../shud <case>
       # The shud binary lives at SHUD/shud (worktree-relative); we shadow it
       # with shud_default for this run.
-      - name: Run keliya with default binary
+      - name: Run ${{ matrix.case }} with default binary
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         run: |
           cp SHUD/shud_default SHUD/shud
-          mkdir -p SHUD/Basins/keliya/output
-          rm -rf SHUD/Basins/keliya/output/keliya.out
-          (cd SHUD/Basins/keliya && ../../shud keliya) 2>&1 | tee run_default.log
-          cp SHUD/Basins/keliya/output/keliya.out/keliya.rivqdown.dat default_rivqdown.dat
-          cp SHUD/Basins/keliya/output/keliya.out/cvode_stats.txt default_cvode_stats.txt
-
-      - name: Compare default output vs B0 golden (SHA256)
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: |
-          golden_sha=$(sha256sum benchmarks/keliya/B0_output/keliya.rivqdown.dat | awk '{print $1}')
-          new_sha=$(sha256sum default_rivqdown.dat | awk '{print $1}')
-          echo "golden SHA256: $golden_sha"
-          echo "new    SHA256: $new_sha"
-          if [[ "$golden_sha" != "$new_sha" ]]; then
-            echo "::error title=B0 bitwise compare FAILED::default-build keliya.rivqdown.dat SHA256 mismatch vs benchmarks/keliya/B0_output/. Expected $golden_sha, got $new_sha."
-            exit 1
-          fi
-          echo "B0 bitwise compare PASS (default keliya.rivqdown.dat matches golden)"
+          mkdir -p SHUD/Basins/${{ matrix.case }}/output
+          rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
+          (cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }}) 2>&1 | tee run_default.log
+          cp SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/${{ matrix.case }}.rivqdown.dat default_rivqdown.dat
+          cp SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/cvode_stats.txt default_cvode_stats.txt
 
       # -----------------------------------------------------------------------
-      # Step 7c — run profile-on + verify bitwise neutrality vs default
+      # Step 10b — bitwise SHA256 vs B0 golden (every *.dat)
+      # -----------------------------------------------------------------------
+      # Per spec L114-128 "SHA256 mismatch 的错误处理" the error message MUST
+      # contain: case name, file path, expected SHA, actual SHA, AND a
+      # copy-paste reproduce command. We compare every *.dat file present in
+      # benchmarks/<case>/B0_output/ — keliya/qhh/qinyijiang/xinanjiang_upstream
+      # all currently have rivqdown.dat as the only *.dat golden, but the
+      # loop is generic so future per-case dat additions are picked up
+      # automatically. Failures accumulate (no early break) so multi-file
+      # mismatches surface together (spec L122-127 "聚合报告").
+      - name: Compare ${{ matrix.case }} output vs B0 golden (SHA256, axis ${{ matrix.rhs_path }})
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
+        run: |
+          fail=0
+          for golden in benchmarks/${{ matrix.case }}/B0_output/*.dat; do
+            filename=$(basename "$golden")
+            new_file="SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/$filename"
+            if [[ ! -f "$new_file" ]]; then
+              echo "::error title=Run output missing::Expected $new_file after default run but file not found (case=${{ matrix.case }}, axis=${{ matrix.rhs_path }})"
+              fail=1
+              continue
+            fi
+            golden_sha=$(sha256sum "$golden" | awk '{print $1}')
+            new_sha=$(sha256sum "$new_file" | awk '{print $1}')
+            echo "  $filename: golden=$golden_sha new=$new_sha"
+            if [[ "$golden_sha" != "$new_sha" ]]; then
+              echo "::error title=B0 bitwise compare FAILED::${{ matrix.case }}/$filename SHA256 mismatch (axis=${{ matrix.rhs_path }}). Expected $golden_sha, got $new_sha. Reproduce: cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }} && sha256sum output/${{ matrix.case }}.out/$filename"
+              fail=1
+            fi
+          done
+          if [[ $fail -ne 0 ]]; then
+            exit 1
+          fi
+          echo "B0 bitwise compare PASS (all *.dat for ${{ matrix.case }} match golden, axis=${{ matrix.rhs_path }})"
+
+      # -----------------------------------------------------------------------
+      # Step 10c — run profile-on + verify bitwise neutrality vs default
       # -----------------------------------------------------------------------
       # Profile timer is wall-clock-only; spec scenario "profile-on neutral to
       # default" requires the .dat output to be byte-identical to the default
       # build at the same flag set otherwise. Compare default_rivqdown.dat to
       # profile_rivqdown.dat by SHA256.
-      - name: Run keliya with profile-on binary
+      - name: Run ${{ matrix.case }} with profile-on binary
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         run: |
           cp SHUD/shud_profile SHUD/shud
-          rm -rf SHUD/Basins/keliya/output/keliya.out
-          (cd SHUD/Basins/keliya && ../../shud keliya) 2>&1 | tee run_profile.log
-          cp SHUD/Basins/keliya/output/keliya.out/keliya.rivqdown.dat profile_rivqdown.dat
+          rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
+          (cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }}) 2>&1 | tee run_profile.log
+          cp SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/${{ matrix.case }}.rivqdown.dat profile_rivqdown.dat
 
       - name: Verify profile-on bitwise neutral to default
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
@@ -343,101 +495,104 @@ jobs:
           echo "default SHA256: $default_sha"
           echo "profile SHA256: $profile_sha"
           if [[ "$default_sha" != "$profile_sha" ]]; then
-            echo "::error title=Profile neutrality FAILED::SHUD_ENABLE_PROFILE=1 build produced different keliya.rivqdown.dat than default. Profile timer is leaking into RHS path. default=$default_sha profile=$profile_sha"
+            echo "::error title=Profile neutrality FAILED::SHUD_ENABLE_PROFILE=1 build produced different ${{ matrix.case }}.rivqdown.dat than default (axis=${{ matrix.rhs_path }}). Profile timer is leaking into RHS path. default=$default_sha profile=$profile_sha"
             exit 1
           fi
-          echo "Profile-on bitwise neutrality PASS"
+          echo "Profile-on bitwise neutrality PASS (axis=${{ matrix.rhs_path }})"
 
       # -----------------------------------------------------------------------
-      # Step 7d — run dump-on + compare snapshots (after-PassValue + before-PassValue)
+      # Step 10d — run dump-on + compare snapshots (after-PassValue + before-PassValue)
       # -----------------------------------------------------------------------
       # SHUD_DUMP_OUTPUT_DIR + SHUD_DUMP_T_VALUES + SHUD_DUMP_CASE_ID + SHUD_DUMP_SITE
       # are the runtime env consumed by the dump hooks (see
       # SHUD/src/ModelData/MD_rhs_dump.cpp init_config()).
       #
-      # T_VALUES (#43 update): re-archived in PR #53 to case-relative
-      # seconds [86400, 2592000, 7776000] = 1d / 30d / 90d so the
-      # snapshots are reachable inside the 90-day-truncated CI run.
-      # Hook receives abs-minutes; the CI runs keliya with
-      # START=12053 (day) → start_min = 12053 * 1440 = 17356320 min →
-      # abs_t_values = [start_min + 1440, start_min + 43200, start_min + 129600]
-      #              = [17357760, 17399520, 17485920] (min).
-      # Filenames the hook writes use abs-min; we rename to rel-sec
-      # below to match the golden archive convention.
+      # T_VALUES are case-relative seconds [86400, 2592000, 7776000] = 1d / 30d / 90d,
+      # all reachable inside the 90-day-truncated CI run. Hook receives
+      # ABS-MINUTES; we compute start_min = START * 1440 from the deployed
+      # cfg.para (post-fix_case_paths + 90-day rewrite). Snapshot filenames
+      # from the hook use abs-min; we map to rel-sec at compare time.
       #
-      # Two snapshot sites (#43): "f_update" (legacy, after-PassValue
-      # naming → snapshot_t<v>.bin) and "f_loop_before_passvalue"
-      # (#43 new, SHUD_DUMP_FNAME_SUFFIX=before_passvalue →
-      # snapshot_t<v>_before_passvalue.bin). Both keliya sites are CI-gated.
-      # 4-case nightly extension is task 6.1/6.2 (b0-tag-ci-integration).
-      - name: Run keliya with dump-on binary (f_update, after-PassValue naming)
+      # Two snapshot sites (#43): "f_update" (legacy, after-PassValue naming
+      # → snapshot_t<v>.bin) and "f_loop_before_passvalue" (#43 new,
+      # SHUD_DUMP_FNAME_SUFFIX=before_passvalue →
+      # snapshot_t<v>_before_passvalue.bin). All 4 cases have both sets of
+      # 3 goldens checked-in under benchmarks/<case>/B0_output/.
+      - name: Compute case-relative snapshot abs-min triple (${{ matrix.case }})
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
+        id: snapshot_times
+        run: |
+          cfg="SHUD/Basins/${{ matrix.case }}/input/${{ matrix.case }}/${{ matrix.case }}.cfg.para"
+          start_day=$(awk '$1=="START" {print $2; exit}' "$cfg")
+          start_min=$((start_day * 1440))
+          # rel-sec → abs-min:  86400/60 = 1440, 2592000/60 = 43200, 7776000/60 = 129600
+          t1=$((start_min + 1440))
+          t2=$((start_min + 43200))
+          t3=$((start_min + 129600))
+          echo "case=${{ matrix.case }} START_day=$start_day START_min=$start_min"
+          echo "abs-min triple: $t1, $t2, $t3"
+          echo "abs_t_values=${t1},${t2},${t3}" >> "$GITHUB_OUTPUT"
+          echo "t1=$t1" >> "$GITHUB_OUTPUT"
+          echo "t2=$t2" >> "$GITHUB_OUTPUT"
+          echo "t3=$t3" >> "$GITHUB_OUTPUT"
+
+      - name: Run ${{ matrix.case }} with dump-on binary (f_update, after-PassValue)
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         env:
           SHUD_DUMP_OUTPUT_DIR: ${{ github.workspace }}/snapshots_new
-          SHUD_DUMP_CASE_ID: keliya
+          SHUD_DUMP_CASE_ID: ${{ matrix.case }}
           SHUD_DUMP_SITE: f_update
-          SHUD_DUMP_T_VALUES: "17357760,17399520,17485920"
+          SHUD_DUMP_T_VALUES: ${{ steps.snapshot_times.outputs.abs_t_values }}
           SHUD_DUMP_T_TOL: "60"
         run: |
           mkdir -p "${SHUD_DUMP_OUTPUT_DIR}"
           cp SHUD/shud_dump SHUD/shud
-          rm -rf SHUD/Basins/keliya/output/keliya.out
-          (cd SHUD/Basins/keliya && ../../shud keliya) 2>&1 | tee run_dump.log
+          rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
+          (cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }}) 2>&1 | tee run_dump.log
 
-      - name: Run keliya with dump-on binary (f_loop_before_passvalue, #43 hook)
+      - name: Run ${{ matrix.case }} with dump-on binary (f_loop_before_passvalue, #43)
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         env:
           SHUD_DUMP_OUTPUT_DIR: ${{ github.workspace }}/snapshots_new
-          SHUD_DUMP_CASE_ID: keliya
+          SHUD_DUMP_CASE_ID: ${{ matrix.case }}
           SHUD_DUMP_SITE: f_loop_before_passvalue
           SHUD_DUMP_FNAME_SUFFIX: before_passvalue
-          SHUD_DUMP_T_VALUES: "17357760,17399520,17485920"
+          SHUD_DUMP_T_VALUES: ${{ steps.snapshot_times.outputs.abs_t_values }}
           SHUD_DUMP_T_TOL: "60"
         run: |
           mkdir -p "${SHUD_DUMP_OUTPUT_DIR}"
-          rm -rf SHUD/Basins/keliya/output/keliya.out
-          (cd SHUD/Basins/keliya && ../../shud keliya) 2>&1 | tee run_dump_before_passvalue.log
+          rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
+          (cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }}) 2>&1 | tee run_dump_before_passvalue.log
 
-      - name: Compare snapshots vs B0 golden (both after-PassValue + before-PassValue)
+      - name: Compare ${{ matrix.case }} snapshots vs B0 golden (after + before PassValue)
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         run: |
           snap_dir="${{ github.workspace }}/snapshots_new"
           fail=0
-          # #43 update: abs-minutes from hook → case-relative seconds in archive.
-          # keliya: START=12053 day → start_min=17356320 min.
-          # rel_sec → abs_min mapping:
-          #   86400 s (1d)   = 17356320 + 1440   = 17357760
-          #   2592000 s (30d) = 17356320 + 43200  = 17399520
-          #   7776000 s (90d) = 17356320 + 129600 = 17485920
-
-          # Validate the two snapshot sets (after-PassValue + before-PassValue)
-          # against the 6 keliya goldens (3 t_values × 2 sites).
+          # abs-min → rel-sec mapping (inverse of step "Compute case-relative snapshot abs-min triple")
           declare -A abs_to_rel
-          abs_to_rel[17357760]=86400
-          abs_to_rel[17399520]=2592000
-          abs_to_rel[17485920]=7776000
+          abs_to_rel[${{ steps.snapshot_times.outputs.t1 }}]=86400
+          abs_to_rel[${{ steps.snapshot_times.outputs.t2 }}]=2592000
+          abs_to_rel[${{ steps.snapshot_times.outputs.t3 }}]=7776000
 
-          for abs_min in 17357760 17399520 17485920; do
+          for abs_min in ${{ steps.snapshot_times.outputs.t1 }} ${{ steps.snapshot_times.outputs.t2 }} ${{ steps.snapshot_times.outputs.t3 }}; do
             rel_sec=${abs_to_rel[$abs_min]}
             for suffix in "" "_before_passvalue"; do
               new_path="${snap_dir}/snapshot_t${abs_min}${suffix}.bin"
-              golden="benchmarks/keliya/B0_output/snapshot_t${rel_sec}${suffix}.bin"
+              golden="benchmarks/${{ matrix.case }}/B0_output/snapshot_t${rel_sec}${suffix}.bin"
               if [[ ! -f "$new_path" ]]; then
-                # #43 (task 0.5.iii): expected snapshot missing = fail-fast,
-                # NOT silent-skip. PR #53 + #43 ensure goldens are reachable
-                # in the 90-day-truncated CI run; absence indicates real bug.
-                echo "::error title=Expected snapshot missing::dump-on did not produce snapshot_t${abs_min}${suffix}.bin (expected for rel_sec=${rel_sec}, site=${suffix:-f_update}). Check SHUD_DUMP_T_VALUES + cfg.para 90-day window + dump-on build."
+                echo "::error title=Expected snapshot missing::dump-on did not produce snapshot_t${abs_min}${suffix}.bin (expected for rel_sec=${rel_sec}, site=${suffix:-f_update}, case=${{ matrix.case }}, axis=${{ matrix.rhs_path }}). Check SHUD_DUMP_T_VALUES + cfg.para 90-day window + dump-on build."
                 fail=1
                 continue
               fi
               if [[ ! -f "$golden" ]]; then
-                echo "::error title=Missing golden::Generated snapshot has no archive counterpart at ${golden}. Update docs/build_manifest.md + re-archive."
+                echo "::error title=Missing golden::Generated snapshot has no archive counterpart at ${golden} (case=${{ matrix.case }})."
                 fail=1
                 continue
               fi
               echo "Comparing snapshot_t${abs_min}${suffix}.bin vs golden snapshot_t${rel_sec}${suffix}.bin..."
               if ! tools/compare_snapshot/compare_snapshot "$new_path" "$golden" 2>&1 | tee -a snapshot_compare.log; then
-                echo "::error title=Snapshot diff::compare_snapshot reported diff for snapshot_t${rel_sec}${suffix}.bin; see snapshot_compare.log"
+                echo "::error title=Snapshot diff::compare_snapshot reported diff for ${{ matrix.case }}/snapshot_t${rel_sec}${suffix}.bin (axis=${{ matrix.rhs_path }}); see snapshot_compare.log. Reproduce: tools/compare_snapshot/compare_snapshot benchmarks/${{ matrix.case }}/B0_output/snapshot_t${rel_sec}${suffix}.bin ${new_path}"
                 fail=1
               fi
             done
@@ -445,37 +600,38 @@ jobs:
           if [[ $fail -ne 0 ]]; then
             exit 1
           fi
-          echo "All 6 snapshots (3 t_values × 2 sites) bitwise identical to B0 golden"
+          echo "All 6 snapshots (3 t_values × 2 sites) bitwise identical to B0 golden for ${{ matrix.case }} (axis=${{ matrix.rhs_path }})"
 
       # -----------------------------------------------------------------------
-      # Step 7e — verify golden SHA256 manifest (PR #54 round-1 F12)
+      # Step 11 — verify golden SHA256 manifest (PR #54 round-1 F12)
       # -----------------------------------------------------------------------
       # tools/check_goldens/check_goldens.sh parses the 24 SHA256 rows from
       # docs/build_manifest.md (12 after-PassValue + 12 before-PassValue),
       # re-computes sha256sum of each listed file in benchmarks/<case>/B0_output,
-      # and fails the build if any row mismatches. This catches drift
-      # between checked-in goldens and the doc manifest BEFORE a B0
-      # bitwise compare PR can mask it.
+      # and fails the build if any row mismatches. This catches drift between
+      # checked-in goldens and the doc manifest BEFORE a B0 bitwise compare PR
+      # can mask it. Runs unconditionally (data-independent, source-only check)
+      # but stays inside the matrix so each axis verifies the same manifest;
+      # matrix-axis redundancy is harmless and gives 2× / 8× signal coverage.
       - name: Verify golden SHA256 manifest
         if: steps.skip_check.outputs.skipped != 'true'
         run: bash tools/check_goldens/check_goldens.sh
 
       # -----------------------------------------------------------------------
-      # Step 8 — failure artifact upload
+      # Step 12 — failure artifact upload
       # -----------------------------------------------------------------------
       # Per spec Requirement "CI artifact uploads on failure": on any failure
       # (build, run, or compare), package build logs + new outputs + new
       # snapshots + compare stdout/stderr into `baseline-failure-diff`.
       # `if: failure()` fires only when an earlier step failed; the artifact
-      # is keyed by run id so multiple failures in the same PR push history
-      # do not collide.
+      # is keyed by (case, axis) to disambiguate matrix-entry failures.
       # `if-no-files-found: ignore` because skip-label runs produce none of
       # these and the action would warn on an empty match list.
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: baseline-failure-diff
+          name: baseline-failure-diff-${{ matrix.case }}-${{ matrix.rhs_path }}
           if-no-files-found: ignore
           retention-days: 14
           path: |
@@ -493,77 +649,84 @@ jobs:
             snapshots_new/**
 
       # ----------------------------------------------------------------------
-      # Step: propose-status-matrix-update (S0-12 / openMP #16)
+      # Step 13 — propose-status-matrix-update (S0-12 / openMP #16)
       #
       # Per `openspec/.../specs/status-matrix/spec.md` Requirement
       # "Matrix updated by CI on baseline runs": on a PR that runs the real
       # compare path (data_available=true and the SHA256/snapshot gates all
       # PASS), comment a suggested diff for `docs/status_matrix.md` updating
-      # the (B0, keliya) cell to PASS for the merging commit. Maintainer
+      # the (B0, <case>) cell to PASS for the merging commit. Maintainer
       # applies via a follow-up PR; CI never push back to baseline/current
       # (per spec L19 — avoids concurrent-write races and partial writes
       # under skip-label PRs).
       #
       # Skip conditions (any one suppresses the proposer):
       #   - PR carries `skip-baseline-ci` label (workflow already early-exits)
-      #   - This is a push event (no PR to comment on)
+      #   - This is a push / schedule event (no PR to comment on)
       #   - Data probe set `data_available=false` (no real compare to attest)
       #   - Any earlier step failed (already covered by `if: success()`)
+      #   - Matrix axis is LEGACY_RHS=1 (legacy path PASS does not warrant
+      #     a B1a row update; only LEGACY_RHS=0 axis attests B1a binary)
       # ----------------------------------------------------------------------
       - name: Propose status-matrix update
         if: >
           success() &&
           steps.skip_check.outputs.skipped != 'true' &&
           github.event_name == 'pull_request' &&
-          steps.data_probe.outputs.data_available == 'true'
+          steps.data_probe.outputs.data_available == 'true' &&
+          matrix.rhs_path == 'LEGACY_RHS=0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUM: ${{ github.event.pull_request.number }}
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          CASE_NAME: ${{ matrix.case }}
         run: |
           # Compose the suggested matrix diff. Per spec scenario "CI proposes
           # update via PR comment", the comment SHOULD include a diff-style
           # snippet a maintainer can copy verbatim into a follow-up PR.
+          # The comment marker includes case name so per-case proposals can
+          # coexist on a full-bitwise PR without overlapping.
           cat > /tmp/matrix_comment.md <<EOF
-          <!-- s0-12-matrix-proposer -->
-          ## 🟢 Status matrix update proposal (CI auto-generated)
+          <!-- s0-12-matrix-proposer:${CASE_NAME} -->
+          ## Status matrix update proposal (CI auto-generated, case=${CASE_NAME})
 
-          The serial-baseline workflow built + compared keliya at commit
-          \`$COMMIT_SHA\` and the (B0, keliya) cell is PASS as of this run.
-          Per \`status-matrix\` spec L19, CI does **not** push to
-          \`baseline/current\` directly. Maintainer to apply the suggested
-          edit below via a follow-up PR (or merge this PR if it already
-          touches \`docs/status_matrix.md\`).
+          The serial-baseline workflow built + compared \`${CASE_NAME}\` at commit
+          \`$COMMIT_SHA\` on the LEGACY_RHS=0 axis and the (B0, ${CASE_NAME})
+          cell is PASS as of this run. Per \`status-matrix\` spec L19, CI does
+          **not** push to \`baseline/current\` directly. Maintainer to apply
+          the suggested edit below via a follow-up PR (or merge this PR if it
+          already touches \`docs/status_matrix.md\`).
 
           \`\`\`diff
           --- a/docs/status_matrix.md
           +++ b/docs/status_matrix.md
           @@ B0 row evidence @@
-          -| keliya | PASS | ... (#11 PR #26) ... |
-          +| keliya | PASS | ... (#11 PR #26) + CI confirmed @ \`$COMMIT_SHA\` |
+          -| ${CASE_NAME} | PASS | ... existing evidence ... |
+          +| ${CASE_NAME} | PASS | ... existing evidence ... + CI confirmed @ \`$COMMIT_SHA\` |
           \`\`\`
 
           ### What was actually verified
 
-          - Default build (\`SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0\`) → keliya
-            output SHA256 matches \`benchmarks/keliya/B0_output/keliya.rivqdown.dat\`
+          - Default build (\`SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 LEGACY_RHS=0\`) → ${CASE_NAME}
+            output SHA256 matches \`benchmarks/${CASE_NAME}/B0_output/*.dat\`
           - Profile-on build (\`SHUD_ENABLE_PROFILE=1\`) → bitwise neutral to default
-          - Dump-on build (\`SHUD_DUMP_RHS=1\`) → snapshot matches
-            \`benchmarks/keliya/B0_output/snapshot_t*.bin\`
+          - Dump-on build (\`SHUD_DUMP_RHS=1\`) → 6 snapshots (3 t × 2 sites)
+            match \`benchmarks/${CASE_NAME}/B0_output/snapshot_t*.bin\`
 
           Other rows / cells in the matrix are not affected by this run.
           EOF
 
-          # Idempotency: match on a stable HTML-comment marker that survives
-          # title edits, emoji rendering changes, and user-added prefixes.
-          # `gh pr view` errors propagate (no 2>/dev/null swallow) so a 403
-          # surfaces loudly instead of silently posting a duplicate.
+          # Idempotency: match on a stable HTML-comment marker (case-scoped)
+          # that survives title edits, emoji rendering changes, and
+          # user-added prefixes. `gh pr view` errors propagate (no 2>/dev/null
+          # swallow) so a 403 surfaces loudly instead of silently posting a
+          # duplicate.
           existing=$(gh pr view "$PR_NUM" --json comments \
-            --jq '.comments[] | select(.body | contains("<!-- s0-12-matrix-proposer -->")) | .url' \
+            --jq ".comments[] | select(.body | contains(\"<!-- s0-12-matrix-proposer:${CASE_NAME} -->\")) | .url" \
             | head -1)
           if [[ -n "$existing" ]]; then
-            echo "::notice title=status-matrix proposer::existing proposer comment found at $existing; skipping duplicate"
+            echo "::notice title=status-matrix proposer::existing proposer comment for ${CASE_NAME} found at $existing; skipping duplicate"
             exit 0
           fi
           gh pr comment "$PR_NUM" --body-file /tmp/matrix_comment.md
-          echo "::notice title=status-matrix proposer::posted (B0, keliya) PASS suggestion to PR #$PR_NUM"
+          echo "::notice title=status-matrix proposer::posted (B0, ${CASE_NAME}) PASS suggestion to PR #$PR_NUM"
