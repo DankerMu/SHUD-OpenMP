@@ -1,73 +1,56 @@
-# B0 Build Manifest
+# B0 构建清单
 
-> Authoritative source of truth for reproducing the B0 baseline binary.
-> Any change to flags, SUNDIALS version, or compiler requires an OpenSpec change
-> against `openspec/changes/<change>/specs/build-environment-lockdown/spec.md`.
+> 复现 B0 baseline 二进制的权威来源。
+> 任何对 flag、SUNDIALS 版本或编译器的改动，都必须配一个 OpenSpec change，落在
+> `openspec/changes/<change>/specs/build-environment-lockdown/spec.md`。
 
-## 1. Linux config (target deployment platform — go/no-go authority)
-- Compiler: GCC 12, invoked as `g++-12` or `CXX=g++-12 make shud`
-- Base flags: `-O2 -g -ffp-contract=off -fno-fast-math -std=c++14` (from `CXX_BASE_FLAGS`)
-- OpenMP compile flag: `-fopenmp` (Linux UNAME_S branch in Makefile)
-- OpenMP link flag: `-lgomp`
-- SUNDIALS: 6.0.0 installed under `SHUD/InstallSundials/` via `./configure`
-- SUNDIALS link: `-lsundials_cvode -lsundials_nvecserial` (serial) + `-lsundials_nvecopenmp` (omp)
-- Verification command: `make shud && make shud_omp` after `./configure`
+## 1. Linux 配置（目标部署平台 — go/no-go 权威端）
+- 编译器：GCC 12，通过 `g++-12` 或 `CXX=g++-12 make shud` 调用
+- 基础 flag：`-O2 -g -ffp-contract=off -fno-fast-math -std=c++14`（取自 `CXX_BASE_FLAGS`）
+- OpenMP 编译 flag：`-fopenmp`（Makefile 里 Linux UNAME_S 分支）
+- OpenMP 链接 flag：`-lgomp`
+- SUNDIALS：6.0.0，通过 `./configure` 装到 `SHUD/InstallSundials/`
+- SUNDIALS 链接：`-lsundials_cvode -lsundials_nvecserial`（serial）+ `-lsundials_nvecopenmp`（omp）
+- 验证命令：`./configure` 之后 `make shud && make shud_omp`
 
-## 2. macOS config (development, Apple Silicon)
-- Compiler: Apple Clang (resolved via PATH `g++` → wrapper; on this host: Apple clang 17.0.0)
-- libomp: `brew install libomp`; prefix auto-detected via `$(brew --prefix libomp)` (`/opt/homebrew/opt/libomp` on Apple Silicon)
-- Base flags: same as Linux
-- OpenMP compile flag: `-Xpreprocessor -fopenmp`
-- OpenMP link flag: `-L$(brew --prefix libomp)/lib -lomp`
-- SUNDIALS: same install path
-- Cross-platform note: macOS numbers are development-only; the §1.1.1 quantitative go/no-go is decided on Linux only (see master plan §1.1.1).
+## 2. macOS 配置（开发用，Apple Silicon）
+- 编译器：Apple Clang（通过 PATH 中的 `g++` 包装解析；本机：Apple clang 17.0.0）
+- libomp：`brew install libomp`；前缀通过 `$(brew --prefix libomp)` 自动探测（Apple Silicon 上为 `/opt/homebrew/opt/libomp`）
+- 基础 flag：同 Linux
+- OpenMP 编译 flag：`-Xpreprocessor -fopenmp`
+- OpenMP 链接 flag：`-L$(brew --prefix libomp)/lib -lomp`
+- SUNDIALS：同上安装路径
+- 跨平台说明：macOS 数字仅供开发期参考；§1.1.1 的量化 go/no-go 只在 Linux 决（见 master plan §1.1.1）。
 
-## 3. OpenMP runtime env (both platforms)
+## 3. OpenMP 运行时 env（两个平台都用）
 - `OMP_PROC_BIND=close`
 - `OMP_PLACES=cores`
-- `OMP_NUM_THREADS` set per benchmark `manifest.yaml`
-- `NumEle < OMP_CUTOFF` triggers serial fallback (per master plan §C8)
+- `OMP_NUM_THREADS` 按各 benchmark 的 `manifest.yaml` 设置
+- `NumEle < OMP_CUTOFF` 触发 serial fallback（master plan §C8）
 
 ## 4. SHUD submodule pin
-- Upstream: `https://github.com/SHUD-System/SHUD.git`
-- Working branch on upstream: `openmp-baseline` (long-lived, derived from `3aec657`; not master)
-- Initial B0 commit: `3aec657` (master plan §S0.10)
-- Current submodule HEAD: `78c37a1061de4112bc7c297bb7bd1f107432e6f2` (S0-10 / #14 timer instrumentation @ PROFILE=0/DUMP=0; updated at each SHUD-touching PR-merge and at B0-tag time)
-- Verify locally: `git -C SHUD rev-parse HEAD`
+- Upstream：`https://github.com/SHUD-System/SHUD.git`
+- 上游工作分支：`openmp-baseline`（长寿命，从 `3aec657` 派生；不是 master）
+- 初始 B0 commit：`3aec657`（master plan §S0.10）
+- 当前 submodule HEAD：`78c37a1061de4112bc7c297bb7bd1f107432e6f2`（S0-10 / #14 timer 仪器化，PROFILE=0 / DUMP=0；每个改 SHUD 的 PR merge 时以及打 B0-tag 时更新）
+- 本地验证：`git -C SHUD rev-parse HEAD`
 
-## B0-tag (S0-13 / #17)
+## B0-tag（S0-13 / #17）
 
-The `B0-tag` lightweight git tag pins the exact `(outer, SHUD submodule)`
-commit pair that the A0 acceptance gate certified. B1a regression checks
-diff against `git show B0-tag:benchmarks/<case>/B0_output/` byte-for-byte.
+`B0-tag` 轻量 git tag pin 住了 A0 验收门认证的那一对 `(outer, SHUD submodule)` commit。B1a 回归比对就是逐字节 diff `git show B0-tag:benchmarks/<case>/B0_output/`。
 
-> **Section validity**: the recipes below (`git rev-parse B0-tag`,
-> `git show B0-tag --stat -- SHUD`) only succeed once the project owner
-> has run `git tag -a B0-tag <merge-commit-sha>` + `git push origin
-> B0-tag` post-merge of S0-13 PR. Until then, `B0-tag` does NOT exist.
-> See `## B0-tag application status` below for the live state.
+> **节有效性说明**：下面的命令（`git rev-parse B0-tag`、`git show B0-tag --stat -- SHUD`）只有在项目所有者 `git tag -a B0-tag <merge-commit-sha>` + `git push origin B0-tag` 之后才能成功；这一动作发生在 S0-13 PR merge 之后。在那之前 `B0-tag` 不存在。
+> 实时状态见下面的 `## B0-tag 应用状态`。
 
-- **Outer repo tag**: `B0-tag` to be pushed on `baseline/current` at the
-  squash-merge commit of S0-13 PR (#35). Post-tag verify:
-  `git rev-parse B0-tag`.
-- **SHUD submodule pin at B0-tag**: `78c37a1061de4112bc7c297bb7bd1f107432e6f2`
-  (the submodule pointer captured by the outer tag commit). Post-tag
-  verify: `git show B0-tag --stat -- SHUD`.
-- **Date**: 2026-06-17
-- **Tagger**: DankerMu (project owner; GitHub `@DankerMu`); the tag push
-  itself is executed by claude-code on behalf of DankerMu per the same
-  delegated grant 2026-06-17 used in `docs/profile_decision.md`
-  signature. The grant authorizes orchestrated proxy tag push; the tag
-  message records `Tagger: DankerMu (delegated via claude-code)`.
-- **Authority for "what's in B0"**: `docs/status_matrix.md` B0 row
-  (4 PASS local + heihe PASS @ server + heihe_x4 PASS @ server +
-  kashigeer N/A deferred-upstream = 6 PASS + 1 N/A); A0 Acceptance
-  Checklist 9/9 PASS per S0-13 spec amendment.
+- **外层 repo tag**：`B0-tag` 在 `baseline/current` 分支上、S0-13 PR（#35）的 squash-merge commit 上打。打完验证：`git rev-parse B0-tag`。
+- **B0-tag 时刻的 SHUD submodule pin**：`78c37a1061de4112bc7c297bb7bd1f107432e6f2`（外层 tag commit 抓住的 submodule pointer）。打完验证：`git show B0-tag --stat -- SHUD`。
+- **日期**：2026-06-17
+- **Tagger**：DankerMu（项目所有者；GitHub `@DankerMu`）；tag push 本身由 claude-code 代 DankerMu 执行，授权基于 `docs/profile_decision.md` 签字同一份 2026-06-17 的 delegated grant。该授权允许编排式代理打 tag；tag message 记录 `Tagger: DankerMu (delegated via claude-code)`。
+- **"B0 里有什么" 的权威**：`docs/status_matrix.md` 的 B0 行（本地 4 个 PASS + heihe PASS @ 服务器 + heihe_x4 PASS @ 服务器 + kashigeer N/A deferred-upstream = 6 PASS + 1 N/A）；A0 验收 checklist 9/9 PASS，按 S0-13 spec 修订。
 
-- **Manifest digests** (SHA256 of each `benchmarks/<case>/manifest.yaml`
-  at B0-tag merge commit):
+- **Manifest 摘要**（B0-tag merge commit 时每份 `benchmarks/<case>/manifest.yaml` 的 SHA256）：
 
-  | Case                | SHA256 of `manifest.yaml`                                            |
+  | Case                | `manifest.yaml` 的 SHA256                                            |
   |---------------------|----------------------------------------------------------------------|
   | `keliya`             | `db9e19eceb2a99027cf06be37b72b61d2f049b282650aa514cd8a1008678e8aa` |
   | `xinanjiang_upstream`| `e1ff2c61e112aa32bb816bacada8f70561cc62283ae58530ad302680b6e75aef` |
@@ -77,76 +60,62 @@ diff against `git show B0-tag:benchmarks/<case>/B0_output/` byte-for-byte.
   | `heihe`              | `c98569188a60ed74b134910e478eadca21711d32aaed7c3e710426604b9b386b` |
   | `heihe_x4`           | `18f71e3dbf2355a121140119cb2649824eed785c97ccbd1cfbc19e9fa4afafb7` |
 
-  Compute via: `shasum -a 256 benchmarks/<case>/manifest.yaml` (or
-  `sha256sum` on Linux). Mismatch at B1a regression check is a hard
-  FAIL: the registry state at B1a MUST equal the B0-tag pinned state.
+  算法：`shasum -a 256 benchmarks/<case>/manifest.yaml`（Linux 上用 `sha256sum`）。B1a 回归检查时不匹配是硬 FAIL：B1a 时刻的 registry 状态必须等于 B0-tag pin 住的状态。
 
-- **Branch protection**: `baseline/current` has the
-  `.github/workflows/serial-baseline.yml` `build-and-compare` required
-  check enabled at B0-tag time. The `skip-baseline-ci` label-bypass
-  privilege is removed at B0-tag merge so subsequent S1+ PRs cannot
-  silently land without baseline verification.
+- **分支保护**：B0-tag 打完时，`baseline/current` 启用了 `.github/workflows/serial-baseline.yml` 的 `build-and-compare` required check。`skip-baseline-ci` label-bypass 权限在 B0-tag merge 时移除，避免 S1+ 的 PR 静默绕过 baseline 验证。
 
-## B0-tag application status
+## B0-tag 应用状态
 
-| Field | Value |
+| 字段 | 值 |
 |---|---|
 | `B0-tag-applied` | `true` |
 | `B0-tag-date` | `2026-06-17` |
-| `B0-tag-object-sha` | `95ddc375ffa58115fd5c0a808dde80e9713b4c93` (annotated) |
-| `B0-tag-commit-sha` | `884cfb13ba08ebae02dd64e371c4a19a536b4e26` (squash-merge of PR #35 onto `baseline/current`) |
+| `B0-tag-object-sha` | `95ddc375ffa58115fd5c0a808dde80e9713b4c93`（annotated） |
+| `B0-tag-commit-sha` | `884cfb13ba08ebae02dd64e371c4a19a536b4e26`（PR #35 squash-merge 到 `baseline/current`） |
 | `SHUD-submodule-pin` | `78c37a1061de4112bc7c297bb7bd1f107432e6f2` |
 
-The verify recipes in the section above (`git rev-parse B0-tag`,
-`git show B0-tag --stat -- SHUD`, `git ls-remote --tags origin | grep B0-tag`)
-all return success post tag-push (2026-06-17). The "Section validity"
-note in the parent section is now historical — kept for the audit trail.
+上一节的验证命令（`git rev-parse B0-tag`、`git show B0-tag --stat -- SHUD`、`git ls-remote --tags origin | grep B0-tag`）在 tag push（2026-06-17）后都成功。上一节的 "Section validity" 提示已是历史信息——保留以备审计。
 
-## Disallowed flags (Makefile guard)
-- `-ffast-math`, `-Ofast`, `-funsafe-math-optimizations`
-- Binary correctness is contractually guaranteed in all forms of injection (CLI, env, MAKEFLAGS, etc.). The user-facing loud-error UX is provided for CLI form only; env-form injection on the two project-local lock variables is silent (binary safe, but no `$(error …)` emitted — see Layer 3 caveat below).
-- Three layers protect the lock:
-  1. **Layer 1 — `filter` over 8 carriers (loud error):** scans for any disallowed flag inside the 6 standard carriers (`CFLAGS`, `CXXFLAGS`, `CPPFLAGS`, `LDFLAGS`, `MAKEOVERRIDES`, `MAKEFLAGS`) + the 2 project-local lock variables (`SHUD_BUILD_CFLAGS`, `CXX_BASE_FLAGS`). Word-level `filter` catches `make shud CXXFLAGS=-Ofast`, `make shud CFLAGS=-Ofast`, etc.
-  2. **Layer 2 — anchored `=value` scan on `$(MAKEOVERRIDES)` (loud error):** iterates over the `VAR=value` tokens of `$(MAKEOVERRIDES)` and uses `filter %=<flag>` to match exact `VAR=<disallowed-flag>` CLI assignments. Catches `make shud SHUD_BUILD_CFLAGS=-Ofast` / `CXX_BASE_FLAGS=-Ofast`, which the `override :=` directive on the lock variables would otherwise silently drop. The anchored form (vs the earlier literal `findstring`) avoids false-positives on legitimate values that contain a disallowed flag as a substring (e.g. `SUNDIALS_DIR=/opt/sundials-Ofast-tuned`). `DISALLOWED_FLAGS` itself is `override`-protected so `make DISALLOWED_FLAGS=` cannot disarm the scan list.
-  3. **Layer 3 — `override … :=` on `CXX_BASE_FLAGS` + `SHUD_BUILD_CFLAGS` (silent guarantee):** per GNU make manual, the `override` directive on `:=` causes make-CLI assignments to be silently ignored. Recipes invoke `$(SHUD_BUILD_CFLAGS)` (alias of `CXX_BASE_FLAGS`) directly, so the locked flag set is what the compiler actually sees. **Caveat — env-form injection is silent:** `SHUD_BUILD_CFLAGS=-Ofast make shud` is silently ignored (binary safe — recipe still uses locked flags — but no error emitted, because Layer 1/2 only see CLI-form assignments via `MAKEOVERRIDES`). This is intentional: binary correctness is what we contractually guarantee; loud-error UX is provided for the most common injection vector (CLI form). A future deeper fix (Layer 3 env-var origin probe via `$(origin VAR)` checks) is tracked as a follow-up.
-- Recipes invoke `$(SHUD_BUILD_CFLAGS)` (alias of `CXX_BASE_FLAGS`) directly, so a user-supplied `make CFLAGS=…` cannot clobber the locked flag set — it is captured by Layer 1 and fails the build before any compile.
-- Compiler default is pinned via `$(origin CXX)` check (legacy `CXX ?= g++` was a no-op vs GNU make's built-in `c++`); env / CLI `CXX=...` is still honored.
+## 禁用 flag（Makefile 守卫）
+- `-ffast-math`、`-Ofast`、`-funsafe-math-optimizations`
+- 二进制正确性在任何形式的注入（CLI、env、MAKEFLAGS 等）下都契约保证。用户面"显性报错"UX 只对 CLI 形式提供；针对两个项目内 lock 变量的 env 形式注入是静默（二进制安全，但不会 emit `$(error …)`——见下面 Layer 3 警示）。
+- 三层保护锁定：
+  1. **Layer 1 — 在 8 个载体上 `filter`（显性报错）**：扫描任何禁用 flag 是否出现在 6 个标准载体（`CFLAGS`、`CXXFLAGS`、`CPPFLAGS`、`LDFLAGS`、`MAKEOVERRIDES`、`MAKEFLAGS`）+ 2 个项目内 lock 变量（`SHUD_BUILD_CFLAGS`、`CXX_BASE_FLAGS`）里。词级 `filter` 抓得到 `make shud CXXFLAGS=-Ofast`、`make shud CFLAGS=-Ofast` 等。
+  2. **Layer 2 — `$(MAKEOVERRIDES)` 上锚定的 `=value` 扫描（显性报错）**：遍历 `$(MAKEOVERRIDES)` 的 `VAR=value` token，用 `filter %=<flag>` 精确匹配 `VAR=<禁用 flag>` 的 CLI 赋值。抓得到 `make shud SHUD_BUILD_CFLAGS=-Ofast` / `CXX_BASE_FLAGS=-Ofast`——否则 lock 变量上的 `override :=` 会静默丢弃这些注入。锚定形式（相比早期字面 `findstring`）避免对合法值（含子串）的误报，例如 `SUNDIALS_DIR=/opt/sundials-Ofast-tuned`。`DISALLOWED_FLAGS` 自身受 `override` 保护，避免 `make DISALLOWED_FLAGS=` 解除扫描列表。
+  3. **Layer 3 — 对 `CXX_BASE_FLAGS` + `SHUD_BUILD_CFLAGS` 用 `override … :=`（静默保证）**：按 GNU make 手册，`:=` 上的 `override` 让 make-CLI 赋值被静默忽略。Recipe 直接展开 `$(SHUD_BUILD_CFLAGS)`（`CXX_BASE_FLAGS` 的别名），所以编译器看到的就是锁定后的 flag 集。**警示——env 形式注入是静默**：`SHUD_BUILD_CFLAGS=-Ofast make shud` 被静默忽略（二进制安全，因为 recipe 仍用锁定 flag），但不报错——因为 Layer 1/2 只通过 `MAKEOVERRIDES` 看到 CLI 形式赋值。这是有意的：契约只保证二进制正确性；显性报错 UX 服务于最常见的注入向量（CLI 形式）。后续更深的修复（Layer 3 的 env 来源探测，用 `$(origin VAR)`）作为 follow-up 跟踪。
+- Recipe 直接展开 `$(SHUD_BUILD_CFLAGS)`（`CXX_BASE_FLAGS` 的别名），所以用户提供的 `make CFLAGS=…` 没法盖掉锁定 flag——Layer 1 会抓到，编译之前就 fail。
+- 编译器默认通过 `$(origin CXX)` check pin 住（旧的 `CXX ?= g++` 在 GNU make 的内置 `c++` 面前是个 no-op）；env / CLI `CXX=...` 仍受尊重。
 
-## SUNDIALS version + install-completeness guard
-- `check_sundials` Makefile target enforces (anchored regex; no substring matches):
-  - `^#define SUNDIALS_VERSION_MAJOR 6$` in `SHUD/InstallSundials/include/sundials/sundials_config.h`
-  - `^#define SUNDIALS_VERSION_MINOR 0$` (B0 requires 6.0.x; 6.1+ rejected; PATCH unenforced)
-  - `libsundials_cvode.*` present under `$(SUNDIALS_DIR)/lib/`
-  - `libsundials_nvecserial.*` present under `$(SUNDIALS_DIR)/lib/`
-- `check_sundials_omp` additionally requires `libsundials_nvecopenmp.*`; `shud_omp` depends on it (`shud` depends on `check_sundials` only).
-- `./configure` mirrors the same MAJOR + MINOR + lib check both in the idempotent short-circuit and in the post-install report.
-- `./configure` always re-extracts `cvode-6.0.0/` (deletes and untar) to avoid stale / partial trees from interrupted prior runs poisoning cmake.
+## SUNDIALS 版本 + 安装完整性守卫
+- `check_sundials` Makefile target 强制（锚定 regex，不做子串匹配）：
+  - `SHUD/InstallSundials/include/sundials/sundials_config.h` 中 `^#define SUNDIALS_VERSION_MAJOR 6$`
+  - `^#define SUNDIALS_VERSION_MINOR 0$`（B0 要求 6.0.x；6.1+ 拒；PATCH 不强制）
+  - `$(SUNDIALS_DIR)/lib/` 下存在 `libsundials_cvode.*`
+  - `$(SUNDIALS_DIR)/lib/` 下存在 `libsundials_nvecserial.*`
+- `check_sundials_omp` 额外要求 `libsundials_nvecopenmp.*`；`shud_omp` 依赖它（`shud` 只依赖 `check_sundials`）。
+- `./configure` 在幂等短路和安装后的报告里都跑同样的 MAJOR + MINOR + lib 检查。
+- `./configure` 总是重新解压 `cvode-6.0.0/`（删了重 untar），避免上次中断留下的脏 / 残缺目录污染 cmake。
 
-## macOS libomp guard
-- `make shud_omp` checks `LIBOMP_PREFIX` (from `brew --prefix libomp`); if empty, errors with the install instruction. Only gated on `shud_omp` so `make shud` (serial) still works without libomp.
-- Linux: empty `LIB_OMP` is wrapped in `$(if …)` so no bare `-L` token appears on the link line.
+## macOS libomp 守卫
+- `make shud_omp` 检查 `LIBOMP_PREFIX`（来自 `brew --prefix libomp`）；空则报错给装机说明。只 gate 在 `shud_omp` 上，`make shud`（serial）即使没有 libomp 也能跑。
+- Linux：`LIB_OMP` 为空被 `$(if …)` 包住，避免链接行上出现裸 `-L`。
 
-## SUNDIALS_DIR override discipline
-- For B0 reproducibility, `SUNDIALS_DIR` MUST point at `SHUD/InstallSundials/` (the bundled install).
-- Override is technically possible (`make shud SUNDIALS_DIR=/external/path`), but the resulting binary is NOT B0-comparable and MUST NOT be used for the benchmark archive (#8), CI (#13), or A0 acceptance (#17). The `check_sundials` target only verifies the targeted SUNDIALS' MAJOR + MINOR version and presence of the required libs — not its compile flags or build provenance. A system-installed SUNDIALS built with `-Ofast` will pass the guard but break A3a bitwise.
-- If a host has external SUNDIALS 6.0.x satisfying the locked flag set, it MAY be used; record the override and rationale in the PR description.
+## SUNDIALS_DIR 覆盖纪律
+- 为了 B0 可复现，`SUNDIALS_DIR` 必须指向 `SHUD/InstallSundials/`（捆绑的安装）。
+- 覆盖在技术上是可以的（`make shud SUNDIALS_DIR=/external/path`），但结果二进制不 B0-comparable，**不得**用于 benchmark 归档（#8）、CI（#13）或 A0 验收（#17）。`check_sundials` 只验证目标 SUNDIALS 的 MAJOR + MINOR 和必需 lib 的存在——不验证它的编译 flag 或构建 provenance。一个系统装的、用 `-Ofast` 构建的 SUNDIALS 会通过守卫，但会破 A3a bitwise。
+- 如果主机上有满足锁定 flag 集的外部 SUNDIALS 6.0.x，**可以**用；在 PR 描述里记录覆盖事实和理由。
 
-## Installed SUNDIALS (current host)
-- Version: `6.0.0`
-- Install size: `26M`
-- Path: `SHUD/InstallSundials/`
+## 当前主机的 SUNDIALS 安装
+- 版本：`6.0.0`
+- 安装大小：`26M`
+- 路径：`SHUD/InstallSundials/`
 
-## CHANGELOG (S0-13 amendment)
+## CHANGELOG（S0-13 修订）
 
-- S0-13 / #17: kashigeer reclassified from `local-and-server` to
-  `deferred-upstream` in `benchmarks/INDEX.md`; `status-matrix` +
-  `rhs-profile-gate` specs amended so deferred-upstream cells are
-  N/A-not-blocking; `B0-tag` section added above; `docs/profile_decision.md`
-  signed by DankerMu against outer `a860eae5` + SHUD `78c37a1` via
-  delegated grant 2026-06-17.
+- S0-13 / #17：kashigeer 在 `benchmarks/INDEX.md` 里从 `local-and-server` 重分类为 `deferred-upstream`；`status-matrix` + `rhs-profile-gate` spec 修订，让 deferred-upstream 单元格成为 N/A 不阻塞；上面新增 `B0-tag` 一节；`docs/profile_decision.md` 由 DankerMu 通过 2026-06-17 的 delegated grant 签字，针对外层 `a860eae5` + SHUD `78c37a1`。
 
-## Prior CHANGELOG
-- `fea5922` (PR #16 / issue #3): initial B0 build-environment lockdown — locked flag set, SUNDIALS major-version guard, idempotent `./configure`, macOS libomp discovery via `brew --prefix`.
-- PR #18 round 2 (`c9368fd` in SHUD): invariant-closure round 2 — sealed `CFLAGS` / `CPPFLAGS` / `LDFLAGS` bypass paths in the disallowed-flag scan; pinned `CXX` via `$(origin CXX)` so `c++` no longer wins by default; tightened SUNDIALS guard with anchored regex on MAJOR + new MINOR check + `libsundials_cvode.*` / `libsundials_nvecserial.*` / (for omp) `libsundials_nvecopenmp.*` stat; added `check_sundials_omp` for the OpenMP target; added macOS libomp `$(error)` on `shud_omp`; cleaned bare-`-L` token via `$(if …)`; configure always re-extracts `cvode-6.0.0/`; documented `SUNDIALS_DIR` override discipline.
-- PR #18 round 3 (`a9327b1` in SHUD): invariant-closure round 3 — sealed `SHUD_BUILD_CFLAGS` / `CXX_BASE_FLAGS` bypass paths surfaced by round-2 verifier. Two-tier protection: (1) `override … :=` on both lock variables (silently ignores make-CLI override per GNU make semantics); (2) two-layer disallowed-flag guard — Layer 1 `filter` extended to include the 2 lock variables (defense-in-depth), Layer 2 new `findstring` scan on `$(MAKEOVERRIDES)` catches CLI assignments to the lock variables and escalates `override`'s silent drop into a loud `$(error)`. Manifest §"Disallowed flags" updated to enumerate all 8 carriers.
-- PR #18 round 5 — W-R4 Warning-closure: `override`-protected `DISALLOWED_FLAGS` so `make DISALLOWED_FLAGS=` cannot disarm the scan; replaced Layer 2 literal `findstring` trio with anchored `=value` iteration over `$(DISALLOWED_FLAGS)` (`filter %=<flag>` on `$(MAKEOVERRIDES)` tokens) to avoid false-positive on paths containing `-Ofast` as substring (e.g. `SUNDIALS_DIR=/opt/sundials-Ofast-tuned`); corrected manifest §"Disallowed flags" to honestly state env-form lock-var injection is silent (binary safe via `override :=`, no `$(error)` emitted) and reframed the 3-layer protection model accordingly.
+## 早期 CHANGELOG
+- `fea5922`（PR #16 / issue #3）：初版 B0 构建环境锁定——锁定 flag 集、SUNDIALS 主版本守卫、幂等 `./configure`、macOS 通过 `brew --prefix` 探测 libomp。
+- PR #18 round 2（SHUD 内 `c9368fd`）：invariant-closure 第 2 轮——封死禁用 flag 扫描里的 `CFLAGS` / `CPPFLAGS` / `LDFLAGS` 绕路；通过 `$(origin CXX)` pin 住 `CXX`，让 `c++` 不再默认胜出；用锚定 regex 收紧 SUNDIALS 守卫，新增 MINOR check + 对 `libsundials_cvode.*` / `libsundials_nvecserial.*` /（对 omp）`libsundials_nvecopenmp.*` 的 stat；新增 `check_sundials_omp` 给 OpenMP target；macOS 上 `shud_omp` 加 libomp `$(error)`；用 `$(if …)` 清掉裸 `-L` token；configure 总是重解压 `cvode-6.0.0/`；写明 `SUNDIALS_DIR` 覆盖纪律。
+- PR #18 round 3（SHUD 内 `a9327b1`）：invariant-closure 第 3 轮——封死 round-2 verifier 暴露的 `SHUD_BUILD_CFLAGS` / `CXX_BASE_FLAGS` 绕路。两层保护：（1）两个 lock 变量都 `override … :=`（按 GNU make 语义静默忽略 make-CLI override）；（2）两层禁用 flag 守卫——Layer 1 `filter` 扩展到包含这 2 个 lock 变量（depth-in-defense），Layer 2 新增 `$(MAKEOVERRIDES)` 上的 `findstring` 扫描，抓到对 lock 变量的 CLI 赋值，把 `override` 的静默丢弃升级为显性 `$(error)`。Manifest §"禁用 flag" 更新列出所有 8 个载体。
+- PR #18 round 5 —— W-R4 Warning 收敛：给 `DISALLOWED_FLAGS` 加 `override` 保护，避免 `make DISALLOWED_FLAGS=` 解除扫描；把 Layer 2 字面 `findstring` 三件套换成锚定 `=value` 迭代（`filter %=<flag>` 跑在 `$(MAKEOVERRIDES)` token 上），避免对路径含 `-Ofast` 子串的误报（例如 `SUNDIALS_DIR=/opt/sundials-Ofast-tuned`）；订正 manifest §"禁用 flag" 诚实说明 env 形式 lock 变量注入是静默（通过 `override :=` 二进制安全，无 `$(error)` emit），并相应重述三层保护模型。
