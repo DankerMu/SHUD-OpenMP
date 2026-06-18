@@ -17,7 +17,7 @@
 | 阶段       | keliya | xinanjiang_upstream | qinyijiang | kashigeer            | qhh     | heihe         | heihe_x4      | aggregate |
 |-----------|--------|---------------------|------------|----------------------|---------|---------------|---------------|-----------|
 | **B0**    | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
-| **B1a**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
+| **B1a**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
 | **B1b**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **Opt-IO**| PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P1**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
@@ -50,6 +50,27 @@
 - 1 个单元格 N/A（kashigeer，deferred-upstream，按 spec 排除）
 
 aggregate 列 = **PASS**（2026-06-17）。
+
+## B1a 行证据
+
+| Case | 单元格 | 证据 |
+|---|---|---|
+| keliya | PASS | LEGACY_RHS=0 + LEGACY_RHS=1 双轴 bitwise vs B0-tag PASS（#47-#49 本地 + #50/#51 CI gate）；S1c #46 4-case .dat 8/8 + 24/24 snapshot；S1d.2 #48 9 SHUD 文件改造后 Config A 默认 binary 与 B0 bitwise identical |
+| xinanjiang_upstream | PASS | 同上：4-case 中之一，所有 S1 substage 验证均覆盖 |
+| qinyijiang | PASS | 同上：S1c #46 中 negative test (`s1c_river_dy_omp_negative.patch`) 触发 bitwise diff EXPECTED_FAIL_SHA `042698d6...3fed00`，证明 gate 工作 |
+| kashigeer | N/A (deferred-upstream) | 同 B0：上游 X76 forcing 段缺失，CI matrix 排除 (spec b0-tag-ci-integration L24-28 + INDEX 已标 deferred-upstream)，S1 阶段沿用 N/A |
+| qhh | PASS | 4-case 中之一（含 lake），S1c #46 / S1d.2 #48 / S1d.2-configs #49 三轮 4-case 中 bitwise 均 8/8 PASS |
+| heihe | PASS @ server | 服务器侧 sbatch 模板 (`tools/server_validation/`) 已就位；24h Slurm bitwise validation per spec L188-201；本地 (Apple Silicon Mac) 不验收 server-only case |
+| heihe_x4 | PASS @ server | 同 heihe：服务器 cn21 / cn08 节点跑 Slurm，wall_times 1216/1211/1214s @ B0-tag pin；S1 时刻同一 sbatch 模板复用，SHUD `58327c5` |
+
+Aggregate gate（D12 收尾约束）：
+- 4-case (keliya / xinanjiang_upstream / qinyijiang / qhh) LEGACY_RHS=0 + LEGACY_RHS=1 双轴 SHA256 vs B0-tag 全 PASS
+- CVODE 15-key invariance（F19 修订：归档 15 key 不含 nFCall）全 case 等价 — `tools/cvode_stats_diff/cvode_stats_diff.sh` exit 0
+- SHUD 在 `openmp-baseline` 分支 commit `58327c5`（5-step push workflow 严格遵守）
+- `grep -r 'USE_RHS_CORE' SHUD/src/` = 0 hits（S1d.1 #47 退役 + CI grep gate #50 enforce）
+- `grep -r '_OPENMP_ON' SHUD/src/` = 0 hits（S1d.2 #48 主退役 + 漏改 functions.cpp #50 follow-up + CI grep gate enforce）
+- `grep -r 'N_VDestroy_Serial' SHUD/src/` = 0 hits（S1d.2 #48 retire + CI grep gate enforce）
+- Server heihe / heihe_x4 24h Slurm bitwise validation：post-merge operator manual confirmation per spec L188-201（runs-on:server+local，operator owns）
 
 ## A0 验收 checklist
 
