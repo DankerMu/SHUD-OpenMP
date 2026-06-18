@@ -76,6 +76,37 @@
 
 上一节的验证命令（`git rev-parse B0-tag`、`git show B0-tag --stat -- SHUD`、`git ls-remote --tags origin | grep B0-tag`）在 tag push（2026-06-17）后都成功。上一节的 "Section validity" 提示已是历史信息——保留以备审计。
 
+## B1a-tag（S1 / #52）
+
+`B1a-tag` annotated git tag pin 住了 S1 全套 substage（S1a-S1d.2 + S1-ci-A/B）完成后认证的那一对 `(outer, SHUD submodule)` commit。S2 起回归比对 baseline 切到 `B1a-tag`（B0-tag 仍可比对，但 B1a-tag 是 strict 阶段更精确的零参考点）。
+
+> **节有效性说明**：下面的命令（`git rev-parse B1a-tag`、`git show B1a-tag --stat -- SHUD`）只有在项目所有者 `git tag -a B1a-tag <merge-commit-sha>` + `git push origin B1a-tag` 之后才能成功；这一动作发生在 S1-#52 PR merge 之后。在那之前 `B1a-tag` 不存在。
+> 实时状态见下面的 `## B1a-tag 应用状态`。
+
+- **外层 repo tag**：`B1a-tag` 在 `baseline/current` 分支上、#52 PR 的 squash-merge commit 上打。打完验证：`git rev-parse B1a-tag`。
+- **B1a-tag 时刻的 SHUD submodule pin**：`58327c5`（外层 tag commit 抓住的 submodule pointer；post-#50 functions.cpp `_OPENMP_ON` fix）。打完验证：`git show B1a-tag --stat -- SHUD`。
+- **D12 收尾约束**：
+  - 4-case + 2-case bitwise PASS vs B0-tag（kashigeer N/A deferred-upstream）
+  - CVODE 15-key byte-equal（F19 修订：归档 15 key 不含 nFCall）
+  - SHUD `openmp-baseline` 对应 commit `58327c5`
+  - `LEGACY_RHS=0` + `LEGACY_RHS=1` 双路径都 bitwise PASS
+  - `grep -r 'USE_RHS_CORE' SHUD/src/` / `grep -r '_OPENMP_ON' SHUD/src/` / `grep -r 'N_VDestroy_Serial' SHUD/src/` 三 grep 全 0 hits
+
+## B1a-tag 应用状态
+
+| 字段 | 值 |
+|---|---|
+| `B1a-tag-applied` | `<filled-after-tag-push>` |
+| `B1a-tag-date` | `<filled-after-tag-push>` |
+| `B1a-tag-object-sha` | `<filled-after-tag-push>`（annotated） |
+| `B1a-tag-commit-sha` | `<filled-after-tag-push>`（PR #52 squash-merge 到 `baseline/current`） |
+| `B1a-tag-SHUD-pin` | `58327c5` |
+
+`B1a-tag` push 后，下列命令应全部成功：
+- `git rev-parse B1a-tag` → tag object SHA
+- `git show B1a-tag --stat -- SHUD` → SHUD pin 显示 `58327c5`
+- `git ls-remote --tags origin | grep B1a-tag` → 远端 tag 存在
+
 ## S1-pre snapshot golden re-archival
 
 为支持 S1（B1a refactor-equivalent serial reference），在 pre-S1a 重新归档 12 张 after-PassValue snapshot golden（4 case × 3 t_values）。
