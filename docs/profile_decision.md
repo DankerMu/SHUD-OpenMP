@@ -1,24 +1,16 @@
-# Profile Gate Decision (S0-11 / openMP #15)
+# Profile Gate 决策（S0-11 / openMP #15）
 
-This document records the priority decision triggered by the profile gate
-per rhs-profile-gate spec.md "Profile decision signed before S1"
-requirement and master plan §S0.12 decision table (4-option ladder). It
-is the formal sign-off that S0 prep work has converged and that the
-project is ready to enter S1 / P-phase parallelization. Per spec scenario
-"Missing signature blocks S1", absence of this file (or absence of its
-`signed_at` field) MUST set `docs/status_matrix.md` profile gate row to
-BLOCKED.
+本文档记录由 profile gate 触发的优先级决策，对应 rhs-profile-gate spec.md "Profile decision signed before S1" 要求和 master plan §S0.12 决策表（4 选 1 阶梯）。这是 S0 预热已收敛、项目可进入 S1 / P-phase 并行化的正式签字。按 spec 场景 "Missing signature blocks S1"，本文缺失（或缺 `signed_at` 字段）必须把 `docs/status_matrix.md` 的 profile gate 行置为 BLOCKED。
 
-## Decision Category
+## 决策类型
 
-**走原方案 (original plan: RHS-kernel-first OpenMP parallelization)**
+**走原方案（原计划：以 RHS kernel 为主的 OpenMP 并行化）**
 
-Rationale (per master plan §S0.12 L752 decision table thresholds):
+理由（按 master plan §S0.12 L752 决策表阈值）：
 
-- Target-platform `t_RHS_total / t_wall_total` distribution across 6
-  successful target runs:
+- 目标平台上 6 个成功 target 跑的 `t_RHS_total / t_wall_total` 分布：
 
-  | Case | t_RHS_total% | Amdahl S(infinity) ceiling |
+  | Case | t_RHS_total% | Amdahl S(∞) 上界 |
   |---|---|---|
   | heihe_x4 | 66.55% | 2.99x |
   | qinyijiang | 64.64% | 2.83x |
@@ -27,129 +19,60 @@ Rationale (per master plan §S0.12 L752 decision table thresholds):
   | qhh | 36.75% | 1.58x |
   | heihe | 12.08% | 1.14x |
 
-- **5 of 6 target cases have RHS share >= 30%**, comfortably above the
-  master plan §S0.12 "走原方案" threshold (`t_RHS_total / t_total > 30%`
-  for the majority of decision-critical cases).
-- The largest case (heihe_x4, ~25k cells, the actual P-phase
-  acceleration target) has the highest RHS share (66.55%), confirming
-  that RHS-kernel-first parallelization is the **right primary
-  investment** for the production scale.
-- No case falls in the "战略暂停" zone (RHS < 10% globally). The single
-  low-share outlier (heihe at 12.08%) is **forcing-IO dominated**
-  (t_forcing_io = 79.1%), which is a separate bottleneck class —
-  RHS-only parallelization is still net-positive there, just bounded
-  to 1.14x by Amdahl until the IO path is addressed.
+- **6 个 target case 里 5 个 RHS 占比 >= 30%**，明显高于 master plan §S0.12 "走原方案" 阈值（决策关键 case 多数满足 `t_RHS_total / t_total > 30%`）。
+- 最大 case（heihe_x4，~25k cell，真正的 P-phase 加速目标）RHS 占比最高（66.55%），证实 RHS kernel 优先的并行化是**生产规模下的正确主投资方向**。
+- 没有 case 落到 "战略暂停" 区（RHS 全局 < 10%）。唯一低占比离群 case（heihe 的 12.08%）是 **forcing-IO 主导**（t_forcing_io = 79.1%），属于另一类瓶颈——只做 RHS 并行化对它仍然净正向，只是被 Amdahl 限到 1.14x，直到 IO 路径被处理。
 
-## Amdahl Upper Bound
+## Amdahl 上界
 
-Per-case theoretical speedup ceiling (assuming RHS becomes perfectly
-parallel and all other buckets remain serial):
+每个 case 的理论加速上界（假设 RHS 变成完美并行，其他 bucket 保持串行）：
 
 ```
-S(infinity) = 1 / (1 - t_RHS_total / t_wall_total)
+S(∞) = 1 / (1 - t_RHS_total / t_wall_total)
 ```
 
-- **Decision-driving case (heihe_x4): 2.99x** at infinite threads;
-  practical 8-core ceiling per Amdahl: `1 / ((1 - 0.6655) + 0.6655/8) =
-  1 / (0.3345 + 0.0832) = 2.39x` — this is the §1.1.1 speedup gate
-  target ceiling for the largest case.
-- **Secondary driver (qinyijiang, 3155 cells): 2.83x** ceiling /
-  practical 8-core 2.30x.
-- **Small case (xinanjiang_upstream, 801 cells): 1.78x** ceiling /
-  practical 8-core 1.59x — small cases will need to rely on
-  `OMP_CUTOFF` (C8 in master plan core principles) rather than full
-  parallel investment.
-- **IO-dominated case (heihe, 6335 cells, but forcing IO 79%): 1.14x**
-  ceiling / practical 8-core 1.13x — the RHS parallelization target
-  for THIS case is "do no harm" not "extract speedup"; real
-  improvement will require either (a) cached forcing on-disk in a
-  binary format read once at startup, or (b) parallel forcing IO,
-  which is logically a P9-or-later optimization in the master plan.
+- **决策驱动 case（heihe_x4）：2.99x**（无穷线程）；按 Amdahl 8 核现实上界：`1 / ((1 - 0.6655) + 0.6655/8) = 1 / (0.3345 + 0.0832) = 2.39x` —— 这是 §1.1.1 加速比 gate 对最大 case 的目标上界。
+- **次驱动（qinyijiang，3155 cell）：2.83x** 上界 / 8 核现实 2.30x。
+- **小 case（xinanjiang_upstream，801 cell）：1.78x** 上界 / 8 核现实 1.59x —— 小 case 要靠 `OMP_CUTOFF`（master plan 核心原则 C8）兜底，而不是全力投并行预算。
+- **IO 主导 case（heihe，6335 cell，但 forcing IO 占 79%）：1.14x** 上界 / 8 核现实 1.13x —— 这个 case 的 RHS 并行目标是 "不掉" 而不是 "提速"；真正的改进要么靠 (a) 一次性读入的二进制 cached forcing，要么靠 (b) forcing IO 并行化，逻辑上属于 P9 或更后阶段优化。
 
-The §1.1.1 gate "single-socket 8-core speedup target" therefore reads as:
-**target = 1.5-2.0x on decision-critical large cases (heihe_x4 + qinyijiang)**,
-**bypass via OMP_CUTOFF for small cases**, **defer or pair with separate
-IO optimization for forcing-IO-dominated cases (heihe)**. This re-reads
-the headline §1.1.1 number ("8x speedup") not as a uniform per-case
-target, but as a portfolio metric weighted toward large cases.
+§1.1.1 gate "单插槽 8 核加速比目标" 因此读作：**目标 = 决策关键大 case（heihe_x4 + qinyijiang）上 1.5–2.0x**、**小 case 走 OMP_CUTOFF 跳过**、**forcing-IO 主导 case（heihe）延后或与独立 IO 优化配对**。这把头条 §1.1.1 数字（"8x 加速比"）从 "每 case 统一目标" 重新读作 "向大 case 加权的 portfolio 指标"。
 
-## P8-precond Timing
+## P8-precond 时机
 
-**Decision: keep at P8, do not bring forward.**
+**决策：留在 P8，不前置。**
 
-Per master plan §S0.12 decision table, P8 pre-conditioned SPGMR is an
-optimization that becomes relevant **only after** the RHS parallel
-ceiling is reached. The current profile evidence supports this:
+按 master plan §S0.12 决策表，P8 预条件 SPGMR 的优化只在 RHS 并行上界被达到**之后**才相关。当前 profile 证据支持这点：
 
-- For 4 of 6 cases, RHS-only parallelization can extract >= 1.5x on
-  8 cores — that headroom must be realized in P1-P7 (strict) before
-  paying the precond design + integration cost.
-- For the IO-dominated case (heihe), P8 precond does **not** help —
-  the bottleneck is `t_forcing_io`, not CVODE Krylov iteration count.
-  Bringing P8 forward for this case is a category error.
-- The CVODE internal time (`t_CVODE_internal`) ranges from 6.83%
-  (heihe) to 36.17% (keliya), giving a precond-addressable upper bound
-  of ~36% — meaningful but not the dominant lever in the current
-  decision-critical (large) cases.
+- 6 个 case 里 4 个，只靠 RHS 并行就能在 8 核上压出 >= 1.5x —— 这部分余量必须在 P1–P7（strict）里榨出来，再去付预条件设计 + 集成成本。
+- 对 IO 主导 case（heihe）来说，P8 预条件**帮不上**——瓶颈是 `t_forcing_io`，不是 CVODE Krylov 迭代次数。给这个 case 把 P8 前置是 category error。
+- CVODE 内部时间（`t_CVODE_internal`）从 6.83%（heihe）到 36.17%（keliya），给出预条件能寻址的上限约 36% —— 有意义但不是当前决策关键（大）case 中的主杠杆。
 
-P8-precond therefore remains scheduled per master plan §3 phase order,
-not advanced.
+P8 预条件因此按 master plan §3 阶段顺序原位执行，不前提。
 
-## Cross-platform delta review
+## 跨平台 delta review
 
-Per spec.md scenario "> 10pp difference triggers review note":
-`docs/profile_platform.md` reports `delta_acceptable: false` because
-2 of 4 cases with both-endpoint data exceed the 10pp threshold:
+按 spec.md 场景 "> 10pp 差异触发 review note"：`docs/profile_platform.md` 报 `delta_acceptable: false`，因为 4 个两端都有数据的 case 里 2 个超过 10pp 阈值：
 
-- **keliya**: local 36.32%, target 49.33%, delta +13.01pp
-- **qinyijiang**: local 51.07%, target 64.64%, delta +13.57pp
+- **keliya**：local 36.32%，target 49.33%，delta +13.01pp
+- **qinyijiang**：local 51.07%，target 64.64%，delta +13.57pp
 
-Root-cause hypothesis (qualitative; quantitative diagnosis is out of
-#15 scope):
+根因猜测（定性；定量诊断不在 #15 范围）：
 
-1. **Different microarchitecture single-core throughput.** Apple M4 Pro
-   perf cores have substantially higher single-thread IPC than Xeon Gold
-   6133 (2017 Skylake-SP at 2.5 GHz). Wall-clock for the same workload
-   is ~2.9-3.5x slower on the target (target wall / local wall: keliya
-   79.7/27.8 = 2.87x, qinyijiang 799.9/229.5 = 3.49x), confirming the
-   single-core throughput gap.
+1. **不同微架构的单核吞吐**。Apple M4 Pro 性能核单线程 IPC 大幅高于 Xeon Gold 6133（2017 Skylake-SP @ 2.5 GHz）。同样负载在 target 上 wall-clock 慢约 2.9–3.5x（target wall / local wall：keliya 79.7/27.8 = 2.87x，qinyijiang 799.9/229.5 = 3.49x），证实单核吞吐差距。
+2. **跨 bucket 减速不均匀**。Apple clang + Apple silicon NEON 优化似乎对 SHUD RHS C++ kernel 的加速比对 SUNDIALS/CVODE 内部 C 代码（两个平台同源 C 代码）更激进。结果：RHS 在总 wall 里的占比**在 Apple 上变小、在 x86 上变大**——这是编译器 + 微架构交互的产物，不是 profile 正确性缺陷。
+3. **xinanjiang_upstream 和 qhh** 显示小 delta（< 2pp），说明跨平台的非对称不在所有 case 上均匀——它与 "RHS 在可向量化内层循环里占比多少" 相关（越可向量化 → Apple 优势越大 → 对 x86 的 delta 越大）。
 
-2. **Non-uniform slowdown across buckets.** Apple's clang + Apple
-   silicon NEON optimizations seem to accelerate the SHUD RHS C++
-   kernel more aggressively than the SUNDIALS/CVODE internal C code
-   (which is the same standard C source on both platforms). The
-   relative share of RHS in total wall thus **shrinks on Apple, grows
-   on x86** — an artifact of compiler+microarch interaction, not a
-   profile-correctness defect.
+**对决策的影响**：delta 不让 "走原方案" 决策失效。两个平台都同意 RHS 是主 bucket（local：跨 case 36–51%；target：跨 case 12–67%，6 个里 5 个 > 30%），而**决策关键大 case（heihe_x4）只有 target 数据**——根本没有 local-vs-target 比较好做。上面的 Amdahl 上界算法锚定在 target 平台数字（`docs/profile_platform.md` `target_platform`），它是 §1.1.1 权威端点——所以 delta 只是 metadata 提示，不是 gate 阻塞 finding。
 
-3. **xinanjiang_upstream and qhh** show small (< 2pp) deltas,
-   indicating that the cross-platform asymmetry is not uniform across
-   cases — it correlates with how much of the RHS work is in
-   vectorizable inner loops (more vectorizable -> larger Apple
-   advantage -> larger delta to x86).
+**行动项**（独立 issue 跟踪，不进 #15）：
 
-**Impact on decision**: the delta does NOT invalidate the "走原方案"
-decision. Both platforms agree that RHS is the dominant bucket
-(local: 36-51% across cases; target: 12-67% across cases, 5/6 above
-30%), and the **decision-critical large case (heihe_x4)** is
-target-only — there is no local-vs-target comparison to make for it.
-The Amdahl ceiling computation above is anchored on target-platform
-numbers (`docs/profile_platform.md` `target_platform`), which is the
-§1.1.1 authoritative endpoint, so the delta is a metadata caveat,
-not a gate-blocking finding.
+- P1-P3 strict 并行落地后，对 keliya 和 qinyijiang 在 target 上 re-profile，确认 RHS 占比趋势在更高线程数下仍成立。
+- 如果未来 heihe_x4 的 local-vs-target 比对变得可行（例如部分 forcing 或下采样 mesh），重做 delta 比对。
 
-**Action items** (track via separate issues, NOT in #15 scope):
+## 证据
 
-- Re-profile keliya and qinyijiang on target after P1-P3 strict
-  parallel landed, to confirm the RHS-share trend holds at higher
-  thread counts.
-- If a future heihe_x4 local-vs-target comparison ever becomes
-  possible (e.g. via partial forcing or downsampled mesh), repeat
-  the delta check.
-
-## Evidence
-
-Local-side artifacts (4 real + 3 deferred), SHA256:
+Local 端产物（4 real + 3 deferred），SHA256：
 
 ```
 b16e8a9acedcff00c82b66192d3db3eced538c7718c8715adff7b384761ce14f  benchmarks/keliya/profile_B0.yaml
@@ -161,7 +84,7 @@ aea1322a9b2b6ee2ffaf391b422ccf05e8c1c7f29f5d20a9778dc6568eed8a9f  benchmarks/hei
 5bdecf4e2173868de20659141cb9b046349cc5ae0fba97078b877f1cd4a5cd02  benchmarks/kashigeer/profile_B0.deferred.yaml
 ```
 
-Target-side artifacts (6 real + 1 deferred), SHA256:
+Target 端产物（6 real + 1 deferred），SHA256：
 
 ```
 711a380902d2dee176ff16bf5c3a5c360a9ee131420d7727a7d4e75dc62ca0f5  benchmarks/keliya/profile_B0.target.yaml
@@ -173,15 +96,14 @@ baa03be7ce16e01345bdc9e9b93c033ffcee55213113b9b1ba91441414a97f5d  benchmarks/hei
 8f64779b5c3c25b2a854f70b9721231a4e40b5dd4a1b2eadf2e3a7e43d615d17  benchmarks/kashigeer/profile_B0.target.deferred.yaml
 ```
 
-Outer commit:  `ecef3fbe6ad6971ac8dc2ff6a888ece8db8fae83`
-SHUD submodule commit: `78c37a1061de4112bc7c297bb7bd1f107432e6f2`
+外层 commit：`ecef3fbe6ad6971ac8dc2ff6a888ece8db8fae83`
+SHUD submodule commit：`78c37a1061de4112bc7c297bb7bd1f107432e6f2`
 
-## t_other accounting status
+## t_other 记账状态
 
-Per rhs-profile-gate spec.md "t_other accounting WARN at 5%" and
-"FAIL at 10%" scenarios. Target-platform target yamls audit:
+按 rhs-profile-gate spec.md "t_other accounting WARN at 5%" 和 "FAIL at 10%" 场景。Target 平台 yaml 审计：
 
-| Case | t_other_pct (target) | Status |
+| Case | t_other_pct（target） | 状态 |
 |---|---|---|
 | heihe_x4 | 1.10% | OK |
 | heihe | 1.52% | OK |
@@ -190,36 +112,24 @@ Per rhs-profile-gate spec.md "t_other accounting WARN at 5%" and
 | keliya | 6.32% | **WARN** |
 | xinanjiang_upstream | 22.42% | **FAIL** |
 
-The xinanjiang_upstream FAIL (22.42% t_other on a 19.7 s run) is
-interpreted as a **startup-overhead dominance artifact**, not a
-profile-tool defect:
+xinanjiang_upstream 的 FAIL（19.7s 跑里 22.42% t_other）解读为**启动开销主导的伪象**，不是 profile 工具缺陷：
 
-- absolute t_other = 4.41 s out of 19.7 s wall.
-- The same yaml's `t_forcing_io = 1.40 s` covers reading 51 forcing
-  CSVs (the smallest forcing-stations count of the 6 cases).
-- Process startup (SUNDIALS init, mesh load, integrator setup), which
-  the current S0-10 instrumentation does NOT label, is in `t_other`.
-- For long runs (heihe 487s, heihe_x4 1417s) the startup amortizes
-  to < 2% as expected.
+- 绝对 t_other = 4.41s（总 19.7s wall）。
+- 同份 yaml 的 `t_forcing_io = 1.40s` 覆盖 51 个 forcing CSV（6 个 case 里 forcing-stations 数最少的）。
+- 进程启动（SUNDIALS init、mesh load、integrator setup）当前 S0-10 仪器化**没标**，被丢进 `t_other`。
+- 长跑（heihe 487s、heihe_x4 1417s），启动开销摊薄到预期的 < 2%。
 
-**Decision-impact**: the FAIL is acknowledged but does not block the
-"走原方案" decision because (a) the decision is anchored on large
-cases where the share is dominated by RHS, not startup, and (b) the
-FAIL signal is a **future profile-tool refinement opportunity**
-(label startup time as `t_init` rather than dropping it in `t_other`),
-which is properly an S0.12 retrospective item, not an S1 blocker.
+**决策影响**：FAIL 被承认，但不阻塞 "走原方案" 决策：(a) 决策锚定在大 case 上、占比由 RHS 主导而非启动；(b) FAIL 信号是**未来 profile 工具精化机会**（把启动时间标成 `t_init` 而不是丢进 `t_other`），属于 S0.12 retrospective 项，不是 S1 阻塞。
 
-A follow-up issue to add `t_init` bucket and re-classify startup time
-out of `t_other` SHOULD be opened against `tools/profile/timer.cpp`
-before the next decision-gate snapshot (i.e. before P-phase exit).
+下个决策门快照之前（即 P-phase 退出之前）**应该**开个 follow-up issue，给 `tools/profile/timer.cpp` 加 `t_init` bucket，把启动时间从 `t_other` 里拆出去。
 
-## Signature
+## 签字
 
-| Field | Value |
+| 字段 | 值 |
 |---|---|
-| signer | DankerMu (project owner; GitHub: @DankerMu; email: qingdanker@gmail.com) |
+| signer | DankerMu（项目所有者；GitHub：@DankerMu；email：qingdanker@gmail.com） |
 | signed_at | 2026-06-17 |
-| signed_against_commit | outer `a860eae58991ce91ea91656cc9d4a08540e48f5b` (baseline/current HEAD post-#16 merge) + SHUD submodule `78c37a1061de4112bc7c297bb7bd1f107432e6f2` (openmp-baseline HEAD post-#14) |
-| signed_via | claude-code-s0-13-issue-17 on behalf of DankerMu (delegated signing per user grant 2026-06-17; orchestrated under Linus Torvalds persona, per /Users/danker/.claude/CLAUDE.md priority stack) |
+| signed_against_commit | outer `a860eae58991ce91ea91656cc9d4a08540e48f5b`（#16 merge 后 `baseline/current` HEAD）+ SHUD submodule `78c37a1061de4112bc7c297bb7bd1f107432e6f2`（#14 后 openmp-baseline HEAD） |
+| signed_via | claude-code-s0-13-issue-17 代 DankerMu（按 user 2026-06-17 grant 的 delegated 签字；按 Linus Torvalds persona 编排，遵循 /Users/danker/.claude/CLAUDE.md 的优先级栈） |
 | signed_off_decision | 走原方案 + 调高 large case 权重 + P8-precond 不前置 |
-| follow_up_issues | (a) re-profile after P1-P3 strict landing; (b) heihe forcing IO optimization deferred to P9+; (c) split t_init out of t_other in profile timer; (d) kashigeer upstream X76-X80 forcing gap (issue #29 already open) |
+| follow_up_issues | (a) P1-P3 strict 落地后 re-profile；(b) heihe forcing IO 优化延后到 P9+；(c) 把 t_init 从 t_other 里拆出去（profile timer）；(d) kashigeer 上游 X76-X80 forcing 缺口（issue #29 已开） |

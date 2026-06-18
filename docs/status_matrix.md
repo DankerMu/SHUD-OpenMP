@@ -1,26 +1,20 @@
-# SHUD-OpenMP — Stage × Benchmark Status Matrix
+# SHUD-OpenMP — 阶段 × Benchmark 状态矩阵
 
-Authoritative state source for stage Go/No-Go decisions per
-`openspec/changes/s0-baseline-lock/specs/status-matrix/spec.md`. Rows are
-stages from master plan §3; columns are the 7 registered benchmarks
-(`benchmarks/INDEX.md`) plus an `aggregate` column. Cell values:
+阶段 Go/No-Go 决策的权威状态来源，对应 `openspec/changes/s0-baseline-lock/specs/status-matrix/spec.md`。行为 master plan §3 的阶段，列为 `benchmarks/INDEX.md` 里登记的 7 个 benchmark + `aggregate` 汇总列。单元格取值：
 
-- **PASS** — stage criteria verified for this case (link to evidence)
-- **FAIL** — verified failure (blocks aggregate)
-- **BLOCKED** — cannot evaluate due to upstream/external blocker (e.g. missing data)
-- **PENDING** — not yet attempted; future stage
-- **N/A** — case is structurally excluded from this stage
+- **PASS** — 该 case 通过本阶段验收（附证据链接）
+- **FAIL** — 已验证失败（污染 aggregate）
+- **BLOCKED** — 受上游/外部阻塞无法评估（如数据缺失）
+- **PENDING** — 尚未尝试；属于未来阶段
+- **N/A** — 该 case 在结构上被排除在本阶段之外
 
-Updates land via PR; CI proposes diffs via PR comments (per
-`status-matrix` spec L19, no auto-push). The matrix file is the **single
-source of truth**; per-stage docs and PR summaries reference it, not the
-other way around.
+更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _Last touched: 2026-06-17 (S0-13 / #17: B0-tag applied; heihe_x4 archive completed on server Slurm 8256/cn21 with 3-run bitwise PASS @ SHA `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06`)_
+> _最近一次更新：2026-06-17（S0-13 / #17：B0-tag 已打；heihe_x4 归档在服务器 Slurm 8256 / cn21 完成，3 次跑 bitwise PASS @ SHA `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06`）_
 
-## Matrix
+## 矩阵
 
-| Stage     | keliya | xinanjiang_upstream | qinyijiang | kashigeer            | qhh     | heihe         | heihe_x4      | aggregate |
+| 阶段       | keliya | xinanjiang_upstream | qinyijiang | kashigeer            | qhh     | heihe         | heihe_x4      | aggregate |
 |-----------|--------|---------------------|------------|----------------------|---------|---------------|---------------|-----------|
 | **B0**    | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
 | **B1a**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
@@ -37,63 +31,63 @@ other way around.
 | **P8**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P9**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 
-### B0 row evidence
+### B0 行证据
 
-| Case                | Cell          | Evidence                                                             |
+| Case                | 单元格        | 证据                                                                 |
 |---------------------|---------------|----------------------------------------------------------------------|
-| keliya              | PASS          | `benchmarks/keliya/B0_output/` 3-run repeatability PASS (#11 PR #26) + snapshot_t*.bin × 3 (#9 PR #24) |
-| xinanjiang_upstream | PASS          | `benchmarks/xinanjiang_upstream/B0_output/` 3-run PASS (#11 PR #26) + snapshot × 3 (#9) |
-| qinyijiang          | PASS          | `benchmarks/qinyijiang/B0_output/` 3-run PASS (#11) + snapshot × 3 (#9) |
-| kashigeer           | **N/A (deferred-upstream)** | `benchmarks/kashigeer/B0_output/DEFERRED.txt` — upstream X76 forcing band missing on BOTH endpoints (#11 PR #26 + #12 PR #29 cross-checked). **S0-13 spec amendment** reclassifies kashigeer endpoint as `deferred-upstream` in `benchmarks/INDEX.md`; `status-matrix` + `rhs-profile-gate` specs amended to exclude deferred-upstream cells from A0 bitwise/cvode_stats/snapshot scenarios. |
-| qhh                 | PASS          | `benchmarks/qhh/B0_output/` 3-run PASS (4 .dat incl. 3 lake) (#11) + snapshot × 3 (#9) |
-| heihe               | PASS @ server | `benchmarks/heihe/B0_output/` 3-run PASS (server cn08 via Slurm) (#12 PR #29) |
-| heihe_x4            | PASS @ server | `benchmarks/heihe_x4/B0_output/` 3-run bitwise PASS (server cn21 via Slurm 8256, 2026-06-17). wall_times: 1216/1211/1214s (90-day window); shared SHA: `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06`; binary SHA: `5b95f617580a41d900961d79102382d027cba32bafdda25d900eda7aea237a2e` (PROFILE=0/DUMP=0 build at SHUD `78c37a1`). 4 missing_manifest_files (same NWM gap as #11). |
+| keliya              | PASS          | `benchmarks/keliya/B0_output/` 3 次跑 bitwise 一致（#11 PR #26）+ snapshot_t*.bin × 3（#9 PR #24） |
+| xinanjiang_upstream | PASS          | `benchmarks/xinanjiang_upstream/B0_output/` 3 次跑 PASS（#11 PR #26）+ snapshot × 3（#9） |
+| qinyijiang          | PASS          | `benchmarks/qinyijiang/B0_output/` 3 次跑 PASS（#11）+ snapshot × 3（#9） |
+| kashigeer           | **N/A (deferred-upstream)** | `benchmarks/kashigeer/B0_output/DEFERRED.txt` — 上游 X76 forcing 段在本地 + 服务器两端都缺（#11 PR #26 + #12 PR #29 已交叉核对）。**S0-13 spec 修订**：`benchmarks/INDEX.md` 把 kashigeer endpoint 改为 `deferred-upstream`；`status-matrix` + `rhs-profile-gate` spec 同步把 deferred-upstream 单元格从 A0 bitwise / cvode_stats / snapshot 场景中排除。 |
+| qhh                 | PASS          | `benchmarks/qhh/B0_output/` 3 次跑 PASS（4 个 .dat，含 3 个 lake）（#11）+ snapshot × 3（#9） |
+| heihe               | PASS @ server | `benchmarks/heihe/B0_output/` 3 次跑 PASS（服务器 cn08，走 Slurm）（#12 PR #29） |
+| heihe_x4            | PASS @ server | `benchmarks/heihe_x4/B0_output/` 3 次跑 bitwise PASS（服务器 cn21，Slurm 8256，2026-06-17）。wall_times：1216/1211/1214s（90 天窗口）；共享 SHA：`3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06`；binary SHA：`5b95f617580a41d900961d79102382d027cba32bafdda25d900eda7aea237a2e`（PROFILE=0 / DUMP=0，SHUD `78c37a1`）。4 个 missing_manifest_files（NWM 上游缺口同 #11）。 |
 
 ### Aggregate B0 = PASS
 
-Per amended `status-matrix` spec ("aggregate = PASS iff all non-N/A cells are PASS"):
-- 6 cells PASS (keliya / xinanjiang_upstream / qinyijiang / qhh / heihe / heihe_x4)
-- 1 cell N/A (kashigeer, deferred-upstream, excluded per spec)
+按修订后的 `status-matrix` spec（"aggregate = PASS iff 所有非 N/A 单元格都 PASS"）：
+- 6 个单元格 PASS（keliya / xinanjiang_upstream / qinyijiang / qhh / heihe / heihe_x4）
+- 1 个单元格 N/A（kashigeer，deferred-upstream，按 spec 排除）
 
-aggregate column = **PASS** as of 2026-06-17.
+aggregate 列 = **PASS**（2026-06-17）。
 
-## A0 Acceptance Checklist
+## A0 验收 checklist
 
-Per `status-matrix` spec L47 + master plan §S0 A0 acceptance gate. Each item maps to one or more deliverables in the S0 PRs; current state:
+对应 `status-matrix` spec L47 + master plan §S0 A0 验收门。各项映射到 S0 PR 的交付物，当前状态：
 
-| # | Item                                                  | Status   | Evidence                                                                                              |
+| # | 项目                                                  | 状态   | 证据                                                                                              |
 |---|-------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------|
-| 1 | 7 manifest 完整 (registry + INDEX)                    | PASS     | `benchmarks/INDEX.md` + 7 × `benchmarks/<case>/manifest.yaml` (#6 PR #22 + #28 PR rename); kashigeer kept as placeholder + DEFERRED.txt per amended spec |
-| 2 | 各非 deferred-upstream case 3 次 bitwise              | PASS     | 6 cases PASS (keliya / xinanjiang_upstream / qinyijiang / qhh local + heihe / heihe_x4 server via Slurm 8256); kashigeer excluded per S0-13 spec amendment |
-| 3 | 同上 case 的 cvode_stats 三次一致                     | PASS     | Same 6 cases PASS (cvode_stats.txt in each B0_output); kashigeer excluded                                                                                  |
-| 4 | snapshot probe 三次一致                               | PASS     | 4 cases × 3 = 12 snapshot_t*.bin in repo (`keliya` / `xinanjiang_upstream` / `qinyijiang` / `qhh`, #9 PR #24); heihe + heihe_x4 server-only (out of snapshot scope per amended spec); kashigeer excluded as deferred-upstream |
-| 5 | tools/rhs_snapshot + tools/compare_snapshot 可独立调用 | PASS     | `tools/rhs_snapshot/` + `tools/compare_snapshot/` build cleanly + invoked in #9 (PR #24 + CI #13)                                                       |
-| 6 | CI 自动 pass/fail                                     | PASS     | `.github/workflows/serial-baseline.yml` (S0-9 / #13 PR #30) green on push + PR; skip-label honored                                                       |
-| 7 | profile_B0.yaml × 4 real + 3 deferred (local) + .target.yaml × 6 real + 1 deferred | PASS     | Amended spec: 4 local real (keliya/xinanjiang_upstream/qinyijiang/qhh) + 3 deferred (heihe/heihe_x4/kashigeer); 6 target real + 1 deferred (kashigeer) (#14 PR #31 + #15 PR #32 + S0-13 amendment) |
-| 8 | docs/profile_platform.md 声明                         | PASS     | `docs/profile_platform.md` (#15 PR #32) — local + target + decision_consistency 三段齐                                                                  |
-| 9 | docs/profile_decision.md 已签署                       | PASS     | `docs/profile_decision.md` (#15 PR #32 + S0-13 #17 signature) — DankerMu signed against outer `a860eae5` + SHUD `78c37a1` via delegated grant 2026-06-17 |
+| 1 | 7 manifest 完整（registry + INDEX）                   | PASS     | `benchmarks/INDEX.md` + 7 × `benchmarks/<case>/manifest.yaml`（#6 PR #22 + #28 改名 PR）；kashigeer 按修订后 spec 保留为 placeholder + DEFERRED.txt |
+| 2 | 各非 deferred-upstream case 3 次 bitwise              | PASS     | 6 个 case PASS（keliya / xinanjiang_upstream / qinyijiang / qhh 本地 + heihe / heihe_x4 服务器 Slurm 8256）；kashigeer 按 S0-13 spec 修订排除 |
+| 3 | 同上 case 的 cvode_stats 三次一致                     | PASS     | 同 6 个 case PASS（各自 B0_output 下 cvode_stats.txt）；kashigeer 排除                                                                                  |
+| 4 | snapshot probe 三次一致                               | PASS     | 4 个 case × 3 = 12 个 snapshot_t*.bin 入库（`keliya` / `xinanjiang_upstream` / `qinyijiang` / `qhh`，#9 PR #24）；heihe + heihe_x4 仅服务器跑（按修订后 spec 不在 snapshot 范围内）；kashigeer 作为 deferred-upstream 排除 |
+| 5 | tools/rhs_snapshot + tools/compare_snapshot 可独立调用 | PASS     | `tools/rhs_snapshot/` + `tools/compare_snapshot/` 干净编译 + 在 #9（PR #24 + CI #13）中被调用                                                       |
+| 6 | CI 自动 pass/fail                                     | PASS     | `.github/workflows/serial-baseline.yml`（S0-9 / #13 PR #30）在 push + PR 上绿；skip-label 受尊重                                                       |
+| 7 | profile_B0.yaml × 4 real + 3 deferred（local）+ .target.yaml × 6 real + 1 deferred | PASS     | 修订后 spec：4 个 local real（keliya/xinanjiang_upstream/qinyijiang/qhh）+ 3 个 deferred（heihe/heihe_x4/kashigeer）；6 个 target real + 1 个 deferred（kashigeer）（#14 PR #31 + #15 PR #32 + S0-13 修订） |
+| 8 | docs/profile_platform.md 声明                         | PASS     | `docs/profile_platform.md`（#15 PR #32）— local + target + decision_consistency 三段齐全                                                              |
+| 9 | docs/profile_decision.md 已签署                       | PASS     | `docs/profile_decision.md`（#15 PR #32 + S0-13 #17 签字）— DankerMu 已对外层 `a860eae5` + SHUD `78c37a1` 签字，授权日期 2026-06-17 |
 
 **B0-tag-applied**: `true`
 **B0-tag-date**: `2026-06-17`
 
-### B0-tag applied (2026-06-17)
+### B0-tag 已打（2026-06-17）
 
-All 9 A0 checklist items PASS. `B0-tag` is live on origin:
+9 项 A0 checklist 全部 PASS。`B0-tag` 已上 origin：
 
-- Tag object SHA: `95ddc375ffa58115fd5c0a808dde80e9713b4c93` (annotated)
-- Points to commit: `884cfb13ba08ebae02dd64e371c4a19a536b4e26` (squash-merge of PR #35 onto `baseline/current`)
-- SHUD submodule pin: `78c37a1061de4112bc7c297bb7bd1f107432e6f2`
-- Verify: `git rev-parse B0-tag` returns the tag object SHA; `git rev-parse B0-tag^{}` returns the commit; `git ls-remote --tags origin | grep B0-tag` shows the tag on origin.
+- Tag object SHA：`95ddc375ffa58115fd5c0a808dde80e9713b4c93`（annotated）
+- 指向 commit：`884cfb13ba08ebae02dd64e371c4a19a536b4e26`（PR #35 squash-merge 到 `baseline/current`）
+- SHUD submodule pin：`78c37a1061de4112bc7c297bb7bd1f107432e6f2`
+- 验证命令：`git rev-parse B0-tag` 返回 tag object SHA；`git rev-parse B0-tag^{}` 返回 commit；`git ls-remote --tags origin | grep B0-tag` 在 origin 上能看到。
 
-## Stage status guidance
+## 阶段状态说明
 
-- **B0** rows freeze at B0-tag and become reference for B1a regression checks.
-- **B1a** SHALL be bitwise to B0 (single-machine, same case). The matrix will populate during S1 stage.
-- **Opt-IO** is the master plan §3.5 forcing I/O parallelization. May land before or after first OpenMP P1, depending on what `docs/profile_decision.md:bring-forward-IO` evaluates to.
-- **P1-P9** populate per master plan §3 stages.
+- **B0** 行在 B0-tag 时刻冻结，成为 B1a 回归比对的参照。
+- **B1a** 必须与 B0 同机同 case bitwise 一致。本矩阵 B1a 行在 S1 阶段开始填。
+- **Opt-IO** 是 master plan §3.5 的 forcing I/O 并行化。落地时机由 `docs/profile_decision.md:bring-forward-IO` 评估，可能早于或晚于首个 OpenMP P1。
+- **P1-P9** 各行按 master plan §3 各阶段填。
 
-## Update protocol
+## 更新规则
 
-- **No CI auto-push**: serial-baseline.yml has a `propose-matrix-update` step that comments on the merging PR with a diff suggestion. Maintainer applies via the next regular PR or merges the suggestion verbatim.
-- **One row per PR boundary**: when a stage PR lands, its summary references the matrix row it updates. Cross-stage edits are rare and should be flagged.
-- **Aggregate column** is derived: `aggregate = PASS iff all per-case cells are PASS-or-N/A`. CI proposer fills it automatically.
+- **CI 不自动 push**：serial-baseline.yml 的 `propose-matrix-update` 步骤会在 merge 的 PR 上评论一个 diff 建议，由 maintainer 在下一个常规 PR 中应用或直接 merge suggestion。
+- **每个 PR 边界一行**：阶段 PR 落地时，其摘要引用所更新的矩阵行。跨阶段编辑罕见，需明确标注。
+- **Aggregate 列**派生计算：`aggregate = PASS iff 所有 per-case 单元格 PASS-or-N/A`。CI proposer 自动填。
