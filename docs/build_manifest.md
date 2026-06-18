@@ -165,7 +165,7 @@ S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day,
 - backup 边界点必须落在 ≤ END（即 `START_min + Update_IC_STEP` 与 `START_min + 2*Update_IC_STEP` 都 ≤ `START_min + 90*1440`）。43200 min step 在 90 day 窗口里给 2 个中途触发点（+30 day、+60 day）+ 1 个边界（+90 day），足够覆盖周期性 backup 路径。
 - B1a bitwise gate by #44 task 1.5.a：在 backup boundary 时刻（`t mod Update_IC_STEP == 0`，例如 +30d / +60d）dump RHS snapshot，与 B0 binary 跑同输入到同时刻的 snapshot byte-equal。注意 SHUD 不做 mid-run CVODE state 注入，因此 backup 本身只是文件持久化、不影响后续积分；本 probe 只验证 backup boundary 那一拍的 RHS 评估状态 B1a vs B0 byte-equal。
 
-**CI hookup follow-up（不在 #42 范围）**：`.github/workflows/serial-baseline.yml` 的 `SHUD_DUMP_T_VALUES` 当前仍 hardcode 旧 abs-min `[17357760, 17370720, 17500320]`，90-day 截断下不命中、silent skip via `::notice`。新 12 张 golden **尚未由 PR CI 验证**；S1a #44 启动前必须由后续 PR（追加进 #43 或新开 issue）改 workflow env → keliya 新 t-values 的 abs-min `[17358240, 17400960, 17487360]` + remove silent-skip 路径。**B1a CI gate 不可在该修复前 flip 到新 goldens**。
+**CI hookup follow-up（不在 #42 范围）**：`.github/workflows/serial-baseline.yml` 的 `SHUD_DUMP_T_VALUES` 当前仍 hardcode 旧 abs-min `[17357760, 17370720, 17500320]`，90-day 截断下不命中、silent skip via `::notice`。新 12 张 golden **尚未由 PR CI 验证**；S1a #44 启动前必须由后续 PR（追加进 #43 或新开 issue）改 workflow env → keliya 新 t-values 的 abs-min `[17357760, 17399520, 17485920]`（`START_day=12053 × 1440 + {1440, 43200, 129600} min`）+ remove silent-skip 路径。其它 case 同公式：xinanjiang_upstream (START=0) `[1440, 43200, 129600]`；qinyijiang (START=366) `[528480, 570240, 656640]`；qhh (START=8401) `[12098880, 12140640, 12227040]`。**B1a CI gate 不可在该修复前 flip 到新 goldens**。
 
 ## 禁用 flag（Makefile 守卫）
 - `-ffast-math`、`-Ofast`、`-funsafe-math-optimizations`
