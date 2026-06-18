@@ -74,8 +74,13 @@ std::string compose_snapshot_filename(double             t_value,
         }
         /* F5 fix: 64-char length cap (same as MD_rhs_dump.cpp::init_config).
          * Returns empty string so callers route through the same skip-write
-         * path as the path-traversal rejection. */
+         * path as the path-traversal rejection.
+         * F22 (PR #54 round-2): emit stderr diagnostic so the operator sees
+         * why the suffix was rejected (silent return previously caused
+         * "snapshot just didn't appear" debugging confusion). */
         if (suffix.size() > 64) {
+            std::fprintf(stderr,
+                "[snapshot writer] ERROR: SHUD_DUMP_FNAME_SUFFIX exceeds 64-char limit\n");
             return std::string();
         }
     }

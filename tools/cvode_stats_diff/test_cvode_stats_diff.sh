@@ -26,7 +26,7 @@ DIFF="$SCRIPT_DIR/cvode_stats_diff.sh"
 TMP=$(mktemp -d -t cvode_stats_diff_test.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT
 
-# Canonical 16-key reference content (matches D10 spec exactly).
+# Canonical 15-key reference content (matches D10 spec; F19 dropped nFCall).
 make_canonical() {
     cat > "$1" <<'EOF'
 nfe=102485
@@ -44,7 +44,6 @@ lenrw=23294
 leniw=53
 lenrwLS=21474
 leniwLS=42
-nFCall=99999
 EOF
 }
 

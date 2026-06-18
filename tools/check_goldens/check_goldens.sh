@@ -49,7 +49,11 @@ TOTAL=0
 # We strip leading/trailing space + surrounding backticks.
 trim() {
     # $1 = string to trim of surrounding whitespace + backticks
-    echo "$1" | sed -e 's/^[[:space:]]*`//' -e 's/`[[:space:]]*$//'
+    # F21 (PR #54 round-2): use printf '%s\n' instead of echo to avoid
+    # backslash / leading-dash interpretation differences between BSD and
+    # GNU echo (file_path entries are safe today, but printf is the POSIX
+    # contract-compliant way to emit arbitrary user data).
+    printf '%s\n' "$1" | sed -e 's/^[[:space:]]*`//' -e 's/`[[:space:]]*$//'
 }
 
 while IFS= read -r row; do

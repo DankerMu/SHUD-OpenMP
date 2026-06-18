@@ -1,20 +1,28 @@
 #!/bin/sh
-# cvode_stats_diff.sh — strict 16-key bitwise diff for CVODE final stats.
+# cvode_stats_diff.sh — strict 15-key bitwise diff for CVODE final stats.
 #
 # Usage:
 #   cvode_stats_diff.sh <new.txt> <golden.txt>
 #
 # Behavior (contract; do not soften without spec change):
-#   Exit 0 iff ALL 16 canonical keys are present in BOTH files and the
+#   Exit 0 iff ALL 15 canonical keys are present in BOTH files and the
 #   values are byte-equal pairwise. Any deviation = non-zero exit:
 #     - key MISSING in <file>  (key not present in either file)
-#     - key UNKNOWN in <file>: <key>  (key present but not in canonical 16)
+#     - key UNKNOWN in <file>: <key>  (key present but not in canonical 15)
 #     - key: golden=<X>, new=<Y>  (key present in both, values differ)
 #
-# Canonical 16-key set (per openspec/.../design.md D10; order matters
+# Canonical 15-key set (per openspec/.../design.md D10; order matters
 # only for stable diagnostic output, not for equality):
 #   nfe, nfeLS, nni, nli, nsetups, netf, nst, npe, nps, ncfn, ncfl,
-#   lenrw, leniw, lenrwLS, leniwLS, nFCall
+#   lenrw, leniw, lenrwLS, leniwLS
+#
+# F19 (PR #54 round 2): nFCall was dropped from the canonical set
+# after auditing benchmarks/<case>/B0_output/cvode_stats.txt — SHUD's
+# PrintFinalStats does NOT emit nFCall, so requiring it caused every
+# real archive file to report MISSING. The 15 keys above are the
+# actual SUNDIALS CVODE 6.0.0 stats SHUD writes; nFCall remains a
+# real SHUD internal counter but ships through a different audit
+# channel (a dedicated capability follow-up will own that).
 #
 # Input format: `key=value` lines (one key per line), as written by
 # SHUD's PrintFinalStats (see SHUD/src/Equations/cvode_config.cpp:90-106).
@@ -43,7 +51,7 @@ GOLDEN="$2"
 [ -r "$NEW" ]    || { printf "%s: cannot read NEW file: %s\n"    "$PROG" "$NEW"    >&2; exit 2; }
 [ -r "$GOLDEN" ] || { printf "%s: cannot read GOLDEN file: %s\n" "$PROG" "$GOLDEN" >&2; exit 2; }
 
-CANONICAL_KEYS="nfe nfeLS nni nli nsetups netf nst npe nps ncfn ncfl lenrw leniw lenrwLS leniwLS nFCall"
+CANONICAL_KEYS="nfe nfeLS nni nli nsetups netf nst npe nps ncfn ncfl lenrw leniw lenrwLS leniwLS"
 
 # parse_value <file> <key>
 # Emits the value (rhs of `<key>=` or `<key>:` or `<key> =`) to stdout.
@@ -105,7 +113,7 @@ list_keys() {
 }
 
 # is_canonical_key <key>
-# Returns 0 (truthy) iff key is in the 16-key canonical set.
+# Returns 0 (truthy) iff key is in the 15-key canonical set.
 #
 # Implementation note: POSIX shell `for` loops do NOT scope the iteration
 # variable, so a function-local `for k in ...` would leak its final value
@@ -121,7 +129,7 @@ is_canonical_key() {
 
 FAIL=0
 
-# 1) Check missing keys (canonical 16, in either file) + dup-key detection.
+# 1) Check missing keys (canonical 15, in either file) + dup-key detection.
 # F3 fix: parse_value now returns exit 2 on duplicate key; if either file
 # has the same canonical key listed more than once, treat the whole file as
 # corrupt and fail-fast with a DUPLICATE diagnostic.
@@ -152,7 +160,7 @@ for k in $CANONICAL_KEYS; do
     fi
 done
 
-# 2) Check unknown keys (present in file but not canonical 16).
+# 2) Check unknown keys (present in file but not canonical 15).
 for f in "$NEW" "$GOLDEN"; do
     list_keys "$f" | while IFS= read -r k; do
         if ! is_canonical_key "$k"; then

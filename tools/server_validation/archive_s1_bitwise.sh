@@ -40,7 +40,7 @@ Usage:
   $PROG --preflight
   $PROG --selftest-preflight
   $PROG --deploy-instructions
-  $PROG --resolve <server-scratch-root> <user> [<output-path>]
+  $PROG --resolve <server-scratch-root> <user> [<target-deployment-server>] [<ssh-port>] [<output-path>]
 
   --preflight             Verify sbatch template "三铁律" compliance
                           (--output/--error under /scratch only).
@@ -54,13 +54,20 @@ Usage:
   --deploy-instructions   Print rsync + ssh + sbatch commands for the
                           operator. No remote action is taken.
 
-  --resolve               Substitute placeholders <server-scratch-root>
-                          and <user> in the template; write to
-                          <output-path> (default: stdout).
+  --resolve               Substitute placeholders <server-scratch-root>,
+                          <user>, <target-deployment-server>, <ssh-port>
+                          in the template; write to <output-path>
+                          (default: stdout). Server + port default to
+                          \$SHUD_DEPLOY_HOST / \$SHUD_DEPLOY_SSH_PORT if
+                          unset on the command line; if neither source is
+                          supplied the placeholder stays literal so the
+                          operator must fill it in by hand before sbatch.
 
 Placeholders in the template:
-  <server-scratch-root>   e.g. <user>/<project>
-  <user>                  your username on the server
+  <server-scratch-root>      e.g. <user>/<project>
+  <user>                     your username on the server
+  <target-deployment-server> e.g. cluster.example.org (host/IP only)
+  <ssh-port>                 numeric SSH port for the cluster
 EOF
     exit 2
 }
@@ -118,7 +125,15 @@ case "$1" in
 
         # Assertion 2: mangled sbatch (scratch placeholder swapped to /users/foo)
         # produces a non-empty match. Use a temp file under /tmp.
-        TMP_MANGLED="/tmp/archive_s1_bitwise_selftest.$$.sbatch"
+        #
+        # F20: switch from "/tmp/...$$.sbatch" (TOCTOU-vulnerable;
+        # predictable name another user can pre-create or symlink) to
+        # mktemp's atomic O_CREAT|O_EXCL on a 6-char random suffix.
+        # The EXIT trap also cleans up the sed-generated .bak sidecar.
+        TMP_MANGLED=$(mktemp -t archive_s1_bitwise_selftest.XXXXXX) || {
+            printf "FATAL: mktemp failed for selftest scratch file\n" >&2
+            exit 1
+        }
         trap 'rm -f "$TMP_MANGLED" "$TMP_MANGLED.bak"' EXIT
         cp "$SBATCH_TEMPLATE" "$TMP_MANGLED"
         # Mangle ONLY the scratch placeholder occurrences (not /tmp/ in
@@ -139,18 +154,22 @@ case "$1" in
 # Manual deploy steps for S1 server-side bitwise validation
 # (heihe + heihe_x4 cases; CLAUDE.md compute-node policy compliant).
 #
+# Placeholders below stay literal in the committed template; replace
+# in the operator's local shell before running.  Server / port values
+# come from your environment, never from this committed script.
+#
 # 1. From the local checkout, rsync the sbatch template to the server.
 #    Replace <server-scratch-root> with the actual scratch path used,
 #    e.g. `<user>/<project>`. <user> = your server username.
 #
-#    rsync -avh -e "ssh -p 32099" \
+#    rsync -avh -e "ssh -p <ssh-port>" \
 #        tools/server_validation/run_s1_bitwise.sbatch \
-#        <user>@210.77.77.22:/scratch/<server-scratch-root>/.s1-server-validation/
+#        <user>@<target-deployment-server>:/scratch/<server-scratch-root>/.s1-server-validation/
 #
 # 2. SSH into the server and resolve the <server-scratch-root>/<user>
 #    placeholders in the sbatch file:
 #
-#    ssh -p 32099 <user>@210.77.77.22
+#    ssh -p <ssh-port> <user>@<target-deployment-server>
 #    cd /scratch/<server-scratch-root>/.s1-server-validation/
 #    sed -i 's|<server-scratch-root>|<actual-path>|g; s|<user>|<your-username>|g' run_s1_bitwise.sbatch
 #
@@ -174,8 +193,8 @@ case "$1" in
 #
 # 6. Pull SHA256 results back to the local PR comment:
 #
-#    rsync -avh -e "ssh -p 32099" \
-#        <user>@210.77.77.22:/scratch/<server-scratch-root>/.s1-server-validation/<job-id>/compare.log \
+#    rsync -avh -e "ssh -p <ssh-port>" \
+#        <user>@<target-deployment-server>:/scratch/<server-scratch-root>/.s1-server-validation/<job-id>/compare.log \
 #        ./tools/server_validation/last-server-run-compare.log
 EOF
         ;;
@@ -184,14 +203,25 @@ EOF
         [ $# -ge 3 ] || usage
         SCRATCH_ROOT="$2"
         SERVER_USER="$3"
-        OUT_PATH="${4:--}"  # default to stdout
+        # F14: <target-deployment-server> and <ssh-port> get filled from
+        # CLI args 4/5 first, falling back to env vars
+        # SHUD_DEPLOY_HOST / SHUD_DEPLOY_SSH_PORT.  If neither source is
+        # populated the literal placeholder stays in the rendered file
+        # (so the operator catches it before running rsync/ssh).
+        DEPLOY_HOST="${4:-${SHUD_DEPLOY_HOST:-<target-deployment-server>}}"
+        SSH_PORT="${5:-${SHUD_DEPLOY_SSH_PORT:-<ssh-port>}}"
+        OUT_PATH="${6:--}"  # default to stdout
         if [ "$OUT_PATH" = "-" ]; then
             sed -e "s|<server-scratch-root>|$SCRATCH_ROOT|g" \
                 -e "s|<user>|$SERVER_USER|g" \
+                -e "s|<target-deployment-server>|$DEPLOY_HOST|g" \
+                -e "s|<ssh-port>|$SSH_PORT|g" \
                 "$SBATCH_TEMPLATE"
         else
             sed -e "s|<server-scratch-root>|$SCRATCH_ROOT|g" \
                 -e "s|<user>|$SERVER_USER|g" \
+                -e "s|<target-deployment-server>|$DEPLOY_HOST|g" \
+                -e "s|<ssh-port>|$SSH_PORT|g" \
                 "$SBATCH_TEMPLATE" > "$OUT_PATH"
             printf "Wrote resolved sbatch to %s\n" "$OUT_PATH"
         fi

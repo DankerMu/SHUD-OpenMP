@@ -1,11 +1,13 @@
 #!/bin/sh
-# test_writer.sh — 4-scenario acceptance test for compose_snapshot_filename().
+# test_writer.sh — 6-scenario acceptance test for compose_snapshot_filename().
 #
-# Scenarios (PR #54 round-1 F9 fix):
+# Scenarios (PR #54 round-1 F9 fix; PR #54 round-2 F17 adds (e)/(f)):
 #   (a) Empty suffix → "snapshot_t<t>.bin" (legacy form, PR #53 back-compat)
 #   (b) Non-empty suffix → "snapshot_t<t>_<suffix>.bin"
 #   (c) `/` in suffix → rejected (compose returns empty → harness exit 1)
 #   (d) `\\` in suffix → rejected (path-traversal guard)
+#   (e) Suffix == 64 chars → accepted (boundary case for F5 length cap)
+#   (f) Suffix == 65 chars → rejected (F5 length cap; +1 over boundary)
 #
 # Mirrors the test pattern in tools/cvode_stats_diff/test_cvode_stats_diff.sh.
 #
@@ -103,6 +105,38 @@ set +e
 out_d=$("$BIN" 86400 "bad\\sep" 2>&1); rc_d=$?
 set -e
 assert_exit 1 "scenario(d) suffix with '\\\\' → exit 1 (rejected)" "$rc_d"
+
+# -----------------------------------------------------------------------------
+# Scenario (e): suffix == 64 chars → accepted (boundary case for F5 cap)
+# -----------------------------------------------------------------------------
+# F17 (PR #54 round-2): cover the F5 length-cap boundary explicitly so
+# regressions to `> 63` / `>= 64` accidental tightening get caught.
+SFX_64=$(printf 'a%.0s' $(seq 1 64))
+[ "${#SFX_64}" -eq 64 ] || { printf "FATAL: SFX_64 length=%d, want 64\n" "${#SFX_64}" >&2; exit 2; }
+set +e
+out_e=$("$BIN" 86400 "$SFX_64" 2>&1); rc_e=$?
+set -e
+assert_exit 0 "scenario(e) suffix 64 chars (boundary) → exit 0 (accepted)" "$rc_e"
+assert_stdout "scenario(e) suffix 64 chars yields suffixed filename" "snapshot_t86400_${SFX_64}.bin" "$out_e"
+
+# -----------------------------------------------------------------------------
+# Scenario (f): suffix == 65 chars → rejected (F5 length cap; +1 over boundary)
+# -----------------------------------------------------------------------------
+SFX_65=$(printf 'a%.0s' $(seq 1 65))
+[ "${#SFX_65}" -eq 65 ] || { printf "FATAL: SFX_65 length=%d, want 65\n" "${#SFX_65}" >&2; exit 2; }
+set +e
+out_f=$("$BIN" 86400 "$SFX_65" 2>&1); rc_f=$?
+set -e
+assert_exit 1 "scenario(f) suffix 65 chars → exit 1 (F5 length-cap reject)" "$rc_f"
+# F22 (PR #54 round-2): writer.cpp now emits stderr diagnostic on length-cap
+# reject; verify the message reaches the harness's combined out (2>&1 above).
+if printf '%s' "$out_f" | grep -q 'exceeds 64-char limit'; then
+    printf "PASS  scenario(f) writer stderr diagnostic present\n"
+    PASS=$((PASS + 1))
+else
+    printf "FAIL  scenario(f) writer stderr diagnostic missing (got: %s)\n" "$out_f"
+    FAIL=$((FAIL + 1))
+fi
 
 # -----------------------------------------------------------------------------
 # Summary

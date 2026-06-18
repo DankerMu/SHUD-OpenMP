@@ -141,12 +141,12 @@ done
 
 ### Before-PassValue 12 张 golden
 
-为支持 S1b 阶段的 PassValue 边界 snapshot 比对（design.md D11 + D13；tasks.md task 0.1b），在 pre-S1a 第二轮归档 12 张 before-PassValue snapshot golden（4 case × 3 t_values，与上面 12 张 after-PassValue golden 同 t-集合 `[86400, 2592000, 7776000]`）。这组 golden 由 `MD_f.cpp:64` PassValue() 调用**之前**插入的 `shud_rhs_dump_point("f_loop_before_passvalue", t, Qe2r_Surf, NumEle)` 钩子产生，与现有 12 张 `snapshot_t<v>.bin`（来自 `MD_update.cpp:151` "f_update" 钩子，即 f_update 末端 DY=0 数组）**语义对照**：
+为支持 S1b 阶段的 PassValue 边界 snapshot 比对（design.md D11 + D13；tasks.md task 0.1b），在 pre-S1a 第二轮归档 12 张 before-PassValue snapshot golden（4 case × 3 t_values，与上面 12 张 after-PassValue golden 同 t-集合 `[86400, 2592000, 7776000]`）。这组 golden 由 `MD_f.cpp:67` PassValue() 调用**之前**插入的 `shud_rhs_dump_point("f_loop_before_passvalue", t, Qe2r_Surf, NumEle)` 钩子产生，与现有 12 张 `snapshot_t<v>.bin`（来自 `MD_update.cpp:151` "f_update" 钩子，即 f_update 末端 DY=0 数组）**语义对照**：
 
 | Snapshot 后缀 | 来源 site tag | 钩子位点 | 实际 dump payload | 语义 |
 |---|---|---|---|---|
 | 无（`snapshot_t<v>.bin`） | `"f_update"` | `SHUD/src/ModelData/MD_update.cpp:151` | `DY[0..NumY-1]`（已被 L147-149 reset to 0） | f_update 末端 RHS clear 后 baseline |
-| `_before_passvalue.bin` | `"f_loop_before_passvalue"` | `SHUD/src/ModelData/MD_f.cpp:64`（PassValue 之前） | `Qe2r_Surf[0..NumEle-1]`（per-element-to-river surface flux written by `PassValue()`，长度 NumEle） | f_loop 内 lake→ET→element→segment→river DY 计算完毕、PassValue() 即将清零并重算前的元素→河道地表通量状态 |
+| `_before_passvalue.bin` | `"f_loop_before_passvalue"` | `SHUD/src/ModelData/MD_f.cpp:67`（PassValue 之前） | `Qe2r_Surf[0..NumEle-1]`（per-element-to-river surface flux written by `PassValue()`，长度 NumEle） | f_loop 内 lake→ET→element→segment→river DY 计算完毕、PassValue() 即将清零并重算前的元素→河道地表通量状态 |
 
 **PR #54 round-1 fix F4 — payload re-pick**：本节最初的 12 张 golden（PR #43 落地）使用 `QeleSurfTot` 作为 payload，但验证组 (verifier) 发现 `QeleSurfTot` 在 `f_update` 末端被 reset to 0，且不在 PassValue() 的 write set 内 → snapshot 全 0（除了 header），无法用于 S1b 的 before-vs-after PassValue diff 验证。F4 把 payload 改为 `Qe2r_Surf`，它是 PassValue() write set 的成员（PassValue 第 189-200 行先清零再从 QsegSurf 累加），所以本探针抓到的是**前一次** PassValue 的 Qe2r_Surf 残留——B1a 重构若改动 PassValue 调度顺序或语义即可在此 byte-diff。验证：3/4 case (xinanjiang_upstream / qinyijiang / qhh) 的 Qe2r_Surf 在 ≥1 个 t_value 上有 nonzero values（说明探针抓到了真实 flux 状态）；keliya 因为是干旱内陆 case，90 day 窗口内 overland-to-river 通量全 0（与 hydrology 一致，非 bug）。F4 fix 的 12 张新 SHAs 见下表，与旧 QeleSurfTot 版相比：keliya 3 张 SHA unchanged（两数组都全 0），其它 9 张全部 DIFF。
 
@@ -255,7 +255,7 @@ S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day,
 - backup 边界点必须落在 ≤ END（即 `START_min + Update_IC_STEP` 与 `START_min + 2*Update_IC_STEP` 都 ≤ `START_min + 90*1440`）。43200 min step 在 90 day 窗口里给 2 个中途触发点（+30 day、+60 day）+ 1 个边界（+90 day），足够覆盖周期性 backup 路径。
 - B1a bitwise gate by #44 task 1.5.a：在 backup boundary 时刻（`t mod Update_IC_STEP == 0`，例如 +30d / +60d）dump RHS snapshot，与 B0 binary 跑同输入到同时刻的 snapshot byte-equal。注意 SHUD 不做 mid-run CVODE state 注入，因此 backup 本身只是文件持久化、不影响后续积分；本 probe 只验证 backup boundary 那一拍的 RHS 评估状态 B1a vs B0 byte-equal。
 
-**CI hookup follow-up（不在 #42 范围）**：`.github/workflows/serial-baseline.yml` 的 `SHUD_DUMP_T_VALUES` 当前仍 hardcode 旧 abs-min `[17357760, 17370720, 17500320]`，90-day 截断下不命中、silent skip via `::notice`。新 12 张 golden **尚未由 PR CI 验证**；S1a #44 启动前必须由后续 PR（追加进 #43 或新开 issue）改 workflow env → keliya 新 t-values 的 abs-min `[17357760, 17399520, 17485920]`（`START_day=12053 × 1440 + {1440, 43200, 129600} min`）+ remove silent-skip 路径。其它 case 同公式：xinanjiang_upstream (START=0) `[1440, 43200, 129600]`；qinyijiang (START=366) `[528480, 570240, 656640]`；qhh (START=8401) `[12098880, 12140640, 12227040]`。**B1a CI gate 不可在该修复前 flip 到新 goldens**。
+**CI hookup 已完成（PR #54）**：`.github/workflows/serial-baseline.yml` 的 `SHUD_DUMP_T_VALUES` 已使用新 abs-min `[17357760, 17399520, 17485920]`（keliya，`START_day=12053 × 1440 + {1440, 43200, 129600} min`）；missing snapshot 走 `::error` hard-fail，旧 silent-skip via `::notice` 路径已删除。其它 case 同公式：xinanjiang_upstream (START=0) `[1440, 43200, 129600]`；qinyijiang (START=366) `[528480, 570240, 656640]`；qhh (START=8401) `[12098880, 12140640, 12227040]`——其余 3 case 的 nightly extension 由 capability `b0-tag-ci-integration` task 6.1 / 6.2 落地。当前 keliya 单 case PR fast-feedback 已 gate B1a 新 24 张 golden。
 
 ## 禁用 flag（Makefile 守卫）
 - `-ffast-math`、`-Ofast`、`-funsafe-math-optimizations`
