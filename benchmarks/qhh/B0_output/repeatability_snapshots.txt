@@ -1,0 +1,19 @@
+# 3-run repeatability for before-PassValue snapshots
+# case: qhh
+# date: 2026-06-18 07:19:15 -0400
+# SHUD pin: f6b13db2906f
+# cfg.para END = START + 90 (gitignored deployment cfg)
+# t_values (abs min): 12098880,12140640,12227040
+# rel t_values (sec) for filename: 86400,2592000,7776000
+# columns: run_label  filename_as_archived  sha256
+run1  snapshot_t86400_before_passvalue.bin  2ed538cb9fab354e04f5dadfa166463a324399988d5a19c1934966854669807c
+run1  snapshot_t2592000_before_passvalue.bin  bc2d5adc0a9ad96d11185464308974db580ee5f50d2e799e08eed928773bc1d8
+run1  snapshot_t7776000_before_passvalue.bin  bddeaa2e3d32c0842fead9d65e380212550cb918fce8a1c44ea6d30a8087473b
+run2  snapshot_t86400_before_passvalue.bin  2ed538cb9fab354e04f5dadfa166463a324399988d5a19c1934966854669807c
+run2  snapshot_t2592000_before_passvalue.bin  bc2d5adc0a9ad96d11185464308974db580ee5f50d2e799e08eed928773bc1d8
+run2  snapshot_t7776000_before_passvalue.bin  bddeaa2e3d32c0842fead9d65e380212550cb918fce8a1c44ea6d30a8087473b
+run3  snapshot_t86400_before_passvalue.bin  2ed538cb9fab354e04f5dadfa166463a324399988d5a19c1934966854669807c
+run3  snapshot_t2592000_before_passvalue.bin  bc2d5adc0a9ad96d11185464308974db580ee5f50d2e799e08eed928773bc1d8
+run3  snapshot_t7776000_before_passvalue.bin  bddeaa2e3d32c0842fead9d65e380212550cb918fce8a1c44ea6d30a8087473b
+
+# All 3 per-row SHAs identical across runs = deterministic.

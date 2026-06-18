@@ -139,6 +139,104 @@ done
 
 > Sanity check note：全 4 case 的新 1d golden（`snapshot_t86400.bin`）与旧 S0-7 4-year-run goldens 在**同绝对仿真时间**（abs_min = START_day × 1440 + 1440）byte-equal（verified with `tools/compare_snapshot`）。这证明：新归档命令实际驱动的 B0 binary + B0 cfg.para forcing 早期段 → byte-equal output。新旧 goldens 在 spec 角色上不同——新 goldens（case-relative seconds 命名）是 S1 B1a CI 的唯一权威基准；旧 goldens 仅作 historical reference 共存于 archive 目录。
 
+### Before-PassValue 12 张 golden
+
+为支持 S1b 阶段的 PassValue 边界 snapshot 比对（design.md D11 + D13；tasks.md task 0.1b），在 pre-S1a 第二轮归档 12 张 before-PassValue snapshot golden（4 case × 3 t_values，与上面 12 张 after-PassValue golden 同 t-集合 `[86400, 2592000, 7776000]`）。这组 golden 由 `MD_f.cpp:67` PassValue() 调用**之前**插入的 `shud_rhs_dump_point("f_loop_before_passvalue", t, Qe2r_Surf, NumEle)` 钩子产生，与现有 12 张 `snapshot_t<v>.bin`（来自 `MD_update.cpp:151` "f_update" 钩子，即 f_update 末端 DY=0 数组）**语义对照**：
+
+| Snapshot 后缀 | 来源 site tag | 钩子位点 | 实际 dump payload | 语义 |
+|---|---|---|---|---|
+| 无（`snapshot_t<v>.bin`） | `"f_update"` | `SHUD/src/ModelData/MD_update.cpp:151` | `DY[0..NumY-1]`（已被 L147-149 reset to 0） | f_update 末端 RHS clear 后 baseline |
+| `_before_passvalue.bin` | `"f_loop_before_passvalue"` | `SHUD/src/ModelData/MD_f.cpp:67`（PassValue 之前） | `Qe2r_Surf[0..NumEle-1]`（per-element-to-river surface flux written by `PassValue()`，长度 NumEle） | f_loop 内 lake→ET→element→segment→river DY 计算完毕、PassValue() 即将清零并重算前的元素→河道地表通量状态 |
+
+**PR #54 round-1 fix F4 — payload re-pick**：本节最初的 12 张 golden（PR #43 落地）使用 `QeleSurfTot` 作为 payload，但验证组 (verifier) 发现 `QeleSurfTot` 在 `f_update` 末端被 reset to 0，且不在 PassValue() 的 write set 内 → snapshot 全 0（除了 header），无法用于 S1b 的 before-vs-after PassValue diff 验证。F4 把 payload 改为 `Qe2r_Surf`，它是 PassValue() write set 的成员（PassValue 第 189-200 行先清零再从 QsegSurf 累加），所以本探针抓到的是**前一次** PassValue 的 Qe2r_Surf 残留——B1a 重构若改动 PassValue 调度顺序或语义即可在此 byte-diff。验证：3/4 case (xinanjiang_upstream / qinyijiang / qhh) 的 Qe2r_Surf 在 ≥1 个 t_value 上有 nonzero values（说明探针抓到了真实 flux 状态）；keliya 因为是干旱内陆 case，90 day 窗口内 overland-to-river 通量全 0（与 hydrology 一致，非 bug）。F4 fix 的 12 张新 SHAs 见下表，与旧 QeleSurfTot 版相比：keliya 3 张 SHA unchanged（两数组都全 0），其它 9 张全部 DIFF。
+
+**SHUD_DUMP_FNAME_SUFFIX 写入器扩展**：两个 site 在同一 run 内 dump 同一 t_value 会因为旧写入器只输出 `snapshot_t<v>.bin` 而 collision overwrite，#43 在 `SHUD/src/ModelData/MD_rhs_dump.cpp::init_config()` 引入新环境变量 `SHUD_DUMP_FNAME_SUFFIX`：
+
+- 默认空字符串 → filename 保持 `snapshot_t<v>.bin`（与 PR #53 的 12 张文件名 + SHA256 完全 back-compat）
+- 非空 → filename 改为 `snapshot_t<v>_<suffix>.bin`（#43 用 `before_passvalue`）
+- 路径分隔符 `/` 或 `\\` 被拒绝（path-traversal guard，setting `c.disabled = true` + stderr 提示）
+- 全部扩展在 `#ifdef SHUD_DUMP_RHS` 内 → DUMP=0 编译产物字节零变更（compile-switch neutrality 硬契约，本次 4 case 全部 PASS）
+
+写入器副本 `tools/rhs_snapshot/writer.cpp` 同步增加 `compose_snapshot_filename()` + `compose_snapshot_filename_from_env()`（per MD_rhs_dump.cpp:10-19 SCHEMA DUPLICATION NOTE），以便未来外层 profile 工具走 writer 时行为一致。
+
+**重新归档命令**（B0-tag binary + #43 patch，90-day cfg.para 截断，本地 macOS Apple Silicon Apple Clang 17.0.0）：
+
+```bash
+cd SHUD && make clean && make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 shud && cd ..
+
+for c in keliya:keliya:12053 xinanjiang_upstream:xinanjiang:0 \
+         qinyijiang:nanlin:366 qhh:qhh:8401; do
+  case=$(echo "$c" | cut -d: -f1)
+  proj=$(echo "$c" | cut -d: -f2)
+  start_day=$(echo "$c" | cut -d: -f3)
+  start_min=$((start_day * 1440))
+  abs_t="$((start_min + 1440)),$((start_min + 43200)),$((start_min + 129600))"
+  staging="/tmp/snapshot_staging_$case"
+  rm -rf "$staging" && mkdir -p "$staging"
+  cd SHUD/Basins/$case
+  rm -rf output/$proj.out
+  SHUD_DUMP_T_VALUES="$abs_t" SHUD_DUMP_T_TOL=60 \
+  SHUD_DUMP_OUTPUT_DIR="$staging" SHUD_DUMP_CASE_ID="$proj" \
+  SHUD_DUMP_SITE="f_loop_before_passvalue" \
+  SHUD_DUMP_FNAME_SUFFIX="before_passvalue" \
+    ../../shud $proj
+  cd ../../..
+  # 文件名 abs-min → case-relative-sec rename + 复制到 benchmarks/
+  for rel_sec in 86400 2592000 7776000; do
+    case "$rel_sec" in
+      86400) abs_min=$((start_min + 1440)) ;;
+      2592000) abs_min=$((start_min + 43200)) ;;
+      7776000) abs_min=$((start_min + 129600)) ;;
+    esac
+    cp "$staging/snapshot_t${abs_min}_before_passvalue.bin" \
+       "benchmarks/$case/B0_output/snapshot_t${rel_sec}_before_passvalue.bin"
+  done
+done
+```
+
+**12 张 before-PassValue golden SHA256**（2026-06-18 archived；PR #54 round-1 F4 fix 用 Qe2r_Surf 取代 QeleSurfTot 后**重新归档**；本地 macOS Apple Silicon、Apple Clang 17.0.0；server re-archival 在 S1a 流程内手动一致性验证）：
+
+| Case                  | t_value (s) | File                                                                          | SHA256                                                             |
+|-----------------------|-------------|-------------------------------------------------------------------------------|--------------------------------------------------------------------|
+| `keliya`              | `86400`     | `benchmarks/keliya/B0_output/snapshot_t86400_before_passvalue.bin`            | `672a6213379d8c767944f40c3d254ab36ee757e891fe1cb64f5e327143567580` |
+| `keliya`              | `2592000`   | `benchmarks/keliya/B0_output/snapshot_t2592000_before_passvalue.bin`          | `69c2130f7414f3bdeff0d66a35f481a79f0bf62177144b624c8c05b60705f5a7` |
+| `keliya`              | `7776000`   | `benchmarks/keliya/B0_output/snapshot_t7776000_before_passvalue.bin`          | `a0960a5cabbcea03a94bc853ddcbfa99489ef74f03c0ecd74c848a7556f9593d` |
+| `xinanjiang_upstream` | `86400`     | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t86400_before_passvalue.bin`   | `9fa63a8386770b1643049a43351a2bd235790e8db5c3857145eb2bf8b86bc528` |
+| `xinanjiang_upstream` | `2592000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t2592000_before_passvalue.bin` | `6523dae92221a8a0ee6416c6ecc7271e0c2085b12c8157fd69edeb41fc8d6cdb` |
+| `xinanjiang_upstream` | `7776000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t7776000_before_passvalue.bin` | `cdfb07f60baa1bf91db9fa7672037aa3ceacb50aa999815d7029b7eea2ced1fd` |
+| `qinyijiang`          | `86400`     | `benchmarks/qinyijiang/B0_output/snapshot_t86400_before_passvalue.bin`        | `4baffc0dacebf61970d92d781e85eb65e6db8aef87ce38c1667e8b8190f84cf1` |
+| `qinyijiang`          | `2592000`   | `benchmarks/qinyijiang/B0_output/snapshot_t2592000_before_passvalue.bin`      | `4e7798ee53fb772450d3e58574888798c8dc8b732567ec93c94e9f6c607d3b4d` |
+| `qinyijiang`          | `7776000`   | `benchmarks/qinyijiang/B0_output/snapshot_t7776000_before_passvalue.bin`      | `4ef0a05b89cf9681e9a3e8686e7c469939473f56d5a42321f0105d6070b93c04` |
+| `qhh`                 | `86400`     | `benchmarks/qhh/B0_output/snapshot_t86400_before_passvalue.bin`               | `2ed538cb9fab354e04f5dadfa166463a324399988d5a19c1934966854669807c` |
+| `qhh`                 | `2592000`   | `benchmarks/qhh/B0_output/snapshot_t2592000_before_passvalue.bin`             | `bc2d5adc0a9ad96d11185464308974db580ee5f50d2e799e08eed928773bc1d8` |
+| `qhh`                 | `7776000`   | `benchmarks/qhh/B0_output/snapshot_t7776000_before_passvalue.bin`             | `bddeaa2e3d32c0842fead9d65e380212550cb918fce8a1c44ea6d30a8087473b` |
+
+算法：`shasum -a 256 benchmarks/<case>/B0_output/snapshot_t<v>_before_passvalue.bin`（Linux 上用 `sha256sum`）。文件 size = `40 (FileHeader) + 12 (RecordHeader) + 4 (name_len) + 2 ("DY") + 8 (nelem) + 8 * NumEle (payload)`：keliya `3938 B` (NumEle=484)、xinanjiang_upstream `6474 B` (NumEle=801)、qinyijiang `25306 B` (NumEle=3155)、qhh `38250 B` (NumEle=4773)，与各 case `Model_Data::Qe2r_Surf` 长度一致（== NumEle，per `Model_Data.hpp:134` + `PassValue()` 第 189-192 行 zero-reset 循环）；binary header 与 `tools/rhs_snapshot/format.h v1` 完全相同（version 1, magic "SHRH"）。
+
+**PR #53 12 张 after-PassValue golden 仍 unchanged**：本节扩展不修改 PR #53 已落入的 12 张 `snapshot_t<v>.bin`，文件名 + SHA256 全部稳定（实测同 commit 内对比，全 12 张 byte-equal vs L123-134 列表）。`SHUD_DUMP_FNAME_SUFFIX` 默认空字符串保证 back-compat。
+
+### 3-run repeatability evidence
+
+Each case ships `benchmarks/<case>/B0_output/repeatability_snapshots.txt` documenting 3 independent runs × 3 t-values = 9 SHA256 rows. All 9 SHAs per file are identical across the 3 runs → deterministic.
+
+Producer: `tools/snapshot_repeatability/run.sh <case>` — runs the SHUD build with SHUD_DUMP_RHS=1, dumps before-PassValue snapshots, computes SHA256, writes the file.
+
+Drift detector: `tools/check_goldens/check_goldens.sh` cross-checks the 12 SHA256 rows in repeatability_snapshots.txt against the 12 shipped `snapshot_t<v>_before_passvalue.bin` files; fails on any mismatch.
+
+**SHUD_DUMP_FNAME_SUFFIX 启用方式**（任意需要二者并存的 dump run 通用模式）：
+
+```bash
+# After-PassValue (legacy filename，与 PR #53 golden 对齐):
+SHUD_DUMP_SITE=f_update                                  ./shud <proj>
+# Before-PassValue (新 #43 钩子 + 新文件名):
+SHUD_DUMP_SITE=f_loop_before_passvalue \
+SHUD_DUMP_FNAME_SUFFIX=before_passvalue                  ./shud <proj>
+```
+
+两组命令对同一 run 跑出**不同**文件（无 collision overwrite），同 `SHUD_DUMP_OUTPUT_DIR` 可并存。
+
+**Cross-reference**：design.md D13 给出 site / writer / filename 三层 reconciliation 的完整契约；本节是 D13 + D11 落地的部署侧记录。
+
 ### 1.5.a 部署层 cfg.para 模板（S1a #44 周期性 IC backup probe 用）
 
 S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day, minutes）触发周期性 IC backup（`MD_update.cpp:234` 的 `PrintInit` 调用）；B1a 重构后 `rhs_core(ExecPolicy::Serial)` 路径下 backup 时刻的 RHS 评估状态 vs B0 binary 同时刻 byte-equal。**SHUD 本身没有 CVODE re-init 路径**（grep 验证 `CVodeReInit` 0 hits）；warm-restart 本质是"中途 IC 持久化 + 下次冷启动 from .ic"，不是 mid-run state 注入。本 issue (#42) 仅交付**模板/文档片段**，实际跑由 S1a #44 执行。
@@ -165,7 +263,7 @@ S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day,
 - backup 边界点必须落在 ≤ END（即 `START_min + Update_IC_STEP` 与 `START_min + 2*Update_IC_STEP` 都 ≤ `START_min + 90*1440`）。43200 min step 在 90 day 窗口里给 2 个中途触发点（+30 day、+60 day）+ 1 个边界（+90 day），足够覆盖周期性 backup 路径。
 - B1a bitwise gate by #44 task 1.5.a：在 backup boundary 时刻（`t mod Update_IC_STEP == 0`，例如 +30d / +60d）dump RHS snapshot，与 B0 binary 跑同输入到同时刻的 snapshot byte-equal。注意 SHUD 不做 mid-run CVODE state 注入，因此 backup 本身只是文件持久化、不影响后续积分；本 probe 只验证 backup boundary 那一拍的 RHS 评估状态 B1a vs B0 byte-equal。
 
-**CI hookup follow-up（不在 #42 范围）**：`.github/workflows/serial-baseline.yml` 的 `SHUD_DUMP_T_VALUES` 当前仍 hardcode 旧 abs-min `[17357760, 17370720, 17500320]`，90-day 截断下不命中、silent skip via `::notice`。新 12 张 golden **尚未由 PR CI 验证**；S1a #44 启动前必须由后续 PR（追加进 #43 或新开 issue）改 workflow env → keliya 新 t-values 的 abs-min `[17357760, 17399520, 17485920]`（`START_day=12053 × 1440 + {1440, 43200, 129600} min`）+ remove silent-skip 路径。其它 case 同公式：xinanjiang_upstream (START=0) `[1440, 43200, 129600]`；qinyijiang (START=366) `[528480, 570240, 656640]`；qhh (START=8401) `[12098880, 12140640, 12227040]`。**B1a CI gate 不可在该修复前 flip 到新 goldens**。
+**CI hookup 已完成（PR #54）**：`.github/workflows/serial-baseline.yml` 的 `SHUD_DUMP_T_VALUES` 已使用新 abs-min `[17357760, 17399520, 17485920]`（keliya，`START_day=12053 × 1440 + {1440, 43200, 129600} min`）；missing snapshot 走 `::error` hard-fail，旧 silent-skip via `::notice` 路径已删除。其它 case 同公式：xinanjiang_upstream (START=0) `[1440, 43200, 129600]`；qinyijiang (START=366) `[528480, 570240, 656640]`；qhh (START=8401) `[12098880, 12140640, 12227040]`——其余 3 case 的 nightly extension 由 capability `b0-tag-ci-integration` task 6.1 / 6.2 落地。当前 keliya 单 case PR fast-feedback 已 gate B1a 新 24 张 golden。
 
 ## 禁用 flag（Makefile 守卫）
 - `-ffast-math`、`-Ofast`、`-funsafe-math-optimizations`

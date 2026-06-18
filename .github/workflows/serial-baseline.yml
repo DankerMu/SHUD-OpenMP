@@ -100,6 +100,11 @@ concurrency:
 
 jobs:
   build-and-compare:
+    # F26 (PR #54 round-3): tool selftests inlined into build-and-compare
+    # so the single required check covers both helper-script regression
+    # detection and the longer bitwise matrix. g++/make are pre-installed
+    # on ubuntu-22.04; no apt-get step needed. Skip-label guard on the
+    # selftest steps mirrors the rest of the job for consistent UX.
     # Spec mandates ubuntu-22.04 hard requirement: the locked-flag B0 golden
     # was generated against gcc/g++ on Ubuntu 22.04, so bitwise comparison
     # is meaningful only on this image. Do not promote to ubuntu-latest.
@@ -142,6 +147,24 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+
+      # -----------------------------------------------------------------------
+      # Step 2.5 — tool selftests (F26 / PR #54 round-3)
+      # -----------------------------------------------------------------------
+      # Helper-script regression detection runs in seconds; failing here
+      # short-circuits the longer SUNDIALS install + build matrix below.
+      # g++/make are pre-installed on ubuntu-22.04 (no apt-get step needed).
+      # Skip-label guard on each step mirrors the rest of the job so the
+      # entire workflow is uniformly bypassed when the label is set.
+      - name: Run rhs_snapshot test_writer
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: bash tools/rhs_snapshot/test_writer.sh
+      - name: Run cvode_stats_diff test
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: bash tools/cvode_stats_diff/test_cvode_stats_diff.sh
+      - name: Run sbatch preflight selftest
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight
 
       # -----------------------------------------------------------------------
       # Step 3 — SUNDIALS 6.0.x cache + (re)install
@@ -326,73 +349,116 @@ jobs:
           echo "Profile-on bitwise neutrality PASS"
 
       # -----------------------------------------------------------------------
-      # Step 7d — run dump-on + compare snapshots
+      # Step 7d — run dump-on + compare snapshots (after-PassValue + before-PassValue)
       # -----------------------------------------------------------------------
       # SHUD_DUMP_OUTPUT_DIR + SHUD_DUMP_T_VALUES + SHUD_DUMP_CASE_ID + SHUD_DUMP_SITE
       # are the runtime env consumed by the dump hooks (see
-      # SHUD/src/ModelData/MD_rhs_dump.cpp init_config()). The three golden
-      # timesteps (17357760 / 17370720 / 17500320 seconds since epoch) are
-      # the ones present in benchmarks/keliya/B0_output/snapshot_t*.bin —
-      # these came from a 4-year B0 run; the 90-day-truncated CI run will
-      # NOT hit these timesteps and will produce zero snapshots, which
-      # makes the compare meaningless.
+      # SHUD/src/ModelData/MD_rhs_dump.cpp init_config()).
       #
-      # This is a known unresolved point of CI-vs-spec tension (CLAUDE.md
-      # §90-day-truncation flags it: "snapshot probe specials"). Two
-      # follow-ups are needed:
-      #   (1) When CI data is deployed, ship a per-CI manifest with
-      #       snapshot t_values inside the 90-day window (e.g. 86400 /
-      #       864000 / 7000000), and re-archive golden snapshots from a
-      #       truncated B0 run.
-      #   (2) OR: extend the cfg.para END to START+110 just for snapshot
-      #       capture (per CLAUDE.md option ①).
-      # For now we run the dump-on binary so that the build path is
-      # exercised, but treat zero snapshots as expected and only invoke
-      # compare_snapshot if any are produced. The skip+notice keeps the
-      # workflow honest: it will not green-light a missing snapshot, only
-      # explain why the compare is gated.
-      - name: Run keliya with dump-on binary
+      # T_VALUES (#43 update): re-archived in PR #53 to case-relative
+      # seconds [86400, 2592000, 7776000] = 1d / 30d / 90d so the
+      # snapshots are reachable inside the 90-day-truncated CI run.
+      # Hook receives abs-minutes; the CI runs keliya with
+      # START=12053 (day) → start_min = 12053 * 1440 = 17356320 min →
+      # abs_t_values = [start_min + 1440, start_min + 43200, start_min + 129600]
+      #              = [17357760, 17399520, 17485920] (min).
+      # Filenames the hook writes use abs-min; we rename to rel-sec
+      # below to match the golden archive convention.
+      #
+      # Two snapshot sites (#43): "f_update" (legacy, after-PassValue
+      # naming → snapshot_t<v>.bin) and "f_loop_before_passvalue"
+      # (#43 new, SHUD_DUMP_FNAME_SUFFIX=before_passvalue →
+      # snapshot_t<v>_before_passvalue.bin). Both keliya sites are CI-gated.
+      # 4-case nightly extension is task 6.1/6.2 (b0-tag-ci-integration).
+      - name: Run keliya with dump-on binary (f_update, after-PassValue naming)
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         env:
           SHUD_DUMP_OUTPUT_DIR: ${{ github.workspace }}/snapshots_new
           SHUD_DUMP_CASE_ID: keliya
           SHUD_DUMP_SITE: f_update
-          SHUD_DUMP_T_VALUES: "17357760,17370720,17500320"
+          SHUD_DUMP_T_VALUES: "17357760,17399520,17485920"
+          SHUD_DUMP_T_TOL: "60"
         run: |
           mkdir -p "${SHUD_DUMP_OUTPUT_DIR}"
           cp SHUD/shud_dump SHUD/shud
           rm -rf SHUD/Basins/keliya/output/keliya.out
           (cd SHUD/Basins/keliya && ../../shud keliya) 2>&1 | tee run_dump.log
 
-      - name: Compare snapshots vs B0 golden
+      - name: Run keliya with dump-on binary (f_loop_before_passvalue, #43 hook)
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
+        env:
+          SHUD_DUMP_OUTPUT_DIR: ${{ github.workspace }}/snapshots_new
+          SHUD_DUMP_CASE_ID: keliya
+          SHUD_DUMP_SITE: f_loop_before_passvalue
+          SHUD_DUMP_FNAME_SUFFIX: before_passvalue
+          SHUD_DUMP_T_VALUES: "17357760,17399520,17485920"
+          SHUD_DUMP_T_TOL: "60"
+        run: |
+          mkdir -p "${SHUD_DUMP_OUTPUT_DIR}"
+          rm -rf SHUD/Basins/keliya/output/keliya.out
+          (cd SHUD/Basins/keliya && ../../shud keliya) 2>&1 | tee run_dump_before_passvalue.log
+
+      - name: Compare snapshots vs B0 golden (both after-PassValue + before-PassValue)
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         run: |
           snap_dir="${{ github.workspace }}/snapshots_new"
           fail=0
-          shopt -s nullglob
-          new_snaps=("${snap_dir}"/snapshot_t*.bin)
-          if [[ "${#new_snaps[@]}" -eq 0 ]]; then
-            echo "::notice title=No snapshots produced::dump-on run produced no snapshot_t*.bin. Likely cause: cfg.para END is 90d-truncated and the golden timesteps (200+ days) fall outside the run window. Update SHUD_DUMP_T_VALUES + re-archive goldens in the ci-data-deployment follow-up. Skipping snapshot compare."
-            exit 0
-          fi
-          for new_snap in "${new_snaps[@]}"; do
-            bname=$(basename "$new_snap")
-            golden="benchmarks/keliya/B0_output/${bname}"
-            if [[ ! -f "$golden" ]]; then
-              echo "::error title=Unexpected snapshot::dump-on produced ${bname} but no corresponding golden in benchmarks/keliya/B0_output/. Re-archive goldens or fix SHUD_DUMP_T_VALUES."
-              fail=1
-              continue
-            fi
-            echo "Comparing $bname against golden..."
-            if ! tools/compare_snapshot/compare_snapshot "$new_snap" "$golden" 2>&1 | tee -a snapshot_compare.log; then
-              echo "::error title=Snapshot diff::compare_snapshot reported diff for $bname; see snapshot_compare.log"
-              fail=1
-            fi
+          # #43 update: abs-minutes from hook → case-relative seconds in archive.
+          # keliya: START=12053 day → start_min=17356320 min.
+          # rel_sec → abs_min mapping:
+          #   86400 s (1d)   = 17356320 + 1440   = 17357760
+          #   2592000 s (30d) = 17356320 + 43200  = 17399520
+          #   7776000 s (90d) = 17356320 + 129600 = 17485920
+
+          # Validate the two snapshot sets (after-PassValue + before-PassValue)
+          # against the 6 keliya goldens (3 t_values × 2 sites).
+          declare -A abs_to_rel
+          abs_to_rel[17357760]=86400
+          abs_to_rel[17399520]=2592000
+          abs_to_rel[17485920]=7776000
+
+          for abs_min in 17357760 17399520 17485920; do
+            rel_sec=${abs_to_rel[$abs_min]}
+            for suffix in "" "_before_passvalue"; do
+              new_path="${snap_dir}/snapshot_t${abs_min}${suffix}.bin"
+              golden="benchmarks/keliya/B0_output/snapshot_t${rel_sec}${suffix}.bin"
+              if [[ ! -f "$new_path" ]]; then
+                # #43 (task 0.5.iii): expected snapshot missing = fail-fast,
+                # NOT silent-skip. PR #53 + #43 ensure goldens are reachable
+                # in the 90-day-truncated CI run; absence indicates real bug.
+                echo "::error title=Expected snapshot missing::dump-on did not produce snapshot_t${abs_min}${suffix}.bin (expected for rel_sec=${rel_sec}, site=${suffix:-f_update}). Check SHUD_DUMP_T_VALUES + cfg.para 90-day window + dump-on build."
+                fail=1
+                continue
+              fi
+              if [[ ! -f "$golden" ]]; then
+                echo "::error title=Missing golden::Generated snapshot has no archive counterpart at ${golden}. Update docs/build_manifest.md + re-archive."
+                fail=1
+                continue
+              fi
+              echo "Comparing snapshot_t${abs_min}${suffix}.bin vs golden snapshot_t${rel_sec}${suffix}.bin..."
+              if ! tools/compare_snapshot/compare_snapshot "$new_path" "$golden" 2>&1 | tee -a snapshot_compare.log; then
+                echo "::error title=Snapshot diff::compare_snapshot reported diff for snapshot_t${rel_sec}${suffix}.bin; see snapshot_compare.log"
+                fail=1
+              fi
+            done
           done
           if [[ $fail -ne 0 ]]; then
             exit 1
           fi
-          echo "All snapshots bitwise identical to B0 golden"
+          echo "All 6 snapshots (3 t_values × 2 sites) bitwise identical to B0 golden"
+
+      # -----------------------------------------------------------------------
+      # Step 7e — verify golden SHA256 manifest (PR #54 round-1 F12)
+      # -----------------------------------------------------------------------
+      # tools/check_goldens/check_goldens.sh parses the 24 SHA256 rows from
+      # docs/build_manifest.md (12 after-PassValue + 12 before-PassValue),
+      # re-computes sha256sum of each listed file in benchmarks/<case>/B0_output,
+      # and fails the build if any row mismatches. This catches drift
+      # between checked-in goldens and the doc manifest BEFORE a B0
+      # bitwise compare PR can mask it.
+      - name: Verify golden SHA256 manifest
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: bash tools/check_goldens/check_goldens.sh
 
       # -----------------------------------------------------------------------
       # Step 8 — failure artifact upload
@@ -419,6 +485,7 @@ jobs:
             run_default.log
             run_profile.log
             run_dump.log
+            run_dump_before_passvalue.log
             default_rivqdown.dat
             profile_rivqdown.dat
             default_cvode_stats.txt

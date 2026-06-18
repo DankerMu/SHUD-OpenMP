@@ -703,7 +703,7 @@ double **QeleSub;     /* Subsurface Flux */
 | S0.1 | 固定编译环境 | `CMakeLists.txt` / Makefile | 固定编译器/版本、`-O2`、禁止 `-ffast-math`、固定 SUNDIALS 版本（≥ 6.0，见 §4.21） |
 | S0.2 | 选定并注册 benchmark 算例 | `benchmarks/` 目录 | 至少 5 类算例（见下方 benchmark 规范），每个算例产出 `manifest.yaml` |
 | S0.3 | 记录完整输出 | `benchmarks/<case>/B0_output/` | 所有 model output 文件归档到对应算例目录 |
-| S0.4 | 记录 CVODE stats | `src/Model/shud.cpp` | `nFCall`、内部步数、error test failure、linear solver stats |
+| S0.4 | 记录 CVODE stats | `src/Model/shud.cpp` | `nfe`（RHS 评估）、`nst`（内部步数）、`netf`（error test failure）、linear solver stats（`nli` / `nfeLS` / `npe` / `nps` / `ncfl` / `lenrwLS` / `leniwLS`）——15-key 集合见 §F19 / `tools/cvode_stats_diff/`；SHUD 内部计数器 `nFCall`（`Model_Data.hpp` L38）由独立 capability 跟踪，不进入 CVODE stats invariance gate |
 | S0.5 | 记录 RHS 中间量 | `src/ModelData/MD_f.cpp` | 在 `f_loop()` / `f_applyDY()` 关键点 dump flux 和 DY 数组 |
 | S0.6 | 记录 wall-clock / I/O 分项 | — | 总时间、每次 RHS 时间、forcing I/O 时间、输出时间、peak memory |
 | S0.7 | **RHS snapshot 工具** | `tools/rhs_snapshot/` | 在指定 `t_values` 处 dump DY / flux 数组到二进制文件；支持从 manifest 读取 probe 配置 |
@@ -1033,8 +1033,7 @@ output_compare:
 **验收门控**：
 - [ ] 完整 `rhs_core()` serial 路径 vs legacy：单次 RHS 评估 DY bitwise identical
 - [ ] 完整 run 与 B0 bitwise identical
-- [ ] CVODE stats 与 B0 identical
-- [ ] `nFCall` 一致
+- [ ] CVODE stats 15-key 集合（`nfe / nfeLS / nni / nli / nsetups / netf / nst / npe / nps / ncfn / ncfl / lenrw / leniw / lenrwLS / leniwLS`）与 B0 归档 byte-equal（`tools/cvode_stats_diff/cvode_stats_diff.sh`，F19 round-2 决定移除 `nFCall`，见 openspec `design.md` D10 rationale）
 
 **Go/No-Go → S1d**：S1c 未通过 bitwise 不进入 S1d。
 
@@ -1054,7 +1053,7 @@ output_compare:
 **验收门控**：
 - [ ] `policy=Serial` 下完整 run 与 B0 bitwise identical
 - [ ] `LEGACY_RHS` 编译下完整 run 与 B0 bitwise identical
-- [ ] CVODE stats 一致，`nFCall` 一致
+- [ ] CVODE stats 15-key 集合与 B0 归档 byte-equal（`tools/cvode_stats_diff/cvode_stats_diff.sh`；canonical key 列表与 F19 round-2 决定见 S1c 同名门控）
 - [ ] `f.cpp` 中不再有 `NV_DATA_OMP` / `NV_DATA_S`（全部改为 `N_VGetArrayPointer`）
 - [ ] `shud.cpp` 中 `N_VDestroy_Serial` 全部替换为 `N_VDestroy`
 - [ ] `SHUD_USE_OPENMP_NVECTOR=OFF` 时编译不依赖 `nvector_openmp.h`
@@ -1355,7 +1354,7 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 | 诊断项 | 来源 |
 |---|---|
 | CVODE internal steps | SUNDIALS CVodeGetNumSteps |
-| RHS evaluations | `nFCall`（`Model_Data.hpp` L38） |
+| RHS evaluations | SUNDIALS `CVodeGetNumRhsEvals`（→ 15-key `nfe`）；SHUD 内部 `nFCall` 计数器（`Model_Data.hpp` L38）作 §C8 RHS 调用归一指标独立追踪，不进入 CVODE stats invariance gate（F19 round-2，详见 openspec `design.md` D10 rationale） |
 | error test failures | CVodeGetNumErrTestFails |
 | nonlinear iterations | CVodeGetNumNonlinSolvIters |
 | linear iterations | CVodeGetNumLinIters |
