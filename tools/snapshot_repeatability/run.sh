@@ -11,10 +11,13 @@
 #   bash tools/snapshot_repeatability/run.sh <case>
 #
 # Supported cases (must match SHUD/Basins/<case> layout + benchmarks/<case>):
-#   keliya                 proj=keliya               START_day=12053
-#   xinanjiang_upstream    proj=xinanjiang           START_day=0
-#   qinyijiang             proj=nanlin               START_day=366
-#   qhh                    proj=qhh                  START_day=8401
+#   keliya                 proj=keliya
+#   xinanjiang_upstream    proj=xinanjiang
+#   qinyijiang             proj=nanlin
+#   qhh                    proj=qhh
+#
+# START / END day values are parsed from cfg.para at runtime (F33, PR #54
+# round-4); no per-case hardcoding.
 #
 # Prerequisites (the user is responsible for):
 #   1. SHUD binary built with SHUD_DUMP_RHS=1
@@ -52,24 +55,23 @@ EOF
 
 CASE="$1"
 
-# Per-case parameters: proj (SHUD project key in input/) + START_day +
-# t_values in absolute minutes (start_day*1440 + {1440, 43200, 129600}).
+# Per-case parameters: only PROJ (SHUD project key in input/<proj>/, which is
+# the filename prefix for cfg.para and other inputs). START / END day values
+# are parsed from cfg.para at runtime (F33, PR #54 round-4) so any drift in
+# cfg.para — including the project-level 90-day truncation rule — is honored
+# without script edits.
 case "$CASE" in
     keliya)
         PROJ=keliya
-        START_DAY=12053
         ;;
     xinanjiang_upstream)
         PROJ=xinanjiang
-        START_DAY=0
         ;;
     qinyijiang)
         PROJ=nanlin
-        START_DAY=366
         ;;
     qhh)
         PROJ=qhh
-        START_DAY=8401
         ;;
     *)
         printf "%s: unsupported case '%s'\n\n" "$PROG" "$CASE" >&2
@@ -79,6 +81,7 @@ esac
 
 CASEDIR="$REPO/SHUD/Basins/$CASE"
 OUTFILE="$REPO/benchmarks/$CASE/B0_output/repeatability_snapshots.txt"
+CFG_PARA="$CASEDIR/input/$PROJ/$PROJ.cfg.para"
 
 [ -d "$CASEDIR" ] || {
     printf "%s: case dir %s not found (forcing data not deployed)\n" "$PROG" "$CASEDIR" >&2
@@ -92,6 +95,23 @@ OUTFILE="$REPO/benchmarks/$CASE/B0_output/repeatability_snapshots.txt"
     printf "%s: SHUD/shud binary not built (run: cd SHUD && make SHUD_DUMP_RHS=1 shud)\n" "$PROG" >&2
     exit 2
 }
+
+# F33 (PR #54 round-4): parse START/END from cfg.para instead of hardcoding.
+# cfg.para format: "START<TAB>12053" / "END<TAB>12143" (whitespace-separated).
+# Bails if either key is missing so a stale / malformed cfg surfaces immediately
+# (was: hardcoded constants silently mis-targeted snapshot abs-min and SHUD
+# dump silently never fired).
+[ -f "$CFG_PARA" ] || {
+    printf "%s: cfg.para not found: %s\n" "$PROG" "$CFG_PARA" >&2
+    exit 2
+}
+START_DAY=$(awk '$1=="START"{print $2; exit}' "$CFG_PARA")
+END_DAY=$(awk '$1=="END"{print $2; exit}' "$CFG_PARA")
+if [ -z "$START_DAY" ] || [ -z "$END_DAY" ]; then
+    printf "%s: cannot parse START/END from %s (START='%s' END='%s')\n" \
+        "$PROG" "$CFG_PARA" "$START_DAY" "$END_DAY" >&2
+    exit 2
+fi
 
 # Pick a sha256 tool: prefer GNU sha256sum, fall back to BSD shasum -a 256.
 if command -v sha256sum >/dev/null 2>&1; then
@@ -113,7 +133,7 @@ ABS_TS=("$ABS_T1" "$ABS_T2" "$ABS_T3")
 DATE=$(git -C "$REPO" log -1 --format=%ci HEAD)
 SHUD_HEAD=$(git -C "$REPO/SHUD" rev-parse --short=12 HEAD)
 
-printf "===== %s (proj=%s, start_day=%d) =====\n" "$CASE" "$PROJ" "$START_DAY"
+printf "===== %s (proj=%s, start_day=%d, end_day=%d) =====\n" "$CASE" "$PROJ" "$START_DAY" "$END_DAY"
 
 # Write header.
 {
@@ -172,7 +192,12 @@ for i in 1 2 3; do
 done
 
 # Verify determinism: 3 unique-bin SHAs across all 3 runs (3 per row × 3 rows = 9 rows; deterministic ↔ 3 unique).
-UNIQ=$(awk 'NR>8 {print $3}' "$OUTFILE" | sort -u | wc -l | tr -d ' ')
+# F31 (PR #54 round-4): filter $3 to SHA256-shaped tokens only. Without the
+# regex guard, awk picks up the trailing blank line ($3 = "") and the comment
+# row "# All 3 per-row SHAs identical across runs = deterministic." ($3 = "3"),
+# inflating UNIQ from 3 to 5 and flipping the verdict to NON-DETERMINISTIC on
+# every re-run against a known-good file.
+UNIQ=$(awk 'NR>8 && $3 ~ /^[0-9a-f]{64}$/ {print $3}' "$OUTFILE" | sort -u | wc -l | tr -d ' ')
 if [ "$UNIQ" -eq 3 ]; then
     printf "  %s: DETERMINISTIC (3 unique SHAs across 9 rows)\n" "$CASE"
     echo "" >> "$OUTFILE"
