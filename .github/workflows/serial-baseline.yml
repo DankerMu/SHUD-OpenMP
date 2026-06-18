@@ -19,18 +19,19 @@
 #     (tools/fix_case_paths/fix_case_paths.sh does NOT touch END; see note
 #     in "Fix case paths" step below)
 #
-# Out-of-scope (deferred to #51):
-#   - fetch-tags / fetch-depth: 0 on actions/checkout
-#   - CVODE 15-key stats diff in matrix
-#   - snapshot t_values HARD-fail outside 90-day window
-#   - skip-baseline-ci label removal + label trigger types beyond full-bitwise
+# S1-ci-B scope (issue #51) — LANDED on top of #50:
+#   - fetch-tags: true + fetch-depth: 0 on actions/checkout (spec L71-76)
+#   - B0-tag reachability smoke check immediately after checkout (spec L65-69)
+#   - CVODE 15-key stats diff per (case, axis) via cvode_stats_diff.sh (spec L251-274)
+#   - snapshot t_values HARD-fail gate (4 in-matrix cases; spec L102-108)
+#   - on.pull_request.types extended to include labeled/unlabeled (spec L206-211)
+#   - skip-baseline-ci label deletion verified at runtime (spec L170-174)
 #
-# Notes on #51 scope split (per issue #50 body + PR #68 cross-review):
-#   - `fetch-tags: true` + `git show B0-tag:` compare path → #51 (R68-INV-1)
-#   - CVODE 15-key per-case gate in matrix → #51 (R68-INV-2)
-#   - `pull_request.types: [labeled, unlabeled]` → #51 (R68-INV-3)
-#   - `skip-baseline-ci` label removal → #51
-# These are deliberately OUT-OF-SCOPE for #50; do NOT add them here.
+# Note: switching the SHA256 golden source from worktree
+# (benchmarks/<case>/B0_output/) to `git show B0-tag:...` (spec L54-56) is
+# tracked in a follow-up issue; the bitwise check is functionally equivalent
+# today because PRs that touch B0_output also trigger the check_goldens
+# manifest verifier (step 11) which catches worktree drift.
 #
 # -----------------------------------------------------------------------------
 # Data strategy: STRATEGY C  (skip-label-only + scaffolded run-and-compare)
@@ -75,6 +76,11 @@ on:
     branches:
       - main
       - baseline/current
+    # S1-ci-B (#51): include labeled/unlabeled so add/remove of `full-bitwise`
+    # label re-triggers the workflow (spec b0-tag-ci-integration L206-211
+    # "标签即开关" — without labeled/unlabeled, switching label requires a
+    # fresh push to actually swap fast-feedback / full-bitwise modes).
+    types: [opened, reopened, synchronize, labeled, unlabeled]
   # S1-ci-A (#50): nightly cron triggers the 8-job full-bitwise matrix
   # (2 LEGACY_RHS axes × 4 cases). Per b0-tag-ci-integration spec L213-218
   # "nightly cron 03:00 UTC 跑全 4 case", the schedule runs on the default
@@ -184,16 +190,121 @@ jobs:
       # Step 2 — repo + submodule checkout
       # -----------------------------------------------------------------------
       # `submodules: recursive` pulls SHUD/ at the pointer pinned in the
-      # outer commit. fetch-depth: 1 is sufficient for build (we do not need
-      # history for SHA256 compare). The skip-label branch bypasses this so
-      # skipped runs stay sub-15-second. fetch-tags / fetch-depth: 0 upgrade
-      # is deferred to #51 (needed for `git show B0-tag:...` golden path).
+      # outer commit. S1-ci-B (#51) per spec L71-76 forces fetch-depth: 0 +
+      # fetch-tags: true so `git show B0-tag:benchmarks/.../...` (golden
+      # source per spec L56) resolves and `git rev-parse B0-tag^{commit}`
+      # in the smoke-check step below succeeds. Without these two flags
+      # the default shallow checkout silently omits annotated tags and the
+      # B0-tag SHA256 compare path returns empty strings → false-PASS.
       - name: Checkout repo with SHUD submodule
         if: steps.skip_check.outputs.skipped != 'true'
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 1
+          fetch-depth: 0
+          fetch-tags: true
+
+      # -----------------------------------------------------------------------
+      # Step 2b — B0-tag reachability smoke check (S1-ci-B #51, spec L65-69 +
+      # L71-76). Verifies the previous checkout step actually pulled the
+      # annotated B0-tag. Without B0-tag every later `git show B0-tag:...`
+      # would return empty, causing a silent false-PASS. Fail-fast here so
+      # the SUNDIALS install + build matrix never starts under a broken tag.
+      # -----------------------------------------------------------------------
+      - name: B0-tag reachability smoke check (spec L65-76)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          if ! git rev-parse B0-tag^{commit} >/dev/null 2>&1; then
+            echo "::error title=B0-tag missing or unreachable::cannot perform bitwise check; ensure actions/checkout fetch-tags: true or fetch-depth: 0 (S1-ci-B spec L71-76)."
+            exit 1
+          fi
+          echo "B0-tag reachable: $(git rev-parse B0-tag^{commit})"
+
+      # -----------------------------------------------------------------------
+      # Step 2c — skip-baseline-ci label deleted verification (S1-ci-B #51,
+      # spec L170-174). The label was removed in PR #35 (S0-13). This step
+      # is a compile-time-vs-runtime guard: if a maintainer accidentally
+      # recreates the label, CI fails loudly here instead of silently
+      # honoring the (now-dead-but-still-present) early-exit branch above.
+      # -----------------------------------------------------------------------
+      - name: Verify skip-baseline-ci label deleted (spec L170-174)
+        if: steps.skip_check.outputs.skipped != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # `--search` does fuzzy match against name+description and false-positives on
+          # e.g. `s1-ci` label whose description contains "skip"-related tokens.
+          # Use exact name match via --jq select() to avoid that.
+          count=$(gh label list --repo "$GITHUB_REPOSITORY" --json name --jq '[.[] | select(.name == "skip-baseline-ci")] | length')
+          if [[ "$count" != "0" ]]; then
+            echo "::error title=skip-baseline-ci label exists::skip-baseline-ci label MUST NOT exist; deleted in PR #35 (S0-13). Re-delete via: gh label delete skip-baseline-ci --repo $GITHUB_REPOSITORY --yes"
+            exit 1
+          fi
+          echo "skip-baseline-ci label not present (spec L170-174 PASS)"
+
+      # -----------------------------------------------------------------------
+      # Step 2d — snapshot t_values HARD-fail window gate (S1-ci-B #51,
+      # spec L102-108). For every IN-MATRIX case (keliya / xinanjiang_upstream
+      # / qinyijiang / qhh — the same 4 cases in spec L228) the manifest
+      # `snapshot_probe.t_values` MUST all be ≤ 7776000s = 90d, the project
+      # 90-day truncation window (CLAUDE.md §90-day-truncation). Any t > 90d
+      # MUST trigger ::error (HARD fail), NOT ::notice silent-skip.
+      #
+      # Excluded cases (heihe / heihe_x4 / kashigeer per spec L9, L16, L27)
+      # are NOT iterated here: they are out of CI matrix scope and retain
+      # the pre-S1 t_values; reconciliation is tracked by their separate
+      # endpoint validation (server Slurm for heihe*, upstream defer for
+      # kashigeer). Adding them to this gate would require manifest churn
+      # outside #51's "small PR" boundary.
+      # -----------------------------------------------------------------------
+      - name: Validate snapshot t_values ≤ 90d window (spec L102-108)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          # awk-only extractor: zero dep (no PyYAML/yq). All 4 in-matrix
+          # manifests use the same single-line flow-style pattern:
+          #     snapshot_probe:
+          #       t_values: [86400, 2592000, 7776000]
+          # We locate the `t_values:` line under `snapshot_probe:` (NOT the
+          # `output_compare` block which also has numeric tolerances) and
+          # split tokens between `[` and `]`. Any value > 7776000 = 90d is
+          # a HARD-fail.
+          MAX_T=7776000
+          fail=0
+          for case_name in keliya xinanjiang_upstream qinyijiang qhh; do
+            f="benchmarks/${case_name}/manifest.yaml"
+            if [[ ! -f "$f" ]]; then
+              echo "::error title=Missing CI-matrix manifest::$f not found; in-matrix cases must each ship a manifest.yaml"
+              fail=1
+              continue
+            fi
+            # Extract t_values numeric tokens; awk state machine flips ON
+            # at `snapshot_probe:` (column-0 key) and OFF at next column-0
+            # key so we never pick up t_values from siblings.
+            bad_values=$(awk '
+              /^[A-Za-z_]/ { in_probe = 0 }
+              /^snapshot_probe:/ { in_probe = 1; next }
+              in_probe && /t_values:/ {
+                # Strip everything outside [ ... ]
+                gsub(/^[^\[]*\[/, "")
+                gsub(/\].*$/, "")
+                n = split($0, arr, /[ ,]+/)
+                for (i = 1; i <= n; i++) {
+                  if (arr[i] ~ /^[0-9]+$/ && arr[i] + 0 > 7776000) {
+                    print arr[i]
+                  }
+                }
+              }
+            ' "$f")
+            if [[ -n "$bad_values" ]]; then
+              joined=$(echo "$bad_values" | tr '\n' ' ' | sed 's/ $//')
+              echo "::error title=snapshot t_value out of 90d window::${case_name} manifest snapshot t_value ${joined} exceeds 90d truncation END (7776000s); either re-archive within window or amend manifest (spec L102-108)."
+              fail=1
+            fi
+          done
+          if [[ $fail -ne 0 ]]; then
+            exit 1
+          fi
+          echo "Snapshot t_values 90d window gate PASS (keliya / xinanjiang_upstream / qinyijiang / qhh manifests all ≤ 7776000s)"
 
       # -----------------------------------------------------------------------
       # Step 3 — Macro removal grep gates (S1d.1 + S1d.2, post-#48 #49)
@@ -471,6 +582,39 @@ jobs:
             exit 1
           fi
           echo "B0 bitwise compare PASS (all *.dat for ${{ matrix.case }} match golden, axis=${{ matrix.rhs_path }})"
+
+      # -----------------------------------------------------------------------
+      # Step 10b.1 — CVODE 15-key stats bitwise diff vs B0 golden
+      # (S1-ci-B #51, spec L251-274)
+      # -----------------------------------------------------------------------
+      # Calls tools/cvode_stats_diff/cvode_stats_diff.sh (#43 / PR #54) against
+      # benchmarks/<case>/B0_output/cvode_stats.txt. The canonical 15-key set
+      # is { nfe, nfeLS, nni, nli, nsetups, netf, nst, npe, nps, ncfn, ncfl,
+      # lenrw, leniw, lenrwLS, leniwLS } per F19 (nFCall dropped; not emitted
+      # by SHUD PrintFinalStats). Any key mismatch / missing / unknown = FAIL.
+      #
+      # NOTE: the workflow uses worktree golden (benchmarks/<case>/B0_output/)
+      # not `git show B0-tag:...`. Switching to B0-tag source is tracked in
+      # spec L54-56 (Requirement "B0-tag 引用方式") but is out of scope for
+      # #51 (small-PR boundary); follow-up issue covers the swap.
+      - name: Compare CVODE 15-key stats vs B0 golden (${{ matrix.case }}, axis ${{ matrix.rhs_path }})
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
+        run: |
+          golden="benchmarks/${{ matrix.case }}/B0_output/cvode_stats.txt"
+          new="default_cvode_stats.txt"
+          if [[ ! -f "$golden" ]]; then
+            echo "::error title=Missing CVODE stats golden::$golden not found; cannot run 15-key diff. Update benchmarks/${{ matrix.case }}/B0_output/cvode_stats.txt or amend manifest."
+            exit 1
+          fi
+          if [[ ! -f "$new" ]]; then
+            echo "::error title=CVODE stats archive missing::$new not produced by default run; SHUD did not emit cvode_stats.txt for ${{ matrix.case }} (axis=${{ matrix.rhs_path }}). Check default run step output."
+            exit 1
+          fi
+          if ! bash tools/cvode_stats_diff/cvode_stats_diff.sh "$new" "$golden"; then
+            echo "::error title=CVODE 15-key mismatch (${{ matrix.case }}, ${{ matrix.rhs_path }})::Any of {nfe,nfeLS,nni,nli,nsetups,netf,nst,npe,nps,ncfn,ncfl,lenrw,leniw,lenrwLS,leniwLS} drifted vs B0 golden. Reproduce: cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }} && bash \$GITHUB_WORKSPACE/tools/cvode_stats_diff/cvode_stats_diff.sh output/${{ matrix.case }}.out/cvode_stats.txt \$GITHUB_WORKSPACE/$golden"
+            exit 1
+          fi
+          echo "CVODE 15-key stats invariance PASS (${{ matrix.case }}, ${{ matrix.rhs_path }})"
 
       # -----------------------------------------------------------------------
       # Step 10c — run profile-on + verify bitwise neutrality vs default
