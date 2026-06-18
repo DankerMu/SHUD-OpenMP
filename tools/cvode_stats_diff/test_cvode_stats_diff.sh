@@ -1,11 +1,18 @@
 #!/bin/sh
-# test_cvode_stats_diff.sh — 4-scenario acceptance test for cvode_stats_diff.sh.
+# test_cvode_stats_diff.sh — 6-scenario acceptance test for cvode_stats_diff.sh.
 #
 # Scenarios (per openspec/.../tasks.md task 0.2 acceptance):
 #   (a) Two identical files → exit 0
 #   (b) Single key value mismatch → exit non-zero + "key: golden=X, new=Y"
 #   (c) Missing key → exit non-zero + "key MISSING in <file>"
 #   (d) Extra (unknown) key → exit non-zero + "key UNKNOWN in <file>: <key>"
+#   (e) Duplicate canonical key in NEW → exit non-zero + "DUPLICATE key in <file>: <key>"
+#       (F3 fix: catches dup-keys that were previously silently picking the
+#       first occurrence)
+#   (f) UNKNOWN key in GOLDEN (mirror of (d) but flipped sides) → exit
+#       non-zero + "key UNKNOWN in <file>: <key>"
+#       (F8 fix: symmetry test that proves the unknown-key check inspects
+#       both files, not just NEW)
 #
 # Owned by: openspec change s1-rhs-core-extraction (Group 0 task 0.2).
 
@@ -129,6 +136,38 @@ rc=$?
 set -e
 assert_exit 1 "scenario(d) unknown key → exit non-zero" "$rc"
 assert_contains "scenario(d) UNKNOWN report" "key UNKNOWN in $TMP/d_new.txt: bogus_extra" "$TMP/d.out"
+
+# -----------------------------------------------------------------------------
+# Scenario (e): duplicate canonical key in NEW → exit non-zero + DUPLICATE report
+# (F3 fix: parse_value now detects dup-key and returns non-zero; previously
+# the silent first-match-wins exit hid file corruption.)
+# -----------------------------------------------------------------------------
+make_canonical "$TMP/e_golden.txt"
+make_canonical "$TMP/e_new.txt"
+# Append a second `nfe=999` line; canonical content still has nfe=102485
+# at top, so dup count = 2 with conflicting values.
+printf 'nfe=999\n' >> "$TMP/e_new.txt"
+set +e
+"$DIFF" "$TMP/e_new.txt" "$TMP/e_golden.txt" > "$TMP/e.out" 2>&1
+rc=$?
+set -e
+assert_exit 1 "scenario(e) duplicate key in NEW → exit non-zero" "$rc"
+assert_contains "scenario(e) DUPLICATE report" "DUPLICATE key in $TMP/e_new.txt: nfe" "$TMP/e.out"
+
+# -----------------------------------------------------------------------------
+# Scenario (f): UNKNOWN key in GOLDEN file (mirror of (d)) → exit non-zero
+# (F8 fix: symmetry check — the unknown-key scanner must inspect both files,
+# not just NEW.)
+# -----------------------------------------------------------------------------
+make_canonical "$TMP/f_golden.txt"
+make_canonical "$TMP/f_new.txt"
+printf 'bogus_extra=42\n' >> "$TMP/f_golden.txt"
+set +e
+"$DIFF" "$TMP/f_new.txt" "$TMP/f_golden.txt" > "$TMP/f.out" 2>&1
+rc=$?
+set -e
+assert_exit 1 "scenario(f) UNKNOWN key in GOLDEN → exit non-zero" "$rc"
+assert_contains "scenario(f) UNKNOWN report (golden side)" "key UNKNOWN in $TMP/f_golden.txt: bogus_extra" "$TMP/f.out"
 
 # -----------------------------------------------------------------------------
 # Summary

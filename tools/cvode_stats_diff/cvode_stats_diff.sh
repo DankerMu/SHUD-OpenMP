@@ -48,6 +48,12 @@ CANONICAL_KEYS="nfe nfeLS nni nli nsetups netf nst npe nps ncfn ncfl lenrw leniw
 # parse_value <file> <key>
 # Emits the value (rhs of `<key>=` or `<key>:` or `<key> =`) to stdout.
 # Empty stdout = key absent. Uses awk for portability.
+#
+# F3 fix: detects duplicate-key files. If the key appears MORE than once
+# in <file>, parse_value emits nothing to stdout and exits non-zero so the
+# caller can route the file to the dup-key diagnostic path. (Previously
+# the `exit` on first match silently picked the first occurrence, which
+# could hide a corruption.)
 parse_value() {
     file="$1"
     key="$2"
@@ -56,6 +62,7 @@ parse_value() {
         # `nfe : 100`, `nfe=100` all parse identically.
         {
             line=$0
+            delim=0
             # Find first delimiter (= or :).
             for (i=1; i<=length(line); i++) {
                 c=substr(line,i,1)
@@ -67,7 +74,12 @@ parse_value() {
             # trim
             gsub(/^[ \t]+|[ \t]+$/, "", kpart)
             gsub(/^[ \t]+|[ \t]+$/, "", vpart)
-            if (kpart == k) { print vpart; exit }
+            if (kpart == k) { hits++; captured=vpart }
+        }
+        END {
+            if (hits == 1) { print captured; exit 0 }
+            else if (hits == 0) { exit 0 }   # absent: caller treats empty as MISSING
+            else { exit 2 }                   # duplicate: caller signals dup-key
         }
     ' "$file"
 }
@@ -109,15 +121,32 @@ is_canonical_key() {
 
 FAIL=0
 
-# 1) Check missing keys (canonical 16, in either file).
+# 1) Check missing keys (canonical 16, in either file) + dup-key detection.
+# F3 fix: parse_value now returns exit 2 on duplicate key; if either file
+# has the same canonical key listed more than once, treat the whole file as
+# corrupt and fail-fast with a DUPLICATE diagnostic.
+#
+# `set +e` brackets the parse_value capture: awk's non-zero exit on dup-key
+# (rc=2) propagates into `$(...)`, and `set -e` (line 29) would otherwise
+# abort the script before we can route it.
 for k in $CANONICAL_KEYS; do
-    new_v=$(parse_value "$NEW"    "$k")
-    gld_v=$(parse_value "$GOLDEN" "$k")
-    if [ -z "$new_v" ]; then
+    set +e
+    new_v=$(parse_value "$NEW"    "$k"); new_rc=$?
+    gld_v=$(parse_value "$GOLDEN" "$k"); gld_rc=$?
+    set -e
+    if [ "$new_rc" -eq 2 ]; then
+        printf "DUPLICATE key in %s: %s\n" "$NEW" "$k"
+        FAIL=1
+    fi
+    if [ "$gld_rc" -eq 2 ]; then
+        printf "DUPLICATE key in %s: %s\n" "$GOLDEN" "$k"
+        FAIL=1
+    fi
+    if [ "$new_rc" -eq 0 ] && [ -z "$new_v" ]; then
         printf "%s MISSING in %s\n" "$k" "$NEW"
         FAIL=1
     fi
-    if [ -z "$gld_v" ]; then
+    if [ "$gld_rc" -eq 0 ] && [ -z "$gld_v" ]; then
         printf "%s MISSING in %s\n" "$k" "$GOLDEN"
         FAIL=1
     fi
@@ -139,9 +168,15 @@ if [ -f /tmp/cvode_stats_diff.unknown.$$ ]; then
 fi
 
 # 3) For canonical keys present in BOTH files, value-compare.
+# Skip dup-key files here (already diagnosed in pass 1; their parse_value
+# returns empty so a value-mismatch error would be misleading noise).
 for k in $CANONICAL_KEYS; do
-    new_v=$(parse_value "$NEW"    "$k")
-    gld_v=$(parse_value "$GOLDEN" "$k")
+    set +e
+    new_v=$(parse_value "$NEW"    "$k"); new_rc=$?
+    gld_v=$(parse_value "$GOLDEN" "$k"); gld_rc=$?
+    set -e
+    [ "$new_rc" -ne 0 ] && continue
+    [ "$gld_rc" -ne 0 ] && continue
     [ -z "$new_v" ] && continue
     [ -z "$gld_v" ] && continue
     if [ "$new_v" != "$gld_v" ]; then

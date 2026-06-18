@@ -141,12 +141,14 @@ done
 
 ### Before-PassValue 12 张 golden
 
-为支持 S1b 阶段的 PassValue 边界 snapshot 比对（design.md D11 + D13；tasks.md task 0.1b），在 pre-S1a 第二轮归档 12 张 before-PassValue snapshot golden（4 case × 3 t_values，与上面 12 张 after-PassValue golden 同 t-集合 `[86400, 2592000, 7776000]`）。这组 golden 由 `MD_f.cpp:51` PassValue() 调用**之前**插入的 `shud_rhs_dump_point("f_loop_before_passvalue", t, QeleSurfTot, NumEle)` 钩子产生，与现有 12 张 `snapshot_t<v>.bin`（来自 `MD_update.cpp:151` "f_update" 钩子，即 f_update 末端 DY=0 数组）**语义对照**：
+为支持 S1b 阶段的 PassValue 边界 snapshot 比对（design.md D11 + D13；tasks.md task 0.1b），在 pre-S1a 第二轮归档 12 张 before-PassValue snapshot golden（4 case × 3 t_values，与上面 12 张 after-PassValue golden 同 t-集合 `[86400, 2592000, 7776000]`）。这组 golden 由 `MD_f.cpp:64` PassValue() 调用**之前**插入的 `shud_rhs_dump_point("f_loop_before_passvalue", t, Qe2r_Surf, NumEle)` 钩子产生，与现有 12 张 `snapshot_t<v>.bin`（来自 `MD_update.cpp:151` "f_update" 钩子，即 f_update 末端 DY=0 数组）**语义对照**：
 
 | Snapshot 后缀 | 来源 site tag | 钩子位点 | 实际 dump payload | 语义 |
 |---|---|---|---|---|
 | 无（`snapshot_t<v>.bin`） | `"f_update"` | `SHUD/src/ModelData/MD_update.cpp:151` | `DY[0..NumY-1]`（已被 L147-149 reset to 0） | f_update 末端 RHS clear 后 baseline |
-| `_before_passvalue.bin` | `"f_loop_before_passvalue"` | `SHUD/src/ModelData/MD_f.cpp:51`（PassValue 之前） | `QeleSurfTot[0..NumEle-1]`（per-element overland flux 聚合） | f_loop 内 lake→ET→element→segment→river DY 计算完毕、river-segment 共享回写之前的 Model_Data flux 状态 |
+| `_before_passvalue.bin` | `"f_loop_before_passvalue"` | `SHUD/src/ModelData/MD_f.cpp:64`（PassValue 之前） | `Qe2r_Surf[0..NumEle-1]`（per-element-to-river surface flux written by `PassValue()`，长度 NumEle） | f_loop 内 lake→ET→element→segment→river DY 计算完毕、PassValue() 即将清零并重算前的元素→河道地表通量状态 |
+
+**PR #54 round-1 fix F4 — payload re-pick**：本节最初的 12 张 golden（PR #43 落地）使用 `QeleSurfTot` 作为 payload，但验证组 (verifier) 发现 `QeleSurfTot` 在 `f_update` 末端被 reset to 0，且不在 PassValue() 的 write set 内 → snapshot 全 0（除了 header），无法用于 S1b 的 before-vs-after PassValue diff 验证。F4 把 payload 改为 `Qe2r_Surf`，它是 PassValue() write set 的成员（PassValue 第 189-200 行先清零再从 QsegSurf 累加），所以本探针抓到的是**前一次** PassValue 的 Qe2r_Surf 残留——B1a 重构若改动 PassValue 调度顺序或语义即可在此 byte-diff。验证：3/4 case (xinanjiang_upstream / qinyijiang / qhh) 的 Qe2r_Surf 在 ≥1 个 t_value 上有 nonzero values（说明探针抓到了真实 flux 状态）；keliya 因为是干旱内陆 case，90 day 窗口内 overland-to-river 通量全 0（与 hydrology 一致，非 bug）。F4 fix 的 12 张新 SHAs 见下表，与旧 QeleSurfTot 版相比：keliya 3 张 SHA unchanged（两数组都全 0），其它 9 张全部 DIFF。
 
 **SHUD_DUMP_FNAME_SUFFIX 写入器扩展**：两个 site 在同一 run 内 dump 同一 t_value 会因为旧写入器只输出 `snapshot_t<v>.bin` 而 collision overwrite，#43 在 `SHUD/src/ModelData/MD_rhs_dump.cpp::init_config()` 引入新环境变量 `SHUD_DUMP_FNAME_SUFFIX`：
 
@@ -192,24 +194,24 @@ for c in keliya:keliya:12053 xinanjiang_upstream:xinanjiang:0 \
 done
 ```
 
-**12 张 before-PassValue golden SHA256**（2026-06-18 archived；本地 macOS Apple Silicon、Apple Clang 17.0.0；server re-archival 在 S1a 流程内手动一致性验证）：
+**12 张 before-PassValue golden SHA256**（2026-06-18 archived；PR #54 round-1 F4 fix 用 Qe2r_Surf 取代 QeleSurfTot 后**重新归档**；本地 macOS Apple Silicon、Apple Clang 17.0.0；server re-archival 在 S1a 流程内手动一致性验证）：
 
 | Case                  | t_value (s) | File                                                                          | SHA256                                                             |
 |-----------------------|-------------|-------------------------------------------------------------------------------|--------------------------------------------------------------------|
 | `keliya`              | `86400`     | `benchmarks/keliya/B0_output/snapshot_t86400_before_passvalue.bin`            | `672a6213379d8c767944f40c3d254ab36ee757e891fe1cb64f5e327143567580` |
 | `keliya`              | `2592000`   | `benchmarks/keliya/B0_output/snapshot_t2592000_before_passvalue.bin`          | `69c2130f7414f3bdeff0d66a35f481a79f0bf62177144b624c8c05b60705f5a7` |
 | `keliya`              | `7776000`   | `benchmarks/keliya/B0_output/snapshot_t7776000_before_passvalue.bin`          | `a0960a5cabbcea03a94bc853ddcbfa99489ef74f03c0ecd74c848a7556f9593d` |
-| `xinanjiang_upstream` | `86400`     | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t86400_before_passvalue.bin`   | `bcef647d172f876e78147c3b3980e6109595e7f5487ad83ccec717de6b8231f8` |
-| `xinanjiang_upstream` | `2592000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t2592000_before_passvalue.bin` | `253be23a084c7654fea502109c2d065ad6c0dee203d15ff2605f7c565293455d` |
-| `xinanjiang_upstream` | `7776000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t7776000_before_passvalue.bin` | `c88c2f60e07472b9dd3df0a564bdcf8c0e5e04cb4389cd6831f30c4b97c13b7a` |
-| `qinyijiang`          | `86400`     | `benchmarks/qinyijiang/B0_output/snapshot_t86400_before_passvalue.bin`        | `11e7094a0903b02b17298b1cb2fbbf8ea00e39edce6572384e04fddbe90e6ade` |
-| `qinyijiang`          | `2592000`   | `benchmarks/qinyijiang/B0_output/snapshot_t2592000_before_passvalue.bin`      | `967f24098369c91d50a2373ae28289d9a6f99fc33317a047a5fc13a575111fe1` |
-| `qinyijiang`          | `7776000`   | `benchmarks/qinyijiang/B0_output/snapshot_t7776000_before_passvalue.bin`      | `21ef1b184007925c7daa5837f036bcba8b3321f08391fd027ce70ab6c3c40ada` |
-| `qhh`                 | `86400`     | `benchmarks/qhh/B0_output/snapshot_t86400_before_passvalue.bin`               | `69e602f8f7a4d1769f95951af551490e07b33bda6e9274d8f7b6435a68e7ca75` |
-| `qhh`                 | `2592000`   | `benchmarks/qhh/B0_output/snapshot_t2592000_before_passvalue.bin`             | `73dd9ea2cb34790fa000553ea3c59e1b6e3f2e260dcaf14d5a4dbca1667b2a63` |
-| `qhh`                 | `7776000`   | `benchmarks/qhh/B0_output/snapshot_t7776000_before_passvalue.bin`             | `fb292950c267b6b888a0d1df97ddd4cb21eade3b1d77bf9a3605a1d841987503` |
+| `xinanjiang_upstream` | `86400`     | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t86400_before_passvalue.bin`   | `9fa63a8386770b1643049a43351a2bd235790e8db5c3857145eb2bf8b86bc528` |
+| `xinanjiang_upstream` | `2592000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t2592000_before_passvalue.bin` | `6523dae92221a8a0ee6416c6ecc7271e0c2085b12c8157fd69edeb41fc8d6cdb` |
+| `xinanjiang_upstream` | `7776000`   | `benchmarks/xinanjiang_upstream/B0_output/snapshot_t7776000_before_passvalue.bin` | `cdfb07f60baa1bf91db9fa7672037aa3ceacb50aa999815d7029b7eea2ced1fd` |
+| `qinyijiang`          | `86400`     | `benchmarks/qinyijiang/B0_output/snapshot_t86400_before_passvalue.bin`        | `4baffc0dacebf61970d92d781e85eb65e6db8aef87ce38c1667e8b8190f84cf1` |
+| `qinyijiang`          | `2592000`   | `benchmarks/qinyijiang/B0_output/snapshot_t2592000_before_passvalue.bin`      | `4e7798ee53fb772450d3e58574888798c8dc8b732567ec93c94e9f6c607d3b4d` |
+| `qinyijiang`          | `7776000`   | `benchmarks/qinyijiang/B0_output/snapshot_t7776000_before_passvalue.bin`      | `4ef0a05b89cf9681e9a3e8686e7c469939473f56d5a42321f0105d6070b93c04` |
+| `qhh`                 | `86400`     | `benchmarks/qhh/B0_output/snapshot_t86400_before_passvalue.bin`               | `2ed538cb9fab354e04f5dadfa166463a324399988d5a19c1934966854669807c` |
+| `qhh`                 | `2592000`   | `benchmarks/qhh/B0_output/snapshot_t2592000_before_passvalue.bin`             | `bc2d5adc0a9ad96d11185464308974db580ee5f50d2e799e08eed928773bc1d8` |
+| `qhh`                 | `7776000`   | `benchmarks/qhh/B0_output/snapshot_t7776000_before_passvalue.bin`             | `bddeaa2e3d32c0842fead9d65e380212550cb918fce8a1c44ea6d30a8087473b` |
 
-算法：`shasum -a 256 benchmarks/<case>/B0_output/snapshot_t<v>_before_passvalue.bin`（Linux 上用 `sha256sum`）。文件 size = `40 (FileHeader) + 12 (RecordHeader) + 4 (name_len) + 2 ("DY") + 8 (nelem) + 8 * NumEle (payload)`：keliya `3938 B` (NumEle=484)、xinanjiang_upstream `6474 B` (NumEle=801)、qinyijiang `25306 B` (NumEle=3155)、qhh `38250 B` (NumEle=4773)，与各 case `Model_Data::QeleSurfTot` 长度一致；binary header 与 `tools/rhs_snapshot/format.h v1` 完全相同（version 1, magic "SHRH"）。
+算法：`shasum -a 256 benchmarks/<case>/B0_output/snapshot_t<v>_before_passvalue.bin`（Linux 上用 `sha256sum`）。文件 size = `40 (FileHeader) + 12 (RecordHeader) + 4 (name_len) + 2 ("DY") + 8 (nelem) + 8 * NumEle (payload)`：keliya `3938 B` (NumEle=484)、xinanjiang_upstream `6474 B` (NumEle=801)、qinyijiang `25306 B` (NumEle=3155)、qhh `38250 B` (NumEle=4773)，与各 case `Model_Data::Qe2r_Surf` 长度一致（== NumEle，per `Model_Data.hpp:134` + `PassValue()` 第 189-192 行 zero-reset 循环）；binary header 与 `tools/rhs_snapshot/format.h v1` 完全相同（version 1, magic "SHRH"）。
 
 **PR #53 12 张 after-PassValue golden 仍 unchanged**：本节扩展不修改 PR #53 已落入的 12 张 `snapshot_t<v>.bin`，文件名 + SHA256 全部稳定（实测同 commit 内对比，全 12 张 byte-equal vs L123-134 列表）。`SHUD_DUMP_FNAME_SUFFIX` 默认空字符串保证 back-compat。
 

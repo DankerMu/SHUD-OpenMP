@@ -26,7 +26,7 @@
 #      under /scratch; no /tmp / /users references in this file.
 #
 # Placeholders to substitute before deployment:
-#   <server-scratch-root>  e.g. `frd_muziyao/SHUD-OpenMP`
+#   <server-scratch-root>  e.g. `<user>/<project>`
 #   <user>                 your username on the server
 #
 # Workflow:
@@ -47,6 +47,10 @@
 # Owned by: openspec change s1-rhs-core-extraction (Group 0 task 0.3).
 
 set -euo pipefail
+# F7 fix: nullglob so a no-match `*.dat` glob expands to empty instead
+# of the literal "*.dat" string (which would cause defensive code below
+# to compare the literal as a path and silently skip).
+shopt -s nullglob
 
 PROJECT_ROOT="/scratch/<server-scratch-root>"
 ARCHIVE_DIR="${PROJECT_ROOT}/.s1-server-validation/${SLURM_JOB_ID:-manual}"
@@ -94,12 +98,19 @@ for case in heihe heihe_x4; do
         continue
     fi
     cd "$PROJECT_ROOT"
-    # Compare each *.dat to B0-tag archive.
+    # Compare each *.dat to B0-tag archive. F7 fix: with nullglob set,
+    # a no-match glob expands to empty; count matched files so we can
+    # detect the "no goldens in B0_output/" failure mode explicitly
+    # instead of silently looping zero times.
+    matched_count=0
     for f in benchmarks/$case/B0_output/*.dat; do
+        matched_count=$((matched_count + 1))
         bname=$(basename "$f")
         new_path="SHUD/Basins/$case/output/$proj.out/$bname"
         if [ ! -f "$new_path" ]; then
-            echo "[compare] WARN: $case/$bname not produced" | tee -a "$ARCHIVE_DIR/compare.log"
+            # F6 fix: missing output is a real test failure, not a WARN.
+            echo "[compare] FAIL: $case/$bname not produced" | tee -a "$ARCHIVE_DIR/compare.log" >&2
+            FAIL=$((FAIL + 1))
             continue
         fi
         new_sha=$(sha256sum "$new_path" | awk '{print $1}')
@@ -108,9 +119,14 @@ for case in heihe heihe_x4; do
             echo "[compare] PASS $case/$bname  $new_sha" | tee -a "$ARCHIVE_DIR/compare.log"
         else
             echo "[compare] FAIL $case/$bname  new=$new_sha b0=$b0_sha" | tee -a "$ARCHIVE_DIR/compare.log"
-            FAIL=1
+            FAIL=$((FAIL + 1))
         fi
     done
+    if [ "$matched_count" -eq 0 ]; then
+        echo "[compare] FAIL: $case has zero benchmarks/$case/B0_output/*.dat goldens (empty glob)" \
+            | tee -a "$ARCHIVE_DIR/compare.log" >&2
+        FAIL=$((FAIL + 1))
+    fi
 done
 
 # Build SHUD with DUMP=1 + generate snapshots (unsuffixed + before_passvalue).
@@ -147,13 +163,22 @@ for case in heihe heihe_x4; do
         cd "$case_dir"
         rm -rf "output/$proj.out"
         echo "[snap] case=$case site=$site suffix='$suffix' abs_t=$abs_t"
-        SHUD_DUMP_T_VALUES="$abs_t" \
-        SHUD_DUMP_T_TOL=60 \
-        SHUD_DUMP_OUTPUT_DIR="$staging" \
-        SHUD_DUMP_CASE_ID="$proj" \
-        SHUD_DUMP_SITE="$site" \
-        SHUD_DUMP_FNAME_SUFFIX="$suffix" \
-            "$ARCHIVE_DIR/shud_dump" "$proj" > "$ARCHIVE_DIR/run_${case}_${site}.log" 2>&1 || true
+        # F6 fix: dump binary failure was silently swallowed by `|| true`;
+        # now it FAILs the run + bumps the FAIL counter so the summary
+        # surfaces the issue instead of misreporting PASS.
+        if ! SHUD_DUMP_T_VALUES="$abs_t" \
+             SHUD_DUMP_T_TOL=60 \
+             SHUD_DUMP_OUTPUT_DIR="$staging" \
+             SHUD_DUMP_CASE_ID="$proj" \
+             SHUD_DUMP_SITE="$site" \
+             SHUD_DUMP_FNAME_SUFFIX="$suffix" \
+                 "$ARCHIVE_DIR/shud_dump" "$proj" > "$ARCHIVE_DIR/run_${case}_${site}.log" 2>&1; then
+            echo "[snap] FAIL: dump binary failed for $case (site=$site); see $ARCHIVE_DIR/run_${case}_${site}.log" \
+                | tee -a "$ARCHIVE_DIR/snap.log" >&2
+            FAIL=$((FAIL + 1))
+            cd "$PROJECT_ROOT"
+            continue
+        fi
         cd "$PROJECT_ROOT"
         # Rename + SHA256.
         for rel_sec in 86400 2592000 7776000; do
@@ -174,7 +199,12 @@ for case in heihe heihe_x4; do
                 sha=$(sha256sum "$ARCHIVE_DIR/$dst_name" | awk '{print $1}')
                 echo "[snap] PRODUCED $case/$dst_name  $sha" | tee -a "$ARCHIVE_DIR/snap.log"
             else
-                echo "[snap] WARN: $case/$dst_name not produced (src=$src missing)" | tee -a "$ARCHIVE_DIR/snap.log"
+                # F6 fix: missing snapshot was previously a silent WARN that
+                # didn't move the exit gate; promote to FAIL so the summary
+                # gate reflects reality.
+                echo "[snap] FAIL: $case/$dst_name not produced (src=$src missing)" \
+                    | tee -a "$ARCHIVE_DIR/snap.log" >&2
+                FAIL=$((FAIL + 1))
             fi
         done
     done
@@ -186,7 +216,9 @@ echo "Archive dir: $ARCHIVE_DIR"
 echo "*.dat compare results: $ARCHIVE_DIR/compare.log"
 echo "Snapshot generation results: $ARCHIVE_DIR/snap.log"
 if [ "$FAIL" -ne 0 ]; then
-    echo "RESULT: FAIL (one or more bitwise mismatches; see compare.log)" >&2
+    # F6 fix: summary message now covers BOTH *.dat bitwise mismatch and
+    # snapshot-generation failure (was "see compare.log" only).
+    echo "RESULT: FAIL ($FAIL failure(s) in *.dat bitwise compare and/or snapshot generation; see compare.log + snap.log)" >&2
     exit 1
 fi
 echo "RESULT: PASS (all 4-case *.dat bitwise + snapshot generation OK)"

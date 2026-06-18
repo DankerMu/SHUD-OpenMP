@@ -72,6 +72,12 @@ std::string compose_snapshot_filename(double             t_value,
             suffix.find('\\') != std::string::npos) {
             return std::string();
         }
+        /* F5 fix: 64-char length cap (same as MD_rhs_dump.cpp::init_config).
+         * Returns empty string so callers route through the same skip-write
+         * path as the path-traversal rejection. */
+        if (suffix.size() > 64) {
+            return std::string();
+        }
     }
     char buf[128];
     if (suffix.empty()) {

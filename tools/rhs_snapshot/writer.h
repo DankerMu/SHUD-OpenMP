@@ -59,8 +59,11 @@ int write_snapshot(const std::string&             path,
  * `snapshot_t<t_value>.bin` (bitwise back-compat with PR #53 goldens);
  * when non-empty, returns `snapshot_t<t_value>_<suffix>.bin`.
  *
- * Path-traversal guard: returns empty string if `suffix` contains `/`
- * or `\\`. Callers MUST check the return for empty and skip the write.
+ * Suffix rejection (returns empty string; callers MUST check + skip write):
+ *   1. Path-traversal guard: `/` or `\\` in suffix.
+ *   2. Length cap (F5): suffix longer than 64 chars.
+ * Order matters: path-traversal is checked first so the caller can tell
+ * the failure mode by re-checking the suffix.
  *
  * `t_value` is formatted with `%.0f` to mirror the in-tree writer; two
  * targets within 1.0 of each other will collide under this precision

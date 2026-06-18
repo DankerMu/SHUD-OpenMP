@@ -38,11 +38,18 @@ usage() {
     cat <<EOF >&2
 Usage:
   $PROG --preflight
+  $PROG --selftest-preflight
   $PROG --deploy-instructions
   $PROG --resolve <server-scratch-root> <user> [<output-path>]
 
   --preflight             Verify sbatch template "三铁律" compliance
                           (--output/--error under /scratch only).
+
+  --selftest-preflight    Run positive-test sanity self-check of the
+                          preflight regex: (1) unmodified sbatch
+                          produces empty bad_paths; (2) mangled sbatch
+                          (scratch placeholder → /users/foo) produces
+                          non-empty bad_paths.
 
   --deploy-instructions   Print rsync + ssh + sbatch commands for the
                           operator. No remote action is taken.
@@ -52,7 +59,7 @@ Usage:
                           <output-path> (default: stdout).
 
 Placeholders in the template:
-  <server-scratch-root>   e.g. frd_muziyao/SHUD-OpenMP
+  <server-scratch-root>   e.g. <user>/<project>
   <user>                  your username on the server
 EOF
     exit 2
@@ -74,13 +81,57 @@ case "$1" in
         # In our template, the only referenced fs paths are PROJECT_ROOT
         # and ARCHIVE_DIR — both rooted at /scratch/<server-scratch-root>.
         # Check that no /tmp / /users/ references slipped in.
-        bad_paths=$(grep -nE '"(\\/tmp\\/|\\/users\\/)' "$SBATCH_TEMPLATE" || true)
+        # (F2 fix: original pattern had over-escaped backslashes that
+        # required a literal `"\` byte sequence which never appears in
+        # sbatch content; simplified to match raw substrings. We also
+        # skip lines starting with `#` so documentation comments
+        # describing the rule itself don't false-positive.)
+        bad_paths=$(grep -nE '(/tmp/|/users/)' "$SBATCH_TEMPLATE" \
+                    | grep -vE '^[0-9]+:[[:space:]]*#' || true)
         if [ -n "$bad_paths" ]; then
             printf "FAIL: sbatch references non-scratch paths:\n" >&2
             printf "%s\n" "$bad_paths" >&2
             exit 1
         fi
         printf "PASS: %s satisfies 三铁律 (CLAUDE.md compute-node policy)\n" "$SBATCH_TEMPLATE"
+        ;;
+
+    --selftest-preflight)
+        # F2 fix: positive-test sanity self-check for the preflight regex.
+        # Two assertions:
+        #   1. Unmodified sbatch → bad_paths empty (regex doesn't false-positive
+        #      on comment lines that document the /tmp/ /users/ rule)
+        #   2. Mangled sbatch (scratch placeholder → /users/foo) → bad_paths
+        #      non-empty (regex catches real leaks in non-comment lines)
+        [ -r "$SBATCH_TEMPLATE" ] || { printf "FATAL: %s missing\n" "$SBATCH_TEMPLATE" >&2; exit 1; }
+
+        # Assertion 1: unmodified template passes preflight (regex empty).
+        # Mirror the preflight comment-skip filter.
+        bad_paths_clean=$(grep -nE '(/tmp/|/users/)' "$SBATCH_TEMPLATE" \
+                          | grep -vE '^[0-9]+:[[:space:]]*#' || true)
+        if [ -n "$bad_paths_clean" ]; then
+            printf "FAIL: selftest assertion 1 — unmodified sbatch flagged by regex (non-comment hit):\n" >&2
+            printf "%s\n" "$bad_paths_clean" >&2
+            exit 1
+        fi
+        printf "PASS: selftest assertion 1 — unmodified sbatch produces empty bad_paths\n"
+
+        # Assertion 2: mangled sbatch (scratch placeholder swapped to /users/foo)
+        # produces a non-empty match. Use a temp file under /tmp.
+        TMP_MANGLED="/tmp/archive_s1_bitwise_selftest.$$.sbatch"
+        trap 'rm -f "$TMP_MANGLED" "$TMP_MANGLED.bak"' EXIT
+        cp "$SBATCH_TEMPLATE" "$TMP_MANGLED"
+        # Mangle ONLY the scratch placeholder occurrences (not /tmp/ in
+        # comments) — substitute "/scratch/<server-scratch-root>" → "/users/foo".
+        sed -i.bak 's|/scratch/<server-scratch-root>|/users/foo|g' "$TMP_MANGLED"
+        bad_paths_mangled=$(grep -nE '(/tmp/|/users/)' "$TMP_MANGLED" \
+                            | grep -vE '^[0-9]+:[[:space:]]*#' || true)
+        if [ -z "$bad_paths_mangled" ]; then
+            printf "FAIL: selftest assertion 2 — mangled sbatch (placeholder→/users/foo) produced empty bad_paths; regex failed to catch real leak\n" >&2
+            exit 1
+        fi
+        printf "PASS: selftest assertion 2 — mangled sbatch correctly flagged (%d match line(s))\n" "$(printf '%s\n' "$bad_paths_mangled" | wc -l | tr -d ' ')"
+        printf "PASS: --selftest-preflight (2/2 assertions PASS)\n"
         ;;
 
     --deploy-instructions)
@@ -90,7 +141,7 @@ case "$1" in
 #
 # 1. From the local checkout, rsync the sbatch template to the server.
 #    Replace <server-scratch-root> with the actual scratch path used,
-#    e.g. `frd_muziyao/SHUD-OpenMP`. <user> = your server username.
+#    e.g. `<user>/<project>`. <user> = your server username.
 #
 #    rsync -avh -e "ssh -p 32099" \
 #        tools/server_validation/run_s1_bitwise.sbatch \

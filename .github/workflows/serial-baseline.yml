@@ -425,6 +425,19 @@ jobs:
           echo "All 6 snapshots (3 t_values × 2 sites) bitwise identical to B0 golden"
 
       # -----------------------------------------------------------------------
+      # Step 7e — verify golden SHA256 manifest (PR #54 round-1 F12)
+      # -----------------------------------------------------------------------
+      # tools/check_goldens/check_goldens.sh parses the 24 SHA256 rows from
+      # docs/build_manifest.md (12 after-PassValue + 12 before-PassValue),
+      # re-computes sha256sum of each listed file in benchmarks/<case>/B0_output,
+      # and fails the build if any row mismatches. This catches drift
+      # between checked-in goldens and the doc manifest BEFORE a B0
+      # bitwise compare PR can mask it.
+      - name: Verify golden SHA256 manifest
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: bash tools/check_goldens/check_goldens.sh
+
+      # -----------------------------------------------------------------------
       # Step 8 — failure artifact upload
       # -----------------------------------------------------------------------
       # Per spec Requirement "CI artifact uploads on failure": on any failure
