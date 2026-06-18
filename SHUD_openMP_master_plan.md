@@ -7,7 +7,10 @@
 > 3. `SHUD_parallel_alignment_accuracy_plan.md`（2026-04-26，精度验收层）
 > 4. `SHUD_parallel_complete_package/SHUD_parallel_full_plan.md`（2026-04-26，合并版）
 >
-> 版本：v1.2 | 日期：2026-06-16 | SHUD 源码子模块路径：`SHUD/` (pinned to `3aec657`)
+> 版本：v1.3 | 日期：2026-06-18 | SHUD 源码子模块路径：`SHUD/` (pinned to `78c37a1`，B0-tag `95ddc375`)
+
+> **v1.3 修订要点**（S0 完成后，按 S0.12 profile 实测数据与 profile_decision.md 签字结论回写）：
+> 6. **M6（§1.1.1 + §S0.2 + §S0.12 + §5 Opt-IO）**：S0 实测后 spec 与现实校齐——§1.1.1 拆 P7 strict Amdahl-bounded 中间目标 vs P9 production T 目标；§S0.12 profile gate 改为"先剔除 IO 主导 case 再按决策驱动 case 阈值判定"，跨平台 delta > 10pp 改为"不阻塞 + review note"，timer bucket 拆 `t_init`；§S0.2 manifest 加 `endpoint` 字段（含 `deferred-upstream`），90 天截断升为项目纪律；§5 Opt-IO 对 IO 主导 case（heihe）升级为硬性前置。
 
 > **v1.2 修订要点**（基于第二轮深度审查，吸收 M1–M5 五条结构性修订）：
 > 1. **M5（§2.2）**：A3 拆为 A3a/A3b/A3c，跨线程数 bitwise 从硬门控降为加分项
@@ -82,6 +85,18 @@ SHUD 是一个全耦合水文模型，核心求解由 SUNDIALS/CVODE 驱动。�
 | XLarge | > 100,000 | > 400k | 1.6× / 1.9× | 3.0× / 3.8× | 5.5× / 7.0× | 同上 + 可能引入 KLU 或更强 precond |
 
 **Amdahl 上限说明**：根据 S0.12 实测的 `t_RHS_kernel / t_total` 比例 `f`，理论上限 `S_max = 1 / (1 - f + f/N)`。若 S0.12 测得 `f < 0.5`（RHS 不占主导），上述 T 列目标需要 P8（预条件器 + N_Vector）配合才能达到，**仅靠 P1–P7 RHS 并行无法达成 T 目标**。
+
+**P7 strict 退出目标 vs P9 production 最终目标**（M6 修订）：上表是 **P9 完成后**对 B1b 的最终目标。S0.12 实测后已知 P1–P7 strict 阶段（仅 RHS 并行）的 Amdahl 8 核上界远低于 T 列，因此 P7 strict 退出按以下 Amdahl-bounded 中间目标验收，达不到 T 列不阻塞，但必须能解释剩余加速比由 P8 哪一项补齐：
+
+| 流域规模 | 代表 case（S0 实测）| RHS 占比 f | P7 strict 8 核 Amdahl 上界 | P7 strict 8 核验收（M / T）|
+|---|---|---|---|---|
+| Small | keliya / xinanjiang_upstream | 36% – 49% | 1.6× – 2.0× | 1.0× / 1.5× |
+| Medium（非 IO 主导）| qhh / qinyijiang | 37% – 65% | 1.6× – 2.3× | 1.5× / 2.0× |
+| Medium（IO 主导）| heihe（t_forcing_io = 79%）| 12% | 1.13× | **不独立验收**；必须先过 Opt-IO，详见 §5 Opt-IO |
+| Large | heihe_x4 | 67% | 2.4× | 1.8× / 2.2× |
+| XLarge | heihe_x16 | （待 S0.12 复测）| — | 同 Large 等比例外推 |
+
+**对 §1.1.1 主表的影响**：T 列**保留为 P9 完成后**的目标；P7 strict 退出 go/no-go 用上方 Amdahl-bounded 表，差距由 P8 补齐（precond 降 Krylov 迭代数 + N_Vector 内部并行）。
 
 #### 1.1.2 约束条件
 
@@ -714,6 +729,7 @@ double **QeleSub;     /* Subsurface Flux */
 | `t_forcing_io` | `MD_ET.cpp::updateforcing` + `tReadForcing` 加 timer | forcing 读取与插值 |
 | `t_ET` | `MD_ET.cpp::ET` 加 timer | 主循环内的 ET 计算（独立于 RHS） |
 | `t_output` | `Model_Control::PrintData` 等输出函数 timer | I/O 输出 |
+| `t_init` | SUNDIALS init + mesh load + integrator setup（一次性启动开销）| 短跑 case < 5%，长跑 case << 1%；**M6 修订**：S0 实测 xinanjiang_upstream 19.7s 短跑 t_other=22.4% 来自启动开销主导，过渡期内可继续记入 `t_other` 并在 `profile_decision.md` 注明，P-phase 退出前必须拆出为独立 bucket |
 | `t_other` | 残差 | 应 < 5%，否则重测 |
 
 **输出物**：`benchmarks/<case>/profile_B0.yaml`，每个算例一份：
@@ -743,13 +759,17 @@ ratio_nfeLS_over_nfe: 2.88   # Krylov DQ Jv 占比；> 2 表示线性求解迭�
 
 **Profile Gate（强制门控，进入 S1 前必须满足）**：
 
-| 测量结果 | 触发动作 |
+> **M6 修订**：阈值判定**先剔除 IO 主导 case 再做决策**。S0 实测 heihe `t_forcing_io = 79%`、RHS 占比仅 12%，若不剔除会把整组拉到 [10%, 30%) 区间；剔除后剩余 5 个 case 中决策驱动 case（heihe_x4 = 66.55%）落在 ≥ 50% 区间，整组按"走原方案"判定。
+
+| 测量结果（剔除 IO 主导 case 后）| 触发动作 |
 |---|---|
-| `t_RHS_total / t_total ≥ 50%` **且** `ratio_nfeLS_over_nfe < 1.5` | **走原方案**：P1–P7 RHS 并行优先，P8 预条件器收益有限 |
-| `t_RHS_total / t_total ≥ 50%` **且** `ratio_nfeLS_over_nfe ≥ 1.5` | **平行路线**：P1–P7 与 P8-precond 并行推进，因为大部分 RHS 调用来自 Krylov 内部 Jv 近似，加预条件器能直接减少 nfeLS |
-| `t_RHS_total / t_total ∈ [30%, 50%)` | **优先级重排**：P8-precond 前置到 S6 后立即开始（仍需 B1b 锁定），P1–P7 延后 |
-| `t_RHS_total / t_total < 30%` | **战略暂停**：召集团队重审整个 P1–P7 投入是否值得，可能直接跳到 P8 路线 |
-| 任何 benchmark 的 `t_other > 10%` | **暂停**：profile 工具本身有问题，先修工具再继续 |
+| **决策驱动 case** `t_RHS_total / t_total ≥ 50%`（决策驱动 case = §1.1.1 最大规模档典型 case，即 P-phase 实际加速目标，目前为 `heihe_x4`）| **走原方案**：P1–P7 RHS 并行优先；多数派落点不优先于决策驱动 case |
+| 决策驱动 case `t_RHS_total / t_total ≥ 50%` **且** `ratio_nfeLS_over_nfe ≥ 1.5` | **平行路线**：P1–P7 与 P8-precond 并行推进 |
+| 多数 case `t_RHS_total / t_total ∈ [30%, 50%)` **且** 决策驱动 case < 50% | **优先级重排**：P8-precond 前置到 S6 后立即开始（仍需 B1b 锁定），P1–P7 延后 |
+| 多数 case `t_RHS_total / t_total < 30%` | **战略暂停**：召集团队重审整个 P1–P7 投入是否值得，可能直接跳到 P8 路线 |
+| **IO 主导 case** `t_forcing_io / t_total > 50%` | **从决策表统计中剔除**，单独走 §5 Opt-IO 路径，且 Opt-IO 升级为该 case 的硬性前置（详见 §5 Opt-IO） |
+| 任何 benchmark 的 `t_other > 10%` **且**根因不是启动开销主导 | **暂停**：profile 工具本身有问题，先修工具再继续 |
+| `t_other > 10%` 但根因是短跑 case 启动开销主导（如 `t_init` 未独立 bucket）| **不阻塞**：在 `profile_decision.md` 注明，P-phase 退出前补 `t_init` bucket 拆分 |
 
 **实施要点**：
 - timer 用 `std::chrono::steady_clock` 或 `clock_gettime(CLOCK_MONOTONIC)`，**不用** `clock()`（CPU 时间 ≠ wall-clock）
@@ -759,7 +779,7 @@ ratio_nfeLS_over_nfe: 2.88   # Krylov DQ Jv 占比；> 2 表示线性求解迭�
 
 #### S0.12 跨平台执行声明（必读）
 
-> **关键工程现实**：profile_B0 数据用于**决定路线**（M1–M5 修订是否成立、P1–P7 与 P8 的优先级），而**最终性能验收数字**必须在**目标部署平台**复测。两件事在不同平台做，必须显式区分，否则会拿 Mac 上的数字当 Linux 集群的承诺。
+> **关键工程现实**：profile_B0 数据用于**决定路线**（M1–M6 修订是否成立、P1–P7 与 P8 的优先级），而**最终性能验收数字**必须在**目标部署平台**复测。两件事在不同平台做，必须显式区分，否则会拿 Mac 上的数字当 Linux 集群的承诺。
 
 ##### 平台分级
 
@@ -846,7 +866,7 @@ decision_consistency:
 - **S0.12 决策门控**：在本地平台跑通即可放行 S1；**但必须**在能拿到目标平台前，加一条 placeholder commit 提醒 "S5d / P7 性能验收需在目标平台复测"
 - **S5d 验收**（cache miss / NUMA / first-touch）：Apple Silicon 部分项 N/A，目标平台必须全验
 - **P7 / P8 加速比验收（§1.1.1 量化表）**：**只认目标平台数字**。本地 Mac 数字仅作开发期参考，**不计入 go/no-go**
-- 两个平台的 `profile_B0.yaml` 占比差异 > 10 个百分点 → **必须复审 profile_decision.md**，因为决策可能换档
+- 两个平台的 `profile_B0.yaml` 占比差异 > 10 个百分点 → **不阻塞 S1**，但 `profile_decision.md` **必须**包含 "Cross-platform delta review" 一节，定性解释偏差根因（编译器 / 微架构 / vectorization 差异）并确认 §1.1.1 验收口径锚定 target 平台；若 review 结论是决策方向换档，方阻塞 S1。M6 修订：S0.12 实测 keliya / qinyijiang delta 达 +13pp，按本规则归类为"不阻塞 + review note"，决策仍走原方案。
 
 **Go/No-Go → S1**：所有 benchmark 的 `profile_B0.yaml` 已产出 **且** profile gate 决策已记入 `docs/profile_decision.md` **且** `docs/profile_platform.md` 已声明两个平台的角色分工。决策不写明确即视为"未通过 profile gate"，不进入 S1。
 
@@ -876,10 +896,18 @@ has_lake: false
 has_BC_SS: false
 dry_wet_transition: false
 
+# --- 端点 ---
+endpoint: "local-and-server"    # M6 修订：枚举 local-and-server / local-only / server-only / deferred-upstream
+                                # deferred-upstream = 上游数据缺口暂时无法跑（如 kashigeer X76 forcing 缺）
+                                # 状态矩阵以 N/A 计 aggregate，A0 各项排除该单元格
+
 # --- 运行 ---
 run_command: "./shud small_no_lake.para"
 threads: [1]                    # S0–S6 只用单线程；P1+ 扩展为 [1, 2, 4, 8]
 expected_walltime_sec: 120      # 单线程预期运行时间（量级参考）
+# M6 修订：所有 verification run 一律 90 天截断，即部署时把 cfg.para END 字段改为 START + 90。
+# manifest 的 forcing_duration_days 保留 case 完整长度（spec 层），90 天截断在部署层执行
+# （tools/fix_case_paths/ 自动处理）。例外：post-P9 final production / 对外发表水文结果用 run 才解开截断。
 
 # --- RHS snapshot probe ---
 snapshot_probe:
@@ -913,7 +941,7 @@ output_compare:
 | `keliya` | 484 | 333 | 0 | Small | **OMP_CUTOFF serial fallback**、A0 重复性、最快反馈 |
 | `xinanjiang_upstream` | 801 | 216 | 0 | Small | Small 备份；落在 `OMP_CUTOFF=1024` 边界附近 |
 | `qinyijiang` | 3,155 | 319 | 0 | Medium 低 | Medium 典型负载（河网稀疏） |
-| `kashigeer` | 3,204 | 2,456 | 0 | Medium | **river/PassValue 拓扑压测**（NumRiv/NumEle=0.77，极端密集河网） |
+| `kashigeer` | 3,204 | 2,456 | 0 | Medium | **river/PassValue 拓扑压测**（NumRiv/NumEle=0.77，极端密集河网）；**M6 修订**：endpoint=`deferred-upstream`，X76 forcing 上游缺，本地 + 服务器两端都 N/A（issue #29）|
 | `qhh` (NWM 版) | 4,773 | 1,633 | **1** | Medium | **唯一 lake 路径**（覆盖 lake vertical/horizontal/DY） |
 | `heihe` | 6,335 | 2,352 | 0 | Medium 高 | Medium 高端真实 case；含冰川/积雪融水（cryosphere 路径） |
 
@@ -1495,9 +1523,11 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 
 ---
 
-### Opt-IO：forcing I/O 性能优化（B1b 后可选）
+### Opt-IO：forcing I/O 性能优化（B1b 后；IO 主导 case 硬性前置）
 
-> **定位**：这是一个独立的单线程性能优化阶段，**不是并行正确性的前提**。可在 B1b 锁定后任意时间执行，也可推迟到 P-strict 全部完成后再做。与 P1–P9 无依赖关系。
+> **定位（M6 修订）**：默认是独立的单线程性能优化阶段，不影响并行正确性。可在 B1b 锁定后任意时间执行，也可推迟到 P-strict 全部完成后再做。
+>
+> **例外：IO 主导 case 硬性前置**。`profile_B0.yaml` 满足 `t_forcing_io / t_total > 50%` 的 case（S0.12 实测目前已知 `heihe`，t_forcing_io = 79%、RHS = 12%、Amdahl 8 核上界 1.13×），Opt-IO 是 §1.1.1 验收的硬性前置——这类 case 不做 Opt-IO，仅靠 P1–P9 RHS 并行被 Amdahl 上限到 < 1.2×，不可能达成 Medium / Large T 目标。这类 case 在 Opt-IO 完成前**不进入 §1.1.1 加速比统计**，profile_decision.md 必须明确列出。其余 case 维持"可选"定位。
 
 **目标**：消除 `TimeSeriesData::read_csv()` 的重复 I/O 开销。
 
