@@ -137,29 +137,35 @@ done
 
 **旧 S0-7 golden 处理**：保留作 historical reference（不删除）。命名是绝对分钟（如 `snapshot_t17357760.bin`、`snapshot_t17370720.bin`、`snapshot_t17500320.bin`），与新归档（case-relative seconds 命名）**文件名不冲突**，共存于同一 archive 目录。manifest.yaml 的 `snapshot_probe.t_values` 已 point 到新 t_values；下游 S1 bitwise gate 一律使用**新 golden**。
 
-> Sanity check note：keliya / qhh 的新 1d golden 与旧 4-year run 同 START 偏移处 bitwise 相同（同 START + 同 B0 binary + 同 forcing 早期段 → deterministic identical state），xinanjiang_upstream / qinyijiang 不同（推测旧归档跑了不同 forcing 段或 SPINUP 区间）。两者差异不影响新 golden 的 spec 角色——新 golden 是 B1a CI 的唯一权威基准。
+> Sanity check note：全 4 case 的新 1d golden（`snapshot_t86400.bin`）与旧 S0-7 4-year-run goldens 在**同绝对仿真时间**（abs_min = START_day × 1440 + 1440）byte-equal（verified with `tools/compare_snapshot`）。这证明：新归档命令实际驱动的 B0 binary + B0 cfg.para forcing 早期段 → byte-equal output。新旧 goldens 在 spec 角色上不同——新 goldens（case-relative seconds 命名）是 S1 B1a CI 的唯一权威基准；旧 goldens 仅作 historical reference 共存于 archive 目录。
 
-### 1.5.a 部署层 cfg.para 模板（S1a #44 warm-restart probe 用）
+### 1.5.a 部署层 cfg.para 模板（S1a #44 周期性 IC backup probe 用）
 
-S1a 1.5.a 验证 `INIT_MODE=3` warm-restart 路径下 B1a 重构后 SHUD CVODE re-init 行为不变。本 issue (#42) 仅交付**模板/文档片段**，实际跑由 S1a #44 执行。
+S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day, minutes）触发周期性 IC backup（`MD_update.cpp:234` 的 `PrintInit` 调用）；B1a 重构后 `rhs_core(ExecPolicy::Serial)` 路径下 backup 时刻的 RHS 评估状态 vs B0 binary 同时刻 byte-equal。**SHUD 本身没有 CVODE re-init 路径**（grep 验证 `CVodeReInit` 0 hits）；warm-restart 本质是"中途 IC 持久化 + 下次冷启动 from .ic"，不是 mid-run state 注入。本 issue (#42) 仅交付**模板/文档片段**，实际跑由 S1a #44 执行。
 
 ```text
 # 部署层 cfg.para override 示例
 # 文件：SHUD/Basins/keliya/input/keliya/keliya.cfg.para
 #
-# 在 90 天窗口内中途触发 CVODE re-init：
-#   START         12053    # day-index, 1951-01-01 epoch
-#   END           12143    # = START + 90, 项目级铁律截断
-#   INIT_MODE     3        # warm-restart hot-start mode (rewrite IC at restart)
-#   UpdateICStep  30       # 30 day; window markers at [START, +30, +60, +90]
+# 在 90 天窗口内触发周期性 IC backup：
+#   START          12053    # day-index, 1951-01-01 epoch
+#   END            12143    # = START + 90, 项目级铁律截断
+#   INIT_MODE      3        # INIT_MODE = 3 (default): load IC from .ic file at startup;
+#                           # 与 Update_IC_STEP 配合使下次 cold restart 从最近 backup 起步
+#   Update_IC_STEP 43200    # 43200 min = 30 day; window markers at +30, +60, +90 day
+#                           # (SHUD 解析 keyword 大小写不敏感；单位 = 分钟，
+#                           #  默认 1440 见 Model_Control.hpp:111)
 #
 # 此 override 由 SHUD/.git/info/exclude 的 /Basins/ pattern 屏蔽，
 # 不污染 SHUD submodule、不入 outer repo PR、按 case 部署时直接 in-place 改。
 ```
 
 **注意事项**（给 #44）：
-- `UpdateICStep` 字段值必须使 mid-window 触发点落在 ≤ END（即 `START + UpdateICStep` 与 `START + 2*UpdateICStep` 都 ≤ `START + 90`）。30d step 在 90d 窗口里给 2 个中途触发点（+30、+60）+ 1 个边界（+90），足够覆盖 warm-restart 路径。
-- B1a bitwise neutrality（vs B0）要求 warm-restart 后 CVODE state 与冷启动到同时间点 bitwise 相同（同输入、同 RHS core），由 #44 通过 snapshot `t=2592000`（30d）跨 warm-restart cycle 验证。
+- `Update_IC_STEP` 单位是**分钟**（非 day-index）；30 day 必须写 `43200`，不能写 `30`。SHUD 在 `MD_update.cpp:234` 用 `t_long % CS.UpdateICStep` 判定 backup boundary（`t_long` 也是分钟单位），写 30 会让每 30 min 触发一次。
+- backup 边界点必须落在 ≤ END（即 `START_min + Update_IC_STEP` 与 `START_min + 2*Update_IC_STEP` 都 ≤ `START_min + 90*1440`）。43200 min step 在 90 day 窗口里给 2 个中途触发点（+30 day、+60 day）+ 1 个边界（+90 day），足够覆盖周期性 backup 路径。
+- B1a bitwise gate by #44 task 1.5.a：在 backup boundary 时刻（`t mod Update_IC_STEP == 0`，例如 +30d / +60d）dump RHS snapshot，与 B0 binary 跑同输入到同时刻的 snapshot byte-equal。注意 SHUD 不做 mid-run CVODE state 注入，因此 backup 本身只是文件持久化、不影响后续积分；本 probe 只验证 backup boundary 那一拍的 RHS 评估状态 B1a vs B0 byte-equal。
+
+**CI hookup follow-up（不在 #42 范围）**：`.github/workflows/serial-baseline.yml` 的 `SHUD_DUMP_T_VALUES` 当前仍 hardcode 旧 abs-min `[17357760, 17370720, 17500320]`，90-day 截断下不命中、silent skip via `::notice`。新 12 张 golden **尚未由 PR CI 验证**；S1a #44 启动前必须由后续 PR（追加进 #43 或新开 issue）改 workflow env → keliya 新 t-values 的 abs-min `[17358240, 17400960, 17487360]` + remove silent-skip 路径。**B1a CI gate 不可在该修复前 flip 到新 goldens**。
 
 ## 禁用 flag（Makefile 守卫）
 - `-ffast-math`、`-Ofast`、`-funsafe-math-optimizations`
