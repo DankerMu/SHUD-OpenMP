@@ -68,12 +68,17 @@ fi
 
 cd "$PROJECT_ROOT"
 
-# Build SHUD (DUMP=0 first for *.dat neutrality; DUMP=1 next for snapshots).
-echo "[build] make clean && make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 shud"
+# Build SHUD (DUMP=0 + USE_RHS_CORE=1 first for *.dat bitwise + new-path exercise;
+# DUMP=1 next for snapshots).
+# USE_RHS_CORE=1 is required for S1a (openMP #44) server validation: without it
+# the build hits the legacy B0 fallback path and trivially matches B0-tag SHA256
+# without ever exercising the new rhs_core() dispatch — false-PASS hazard. See
+# spec rhs-core-scaffolding "Server-only cases archived within 24h post-merge".
+echo "[build] make clean && make SHUD_DUMP_RHS=0 USE_RHS_CORE=1 SHUD_ENABLE_PROFILE=0 shud"
 cd SHUD
 make clean
-if ! make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 shud > "$ARCHIVE_DIR/build_default.log" 2>&1; then
-    echo "[build] FAIL: SHUD_DUMP_RHS=0 build; see $ARCHIVE_DIR/build_default.log" >&2
+if ! make SHUD_DUMP_RHS=0 USE_RHS_CORE=1 SHUD_ENABLE_PROFILE=0 shud > "$ARCHIVE_DIR/build_default.log" 2>&1; then
+    echo "[build] FAIL: SHUD_DUMP_RHS=0 USE_RHS_CORE=1 build; see $ARCHIVE_DIR/build_default.log" >&2
     exit 2
 fi
 cp shud "$ARCHIVE_DIR/shud_default"
@@ -129,12 +134,15 @@ for case in heihe heihe_x4; do
     fi
 done
 
-# Build SHUD with DUMP=1 + generate snapshots (unsuffixed + before_passvalue).
-echo "[build] make clean && make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 shud"
+# Build SHUD with DUMP=1 + USE_RHS_CORE=1 to generate snapshots from the new
+# rhs_update() path (unsuffixed + before_passvalue). USE_RHS_CORE=1 must match
+# the default-build above so the snapshot tag string "f_update" goldens come
+# from the same dispatch path.
+echo "[build] make clean && make SHUD_DUMP_RHS=1 USE_RHS_CORE=1 SHUD_ENABLE_PROFILE=0 shud"
 cd SHUD
 make clean
-if ! make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 shud > "$ARCHIVE_DIR/build_dump.log" 2>&1; then
-    echo "[build] FAIL: SHUD_DUMP_RHS=1 build; see $ARCHIVE_DIR/build_dump.log" >&2
+if ! make SHUD_DUMP_RHS=1 USE_RHS_CORE=1 SHUD_ENABLE_PROFILE=0 shud > "$ARCHIVE_DIR/build_dump.log" 2>&1; then
+    echo "[build] FAIL: SHUD_DUMP_RHS=1 USE_RHS_CORE=1 build; see $ARCHIVE_DIR/build_dump.log" >&2
     exit 2
 fi
 cp shud "$ARCHIVE_DIR/shud_dump"
