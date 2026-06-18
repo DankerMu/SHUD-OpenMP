@@ -96,11 +96,11 @@
 
 | 字段 | 值 |
 |---|---|
-| `B1a-tag-applied` | `<filled-after-tag-push>` |
-| `B1a-tag-date` | `<filled-after-tag-push>` |
-| `B1a-tag-object-sha` | `<filled-after-tag-push>`（annotated） |
-| `B1a-tag-commit-sha` | `<filled-after-tag-push>`（PR #52 squash-merge 到 `baseline/current`） |
-| `B1a-tag-SHUD-pin` | `58327c5` |
+| `B1a-tag-applied` | `true` |
+| `B1a-tag-date` | `2026-06-18` |
+| `B1a-tag-object-sha` | `4fafb8e570a020833395c7f57fe84eaabc7c7319`（annotated） |
+| `B1a-tag-commit-sha` | `64569b3fa1826122262242e7cf14686384269cc9`（PR #70 squash-merge 到 `baseline/current`） |
+| `B1a-tag-SHUD-pin` | `58327c5a114052ffe8f25b6d3e2aec6b404963f2` |
 
 `B1a-tag` push 后，下列命令应全部成功：
 - `git rev-parse B1a-tag` → tag object SHA
