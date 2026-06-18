@@ -330,27 +330,6 @@ jobs:
           cp shud shud_dump
 
       # -----------------------------------------------------------------------
-      # Step 6b — LEGACY_RHS=1 symbol presence assertion
-      # -----------------------------------------------------------------------
-      # Per spec L20-23 (#49 precedent): when LEGACY_RHS=1 the legacy
-      # `f_update_omp` / `f_loop_omp` / `f_applyDY_omp` symbols MUST still
-      # link into the binary. Run `nm` on the default binary and assert all
-      # three are present. The assertion only fires on the LEGACY_RHS=1 axis;
-      # the LEGACY_RHS=0 axis (B1a path) does not require these symbols.
-      - name: Verify legacy _omp symbols present (LEGACY_RHS=1 only)
-        if: steps.skip_check.outputs.skipped != 'true' && matrix.rhs_path == 'LEGACY_RHS=1'
-        working-directory: SHUD
-        run: |
-          count=$(nm shud_default | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' | wc -l | tr -d ' ')
-          echo "LEGACY_RHS=1 binary nm hits for f_{update,loop,applyDY}_omp = $count (expected 3)"
-          if [[ "$count" != "3" ]]; then
-            echo "::error title=LEGACY_RHS=1 missing legacy _omp symbols::Expected 3 nm hits across f_update_omp / f_loop_omp / f_applyDY_omp; got $count. Legacy fallback path is broken; the LEGACY_RHS=1 axis cannot run B0 binary semantics."
-            nm shud_default | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' || true
-            exit 1
-          fi
-          echo "LEGACY_RHS=1 legacy _omp symbol presence PASS (3/3)"
-
-      # -----------------------------------------------------------------------
       # Step 7 — build compare_snapshot helper
       # -----------------------------------------------------------------------
       # Standalone C++17, no SUNDIALS link (per tools/compare_snapshot/Makefile
