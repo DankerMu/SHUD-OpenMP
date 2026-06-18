@@ -25,6 +25,13 @@
 #   - snapshot t_values HARD-fail outside 90-day window
 #   - skip-baseline-ci label removal + label trigger types beyond full-bitwise
 #
+# Notes on #51 scope split (per issue #50 body + PR #68 cross-review):
+#   - `fetch-tags: true` + `git show B0-tag:` compare path → #51 (R68-INV-1)
+#   - CVODE 15-key per-case gate in matrix → #51 (R68-INV-2)
+#   - `pull_request.types: [labeled, unlabeled]` → #51 (R68-INV-3)
+#   - `skip-baseline-ci` label removal → #51
+# These are deliberately OUT-OF-SCOPE for #50; do NOT add them here.
+#
 # -----------------------------------------------------------------------------
 # Data strategy: STRATEGY C  (skip-label-only + scaffolded run-and-compare)
 # -----------------------------------------------------------------------------
@@ -106,6 +113,10 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       mode: ${{ steps.matrix.outputs.mode }}
     steps:
+      - name: Notice excluded cases (spec b0-tag-ci-integration L18-28)
+        run: |
+          echo "::notice title=Excluded cases::kashigeer endpoint=deferred-upstream (per S0-13 spec amendment); heihe / heihe_x4 endpoint=server-only (no forcing data on GitHub runner). See benchmarks/INDEX.md for the full case×endpoint matrix."
+
       - name: Compute build matrix (fast-feedback vs full-bitwise)
         id: matrix
         run: |
