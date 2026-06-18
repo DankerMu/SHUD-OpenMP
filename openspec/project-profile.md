@@ -30,7 +30,7 @@ Risk axes:
 - Credential / absolute-path leak into committed files
 
 Typical evidence:
-- 3-run repeatability SHA256 (per-case `repeatability.txt`)
+- 3-run repeatability SHA256 (per-case `repeatability.txt` for .dat outputs; `repeatability_snapshots.txt` for RHS snapshot bins)
 - `compare_snapshot` bitwise diff vs golden + ULP report
 - `check_manifest.py` schema validator pass
 - CVODE stats file with 6 required keys

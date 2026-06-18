@@ -161,18 +161,32 @@ for k in $CANONICAL_KEYS; do
 done
 
 # 2) Check unknown keys (present in file but not canonical 15).
+# F30 (PR #54 round-3): replaced predictable `/tmp/...$$` sentinel file
+# with mktemp's atomic O_CREAT|O_EXCL on a random 6-char suffix + EXIT
+# trap. This eliminates the symlink-attack / pre-create TOCTOU window
+# present in the $$ pattern (another user on a shared host could pre-
+# create the predictable path as a symlink to a privileged file we
+# would then truncate).
+SENTINEL=$(mktemp -t cvode_stats_diff.unknown.XXXXXX) || {
+    printf "%s: mktemp failed for sentinel file\n" "$PROG" >&2
+    exit 2
+}
+trap 'rm -f "$SENTINEL"' EXIT
+# mktemp creates an empty file; existence != "unknown key found", so we
+# remove it immediately and let the loop below recreate it on demand.
+rm -f "$SENTINEL"
+
 for f in "$NEW" "$GOLDEN"; do
     list_keys "$f" | while IFS= read -r k; do
         if ! is_canonical_key "$k"; then
             printf "%s UNKNOWN in %s: %s\n" "key" "$f" "$k"
             # Cannot set FAIL from subshell pipe; emit sentinel file.
-            : > /tmp/cvode_stats_diff.unknown.$$
+            : > "$SENTINEL"
         fi
     done
 done
-if [ -f /tmp/cvode_stats_diff.unknown.$$ ]; then
+if [ -f "$SENTINEL" ]; then
     FAIL=1
-    rm -f /tmp/cvode_stats_diff.unknown.$$
 fi
 
 # 3) For canonical keys present in BOTH files, value-compare.

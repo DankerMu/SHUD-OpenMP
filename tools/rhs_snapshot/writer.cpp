@@ -70,6 +70,13 @@ std::string compose_snapshot_filename(double             t_value,
     if (!suffix.empty()) {
         if (suffix.find('/')  != std::string::npos ||
             suffix.find('\\') != std::string::npos) {
+            /* F29 (PR #54 round-3): emit stderr on path-traversal reject
+             * (was previously silent — operator couldn't tell why the
+             * snapshot didn't write). Prefix matches SHUD writer
+             * "shud_rhs_dump:" style for SCHEMA DUPLICATION lockstep. */
+            std::fprintf(stderr,
+                "shud_rhs_dump: SHUD_DUMP_FNAME_SUFFIX '%s' contains path separator; rejecting and disabling dump\n",
+                suffix.c_str());
             return std::string();
         }
         /* F5 fix: 64-char length cap (same as MD_rhs_dump.cpp::init_config).
@@ -77,10 +84,14 @@ std::string compose_snapshot_filename(double             t_value,
          * path as the path-traversal rejection.
          * F22 (PR #54 round-2): emit stderr diagnostic so the operator sees
          * why the suffix was rejected (silent return previously caused
-         * "snapshot just didn't appear" debugging confusion). */
+         * "snapshot just didn't appear" debugging confusion).
+         * F29 (PR #54 round-3): prefix changed from "[snapshot writer]
+         * ERROR:" to "shud_rhs_dump:" to match SHUD MD_rhs_dump.cpp style
+         * (SCHEMA DUPLICATION lockstep). */
         if (suffix.size() > 64) {
             std::fprintf(stderr,
-                "[snapshot writer] ERROR: SHUD_DUMP_FNAME_SUFFIX exceeds 64-char limit\n");
+                "shud_rhs_dump: SHUD_DUMP_FNAME_SUFFIX exceeds 64-char limit (got %zu); rejecting and disabling dump\n",
+                suffix.size());
             return std::string();
         }
     }

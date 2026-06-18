@@ -215,6 +215,14 @@ done
 
 **PR #53 12 张 after-PassValue golden 仍 unchanged**：本节扩展不修改 PR #53 已落入的 12 张 `snapshot_t<v>.bin`，文件名 + SHA256 全部稳定（实测同 commit 内对比，全 12 张 byte-equal vs L123-134 列表）。`SHUD_DUMP_FNAME_SUFFIX` 默认空字符串保证 back-compat。
 
+### 3-run repeatability evidence
+
+Each case ships `benchmarks/<case>/B0_output/repeatability_snapshots.txt` documenting 3 independent runs × 3 t-values = 9 SHA256 rows. All 9 SHAs per file are identical across the 3 runs → deterministic.
+
+Producer: `tools/snapshot_repeatability/run.sh <case>` — runs the SHUD build with SHUD_DUMP_RHS=1, dumps before-PassValue snapshots, computes SHA256, writes the file.
+
+Drift detector: `tools/check_goldens/check_goldens.sh` cross-checks the 12 SHA256 rows in repeatability_snapshots.txt against the 12 shipped `snapshot_t<v>_before_passvalue.bin` files; fails on any mismatch.
+
 **SHUD_DUMP_FNAME_SUFFIX 启用方式**（任意需要二者并存的 dump run 通用模式）：
 
 ```bash

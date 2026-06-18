@@ -40,7 +40,7 @@ Usage:
   $PROG --preflight
   $PROG --selftest-preflight
   $PROG --deploy-instructions
-  $PROG --resolve <server-scratch-root> <user> [<target-deployment-server>] [<ssh-port>] [<output-path>]
+  $PROG --resolve <server-scratch-root> <user> [<output-path>]
 
   --preflight             Verify sbatch template "三铁律" compliance
                           (--output/--error under /scratch only).
@@ -54,20 +54,19 @@ Usage:
   --deploy-instructions   Print rsync + ssh + sbatch commands for the
                           operator. No remote action is taken.
 
-  --resolve               Substitute placeholders <server-scratch-root>,
-                          <user>, <target-deployment-server>, <ssh-port>
-                          in the template; write to <output-path>
-                          (default: stdout). Server + port default to
-                          \$SHUD_DEPLOY_HOST / \$SHUD_DEPLOY_SSH_PORT if
-                          unset on the command line; if neither source is
-                          supplied the placeholder stays literal so the
-                          operator must fill it in by hand before sbatch.
+  --resolve               Substitute placeholders <server-scratch-root>
+                          and <user> in the sbatch template; write to
+                          <output-path> (default: stdout). These are the
+                          only 2 placeholders present in the sbatch file.
 
-Placeholders in the template:
-  <server-scratch-root>      e.g. <user>/<project>
-  <user>                     your username on the server
-  <target-deployment-server> e.g. cluster.example.org (host/IP only)
-  <ssh-port>                 numeric SSH port for the cluster
+Placeholders in the sbatch template (run_s1_bitwise.sbatch):
+  <server-scratch-root>      e.g. <user>/<project>; substituted by --resolve
+  <user>                     your username on the server; substituted by --resolve
+
+Note: <target-deployment-server> and <ssh-port> are NOT in the sbatch
+template — they appear only in the rsync/ssh commands printed by
+--deploy-instructions. To customize those, set env vars TARGET_SERVER
+and SSH_PORT before invoking --deploy-instructions.
 EOF
     exit 2
 }
@@ -150,26 +149,34 @@ case "$1" in
         ;;
 
     --deploy-instructions)
-        cat <<'EOF'
+        # F28 (PR #54 round-3): env-var-driven substitution for
+        # TARGET_SERVER + SSH_PORT in rsync / ssh commands below.
+        # Both default to literal placeholders so unset env still emits
+        # an obviously-fill-in-the-blank doc; setting either replaces it.
+        DOC_TARGET="${TARGET_SERVER:-<target-deployment-server>}"
+        DOC_PORT="${SSH_PORT:-<ssh-port>}"
+        cat <<EOF
 # Manual deploy steps for S1 server-side bitwise validation
 # (heihe + heihe_x4 cases; CLAUDE.md compute-node policy compliant).
 #
-# Placeholders below stay literal in the committed template; replace
-# in the operator's local shell before running.  Server / port values
-# come from your environment, never from this committed script.
+# Placeholders <server-scratch-root> and <user> stay literal in the
+# committed sbatch template; --resolve substitutes them. Server / port
+# values below come from env vars TARGET_SERVER / SSH_PORT if set,
+# otherwise stay literal so the operator catches them before running.
 #
 # 1. From the local checkout, rsync the sbatch template to the server.
 #    Replace <server-scratch-root> with the actual scratch path used,
-#    e.g. `<user>/<project>`. <user> = your server username.
+#    e.g. \`<user>/<project>\`. <user> = your server username.
 #
-#    rsync -avh -e "ssh -p <ssh-port>" \
-#        tools/server_validation/run_s1_bitwise.sbatch \
-#        <user>@<target-deployment-server>:/scratch/<server-scratch-root>/.s1-server-validation/
+#    rsync -avh -e "ssh -p $DOC_PORT" \\
+#        tools/server_validation/run_s1_bitwise.sbatch \\
+#        <user>@$DOC_TARGET:/scratch/<server-scratch-root>/.s1-server-validation/
 #
 # 2. SSH into the server and resolve the <server-scratch-root>/<user>
-#    placeholders in the sbatch file:
+#    placeholders in the sbatch file (or run --resolve locally first
+#    and rsync the already-resolved file):
 #
-#    ssh -p <ssh-port> <user>@<target-deployment-server>
+#    ssh -p $DOC_PORT <user>@$DOC_TARGET
 #    cd /scratch/<server-scratch-root>/.s1-server-validation/
 #    sed -i 's|<server-scratch-root>|<actual-path>|g; s|<user>|<your-username>|g' run_s1_bitwise.sbatch
 #
@@ -179,7 +186,7 @@ case "$1" in
 #    cd /scratch/<server-scratch-root>
 #    git pull --recurse-submodules
 #
-# 4. Submit (MUST be from /scratch, not from /users/$USER):
+# 4. Submit (MUST be from /scratch, not from /users/\$USER):
 #
 #    cd /scratch/<server-scratch-root>/.s1-server-validation/
 #    sbatch run_s1_bitwise.sbatch
@@ -193,8 +200,8 @@ case "$1" in
 #
 # 6. Pull SHA256 results back to the local PR comment:
 #
-#    rsync -avh -e "ssh -p <ssh-port>" \
-#        <user>@<target-deployment-server>:/scratch/<server-scratch-root>/.s1-server-validation/<job-id>/compare.log \
+#    rsync -avh -e "ssh -p $DOC_PORT" \\
+#        <user>@$DOC_TARGET:/scratch/<server-scratch-root>/.s1-server-validation/<job-id>/compare.log \\
 #        ./tools/server_validation/last-server-run-compare.log
 EOF
         ;;
@@ -203,25 +210,20 @@ EOF
         [ $# -ge 3 ] || usage
         SCRATCH_ROOT="$2"
         SERVER_USER="$3"
-        # F14: <target-deployment-server> and <ssh-port> get filled from
-        # CLI args 4/5 first, falling back to env vars
-        # SHUD_DEPLOY_HOST / SHUD_DEPLOY_SSH_PORT.  If neither source is
-        # populated the literal placeholder stays in the rendered file
-        # (so the operator catches it before running rsync/ssh).
-        DEPLOY_HOST="${4:-${SHUD_DEPLOY_HOST:-<target-deployment-server>}}"
-        SSH_PORT="${5:-${SHUD_DEPLOY_SSH_PORT:-<ssh-port>}}"
-        OUT_PATH="${6:--}"  # default to stdout
+        OUT_PATH="${4:--}"  # default to stdout
+        # F28 (PR #54 round-3): dropped <target-deployment-server> /
+        # <ssh-port> substitutions — neither placeholder is present in
+        # run_s1_bitwise.sbatch (verified with grep). They appear only
+        # in the rsync/ssh commands emitted by --deploy-instructions,
+        # so we expose them via TARGET_SERVER / SSH_PORT env vars on
+        # that path instead of here.
         if [ "$OUT_PATH" = "-" ]; then
             sed -e "s|<server-scratch-root>|$SCRATCH_ROOT|g" \
                 -e "s|<user>|$SERVER_USER|g" \
-                -e "s|<target-deployment-server>|$DEPLOY_HOST|g" \
-                -e "s|<ssh-port>|$SSH_PORT|g" \
                 "$SBATCH_TEMPLATE"
         else
             sed -e "s|<server-scratch-root>|$SCRATCH_ROOT|g" \
                 -e "s|<user>|$SERVER_USER|g" \
-                -e "s|<target-deployment-server>|$DEPLOY_HOST|g" \
-                -e "s|<ssh-port>|$SSH_PORT|g" \
                 "$SBATCH_TEMPLATE" > "$OUT_PATH"
             printf "Wrote resolved sbatch to %s\n" "$OUT_PATH"
         fi

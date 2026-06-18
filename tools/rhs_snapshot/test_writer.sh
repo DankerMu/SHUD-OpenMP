@@ -130,11 +130,14 @@ set -e
 assert_exit 1 "scenario(f) suffix 65 chars → exit 1 (F5 length-cap reject)" "$rc_f"
 # F22 (PR #54 round-2): writer.cpp now emits stderr diagnostic on length-cap
 # reject; verify the message reaches the harness's combined out (2>&1 above).
-if printf '%s' "$out_f" | grep -q 'exceeds 64-char limit'; then
-    printf "PASS  scenario(f) writer stderr diagnostic present\n"
+# F29 (PR #54 round-3): diagnostic prefix changed to "shud_rhs_dump:" to
+# match SHUD MD_rhs_dump.cpp style (SCHEMA DUPLICATION lockstep); verify
+# both the new prefix AND the original "exceeds 64-char limit" payload.
+if printf '%s' "$out_f" | grep -q 'shud_rhs_dump:.*exceeds 64-char limit'; then
+    printf "PASS  scenario(f) writer stderr diagnostic present (shud_rhs_dump: prefix)\n"
     PASS=$((PASS + 1))
 else
-    printf "FAIL  scenario(f) writer stderr diagnostic missing (got: %s)\n" "$out_f"
+    printf "FAIL  scenario(f) writer stderr diagnostic missing or wrong prefix (got: %s)\n" "$out_f"
     FAIL=$((FAIL + 1))
 fi
 

@@ -99,29 +99,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # F18 (PR #54 round-2): tool selftests run BEFORE build-and-compare so any
-  # regression in the helper scripts (rhs_snapshot writer, cvode_stats_diff,
-  # archive_s1_bitwise preflight regex) is caught in seconds instead of
-  # silently passing the longer matrix downstream.
-  selftests:
-    name: Tool selftests
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Install g++/make for rhs_snapshot test_writer
-        run: sudo apt-get update && sudo apt-get install -y g++ make
-      - name: Run rhs_snapshot test_writer (compose_snapshot_filename)
-        run: bash tools/rhs_snapshot/test_writer.sh
-      - name: Run cvode_stats_diff acceptance tests (15-key canonical set)
-        run: bash tools/cvode_stats_diff/test_cvode_stats_diff.sh
-      - name: Run sbatch preflight selftest (三铁律 regex sanity)
-        run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight
-
   build-and-compare:
-    needs: [selftests]
+    # F26 (PR #54 round-3): tool selftests inlined into build-and-compare
+    # so the single required check covers both helper-script regression
+    # detection and the longer bitwise matrix. g++/make are pre-installed
+    # on ubuntu-22.04; no apt-get step needed. Skip-label guard on the
+    # selftest steps mirrors the rest of the job for consistent UX.
     # Spec mandates ubuntu-22.04 hard requirement: the locked-flag B0 golden
     # was generated against gcc/g++ on Ubuntu 22.04, so bitwise comparison
     # is meaningful only on this image. Do not promote to ubuntu-latest.
@@ -164,6 +147,24 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+
+      # -----------------------------------------------------------------------
+      # Step 2.5 — tool selftests (F26 / PR #54 round-3)
+      # -----------------------------------------------------------------------
+      # Helper-script regression detection runs in seconds; failing here
+      # short-circuits the longer SUNDIALS install + build matrix below.
+      # g++/make are pre-installed on ubuntu-22.04 (no apt-get step needed).
+      # Skip-label guard on each step mirrors the rest of the job so the
+      # entire workflow is uniformly bypassed when the label is set.
+      - name: Run rhs_snapshot test_writer
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: bash tools/rhs_snapshot/test_writer.sh
+      - name: Run cvode_stats_diff test
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: bash tools/cvode_stats_diff/test_cvode_stats_diff.sh
+      - name: Run sbatch preflight selftest
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight
 
       # -----------------------------------------------------------------------
       # Step 3 — SUNDIALS 6.0.x cache + (re)install
