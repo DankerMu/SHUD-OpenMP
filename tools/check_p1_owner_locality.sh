@@ -11,6 +11,12 @@
 #     nested-bracket neighbor; spec L42 also forbids touching
 #     Qe2r_Surf[i] / Qe2r_Sub[i] inside the river scope (those are an
 #     element-domain follow-up loop, NOT the river-owner stage).
+#   - Lake loop body (Scenario "Lake update only writes lake[i] owner" +
+#     Requirement "Lake-owner state update parallelism"):
+#     writes only via lake[i] / yLakeStg[i] / y2LakeArea[i] / QLake*[i] /
+#     qLake*[i]; no lake[i+/-N] / nested-bracket neighbor. Audit also
+#     covers _Lake::update() body (Lake.cpp:104-107) which only writes
+#     this->u_toparea (member-of-this, no cross-lake writes).
 #   - No reduction / atomic / critical / dynamic / guided / nowait clauses
 #     on owner-local pragma (spec L20 + design §D11 P5 三层依赖模型).
 #
@@ -21,10 +27,11 @@
 # the legacy path is only reachable when `LEGACY_RHS=1` Makefile macro is
 # explicitly set, which is not the default CI Config matrix.
 #
-# #83 extension: dual-scope audit (element + river). The audit body is
-# parameterized by `audit_loop_body()`; element scope strips `Ele[i]`,
-# river scope strips `Riv[i]`. Each scope independently checks the three
-# invariants (cross-index, neighbor-nested, forbidden pragma clauses).
+# #83/#84 extension: triple-scope audit (element + river + lake). The audit
+# body is parameterized by `audit_loop_body()`; element scope strips `Ele[i]`,
+# river scope strips `Riv[i]`, lake scope strips `lake[i]`. Each scope
+# independently checks the three invariants (cross-index, neighbor-nested,
+# forbidden pragma clauses).
 #
 # Exit 0 on PASS; exit 1 on any forbidden pattern found.
 # Run from the outer repo root.
@@ -64,6 +71,38 @@ riv_start=$((ele_end + 1))
 riv_end=$(awk -v s="$ele_end" 'NR>s && /for[[:space:]]*\([[:space:]]*int[[:space:]]+i[[:space:]]*=[[:space:]]*0;[[:space:]]*i[[:space:]]*<[[:space:]]*NumEle/{print NR-1; exit}' "$SCOPE")
 if [ -z "$riv_end" ]; then
     echo "FAIL: cannot locate end of river scope (post-river NumEle loop anchor) in rhs_update()"
+    exit 1
+fi
+
+# Lake scope: starts at the line immediately after the post-river NumEle
+# element-domain Qe2r_Surf/Sub zeroing loop's closing brace, and ends right
+# before the next `for (int i = 0; i < NumY; i++)` line (the DY zeroing
+# loop, which is governed by a SEPARATE spec L5 Requirement "DY array
+# zeroing parallelism over state index" — out of the lake-owner stage).
+# Starting at the post-NumEle-loop close brace + 1 (analog to how riv_start
+# = ele_end + 1) ensures the lake-owner OMP pragma block at lines preceding
+# the `for (... i < NumLake; ...)` line is INSIDE the audited slice (the
+# pragma-clause Check 3 needs the pragma directive visible). The NumLake
+# for-line itself is enforced as the only `i < NumLake` anchor in the slice
+# via the audit checks below.
+#
+# Locate the post-river NumEle loop's `for` line, then find the next `}` at
+# `^    }$` indentation (the loop body is plain 1-statement-per-line C++
+# with 4-space indent matching the surrounding rhs_update() function).
+post_riv_ele_for=$(awk -v s="$riv_end" 'NR>s && /for[[:space:]]*\([[:space:]]*int[[:space:]]+i[[:space:]]*=[[:space:]]*0;[[:space:]]*i[[:space:]]*<[[:space:]]*NumEle/{print NR; exit}' "$SCOPE")
+if [ -z "$post_riv_ele_for" ]; then
+    echo "FAIL: cannot locate post-river NumEle loop in rhs_update()"
+    exit 1
+fi
+post_riv_ele_close=$(awk -v s="$post_riv_ele_for" 'NR>s && /^[[:space:]]*\}[[:space:]]*$/{print NR; exit}' "$SCOPE")
+if [ -z "$post_riv_ele_close" ]; then
+    echo "FAIL: cannot locate post-river NumEle loop closing brace in rhs_update()"
+    exit 1
+fi
+lake_start=$((post_riv_ele_close + 1))
+lake_end=$(awk -v s="$lake_start" 'NR>=s && /for[[:space:]]*\([[:space:]]*int[[:space:]]+i[[:space:]]*=[[:space:]]*0;[[:space:]]*i[[:space:]]*<[[:space:]]*NumY/{print NR-1; exit}' "$SCOPE")
+if [ -z "$lake_end" ]; then
+    echo "FAIL: cannot locate end of lake scope (NumY boundary anchor) in rhs_update()"
     exit 1
 fi
 
@@ -159,6 +198,16 @@ audit_loop_body "element" "$start" "$ele_end" 'Ele\[i\]' 'Ele'
 # naturally excludes them — no extra check needed.
 audit_loop_body "river" "$riv_start" "$riv_end" 'Riv\[i\]' 'Riv'
 
+# Lake scope audit: own index `lake[i]`, residual prefix `lake`. The lake
+# scope $lake_end stops BEFORE the NumY loop that contains DY[i] writes
+# (governed by the separate L5 DY zeroing Requirement, not the lake-owner
+# stage). The `_Lake::update()` body audit (spec L63 Scenario "Lake update
+# only writes lake[i] owner") was pre-cleared in this PR via direct read of
+# SHUD/src/classes/Lake.cpp:104-107 — only writes this->u_toparea, reads
+# this->{yStage,zmin,bathymetry.{ai,yi,nvalue}} (all owner-local /
+# immutable post-init).
+audit_loop_body "lake" "$lake_start" "$lake_end" 'lake\[i\]' 'lake'
+
 if [ "$fail" -ne 0 ]; then
     echo ""
     echo "P1 owner-locality check FAIL"
@@ -169,4 +218,5 @@ echo "P1 owner-locality check PASS"
 echo "  function: $TARGET_FN"
 echo "  element scope @ lines ${start}..${ele_end}  pragma: ${pragma_element:-<not yet present — Config A defaults>}"
 echo "  river scope   @ lines ${riv_start}..${riv_end}  pragma: ${pragma_river:-<not yet present — Config A defaults>}"
+echo "  lake scope    @ lines ${lake_start}..${lake_end}  pragma: ${pragma_lake:-<not yet present — Config A defaults>}"
 exit 0
