@@ -55,7 +55,7 @@ aggregate 列 = **PASS**（2026-06-17）。
 
 | Case | 单元格 | 证据 |
 |---|---|---|
-| keliya | PASS | LEGACY_RHS=0 + LEGACY_RHS=1 双轴 bitwise vs B0-tag PASS（#47-#49 本地）；CI 跑 build + 4 grep + invariant-sweep + B0-tag smoke（forcing data 不在 runner → bitwise compare 步骤 scaffolded silent skip by design，post-PR #74 简化）；S1c #46 4-case .dat 8/8 + 24/24 snapshot；S1d.2 #48 9 SHUD 文件改造后 Config A 默认 binary 与 B0 bitwise identical |
+| keliya | PASS | LEGACY_RHS=0 + LEGACY_RHS=1 双轴 bitwise vs B0-tag PASS（#47-#49 本地）；CI 跑 build + 4 grep + invariant-sweep + B0-tag smoke（bitwise vs B0-tag 全在本地+服务器，post-cleanup PR 彻底删 data_probe scaffold，per docs/s1_summary.md）；S1c #46 4-case .dat 8/8 + 24/24 snapshot；S1d.2 #48 9 SHUD 文件改造后 Config A 默认 binary 与 B0 bitwise identical |
 | xinanjiang_upstream | PASS | 同上：4-case 中之一，所有 S1 substage 验证均覆盖 |
 | qinyijiang | PASS | 同上：S1c #46 中 negative test (`s1c_river_dy_omp_negative.patch`) 触发 bitwise diff EXPECTED_FAIL_SHA `042698d6...3fed00`，证明 gate 工作 |
 | kashigeer | N/A (deferred-upstream) | 同 B0：上游 X76 forcing 段缺失，CI matrix 排除 (spec b0-tag-ci-integration L24-28 + INDEX 已标 deferred-upstream)，S1 阶段沿用 N/A |

@@ -9,7 +9,7 @@
 - 抽 RHS core 到 `Model_Data::rhs_core(Y, DY, t, ExecPolicy)`，serial / omp 不再各自维护一份 update / flux / apply。
 - 三正交宏：`SHUD_ENABLE_OPENMP_RHS`（启用 OMP RHS path）、`SHUD_USE_OPENMP_NVECTOR`（CVODE 用 OpenMP NVector backend）、`SHUD_LEGACY_OMP_RHS`（保留 `_omp` 旧符号 link-in，便于回退验证）。
 - 全树退役：`_OPENMP_ON` / `USE_RHS_CORE` / `N_VDestroy_Serial` 三个标识在 `SHUD/src/` 下 grep 结果归零；`N_VGetArrayPointer` 取代 `NV_DATA_S / NV_DATA_OMP` 二选一；generic `N_VDestroy` 取代特化版避免 §4.19 type-tag 不匹配 UB。
-- CI keliya × LEGACY_RHS 双轴 matrix 在每 PR 跑（post-#74 删 cron 与 full-bitwise label，scope intent 重写）；data-independent gate（B0-tag smoke + 4 macro grep + invariant-sweep + skip-label 反验）每 PR 必跑，bitwise compare / CVODE 15-key / snapshot 90d HARD-fail 已 scaffolded 但 data-conditional，forcing data 不在 runner → silent skip by design。
+- CI keliya × LEGACY_RHS 双轴 matrix 在每 PR 跑（post-#74 删 cron 与 full-bitwise label，scope intent 重写；follow-up 清理 PR 进一步删 data_probe + 30 if-guarded run+compare scaffold）；当前 active gate 全部 data-independent，5 类：3-Config Makefile build + 4 macro grep + invariant-sweep + B0-tag smoke + skip-baseline-ci label 反验。bitwise compare / CVODE 15-key / snapshot 90d HARD-fail 全部在本地 + 服务器跑，CI 不承载。
 - post-tag P3 follow-up sweep（PR #71 + #72）：archive_b0_output mktemp + check_invariant_sweep meta-tool + CI invariant-sweep job + 24 张 after-PassValue golden 从 zero-payload 升级到 f_applyDY diagnostic + CI dynamic cfg.para START 解析；3 张 fixture 文档纠错（gitignored、in-place 修订）。
 - 把所有这些状态钉到一个新 git tag：`B1a-tag`（指向 PR #70 squash-merge commit，SHUD pin `58327c5`）。
 
@@ -39,7 +39,7 @@
 - `SHUD/src/`：RHS core 在 `Model_Data::rhs_core`；`_omp` 路径函数仅作 LEGACY 回退保留，不再独立演化；OpenMP RHS 真实 execution policy 留给 S2。
 - `benchmarks/`：4 case × 24 张 snapshot golden（12 before-PassValue Qe2r_Surf + 12 after-PassValue 升级后的整合 DY） + 4 张 repeatability_snapshots_after_passvalue.txt（PR #72 新加）+ 既有 B0 archive 不变。
 - `tools/`：S1 期间新增 `cvode_stats_diff/`（15-key invariance）、`server_validation/`（heihe Slurm）、`snapshot_repeatability/`（参数化 `--site={before,after}`）、`check_goldens/`（48/48 sweep）、`check_invariant_sweep.sh` + `invariants.yaml` + `test_check_invariant_sweep.sh`（P3 meta-tool 防 pattern P1 漂移）。
-- CI：`.github/workflows/serial-baseline.yml` 活跃 gate（每 PR 必跑）= fetch-tags + B0-tag smoke + skip-baseline-ci label 反验 + 4 macro grep + invariant-sweep；scaffolded gate（forcing data 不在 runner → silent skip by design）= snapshot 90d HARD-fail / CVODE 15-key / nm 符号 / SHA256 compare vs B0-tag goldens。matrix 固定 keliya × LEGACY_RHS={0,1} = 2 jobs（post-#74 简化，删 cron + full-bitwise label）。
+- CI：`.github/workflows/serial-baseline.yml` 5 类 active gate（每 PR 必跑、全 data-independent）= fetch-tags + B0-tag smoke + skip-baseline-ci label 反验 + 4 macro grep + invariant-sweep + 3-Config Makefile build + check_goldens 48 SHA 漂移检查。**post-cleanup PR 已彻底删 data_probe scaffold**（30 个 if-guarded run+compare step），bitwise / CVODE 15-key / snapshot 90d 全在本地 + 服务器跑；future 复活 = git history cherry-pick from cleanup PR 的 parent。matrix 固定 keliya × LEGACY_RHS={0,1} = 2 jobs（post-#74 简化，删 cron + full-bitwise label）。
 - docs：`status_matrix.md` B1a 行全 PASS；`build_manifest.md` 增 `## B1a-tag` + `#55 hook site 修正` 节，24 张 after-PassValue SHA 已更新。本文件是一次性总结，**不会再更新**。
 
 ## 进入 S2 前要处理的事
@@ -57,7 +57,7 @@ S2 起 strict 阶段进入条件已就位：
 
 1. **R10 `StrictOMP` 是 `std::abort` stub → S2 P1 第一刀**：S1d.1 落 ExecPolicy 枚举时只实现 `Serial`，`StrictOMP` / `ProductionOMP` 当前触发 abort。把真实 OpenMP execution policy 接上 `rhs_core` kernel（compute / gather 分离 + owner-local gather + fork-join 最小化）是 P1 主线工作。
 2. B1a-tag binary 是 strict 阶段 zero-参考点（A3a bitwise 基准从 B0 切到 B1a）。
-3. CI keliya × LEGACY_RHS 双轴 matrix 是每 PR 自动 gate（build + grep + invariant；bitwise compare scaffolded but data-conditional，design-by-intent silent skip）；非 keliya case 在本地 + 服务器人工验证（4-case × 90-day 在 S1 已 16+ 次验证过 bitwise）。
+3. CI keliya × LEGACY_RHS 双轴 matrix 是每 PR 自动 gate（5 类 active gate 全 data-independent：build + 4 macro grep + invariant-sweep + B0-tag smoke + skip-label 反验；bitwise compare 不在 CI——已彻底删 data_probe scaffold per follow-up cleanup PR）；非 keliya case 在本地 + 服务器人工验证（4-case × 90-day 在 S1 已 16+ 次验证过 bitwise）。
 4. 24 张 after-PassValue + 24 张 before-PassValue + B0 archive 三组共 60+ 个对比点全部 diagnostic（非 zero-payload），任何 S2 RHS execution policy 改动都能 byte-diff 出来。
 5. heihe forcing IO 提前并行化（S0 决策遗留）可与 S2 P1 并行排另一个 issue。
 
