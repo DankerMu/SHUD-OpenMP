@@ -31,6 +31,10 @@
 | **P8**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P9**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 
+### S2 strict baseline policy
+
+**S2 strict baseline = B1a-tag** (commit `64569b3f` / SHUD pin `58327c5`, anchored at L94-L97 below). 全部 P1-P7 sub-stage 的 bitwise 对照 (A2 RHS snapshot, A3a full-run, CVODE 15-key) SHALL 与 B1a-tag 比对, **不是** B0-tag, **不是** B1b, **不是** current HEAD。S1 完工时实测 B1a-tag vs B0-tag bitwise identical (24+24 snapshot + CVODE 15-key + `.dat` SHA256 全等), 所以 vs B1a-tag 等价 vs B0; 选 B1a-tag 是因为 S2 OpenMP 改造 PR 都以 S1 收尾 (B1a-tag) 为起点, 对照基线统一锚定在 S1 完工那一刻。理由 / Future-proof (若 S2 触发 B1a ≠ B0 breaks 走 S5-S6 流程建 B1b) 详 `openspec/changes/s2-strict-omp-full/design.md §D2` + spec `strict-omp-acceptance-gates` Requirement 1。
+
 ### B0 行证据
 
 | Case                | 单元格        | 证据                                                                 |
