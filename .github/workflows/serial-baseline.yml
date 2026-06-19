@@ -315,12 +315,14 @@ jobs:
       # -----------------------------------------------------------------------
       # Step 3b — S2 P1 owner-locality grep gate (#82 element-only scope)
       # -----------------------------------------------------------------------
-      # Verifies that the f_update() element loop body in MD_update.cpp only
+      # Verifies that the rhs_update() element loop body in MD_rhs_core.cpp
+      # (the canonical runtime path under default Config A + Config E builds;
+      # f.cpp dispatch routes f() → rhs_core(... Serial) → rhs_update()) only
       # writes Ele[i] / qEle*[i] / Q*[i][*] (owner-local). Enforced once per
       # build, matrix-independent (the gate is a property of the SHUD source,
       # not the Config build flag), so guarded `matrix.config == 'A'` to
       # avoid 3× redundant runs across the Config A/B/E rows.
-      - name: P1 element-owner locality grep gate
+      - name: P1 element-owner locality grep gate (rhs_update in MD_rhs_core.cpp)
         if: steps.skip_check.outputs.skipped != 'true' && matrix.config == 'A'
         run: tools/check_p1_owner_locality.sh
 
