@@ -1,82 +1,46 @@
 # =============================================================================
-# serial-baseline.yml — SHUD-OpenMP S0-9 + S1-ci-A CI gate
+# serial-baseline.yml — SHUD-OpenMP build + invariant CI gate
 # =============================================================================
-# Spec:
-#   - S0  ci-serial-baseline:   openspec/changes/s0-baseline-lock/specs/ci-serial-baseline/spec.md
-#   - S1  b0-tag-ci-integration: openspec/changes/s1-rhs-core-extraction/specs/b0-tag-ci-integration/spec.md
-# Issues: openmp #13 (S0-9 initial) → #50 (S1-ci-A: matrix + grep gates + nightly)
-#
-# SCOPE (post-S1 P3 sweep, reframed per docs/s1_summary.md "下一步：S2" §3):
-#   This workflow gates **build correctness + grep / invariant invariants only**,
-#   NOT bitwise compare. The matrix is fixed at keliya × LEGACY_RHS={0,1} = 2 jobs
-#   because forcing data is local-only (see "Data strategy" below). Non-keliya
-#   bitwise compare is validated locally (4-case × 90-day) + server (heihe /
-#   heihe_x4 Slurm) per S1 design — see docs/s1_summary.md.
-#
-#   What this workflow ACTUALLY validates:
-#     - 3-Config Makefile target builds succeed (Config A default, Config B
-#       LEGACY_RHS=1, ...)
-#     - Macro removal grep gates (USE_RHS_CORE / _OPENMP_ON / NV_DATA_OMP /
-#       NV_DATA_S in f.cpp / N_VDestroy_Serial) — 0 hits across SHUD/src/
-#     - tools/check_invariant_sweep.sh — 3 starter invariants
-#       (tmp_dollar_pid_absence / pii_server_endpoint_absence /
-#       hardcoded_start_day_absence) all [OK]
-#     - LEGACY_RHS=1 axis: 3 `*_omp` symbols still present in legacy binary
-#       (spec L20-23, #49 precedent)
-#     - skip-baseline-ci label deleted verified at runtime (spec L170-174)
-#     - B0-tag reachability smoke check
-#
-#   What this workflow does NOT do (intentional per design):
-#     - Run SHUD binary against any case's forcing data
-#     - Bitwise compare .dat outputs vs B0-tag goldens
-#     - Snapshot probe diff
-#     - CVODE 15-key stats diff
-#     - Nightly full-matrix sweep
-#
-#   The data_probe + 30 if-guarded run+compare steps below are **scaffolding
-#   reserved for future deployment** (e.g. self-hosted runner with forcing
-#   data mounted). They currently exit silently with `data not deployed`
-#   notice for every case — that is by design, not a bug; do not "fix" by
-#   adding forcing data to the workflow without a deliberate scope change.
-#
 # Spec:
 #   - S0  ci-serial-baseline:   openspec/changes/s0-baseline-lock/specs/ci-serial-baseline/spec.md
 #   - S1  b0-tag-ci-integration: openspec/changes/s1-rhs-core-extraction/specs/b0-tag-ci-integration/spec.md
 # Issues: openmp #13 (S0-9 initial) → #50 (S1-ci-A: grep gates) → #51 (S1-ci-B:
 #   fetch-tags + label deletion verify) → #71 (P3 sweep: invariant gate) →
-#   PR after #74 (S2-onramp: drop cron + full-bitwise mode, simplify matrix).
+#   #75 (S2-onramp: drop cron + full-bitwise mode, simplify matrix) →
+#   follow-up cleanup PR (drop scaffolded run+compare path; KISS/YAGNI).
 #
-# -----------------------------------------------------------------------------
-# Data strategy: STRATEGY C  (skip-label-only + scaffolded run-and-compare)
-# -----------------------------------------------------------------------------
-# NWM forcing (SHUD/Basins/<case>/forcing/, 30 MB to multi-GB) is local-only:
-#   - SHUD submodule .git/info/exclude carries `/Basins/`
-#   - SHUD/.gitignore line 13 (`forcing`) matches recursively
-# Neither tree ships in the SHUD git history, so a CI runner has no path to
-# the forcing CSVs (or the 90-day-truncated cfg.para) without external data.
+# SCOPE:
+#   This workflow gates build correctness + grep / invariant invariants only.
+#   The matrix is fixed at keliya × LEGACY_RHS={0,1} = 2 jobs. All gates listed
+#   below are active on every PR — there is no scaffolded / data-conditional
+#   path. Bitwise compare (B0-tag .dat SHA256, CVODE 15-key, snapshot 90d) is
+#   validated locally (4-case × 90-day) + server (heihe / heihe_x4 Slurm) per
+#   docs/s1_summary.md design. If a future scope change adds forcing data to
+#   a self-hosted runner, the pre-cleanup scaffold can be cherry-picked from
+#   git history (parent commit of the cleanup PR has the full implementation).
 #
-# Strategy C is the lowest-scope-creep option:
-#   - The build, grep-gate, and tool selftest steps are data-INDEPENDENT and
-#     ALWAYS run (only gated by skip-label).
-#   - The run + compare steps are SCAFFOLDED, gated by a per-case data probe;
-#     when data is missing those steps log `data not deployed` notice and the
-#     job exits success-with-warning (so it does not green-light bad code; it
-#     simply documents that bitwise compare was skipped). When data is added
-#     later, the same scaffolded steps light up without further changes.
+#   What this workflow validates:
+#     - 3-Config Makefile target builds succeed (default / profile-on /
+#       dump-on, each on LEGACY_RHS={0,1} axes)
+#     - Macro removal grep gates (USE_RHS_CORE / _OPENMP_ON / NV_DATA_OMP /
+#       NV_DATA_S in f.cpp / N_VDestroy_Serial) — 0 hits across SHUD/src/
+#     - tools/check_invariant_sweep.sh — 3 starter invariants
+#       (tmp_dollar_pid_absence / pii_server_endpoint_absence /
+#       hardcoded_start_day_absence) all [OK]
+#     - skip-baseline-ci label deleted verified at runtime (spec L170-174)
+#     - B0-tag reachability smoke check (annotated tag fetched via
+#       fetch-depth: 0 + fetch-tags: true)
+#     - tools/check_goldens/check_goldens.sh — 48 SHA256 rows
+#       (build_manifest.md + repeatability files) data-independent drift gate
 #
-# Strategy A/B trade-offs are unchanged from the S0-9 header; the rationale
-# carries over to S1-ci-A (matrix expansion does not change the data story).
+# All gates listed above are active on every PR. There is no scaffolded /
+# data-conditional path; bitwise compare runs locally + server (see
+# docs/s1_summary.md).
 #
-# -----------------------------------------------------------------------------
-# Removing the skip-label at B0-tag time (deferred to #51):
-# -----------------------------------------------------------------------------
-# When B0-tag is cut and S0 ships, branch protection on main / baseline/current
-# MUST mark `serial-baseline / build-and-compare` as a required check, and
-# the `skip-baseline-ci` label MUST be deleted from the repo (so PRs cannot
-# set it). Per the S0-9 spec scenario, deleting the label org-side is
-# sufficient; the `if:` branch below evaluates trivially false once no PR
-# can apply the label. Removal of the early-exit branch itself is tracked
-# in #51.
+# Skip-label note: the `skip-baseline-ci` early-exit (job 2 / step 1) still
+# exists as a kill-switch and label-deletion verifier; per #51 the actual
+# label was removed from the repo so the contains() check is now a
+# tampering detector, not a routine bypass.
 # =============================================================================
 
 name: serial-baseline
@@ -109,16 +73,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # Job 1 — setup: emit the build matrix JSON
   # ---------------------------------------------------------------------------
-  # Matrix is fixed at keliya × LEGACY_RHS={0,1} = 2 jobs. The fast-feedback /
-  # full-bitwise mode toggle and nightly cron full-matrix sweep were removed
-  # when CI scope was reframed (see SCOPE block at file top + docs/s1_summary.md
-  # "下一步：S2" §3). Non-keliya bitwise compare runs locally + server, not
-  # in CI. To restore matrix expansion in a future scope change, add the if/
-  # else mode logic back here AND re-add nightly cron in the `on:` block.
-  #
-  # The setup job still emits matrix JSON via outputs so build-and-compare
-  # can stay matrix-driven (vs a hardcoded job) — keeps future expansion a
-  # one-line change.
+  # Matrix is fixed at keliya × LEGACY_RHS={0,1} = 2 jobs. Non-keliya bitwise
+  # compare runs locally + server (see SCOPE block at file top + docs/s1_summary.md).
+  # The setup job still emits matrix JSON via outputs so build-and-compare can
+  # stay matrix-driven (vs a hardcoded job).
   setup:
     runs-on: ubuntu-22.04
     timeout-minutes: 2
@@ -178,18 +136,11 @@ jobs:
     # was generated against gcc/g++ on Ubuntu 22.04, so bitwise comparison
     # is meaningful only on this image. Do not promote to ubuntu-latest.
     runs-on: ubuntu-22.04
-    # Timeout 25 min is generous — current matrix is keliya × 2 LEGACY = 2 jobs
-    # and each runs build + grep gates + invariant + scaffolded data probe
-    # in well under 5 min total. The 25 min ceiling is kept as headroom so a
-    # future scope change (e.g. forcing data deployed to self-hosted runner +
-    # multi-case re-expansion) doesn't immediately trip the timeout.
-    timeout-minutes: 25
-    # Repo-wide default is contents:read only; the matrix-proposer step needs
-    # pull-requests:write for `gh pr comment` + `gh pr view`. Scoped at job
-    # level to keep the rest of the job at minimum privilege.
+    # Timeout 15 min: current matrix is keliya × 2 LEGACY = 2 jobs and each
+    # runs build + grep gates + tool selftests in well under 5 min total.
+    timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: write
 
     strategy:
       # Continue other matrix entries even if one fails so a single broken
@@ -203,8 +154,10 @@ jobs:
       # -----------------------------------------------------------------------
       # `github.event.pull_request.labels` is null on push / schedule events,
       # so the contains() call short-circuits to false. The check only fires
-      # on PR events that explicitly carry `skip-baseline-ci`. Label removal
-      # is tracked in #51.
+      # on PR events that explicitly carry `skip-baseline-ci`. The label
+      # itself was deleted from the repo in #51 (verified by step 2c below),
+      # so the branch is now a tampering kill-switch rather than a routine
+      # bypass.
       - name: Skip-label early exit
         id: skip_check
         run: |
@@ -270,70 +223,6 @@ jobs:
             exit 1
           fi
           echo "skip-baseline-ci label not present (spec L170-174 PASS)"
-
-      # -----------------------------------------------------------------------
-      # Step 2d — snapshot t_values HARD-fail window gate (S1-ci-B #51,
-      # spec L102-108). For every IN-MATRIX case (keliya / xinanjiang_upstream
-      # / qinyijiang / qhh — the same 4 cases in spec L228) the manifest
-      # `snapshot_probe.t_values` MUST all be ≤ 7776000s = 90d, the project
-      # 90-day truncation window (CLAUDE.md §90-day-truncation). Any t > 90d
-      # MUST trigger ::error (HARD fail), NOT ::notice silent-skip.
-      #
-      # Excluded cases (heihe / heihe_x4 / kashigeer per spec L9, L16, L27)
-      # are NOT iterated here: they are out of CI matrix scope and retain
-      # the pre-S1 t_values; reconciliation is tracked by their separate
-      # endpoint validation (server Slurm for heihe*, upstream defer for
-      # kashigeer). Adding them to this gate would require manifest churn
-      # outside #51's "small PR" boundary.
-      # -----------------------------------------------------------------------
-      - name: Validate snapshot t_values ≤ 90d window (spec L102-108)
-        if: steps.skip_check.outputs.skipped != 'true'
-        run: |
-          # awk-only extractor: zero dep (no PyYAML/yq). All 4 in-matrix
-          # manifests use the same single-line flow-style pattern:
-          #     snapshot_probe:
-          #       t_values: [86400, 2592000, 7776000]
-          # We locate the `t_values:` line under `snapshot_probe:` (NOT the
-          # `output_compare` block which also has numeric tolerances) and
-          # split tokens between `[` and `]`. Any value > 7776000 = 90d is
-          # a HARD-fail.
-          MAX_T=7776000
-          fail=0
-          for case_name in keliya xinanjiang_upstream qinyijiang qhh; do
-            f="benchmarks/${case_name}/manifest.yaml"
-            if [[ ! -f "$f" ]]; then
-              echo "::error title=Missing CI-matrix manifest::$f not found; in-matrix cases must each ship a manifest.yaml"
-              fail=1
-              continue
-            fi
-            # Extract t_values numeric tokens; awk state machine flips ON
-            # at `snapshot_probe:` (column-0 key) and OFF at next column-0
-            # key so we never pick up t_values from siblings.
-            bad_values=$(awk '
-              /^[A-Za-z_]/ { in_probe = 0 }
-              /^snapshot_probe:/ { in_probe = 1; next }
-              in_probe && /t_values:/ {
-                # Strip everything outside [ ... ]
-                gsub(/^[^\[]*\[/, "")
-                gsub(/\].*$/, "")
-                n = split($0, arr, /[ ,]+/)
-                for (i = 1; i <= n; i++) {
-                  if (arr[i] ~ /^[0-9]+$/ && arr[i] + 0 > 7776000) {
-                    print arr[i]
-                  }
-                }
-              }
-            ' "$f")
-            if [[ -n "$bad_values" ]]; then
-              joined=$(echo "$bad_values" | tr '\n' ' ' | sed 's/ $//')
-              echo "::error title=snapshot t_value out of 90d window::${case_name} manifest snapshot t_value ${joined} exceeds 90d truncation END (7776000s); either re-archive within window or amend manifest (spec L102-108)."
-              fail=1
-            fi
-          done
-          if [[ $fail -ne 0 ]]; then
-            exit 1
-          fi
-          echo "Snapshot t_values 90d window gate PASS (keliya / xinanjiang_upstream / qinyijiang / qhh manifests all ≤ 7776000s)"
 
       # -----------------------------------------------------------------------
       # Step 3 — Macro removal grep gates (S1d.1 + S1d.2, post-#48 #49)
@@ -470,343 +359,7 @@ jobs:
           cp shud shud_dump
 
       # -----------------------------------------------------------------------
-      # Step 7 — build compare_snapshot helper
-      # -----------------------------------------------------------------------
-      # Standalone C++17, no SUNDIALS link (per tools/compare_snapshot/Makefile
-      # header comment). Builds in <5 s.
-      - name: Build compare_snapshot
-        if: steps.skip_check.outputs.skipped != 'true'
-        working-directory: tools/compare_snapshot
-        run: make all
-
-      # -----------------------------------------------------------------------
-      # Step 8 — case data availability probe (parameterized on ${{ matrix.case }})
-      # -----------------------------------------------------------------------
-      # The compare step needs BOTH of these for the active matrix case:
-      #   - SHUD/Basins/<case>/forcing/X*.csv     (forcing CSVs)
-      #   - SHUD/Basins/<case>/input/<case>/<case>.cfg.para  (must exist; END
-      #                                                       rewrite happens
-      #                                                       in step 9)
-      # Neither is in the git history (see file header comment block).
-      # If absent for the active case, we skip the run+compare steps but DO
-      # NOT fail — the matrix entry still PASSes (build + grep gates ran),
-      # the workflow exits success with a notice so spec's "data not deployed
-      # in CI" path is unambiguous and follow-up data-deployment work can
-      # plug into the existing scaffold.
-      - name: Probe ${{ matrix.case }} data availability
-        if: steps.skip_check.outputs.skipped != 'true'
-        id: data_probe
-        run: |
-          forcing_present=false
-          input_present=false
-          if compgen -G "SHUD/Basins/${{ matrix.case }}/forcing/X*.csv" > /dev/null; then
-            forcing_present=true
-          fi
-          if [[ -f "SHUD/Basins/${{ matrix.case }}/input/${{ matrix.case }}/${{ matrix.case }}.cfg.para" ]]; then
-            input_present=true
-          fi
-          if [[ "$forcing_present" == "true" && "$input_present" == "true" ]]; then
-            echo "data_available=true" >> "$GITHUB_OUTPUT"
-            echo "${{ matrix.case }} data present; will run + compare against B0 golden (axis ${{ matrix.rhs_path }})"
-          else
-            echo "data_available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=${{ matrix.case }} data not deployed::CI runner has no ${{ matrix.case }} forcing/input data; build verification + grep gates PASSED, run+compare SKIPPED. forcing=$forcing_present input=$input_present"
-          fi
-
-      # -----------------------------------------------------------------------
-      # Step 9 — fix case paths + enforce 90-day truncation
-      # -----------------------------------------------------------------------
-      # tools/fix_case_paths/fix_case_paths.sh:
-      #   - rewrites tsd.forc line 2 to the CI runner's absolute forcing path
-      #   - sets NUM_OPENMP=1 (serial mode, per S0.1b)
-      #
-      # IMPORTANT: fix_case_paths.sh does NOT touch START/END. Per
-      # b0-tag-ci-integration spec L85-100 ("90-day truncation 在 CI 自动应用"),
-      # the END = START + 90 rewrite MUST happen in CI before run. We do that
-      # inline here as a deterministic awk pass against cfg.para. This keeps
-      # the script change out of scope for #50 (modifying the tool would be
-      # a separate spec change); the inline awk is the canonical
-      # deployment-layer transform per CLAUDE.md §90-day-truncation.
-      - name: Fix case paths for CI runner (${{ matrix.case }})
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: tools/fix_case_paths/fix_case_paths.sh ${{ matrix.case }}
-
-      - name: Enforce 90-day truncation (END = START + 90)
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: |
-          cfg="SHUD/Basins/${{ matrix.case }}/input/${{ matrix.case }}/${{ matrix.case }}.cfg.para"
-          if [[ ! -f "$cfg" ]]; then
-            echo "::error title=cfg.para missing::Expected $cfg after fix_case_paths but file not found"
-            exit 1
-          fi
-          start=$(awk '$1=="START" {print $2; exit}' "$cfg")
-          if [[ -z "$start" ]]; then
-            echo "::error title=START missing in cfg.para::Could not parse START line from $cfg"
-            exit 1
-          fi
-          new_end=$((start + 90))
-          # Rewrite END in place; awk uses tab separator matching SHUD cfg.para convention.
-          tmp=$(mktemp "${cfg}.XXXXXX")
-          awk -v ne="$new_end" -v t="$(printf '\t')" '
-            $1=="END" { printf "END%s%s\n", t, ne; next }
-            { print }
-          ' "$cfg" > "$tmp"
-          mv "$tmp" "$cfg"
-          new_end_check=$(awk '$1=="END" {print $2; exit}' "$cfg")
-          if [[ "$new_end_check" != "$new_end" ]]; then
-            echo "::error title=90-day truncation verification failed::Expected END=$new_end after rewrite, got $new_end_check in $cfg"
-            exit 1
-          fi
-          echo "90-day truncation applied: START=$start, END=$new_end (delta=90) for ${{ matrix.case }}"
-
-      # -----------------------------------------------------------------------
-      # Step 10a — run default + compare to B0 golden (case-parameterized)
-      # -----------------------------------------------------------------------
-      # Matches benchmarks/<case>/manifest.yaml run_command:
-      #   cd SHUD/Basins/<case> && ../../shud <case>
-      # The shud binary lives at SHUD/shud (worktree-relative); we shadow it
-      # with shud_default for this run.
-      - name: Run ${{ matrix.case }} with default binary
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: |
-          cp SHUD/shud_default SHUD/shud
-          mkdir -p SHUD/Basins/${{ matrix.case }}/output
-          rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
-          (cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }}) 2>&1 | tee run_default.log
-          cp SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/${{ matrix.case }}.rivqdown.dat default_rivqdown.dat
-          cp SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/cvode_stats.txt default_cvode_stats.txt
-
-      # -----------------------------------------------------------------------
-      # Step 10b — bitwise SHA256 vs B0 golden (every *.dat)
-      # -----------------------------------------------------------------------
-      # Per spec L114-128 "SHA256 mismatch 的错误处理" the error message MUST
-      # contain: case name, file path, expected SHA, actual SHA, AND a
-      # copy-paste reproduce command. We compare every *.dat file present in
-      # benchmarks/<case>/B0_output/ — keliya/qhh/qinyijiang/xinanjiang_upstream
-      # all currently have rivqdown.dat as the only *.dat golden, but the
-      # loop is generic so future per-case dat additions are picked up
-      # automatically. Failures accumulate (no early break) so multi-file
-      # mismatches surface together (spec L122-127 "聚合报告").
-      - name: Compare ${{ matrix.case }} output vs B0 golden (SHA256, axis ${{ matrix.rhs_path }})
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: |
-          fail=0
-          for golden in benchmarks/${{ matrix.case }}/B0_output/*.dat; do
-            filename=$(basename "$golden")
-            new_file="SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/$filename"
-            if [[ ! -f "$new_file" ]]; then
-              echo "::error title=Run output missing::Expected $new_file after default run but file not found (case=${{ matrix.case }}, axis=${{ matrix.rhs_path }})"
-              fail=1
-              continue
-            fi
-            golden_sha=$(sha256sum "$golden" | awk '{print $1}')
-            new_sha=$(sha256sum "$new_file" | awk '{print $1}')
-            echo "  $filename: golden=$golden_sha new=$new_sha"
-            if [[ "$golden_sha" != "$new_sha" ]]; then
-              echo "::error title=B0 bitwise compare FAILED::${{ matrix.case }}/$filename SHA256 mismatch (axis=${{ matrix.rhs_path }}). Expected $golden_sha, got $new_sha. Reproduce: cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }} && sha256sum output/${{ matrix.case }}.out/$filename"
-              fail=1
-            fi
-          done
-          if [[ $fail -ne 0 ]]; then
-            exit 1
-          fi
-          echo "B0 bitwise compare PASS (all *.dat for ${{ matrix.case }} match golden, axis=${{ matrix.rhs_path }})"
-
-      # -----------------------------------------------------------------------
-      # Step 10b.1 — CVODE 15-key stats bitwise diff vs B0 golden
-      # (S1-ci-B #51, spec L251-274)
-      # -----------------------------------------------------------------------
-      # Calls tools/cvode_stats_diff/cvode_stats_diff.sh (#43 / PR #54) against
-      # benchmarks/<case>/B0_output/cvode_stats.txt. The canonical 15-key set
-      # is { nfe, nfeLS, nni, nli, nsetups, netf, nst, npe, nps, ncfn, ncfl,
-      # lenrw, leniw, lenrwLS, leniwLS } per F19 (nFCall dropped; not emitted
-      # by SHUD PrintFinalStats). Any key mismatch / missing / unknown = FAIL.
-      #
-      # NOTE: the workflow uses worktree golden (benchmarks/<case>/B0_output/)
-      # not `git show B0-tag:...`. Switching to B0-tag source is tracked in
-      # spec L54-56 (Requirement "B0-tag 引用方式") but is out of scope for
-      # #51 (small-PR boundary); follow-up issue covers the swap.
-      - name: Compare CVODE 15-key stats vs B0 golden (${{ matrix.case }}, axis ${{ matrix.rhs_path }})
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: |
-          golden="benchmarks/${{ matrix.case }}/B0_output/cvode_stats.txt"
-          new="default_cvode_stats.txt"
-          if [[ ! -f "$golden" ]]; then
-            echo "::error title=Missing CVODE stats golden::$golden not found; cannot run 15-key diff. Update benchmarks/${{ matrix.case }}/B0_output/cvode_stats.txt or amend manifest."
-            exit 1
-          fi
-          if [[ ! -f "$new" ]]; then
-            echo "::error title=CVODE stats archive missing::$new not produced by default run; SHUD did not emit cvode_stats.txt for ${{ matrix.case }} (axis=${{ matrix.rhs_path }}). Check default run step output."
-            exit 1
-          fi
-          if ! bash tools/cvode_stats_diff/cvode_stats_diff.sh "$new" "$golden"; then
-            echo "::error title=CVODE 15-key mismatch (${{ matrix.case }}, ${{ matrix.rhs_path }})::Any of {nfe,nfeLS,nni,nli,nsetups,netf,nst,npe,nps,ncfn,ncfl,lenrw,leniw,lenrwLS,leniwLS} drifted vs B0 golden. Reproduce: cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }} && bash \$GITHUB_WORKSPACE/tools/cvode_stats_diff/cvode_stats_diff.sh output/${{ matrix.case }}.out/cvode_stats.txt \$GITHUB_WORKSPACE/$golden"
-            exit 1
-          fi
-          echo "CVODE 15-key stats invariance PASS (${{ matrix.case }}, ${{ matrix.rhs_path }})"
-
-      # -----------------------------------------------------------------------
-      # Step 10c — run profile-on + verify bitwise neutrality vs default
-      # -----------------------------------------------------------------------
-      # Profile timer is wall-clock-only; spec scenario "profile-on neutral to
-      # default" requires the .dat output to be byte-identical to the default
-      # build at the same flag set otherwise. Compare default_rivqdown.dat to
-      # profile_rivqdown.dat by SHA256.
-      - name: Run ${{ matrix.case }} with profile-on binary
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: |
-          cp SHUD/shud_profile SHUD/shud
-          rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
-          (cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }}) 2>&1 | tee run_profile.log
-          cp SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/${{ matrix.case }}.rivqdown.dat profile_rivqdown.dat
-
-      - name: Verify profile-on bitwise neutral to default
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: |
-          default_sha=$(sha256sum default_rivqdown.dat | awk '{print $1}')
-          profile_sha=$(sha256sum profile_rivqdown.dat | awk '{print $1}')
-          echo "default SHA256: $default_sha"
-          echo "profile SHA256: $profile_sha"
-          if [[ "$default_sha" != "$profile_sha" ]]; then
-            echo "::error title=Profile neutrality FAILED::SHUD_ENABLE_PROFILE=1 build produced different ${{ matrix.case }}.rivqdown.dat than default (axis=${{ matrix.rhs_path }}). Profile timer is leaking into RHS path. default=$default_sha profile=$profile_sha"
-            exit 1
-          fi
-          echo "Profile-on bitwise neutrality PASS (axis=${{ matrix.rhs_path }})"
-
-      # -----------------------------------------------------------------------
-      # Step 10d — run dump-on + compare snapshots (after-PassValue + before-PassValue)
-      # -----------------------------------------------------------------------
-      # SHUD_DUMP_OUTPUT_DIR + SHUD_DUMP_T_VALUES + SHUD_DUMP_CASE_ID + SHUD_DUMP_SITE
-      # are the runtime env consumed by the dump hooks (see
-      # SHUD/src/ModelData/MD_rhs_dump.cpp init_config()).
-      #
-      # T_VALUES are case-relative seconds [86400, 2592000, 7776000] = 1d / 30d / 90d,
-      # all reachable inside the 90-day-truncated CI run. Hook receives
-      # ABS-MINUTES; we compute start_min = START * 1440 from the deployed
-      # cfg.para (post-fix_case_paths + 90-day rewrite). Snapshot filenames
-      # from the hook use abs-min; we map to rel-sec at compare time.
-      #
-      # Two snapshot sites: "f_applyDY" (#55 fix — diagnostic integrated DY
-      #     after PassValue → snapshot_t<v>.bin) and "f_loop_before_passvalue"
-      #     (#43 — Qe2r_Surf before PassValue → snapshot_t<v>_before_passvalue.bin).
-      # SHUD_DUMP_FNAME_SUFFIX=before_passvalue →
-      # snapshot_t<v>_before_passvalue.bin. All 4 cases have both sets of
-      # 3 goldens checked-in under benchmarks/<case>/B0_output/.
-      - name: Compute case-relative snapshot abs-min triple (${{ matrix.case }})
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        id: snapshot_times
-        # Issue #57 hardening: explicit START-not-empty check before the
-        # `$((start_day * 1440))` arithmetic. Without the guard, a missing
-        # START line silently produces `start_min=0`, all 3 t_values then
-        # land at `(0+1440)/(0+43200)/(0+129600)` — far before the actual
-        # case window — and the dump hook never fires, surfacing as a
-        # confusing "expected snapshot missing" downstream instead of the
-        # actual root cause. Fail-fast here with an actionable ::error.
-        run: |
-          cfg="SHUD/Basins/${{ matrix.case }}/input/${{ matrix.case }}/${{ matrix.case }}.cfg.para"
-          if [ ! -f "$cfg" ]; then
-            echo "::error title=cfg.para missing for snapshot timing::expected $cfg before snapshot_times computation (case=${{ matrix.case }})"
-            exit 1
-          fi
-          start_day=$(awk '$1=="START" {print $2; exit}' "$cfg")
-          if [ -z "$start_day" ]; then
-            echo "::error title=Cannot parse START from cfg.para::awk found no START key in $cfg; cannot compute snapshot t_values (case=${{ matrix.case }})"
-            exit 1
-          fi
-          start_min=$((start_day * 1440))
-          # rel-sec → abs-min:  86400/60 = 1440, 2592000/60 = 43200, 7776000/60 = 129600
-          t1=$((start_min + 1440))
-          t2=$((start_min + 43200))
-          t3=$((start_min + 129600))
-          echo "case=${{ matrix.case }} START_day=$start_day START_min=$start_min"
-          echo "abs-min triple: $t1, $t2, $t3"
-          echo "abs_t_values=${t1},${t2},${t3}" >> "$GITHUB_OUTPUT"
-          echo "t1=$t1" >> "$GITHUB_OUTPUT"
-          echo "t2=$t2" >> "$GITHUB_OUTPUT"
-          echo "t3=$t3" >> "$GITHUB_OUTPUT"
-
-      - name: Run ${{ matrix.case }} with dump-on binary (f_applyDY, after-PassValue diagnostic; #55 fix)
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        env:
-          SHUD_DUMP_OUTPUT_DIR: ${{ github.workspace }}/snapshots_new
-          SHUD_DUMP_CASE_ID: ${{ matrix.case }}
-          # #55 fix: PR #53 used the legacy MD_update.cpp:151 hook (right
-          # after the L147-149 DY[i]=0 reset loop), so the dumped 24 goldens
-          # were entirely-zero payload — only a header-pin tampering detector,
-          # no diagnostic value for B1a regression. f_applyDY hook lives at
-          # MD_f.cpp:180 + MD_rhs_core.cpp:350 (post-integration end of
-          # rhs_apply), giving the integrated DY state. Filename schema
-          # unchanged (snapshot_t<v>.bin, no suffix); only the semantic
-          # upgrades from zero-payload sentinel to actual post-PassValue
-          # diagnostic.
-          SHUD_DUMP_SITE: f_applyDY
-          SHUD_DUMP_T_VALUES: ${{ steps.snapshot_times.outputs.abs_t_values }}
-          SHUD_DUMP_T_TOL: "60"
-        run: |
-          mkdir -p "${SHUD_DUMP_OUTPUT_DIR}"
-          cp SHUD/shud_dump SHUD/shud
-          rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
-          (cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }}) 2>&1 | tee run_dump.log
-
-      - name: Run ${{ matrix.case }} with dump-on binary (f_loop_before_passvalue, #43)
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        env:
-          SHUD_DUMP_OUTPUT_DIR: ${{ github.workspace }}/snapshots_new
-          SHUD_DUMP_CASE_ID: ${{ matrix.case }}
-          SHUD_DUMP_SITE: f_loop_before_passvalue
-          SHUD_DUMP_FNAME_SUFFIX: before_passvalue
-          SHUD_DUMP_T_VALUES: ${{ steps.snapshot_times.outputs.abs_t_values }}
-          SHUD_DUMP_T_TOL: "60"
-        run: |
-          mkdir -p "${SHUD_DUMP_OUTPUT_DIR}"
-          rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
-          (cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }}) 2>&1 | tee run_dump_before_passvalue.log
-
-      - name: Compare ${{ matrix.case }} snapshots vs B0 golden (after + before PassValue)
-        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
-        run: |
-          snap_dir="${{ github.workspace }}/snapshots_new"
-          fail=0
-          # abs-min → rel-sec mapping (inverse of step "Compute case-relative snapshot abs-min triple")
-          declare -A abs_to_rel
-          abs_to_rel[${{ steps.snapshot_times.outputs.t1 }}]=86400
-          abs_to_rel[${{ steps.snapshot_times.outputs.t2 }}]=2592000
-          abs_to_rel[${{ steps.snapshot_times.outputs.t3 }}]=7776000
-
-          for abs_min in ${{ steps.snapshot_times.outputs.t1 }} ${{ steps.snapshot_times.outputs.t2 }} ${{ steps.snapshot_times.outputs.t3 }}; do
-            rel_sec=${abs_to_rel[$abs_min]}
-            for suffix in "" "_before_passvalue"; do
-              new_path="${snap_dir}/snapshot_t${abs_min}${suffix}.bin"
-              golden="benchmarks/${{ matrix.case }}/B0_output/snapshot_t${rel_sec}${suffix}.bin"
-              if [[ ! -f "$new_path" ]]; then
-                if [ -z "$suffix" ]; then
-                  site=f_applyDY
-                else
-                  site=f_loop_before_passvalue
-                fi
-                echo "::error title=Expected snapshot missing::dump-on did not produce snapshot_t${abs_min}${suffix}.bin (expected for rel_sec=${rel_sec}, site=${site}, case=${{ matrix.case }}, axis=${{ matrix.rhs_path }}). Check SHUD_DUMP_T_VALUES + cfg.para 90-day window + dump-on build."
-                fail=1
-                continue
-              fi
-              if [[ ! -f "$golden" ]]; then
-                echo "::error title=Missing golden::Generated snapshot has no archive counterpart at ${golden} (case=${{ matrix.case }})."
-                fail=1
-                continue
-              fi
-              echo "Comparing snapshot_t${abs_min}${suffix}.bin vs golden snapshot_t${rel_sec}${suffix}.bin..."
-              if ! tools/compare_snapshot/compare_snapshot "$new_path" "$golden" 2>&1 | tee -a snapshot_compare.log; then
-                echo "::error title=Snapshot diff::compare_snapshot reported diff for ${{ matrix.case }}/snapshot_t${rel_sec}${suffix}.bin (axis=${{ matrix.rhs_path }}); see snapshot_compare.log. Reproduce: tools/compare_snapshot/compare_snapshot benchmarks/${{ matrix.case }}/B0_output/snapshot_t${rel_sec}${suffix}.bin ${new_path}"
-                fail=1
-              fi
-            done
-          done
-          if [[ $fail -ne 0 ]]; then
-            exit 1
-          fi
-          echo "All 6 snapshots (3 t_values × 2 sites) bitwise identical to B0 golden for ${{ matrix.case }} (axis=${{ matrix.rhs_path }})"
-
-      # -----------------------------------------------------------------------
-      # Step 11 — verify golden SHA256 manifest (PR #54 round-1 F12)
+      # Step 7 — verify golden SHA256 manifest (PR #54 round-1 F12)
       # -----------------------------------------------------------------------
       # tools/check_goldens/check_goldens.sh parses the 24 SHA256 rows from
       # docs/build_manifest.md (12 after-PassValue + 12 before-PassValue),
@@ -821,15 +374,14 @@ jobs:
         run: bash tools/check_goldens/check_goldens.sh
 
       # -----------------------------------------------------------------------
-      # Step 12 — failure artifact upload
+      # Step 8 — failure artifact upload
       # -----------------------------------------------------------------------
-      # Per spec Requirement "CI artifact uploads on failure": on any failure
-      # (build, run, or compare), package build logs + new outputs + new
-      # snapshots + compare stdout/stderr into `baseline-failure-diff`.
-      # `if: failure()` fires only when an earlier step failed; the artifact
-      # is keyed by (case, axis) to disambiguate matrix-entry failures.
-      # `if-no-files-found: ignore` because skip-label runs produce none of
-      # these and the action would warn on an empty match list.
+      # Captures the 3-mode build logs (default / profile / dump) when any
+      # earlier step fails so a maintainer can debug without re-running the
+      # workflow. `if: failure()` fires only when an earlier step failed;
+      # `if-no-files-found: ignore` keeps the step quiet on skip-label runs
+      # (no logs produced). Bitwise / CVODE / snapshot diff lives on local +
+      # server (see docs/s1_summary.md), so no run logs are uploaded here.
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
@@ -841,96 +393,4 @@ jobs:
             SHUD/build_default.log
             SHUD/build_profile.log
             SHUD/build_dump.log
-            run_default.log
-            run_profile.log
-            run_dump.log
-            run_dump_before_passvalue.log
-            default_rivqdown.dat
-            profile_rivqdown.dat
-            default_cvode_stats.txt
-            snapshot_compare.log
-            snapshots_new/**
 
-      # ----------------------------------------------------------------------
-      # Step 13 — propose-status-matrix-update (S0-12 / openMP #16)
-      #
-      # Per `openspec/.../specs/status-matrix/spec.md` Requirement
-      # "Matrix updated by CI on baseline runs": on a PR that runs the real
-      # compare path (data_available=true and the SHA256/snapshot gates all
-      # PASS), comment a suggested diff for `docs/status_matrix.md` updating
-      # the (B0, <case>) cell to PASS for the merging commit. Maintainer
-      # applies via a follow-up PR; CI never push back to baseline/current
-      # (per spec L19 — avoids concurrent-write races and partial writes
-      # under skip-label PRs).
-      #
-      # Skip conditions (any one suppresses the proposer):
-      #   - PR carries `skip-baseline-ci` label (workflow already early-exits)
-      #   - This is a push / schedule event (no PR to comment on)
-      #   - Data probe set `data_available=false` (no real compare to attest)
-      #   - Any earlier step failed (already covered by `if: success()`)
-      #   - Matrix axis is LEGACY_RHS=1 (legacy path PASS does not warrant
-      #     a B1a row update; only LEGACY_RHS=0 axis attests B1a binary)
-      # ----------------------------------------------------------------------
-      - name: Propose status-matrix update
-        if: >
-          success() &&
-          steps.skip_check.outputs.skipped != 'true' &&
-          github.event_name == 'pull_request' &&
-          steps.data_probe.outputs.data_available == 'true' &&
-          matrix.rhs_path == 'LEGACY_RHS=0'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUM: ${{ github.event.pull_request.number }}
-          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
-          CASE_NAME: ${{ matrix.case }}
-        run: |
-          # Compose the suggested matrix diff. Per spec scenario "CI proposes
-          # update via PR comment", the comment SHOULD include a diff-style
-          # snippet a maintainer can copy verbatim into a follow-up PR.
-          # The comment marker includes case name so per-case proposals do not
-          # overlap (matrix is keliya-only today; multi-case naming kept for
-          # future scope-change flexibility).
-          cat > /tmp/matrix_comment.md <<EOF
-          <!-- s0-12-matrix-proposer:${CASE_NAME} -->
-          ## Status matrix update proposal (CI auto-generated, case=${CASE_NAME})
-
-          The serial-baseline workflow built + compared \`${CASE_NAME}\` at commit
-          \`$COMMIT_SHA\` on the LEGACY_RHS=0 axis and the (B0, ${CASE_NAME})
-          cell is PASS as of this run. Per \`status-matrix\` spec L19, CI does
-          **not** push to \`baseline/current\` directly. Maintainer to apply
-          the suggested edit below via a follow-up PR (or merge this PR if it
-          already touches \`docs/status_matrix.md\`).
-
-          \`\`\`diff
-          --- a/docs/status_matrix.md
-          +++ b/docs/status_matrix.md
-          @@ B0 row evidence @@
-          -| ${CASE_NAME} | PASS | ... existing evidence ... |
-          +| ${CASE_NAME} | PASS | ... existing evidence ... + CI confirmed @ \`$COMMIT_SHA\` |
-          \`\`\`
-
-          ### What was actually verified
-
-          - Default build (\`SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 LEGACY_RHS=0\`) → ${CASE_NAME}
-            output SHA256 matches \`benchmarks/${CASE_NAME}/B0_output/*.dat\`
-          - Profile-on build (\`SHUD_ENABLE_PROFILE=1\`) → bitwise neutral to default
-          - Dump-on build (\`SHUD_DUMP_RHS=1\`) → 6 snapshots (3 t × 2 sites)
-            match \`benchmarks/${CASE_NAME}/B0_output/snapshot_t*.bin\`
-
-          Other rows / cells in the matrix are not affected by this run.
-          EOF
-
-          # Idempotency: match on a stable HTML-comment marker (case-scoped)
-          # that survives title edits, emoji rendering changes, and
-          # user-added prefixes. `gh pr view` errors propagate (no 2>/dev/null
-          # swallow) so a 403 surfaces loudly instead of silently posting a
-          # duplicate.
-          existing=$(gh pr view "$PR_NUM" --json comments \
-            --jq ".comments[] | select(.body | contains(\"<!-- s0-12-matrix-proposer:${CASE_NAME} -->\")) | .url" \
-            | head -1)
-          if [[ -n "$existing" ]]; then
-            echo "::notice title=status-matrix proposer::existing proposer comment for ${CASE_NAME} found at $existing; skipping duplicate"
-            exit 0
-          fi
-          gh pr comment "$PR_NUM" --body-file /tmp/matrix_comment.md
-          echo "::notice title=status-matrix proposer::posted (B0, ${CASE_NAME}) PASS suggestion to PR #$PR_NUM"
