@@ -3,7 +3,6 @@
 ## Purpose
 
 S1d.2 阶段交付。把过载三义的 `_OPENMP_ON` 单宏拆成三个正交宏（`SHUD_ENABLE_OPENMP_RHS` 控制 rhs_core OMP 分支编译 / `SHUD_USE_OPENMP_NVECTOR` 控制 N_Vector 后端 + `-lsundials_nvecopenmp` 链接 / `SHUD_LEGACY_OMP_RHS` 控制 `_omp` 三函数编译），全树退役 `_OPENMP_ON` / `USE_RHS_CORE` / `N_VDestroy_Serial`；`f.cpp` 6 处 `NV_DATA_OMP` / `NV_DATA_S` 统一为 generic `N_VGetArrayPointer`，`Macros.hpp` 的 `SET_VALUE` 改 `N_VGetArrayPointer(v)[i]`；S1d-part2 独立 sub-PR，4 case bitwise vs B0 PASS。
-
 ## Requirements
 ### Requirement: 三正交宏取代 `_OPENMP_ON` 单宏
 
@@ -18,7 +17,7 @@ S1 默认（三宏全 OFF）SHALL 与 B0 binary 完全等价的 serial 路径运
 #### Scenario: Config A 默认全 OFF 与 B0 bitwise
 
 - **WHEN** 开发者执行 `make shud SHUD_ENABLE_OPENMP_RHS=0 SHUD_USE_OPENMP_NVECTOR=0 SHUD_LEGACY_OMP_RHS=0`（或等价的 `make shud` 默认调用），并在 keliya / xinanjiang_upstream / qinyijiang / qhh 4 个本地 case 上跑完 90 天截断 run
-- **THEN** 4 case 的全部 `B0_output/*.dat` SHA256 SHALL 与 `git show B0-tag:benchmarks/<case>/B0_output/<file>` 完全相等，CVODE stats 通过 `tools/cvode_stats_diff/cvode_stats_diff.sh` 对 canonical 15-key set（`nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS`）全键 diff exit code = 0（F19 修订：归档不含 `nFCall`，由独立 capability 跟踪）
+- **THEN** 4 case 的全部 `B0_output/*.dat` SHA256 SHALL 与 `git show B0-tag:benchmarks/<case>/B0_output/<file>` 完全相等，CVODE stats 通过 `tools/cvode_stats_diff/cvode_stats_diff.sh` 对 canonical 15-key set 全键 diff exit code = 0（详 `openspec/glossary.md` §CVODE canonical 15-key set；F19 修订：归档不含 `nFCall`，由独立 capability 跟踪）
 
 #### Scenario: Config B SHUD_LEGACY_OMP_RHS=1 编译入 _omp 符号（value-add = binary 含 _omp 符号 + Serial 路径无 perturbation）
 
@@ -27,7 +26,7 @@ Config B 的 value-add **不是**单纯"与 B0 bitwise 相等"（runtime 默认�
 - **WHEN** 开发者执行 `make shud SHUD_ENABLE_OPENMP_RHS=0 SHUD_USE_OPENMP_NVECTOR=0 SHUD_LEGACY_OMP_RHS=1`
 - **THEN**（primary value-add）`nm shud | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' | wc -l` SHALL 输出 `3`（三个 `_omp` 符号在 binary 符号表中确实就位，type 为 `T` / `t`，text section），这是本 Config 的核心 value-add——验证 compile + link 路径在 S2 启用前已就位
 - **AND**（smoke check）在 4 本地 case 上跑 90 天截断 run，全部 `B0_output/*.dat` SHA256 与 B0-tag 完全相等——验证编译时引入 `_omp` symbols 未扰动 Serial 路径的代码生成 / 静态初始化顺序 / TU 布局（runtime 默认仍走 `rhs_core(Serial)`，`_omp` 三函数仅编译进 binary 不被调用，bitwise 平凡成立；反过来 bitwise PASS 即证明加 `_omp` TU 不引入隐式副作用）
-- **AND**（smoke check）`tools/cvode_stats_diff/cvode_stats_diff.sh` 15-key 对比 exit code = 0（同上 smoke check 语义，CVODE stats 15 键全键不被 `_omp` TU 编译入扰动）
+- **AND**（smoke check）`tools/cvode_stats_diff/cvode_stats_diff.sh` canonical 15-key 对比 exit code = 0（同上 smoke check 语义，CVODE stats 全键不被 `_omp` TU 编译入扰动）
 
 #### Scenario: Config C SHUD_ENABLE_OPENMP_RHS=1 smoke-compile 通过 + runtime abort
 
@@ -44,8 +43,8 @@ Config B 的 value-add **不是**单纯"与 B0 bitwise 相等"（runtime 默认�
 `_OPENMP_ON` 宏在 S1a / S1b / S1c 期间 SHALL 保持原样存在（这三个 substage 不动 OpenMP 宏分派，仅做 RHS 三段提取）；本 capability（S1d.2）完成后，整个 SHUD submodule 源码（`SHUD/src/**` 与 `SHUD/Makefile`）MUST NOT 再含有 `_OPENMP_ON` 文字标识符。所有历史引用 `_OPENMP_ON` 的代码 MUST 迁移至三宏中**对应正确关注点**的新宏：
 
 - `SHUD/src/Model/f.cpp` 中 `f` / `f_surf` / `f_unsat` / `f_gw` / `f_river` / `f_lake` 的 RHS 分派 → `SHUD_ENABLE_OPENMP_RHS`（S1 阶段统一改走 `rhs_core(Serial)`，相关 ifdef 移除）
-- `SHUD/src/Model/shud.cpp` N_Vector 创建（L55–L75）→ `SHUD_USE_OPENMP_NVECTOR`
-- `SHUD/src/Model/Macros.hpp` `#include "omp.h"` / `#include "nvector/nvector_openmp.h"` / `SET_VALUE` → 由 `SHUD_USE_OPENMP_NVECTOR` 控制 header 引入，`SET_VALUE` 走 generic 接口（见下条 Requirement）
+- `SHUD/src/Model/shud.cpp::SHUD` 中 N_Vector 创建分支（`udata` / `du` 在 implicit coupled 路径，原 `N_VNew_*` 调用块）→ `SHUD_USE_OPENMP_NVECTOR`
+- `SHUD/src/Model/Macros.hpp::SET_VALUE` 宏 / `#include "omp.h"` / `#include "nvector/nvector_openmp.h"` → 由 `SHUD_USE_OPENMP_NVECTOR` 控制 header 引入，`SET_VALUE` 走 generic 接口（见下条 Requirement）
 - `SHUD/Makefile` `CXX_OPENMP_DEFINE = -D_OPENMP_ON` → 删除该行，按三宏分别注入 `-DSHUD_ENABLE_OPENMP_RHS=1` / `-DSHUD_USE_OPENMP_NVECTOR=1` / `-DSHUD_LEGACY_OMP_RHS=1`
 
 #### Scenario: 本 capability landed 后源码不再含 `_OPENMP_ON`（grep 全树零命中）
@@ -99,7 +98,7 @@ Config B 的 value-add **不是**单纯"与 B0 bitwise 相等"（runtime 默认�
 
 ### Requirement: `Macros.hpp` 中 `SET_VALUE` 宏迁移至 `N_VGetArrayPointer(v)[i]`
 
-`SHUD/src/Model/Macros.hpp` L11–L18 中由 `#ifdef _OPENMP_ON` 二选一定义的 `SET_VALUE(v, i)` 宏（`NV_Ith_OMP(v,i)` vs `NV_Ith_S(v,i)`）MUST 改为 SUNDIALS generic 调用 **`N_VGetArrayPointer(v)[i]`**（与 `f.cpp` 中 6 处 `NV_DATA_OMP`/`NV_DATA_S` → `N_VGetArrayPointer` 替换对称统一；**不**使用 `NV_Ith(v,i)`——后者在 SUNDIALS 6.0.0 中是 type-specific 派生宏，无 generic 等价物，会破坏一致性）。改造后 `Macros.hpp` 中 MUST NOT 再含任何由 N_Vector 后端类型决定的 ifdef 分支；`#include "omp.h"` 与 `#include "nvector/nvector_openmp.h"` MUST 由 `SHUD_USE_OPENMP_NVECTOR=1` 守卫，OFF 时仅引入 `#include "nvector/nvector_serial.h"`。
+`SHUD/src/Model/Macros.hpp::SET_VALUE` 宏（原由 `#ifdef _OPENMP_ON` 二选一定义为 `NV_Ith_OMP(v,i)` 或 `NV_Ith_S(v,i)`）MUST 改为 SUNDIALS generic 调用 **`N_VGetArrayPointer(v)[i]`**（与 `f.cpp` 中 6 处 `NV_DATA_OMP`/`NV_DATA_S` → `N_VGetArrayPointer` 替换对称统一；**不**使用 `NV_Ith(v,i)`——后者在 SUNDIALS 6.0.0 中是 type-specific 派生宏，无 generic 等价物，会破坏一致性）。改造后 `Macros.hpp` 中 MUST NOT 再含任何由 N_Vector 后端类型决定的 ifdef 分支；`#include "omp.h"` 与 `#include "nvector/nvector_openmp.h"` MUST 由 `SHUD_USE_OPENMP_NVECTOR=1` 守卫，OFF 时仅引入 `#include "nvector/nvector_serial.h"`。
 
 #### Scenario: SET_VALUE 统一使用 `N_VGetArrayPointer(v)[i]` 形式
 
@@ -130,7 +129,7 @@ Config B 的 value-add **不是**单纯"与 B0 bitwise 相等"（runtime 默认�
 
 ### Requirement: N_Vector 创建按 `SHUD_USE_OPENMP_NVECTOR` 分派
 
-`SHUD/src/Model/shud.cpp` L55–L75 内 N_Vector 创建调用（`udata` / `du` 在 implicit coupled 路径）MUST 改为按 `SHUD_USE_OPENMP_NVECTOR` 决定后端。`SHUD_uncouple` 路径的 u1–u5 / du1–du5 在 S1d.2 阶段**保留 hardcoded `N_VNew_Serial`**，作 S1 阶段 scope 边界（uncouple path 在 S1 全程不参与 OpenMP NVector 验证，P8-NVector 启用时一次性补齐）；该决定在源码处加一行 comment 说明 scope intent。
+`SHUD/src/Model/shud.cpp::SHUD` 内 N_Vector 创建调用（`udata` / `du` 在 implicit coupled 路径，对应原 `N_VNew_*` 创建块）MUST 改为按 `SHUD_USE_OPENMP_NVECTOR` 决定后端。`SHUD/src/Model/shud.cpp::SHUD_uncouple` 路径的 u1–u5 / du1–du5 在 S1d.2 阶段**保留 hardcoded `N_VNew_Serial`**，作 S1 阶段 scope 边界（uncouple path 在 S1 全程不参与 OpenMP NVector 验证，P8-NVector 启用时一次性补齐）；该决定在源码处加一行 comment 说明 scope intent。
 
 - `SHUD_USE_OPENMP_NVECTOR=1` → 走 `N_VNew_OpenMP(NY, MD->CS.num_threads, sunctx)`
 - `SHUD_USE_OPENMP_NVECTOR=0` → 走 `N_VNew_Serial(NY, sunctx)`（S1 阶段默认）
@@ -159,7 +158,7 @@ S1 全程默认 `SHUD_USE_OPENMP_NVECTOR=0`，vector 创建一律走 Serial 后�
 
 ### Requirement: `N_VDestroy_Serial` 统一为 generic `N_VDestroy`
 
-`SHUD/src/Model/shud.cpp` L111–L112 与 L323–L333 中全部 `N_VDestroy_Serial(v)` 调用 MUST 替换为 generic `N_VDestroy(v)`。Generic 接口 SHALL 按 vector type-tag 自动 dispatch 到正确 destructor（Serial / OpenMP），消除 master plan §4.19 识别的 "N_VNew_OpenMP 创建的 vector 用 N_VDestroy_Serial 销毁" 的 UB 风险。S1 阶段虽然默认仍走 Serial 后端（`SHUD_USE_OPENMP_NVECTOR=0`），但本修复 MUST 一次落地以保所有后续阶段（P8-NVector 启用 OpenMP NVector 时）安全。
+`SHUD/src/Model/shud.cpp::SHUD` 与 `SHUD/src/Model/shud.cpp::SHUD_uncouple` 内全部 `N_VDestroy_Serial(v)` 调用 MUST 替换为 generic `N_VDestroy(v)`。Generic 接口 SHALL 按 vector type-tag 自动 dispatch 到正确 destructor（Serial / OpenMP），消除 master plan §4.19 识别的 "N_VNew_OpenMP 创建的 vector 用 N_VDestroy_Serial 销毁" 的 UB 风险。S1 阶段虽然默认仍走 Serial 后端（`SHUD_USE_OPENMP_NVECTOR=0`），但本修复 MUST 一次落地以保所有后续阶段（P8-NVector 启用 OpenMP NVector 时）安全。
 
 #### Scenario: shud.cpp 不再含 N_VDestroy_Serial 残留
 

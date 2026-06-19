@@ -7,7 +7,6 @@ S1d.1 阶段交付。引入 `enum class ExecPolicy { Serial, StrictOMP, Producti
 ## Scope
 
 **Temporal scope note**: 本 capability requirements apply at S1d.1 completion; S1a/S1b/S1c interim states (three-parameter `rhs_core(double*, double*, double)`, `USE_RHS_CORE` 脚手架仍在) 分别由 `rhs-core-scaffolding` / `rhs-core-flux-extraction` / `rhs-core-applydy-extraction` capabilities 治理。本 capability 的 `rhs_core(Y, DY, t, ExecPolicy)` 四参重载 + switch dispatch 在 S1d.1 引入。
-
 ## Requirements
 ### Requirement: ExecPolicy 枚举定义与 rhs_core 调度入口
 
@@ -87,19 +86,19 @@ S1d.2 完成后，`f.cpp` SHALL 默认无条件调用 `rhs_core(ExecPolicy::Seri
 
 ### Requirement: LEGACY_RHS 编译宏保留 A/B 对比能力
 
-`LEGACY_RHS` 编译宏 SHALL 保留以支持 B0 路径与 B1a 路径在同一份源码下 A/B bitwise 对比。`LEGACY_RHS=1` 编译产物 MUST 让 `f()` 入口路由到原始 `Model_Data::f_update` / `f_loop` / `f_applyDY`（B0 二进制等价路径，源码位于 `SHUD/src/ModelData/MD_update.cpp` / `MD_f.cpp`）；`LEGACY_RHS=0`（默认）MUST 路由到 `rhs_core(ExecPolicy::Serial)`（B1a 路径）。两种路径在 keliya / xinanjiang_upstream / qinyijiang / qhh 四个 local case 上 SHALL 与 `B0-tag` 归档的输出 bitwise identical（SHA256 完全相等）。CVODE 统计量按 canonical 15-key set（`nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS`）通过 `tools/cvode_stats_diff/cvode_stats_diff.sh` 全键对比，两种编译下 MUST 与 B0 一致（F19 修订：归档不含 `nFCall`，由独立 capability 跟踪）。
+`LEGACY_RHS` 编译宏 SHALL 保留以支持 B0 路径与 B1a 路径在同一份源码下 A/B bitwise 对比。`LEGACY_RHS=1` 编译产物 MUST 让 `f()` 入口路由到原始 `Model_Data::f_update` / `f_loop` / `f_applyDY`（B0 二进制等价路径，源码位于 `SHUD/src/ModelData/MD_update.cpp` / `MD_f.cpp`）；`LEGACY_RHS=0`（默认）MUST 路由到 `rhs_core(ExecPolicy::Serial)`（B1a 路径）。两种路径在 keliya / xinanjiang_upstream / qinyijiang / qhh 四个 local case 上 SHALL 与 `B0-tag` 归档的输出 bitwise identical（SHA256 完全相等）。CVODE 统计量按 canonical 15-key set（详 `openspec/glossary.md` §CVODE canonical 15-key set）通过 `tools/cvode_stats_diff/cvode_stats_diff.sh` 全键对比，两种编译下 MUST 与 B0 一致（F19 修订：归档不含 `nFCall`，由独立 capability 跟踪）。
 
 #### Scenario: LEGACY_RHS=0 默认编译 vs B0 bitwise PASS（4 local case）
 
 - **WHEN** 用 `make shud LEGACY_RHS=0`（即默认）编译，逐一跑 keliya / xinanjiang_upstream / qinyijiang / qhh
 - **THEN** 每个 case 的 `B0_output/*.dat` SHA256 与 `git show B0-tag:benchmarks/<case>/B0_output/<file>` 完全相等
-- **AND** `tools/cvode_stats_diff/cvode_stats_diff.sh <run.txt> <(git show B0-tag:benchmarks/<case>/B0_output/cvode_stats.txt)` exit code = 0（15 个键全键命中且数值完全相等）
+- **AND** `tools/cvode_stats_diff/cvode_stats_diff.sh <run.txt> <(git show B0-tag:benchmarks/<case>/B0_output/cvode_stats.txt)` exit code = 0（canonical 15-key set 全键命中且数值完全相等；详 `openspec/glossary.md` §CVODE canonical 15-key set）
 
 #### Scenario: LEGACY_RHS=1 编译 vs B0 bitwise PASS（4 local case）
 
 - **WHEN** 用 `make shud LEGACY_RHS=1` 编译，逐一跑同样四个 local case
 - **THEN** 每个 case 输出与 `B0-tag` 归档 SHA256 完全相等
-- **AND** `tools/cvode_stats_diff/cvode_stats_diff.sh` 15-key 对比 exit code = 0
+- **AND** `tools/cvode_stats_diff/cvode_stats_diff.sh` canonical 15-key 对比 exit code = 0
 - **AND** 该路径走原 `Model_Data::f_update` / `f_loop` / `f_applyDY`（`SHUD/src/ModelData/`），不进入 `rhs_core`
 
 ### Requirement: LEGACY_RHS=0 binary 保留 legacy 符号以便复现

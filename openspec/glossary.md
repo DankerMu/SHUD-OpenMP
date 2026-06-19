@@ -95,7 +95,35 @@ _Avoid_: 误称 dense solver
 用差分近似 `Jv ≈ (f(y+σv)−f(y))/σ` 而不显式构造 Jacobian；故每次 Krylov 迭代调一次完整 RHS。
 
 **nfe / nfeLS**:
-RHS 调用计数。nfe = 积分器自身调用数；nfeLS = Krylov 线性求解引发的 RHS 调用数。
+RHS 调用计数。nfe = 积分器自身调用数；nfeLS = Krylov 线性求解引发的 RHS 调用数。详见下条 §CVODE canonical 15-key set。
+
+**CVODE canonical 15-key set**:
+B0 / B1a / P-strict bitwise neutrality + CVODE stats invariance gate 用的 **15 个 canonical stat key**（全部来自 SUNDIALS 6.0.0 CVODE / CVSpils API 的 `PrintFinalStats` 输出，写入 `benchmarks/<case>/B0_output/cvode_stats.txt` 归档；任一键漂移即视为门控 FAIL，即使 `.dat` 输出 SHA256 全等）。15 个键完整集合：
+
+| Key | SUNDIALS API | 语义 |
+|---|---|---|
+| `nfe` | `CVodeGetNumRhsEvals` | 积分器自身 RHS 调用数 |
+| `nfeLS` | `CVSpilsGetNumRhsEvals` | Krylov 线性求解引发的 RHS 调用数 |
+| `nni` | `CVodeGetNumNonlinSolvIters` | 非线性求解迭代数 |
+| `nli` | `CVSpilsGetNumLinIters` | 线性 (Krylov) 求解迭代数 |
+| `nsetups` | `CVodeGetNumLinSolvSetups` | 线性求解器 setup 次数 |
+| `netf` | `CVodeGetNumErrTestFails` | 误差控制 step rejection 次数 |
+| `nst` | `CVodeGetNumSteps` | 总积分步数 |
+| `npe` | `CVSpilsGetNumPrecEvals` | preconditioner evaluation 次数 |
+| `nps` | `CVSpilsGetNumPrecSolves` | preconditioner solve 次数 |
+| `ncfn` | `CVodeGetNumNonlinSolvConvFails` | 非线性求解 convergence failure 次数 |
+| `ncfl` | `CVSpilsGetNumConvFails` | 线性求解 convergence failure 次数 |
+| `lenrw` | `CVodeGetWorkSpace` | 实数 workspace 长度 |
+| `leniw` | `CVodeGetWorkSpace` | 整数 workspace 长度 |
+| `lenrwLS` | `CVSpilsGetWorkSpace` | 线性求解器实数 workspace 长度 |
+| `leniwLS` | `CVSpilsGetWorkSpace` | 线性求解器整数 workspace 长度 |
+
+**为什么 `nFCall` 不在 canonical 15-key 内**：`nFCall` 是 SHUD 侧在 `f.cpp::f()` 入口处单独 instrumented 的 RHS 调用 counter（不来自 SUNDIALS API），未写入 `cvode_stats.txt` 归档，由独立 capability 跟踪（F19 修订）。canonical 15-key 与 SUNDIALS API 一一对应、稳定可移植，nFCall 作为 SHUD 内部诊断口径不进入 cross-version invariance gate。
+
+**SUNDIALS 6.0.0 API 名注**：上表中 6 个 `CVSpils*` 名是 SUNDIALS legacy alias（兼容保留），SHUD 6.0.0 实际调用的是 unified `CVodeGet*Lin*` API（见 `SHUD/src/Equations/cvode_config.cpp::PrintFinalStats`：`CVodeGetLinWorkSpace` / `CVodeGetNumLinIters` / `CVodeGetNumPrecEvals` / `CVodeGetNumPrecSolves` / `CVodeGetNumLinConvFails` / `CVodeGetNumLinRhsEvals`）。两套 API 返回同一 counter，bitwise neutrality 不受影响；grep SHUD 源码用 unified 名。
+
+**唯一 enforcement point**：`tools/cvode_stats_diff/cvode_stats_diff.sh` exit code 0 = 15 键全等，任一键缺失 / 数值不等 → exit 非零 + `MISMATCH key=<k> expected=<gold> got=<new>` 报告。SUNDIALS 升级时只改本条目 + diff tool key list，不改 spec。
+_Avoid_: 在 spec 内枚举 15 个 key 名（重复 10 处即 entropy；引用本条目即可）
 
 **预条件器 (preconditioner)**:
 降低 Krylov 迭代数（nfeLS）的算子；P8-precond 为 P8 第一优先。

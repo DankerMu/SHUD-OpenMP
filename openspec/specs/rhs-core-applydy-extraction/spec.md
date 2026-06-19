@@ -11,15 +11,14 @@ S1c 阶段交付。把 `f_applyDY` 的 integrated DY 累加（element DY + river
 **头文件命名约定**：实现文件 `SHUD/src/Model/MD_rhs_core.cpp`；header `SHUD/src/Model/MD_rhs_core.hpp`（与 scaffolding / flux spec 一致）。
 
 **Temporal scope note**：本 capability 中所有 `_OPENMP_ON` 相关 Scenarios 仅适用于 S1c PR 评审上下文；post-S1d.2 由 `openmp-macro-decoupling` capability 退役 `_OPENMP_ON`（拆分为 `SHUD_ENABLE_OPENMP_RHS` / `SHUD_USE_OPENMP_NVECTOR` / `SHUD_LEGACY_OMP_RHS` 三正交宏），相关 Scenarios 被 superseded。
-
 ## Requirements
 ### Requirement: rhs_apply body is verbatim copy of serial f_applyDY
 
-`SHUD/src/Model/MD_rhs_core.cpp` 中新增的 `Model_Data::rhs_apply(double *DY, double t)` SHALL 把 `Model_Data::f_applyDY()`（`SHUD/src/ModelData/MD_f.cpp:76-182 (f_applyDY)`）的循环体（element DY + river DY + lake DY + 可选 `SHUD_DUMP_RHS` hook）逐行搬运到新函数体，不得改写任何表达式、不得调整三个 for 循环的执行顺序、不得新增 / 删除任何全局变量读写。被搬运的代码 MUST 与 `git show B0-tag:SHUD/src/ModelData/MD_f.cpp` 在 `f_applyDY()` 函数体（L76–L182）区间逻辑等价；唯一允许的差异是函数名（`f_applyDY` → `rhs_apply`）+ `#ifdef SHUD_DUMP_RHS` hook 字符串 tag。`rhs_apply` 保持 `Model_Data::` 成员函数前缀（与 S1a `rhs_update` / S1b `rhs_flux` 一致；S1a 实施时已确认 `iSF`/`iUS`/`iGW`/`iRIV`/`iLAKE` 宏需要 `this` scope，详 PR #58 工作总结）。
+`SHUD/src/Model/MD_rhs_core.cpp` 中新增的 `Model_Data::rhs_apply(double *DY, double t)` SHALL 把 `Model_Data::f_applyDY()`（`SHUD/src/ModelData/MD_f.cpp::f_applyDY`）的循环体（element DY + river DY + lake DY + 可选 `SHUD_DUMP_RHS` hook）逐行搬运到新函数体，不得改写任何表达式、不得调整三个 for 循环的执行顺序、不得新增 / 删除任何全局变量读写。被搬运的代码 MUST 与 `git show B0-tag:SHUD/src/ModelData/MD_f.cpp` 中 `f_applyDY()` 函数体逻辑等价；唯一允许的差异是函数名（`f_applyDY` → `rhs_apply`）+ `#ifdef SHUD_DUMP_RHS` hook 字符串 tag。`rhs_apply` 保持 `Model_Data::` 成员函数前缀（与 S1a `rhs_update` / S1b `rhs_flux` 一致；S1a 实施时已确认 `iSF`/`iUS`/`iGW`/`iRIV`/`iLAKE` 宏需要 `this` scope，详 PR #58 工作总结）。
 
 #### Scenario: Diff vs B0 f_applyDY shows only signature changes
 
-- **WHEN** reviewer 在 S1c PR 上对 `git show B0-tag:SHUD/src/ModelData/MD_f.cpp` 的 `f_applyDY()` 函数体（`MD_f.cpp:76-182`）与 `SHUD/src/Model/MD_rhs_core.cpp` 中 `rhs_apply()` 函数体做逐行 diff
+- **WHEN** reviewer 在 S1c PR 上对 `git show B0-tag:SHUD/src/ModelData/MD_f.cpp` 的 `f_applyDY()` 函数体（`MD_f.cpp::f_applyDY`）与 `SHUD/src/Model/MD_rhs_core.cpp` 中 `rhs_apply()` 函数体做逐行 diff
 - **THEN** 输出 SHALL 只包含函数签名 / `MD->` 前缀 / `#ifdef SHUD_DUMP_RHS` hook 名称三类差异
 - **AND** 任何表达式 / 控制流 / 循环边界 / 浮点常量 / 数学函数调用 MUST 字符级一致
 
@@ -31,7 +30,7 @@ S1c 阶段交付。把 `f_applyDY` 的 integrated DY 累加（element DY + river
 
 ### Requirement: River DY uses serial formula with length + area clamp + fun_dAtodY
 
-`rhs_apply()` 在 river DY 计算分支 SHALL 严格沿用 serial `f_applyDY()`（`SHUD/src/ModelData/MD_f.cpp:76-182` 内 river DY 段）的三步公式：① `DY[iRIV] = (- QrivUp[i] - QrivSurf[i] - QrivSub[i] - QrivDown[i] + Riv[i].qBC) / Riv[i].Length;` ② `if(DY[iRIV] < -1. * Riv[i].u_CSarea) DY[iRIV] = -1. * Riv[i].u_CSarea;` ③ `DY[iRIV] = fun_dAtodY(DY[iRIV], Riv[i].u_topWidth, Riv[i].bankslope);`。MUST NOT 使用 `_omp` 路径（`SHUD/src/ModelData/MD_f_omp.cpp:9-67` 内 `f_applyDY_omp()` 的 river DY 段）中"直接除以 `u_TopArea`"的简化公式，原因详见 master plan §4.3。Neumann 边界条件分支（`Riv[i].BC > 0` → `DY[iRIV] = 0.`）也 MUST 完整保留。
+`rhs_apply()` 在 river DY 计算分支 SHALL 严格沿用 serial `Model_Data::f_applyDY()`（`SHUD/src/ModelData/MD_f.cpp::f_applyDY` 内 river DY 段）的三步公式：① `DY[iRIV] = (- QrivUp[i] - QrivSurf[i] - QrivSub[i] - QrivDown[i] + Riv[i].qBC) / Riv[i].Length;` ② `if(DY[iRIV] < -1. * Riv[i].u_CSarea) DY[iRIV] = -1. * Riv[i].u_CSarea;` ③ `DY[iRIV] = fun_dAtodY(DY[iRIV], Riv[i].u_topWidth, Riv[i].bankslope);`。MUST NOT 使用 `_omp` 路径（`SHUD/src/ModelData/MD_f_omp.cpp::f_applyDY_omp` 内 river DY 段）中"直接除以 `u_TopArea`"的简化公式，原因详见 master plan §4.3。Neumann 边界条件分支（`Riv[i].BC > 0` → `DY[iRIV] = 0.`）也 MUST 完整保留。
 
 #### Scenario: River DY divisor is Riv[i].Length not u_TopArea
 
@@ -52,7 +51,7 @@ S1c 阶段交付。把 `f_applyDY` 的 integrated DY 累加（element DY + river
 
 ### Requirement: Lake DY computation preserved
 
-`rhs_apply()` 在 lake DY 计算分支 SHALL 完整保留 serial `f_applyDY()`（`SHUD/src/ModelData/MD_f.cpp:76-182` 内 lake DY 段）的 lake DY 公式：`DY[iLAKE] = qLakePrcp[i] - qLakeEvap[i] + (QLakeRivIn[i] - QLakeRivOut[i] + QLakeSub[i] + QLakeSurf[i]) / y2LakeArea[i];`，循环上界保持 `i < NumLake`，DEBUG 模式 `CheckNANi(DY[iLAKE], ...)` 同步保留。`_omp` 路径（`SHUD/src/ModelData/MD_f_omp.cpp:9-67` 的 `f_applyDY_omp()`）完全缺失 lake DY 计算（master plan §S2.5 / §4.2），但 S1c MUST 保留 serial lake 语义不变。
+`rhs_apply()` 在 lake DY 计算分支 SHALL 完整保留 serial `Model_Data::f_applyDY()`（`SHUD/src/ModelData/MD_f.cpp::f_applyDY` 内 lake DY 段）的 lake DY 公式：`DY[iLAKE] = qLakePrcp[i] - qLakeEvap[i] + (QLakeRivIn[i] - QLakeRivOut[i] + QLakeSub[i] + QLakeSurf[i]) / y2LakeArea[i];`，循环上界保持 `i < NumLake`，DEBUG 模式 `CheckNANi(DY[iLAKE], ...)` 同步保留。`_omp` 路径（`SHUD/src/ModelData/MD_f_omp.cpp::f_applyDY_omp`）完全缺失 lake DY 计算（master plan §S2.5 / §4.2），但 S1c MUST 保留 serial lake 语义不变。
 
 **Lake DY divide-by-zero 保留 UB 说明**：serial `f_applyDY()` lake DY 公式中存在 `y2LakeArea[i] == 0` 时直接除零的 undefined behavior 路径；S1c 阶段 **bitwise-preserve** 这一 UB（即 `rhs_apply()` 不得加保护性 guard / fallback / 检查），与 B0 二进制行为完全一致。numerical-stability 修复（如 epsilon-guard / 安全除法）属 **S5 / S6** 范畴，S1c 阶段不引入。
 
@@ -116,23 +115,23 @@ S1c 完整 binary（`USE_RHS_CORE=1`，serial 路径全开）在 keliya / xinanj
 
 ### Requirement: CVODE stats 15-key canonical equality
 
-S1c 完成后，每个 case 的完整 run 在结束时 SUNDIALS CVODE 报告的 **15 件套**统计 SHALL 与 B0-tag run 完全相等（整数 bitwise）。15 个键完整集合：`nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS`（全部来自 SUNDIALS CVODE / CVSpils API 的 `PrintFinalStats` 输出，与 SHUD 实际归档对齐；`nFCall` 由独立 capability 跟踪，详 design.md D10 F19 修订）。stats 漂移即使 `.dat` 输出 SHA256 一致也算门控 FAIL，原因详见 design.md R5："物理上没改但 f.cpp 入口分支语义改了，如果 RHS 评估时机有微差（比如 fallback 期间多一次空调用），nfe 会变"。比较 MUST 是精确相等而非近似（差 1 也算 FAIL）。比对统一调用 `tools/cvode_stats_diff/cvode_stats_diff.sh`（由 `tasks.md` task 0.2 提供，exit code 0 表 15 键全等）。
+S1c 完成后，每个 case 的完整 run 在结束时 SUNDIALS CVODE 报告的 **canonical 15-key set** 统计 SHALL 与 B0-tag run 完全相等（整数 bitwise）。15 个键完整集合定义详 `openspec/glossary.md` §CVODE canonical 15-key set（全部来自 SUNDIALS CVODE / CVSpils API 的 `PrintFinalStats` 输出，与 SHUD 实际归档对齐；`nFCall` 由独立 capability 跟踪，详 design.md D10 F19 修订）。stats 漂移即使 `.dat` 输出 SHA256 一致也算门控 FAIL，原因详见 design.md R5："物理上没改但 f.cpp 入口分支语义改了，如果 RHS 评估时机有微差（比如 fallback 期间多一次空调用），nfe 会变"。比较 MUST 是精确相等而非近似（差 1 也算 FAIL）。比对统一调用 `tools/cvode_stats_diff/cvode_stats_diff.sh`（由 `tasks.md` task 0.2 提供，exit code 0 表 canonical 15-key 全等）。
 
 #### Scenario: CVODE stats 15-key bitwise equal on xinanjiang_upstream
 
 - **WHEN** `xinanjiang_upstream`（801 cells，OMP_CUTOFF 边界）以 `USE_RHS_CORE=1` 完整跑 90 天，落盘 `cvode_stats.txt`，执行 `tools/cvode_stats_diff/cvode_stats_diff.sh <B0_archive>/cvode_stats.txt <S1c_run>/cvode_stats.txt`
-- **THEN** 15 键（`nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS`）SHALL 全部精确相等，脚本返回 exit code 0
+- **THEN** canonical 15-key set（详 `openspec/glossary.md` §CVODE canonical 15-key set）SHALL 全部精确相等，脚本返回 exit code 0
 
 #### Scenario: nfe drift by 1 is FAIL
 
-- **WHEN** 任意 case 报告 `nfe(S1c) = nfe(B0) + 1` 或 `- 1`（或 15 键中其它任意键差 ≥ 1）
+- **WHEN** 任意 case 报告 `nfe(S1c) = nfe(B0) + 1` 或 `- 1`（或 canonical 15-key 中其它任意键差 ≥ 1）
 - **THEN** S1c gate SHALL 标记为 FAIL
 - **AND** PR 描述 MUST NOT 以"差异 < 0.01%"为由请求 merge；MUST 回溯定位为 R5 场景（fallback 期间额外空调用 / dispatch 分支多绕一次 RHS）并修复
 
 #### Scenario: Stats logged into archive for diff
 
 - **WHEN** S1c PR 跑完 4 个 local case
-- **THEN** PR comment 或 CI artifact SHALL 包含一张表格列出 4 case × 15 字段（`nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS`）的 S1c 值 vs B0-tag 值
+- **THEN** PR comment 或 CI artifact SHALL 包含一张表格列出 4 case × canonical 15-key 字段（详 `openspec/glossary.md` §CVODE canonical 15-key set）的 S1c 值 vs B0-tag 值
 - **AND** 表格 MUST 显式标注每一格"= B0"或具体差值
 
 ### Requirement: Snapshot probe bitwise vs golden after rhs_apply
@@ -158,7 +157,7 @@ S1c 完成后，每个 case 的完整 run 在结束时 SUNDIALS CVODE 报告的 
 
 ### Requirement: _omp path untouched
 
-S1c 全程 SHALL NOT 修改 `SHUD/src/ModelData/MD_f_omp.cpp` 中 `Model_Data::f_applyDY_omp()`（L9–L67）/ `Model_Data::f_loop_omp()`（L69–L102）/ `Model_Data::f_update_omp()`（L104–end）任何一行。`f_applyDY_omp` 的 `_omp` river DY 公式（直接除 `u_TopArea`，缺面积 clamp 和 `fun_dAtodY`）、缺失的 lake DY 段、`f_applyDY_omp` 局部变量 data race（master plan §4.6）三项已知问题 MUST 全部留在原位等 S2 处理。`SHUD_LEGACY_OMP_RHS` 宏 OFF 时 `_omp` 三个函数 MUST NOT 进入编译；ON 时进入编译但 S1c 期间不允许测试触达。
+S1c 全程 SHALL NOT 修改 `SHUD/src/ModelData/MD_f_omp.cpp` 中 `Model_Data::f_applyDY_omp` / `Model_Data::f_loop_omp` / `Model_Data::f_update_omp` 任何一行。`f_applyDY_omp` 的 `_omp` river DY 公式（直接除 `u_TopArea`，缺面积 clamp 和 `fun_dAtodY`）、缺失的 lake DY 段、`f_applyDY_omp` 局部变量 data race（master plan §4.6）三项已知问题 MUST 全部留在原位等 S2 处理。`SHUD_LEGACY_OMP_RHS` 宏 OFF 时 `_omp` 三个函数 MUST NOT 进入编译；ON 时进入编译但 S1c 期间不允许测试触达。
 
 #### Scenario: MD_f_omp.cpp diff is empty in S1c PR
 
