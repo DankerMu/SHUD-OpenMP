@@ -142,10 +142,34 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
+  # Job 1b — invariant-sweep: repo-wide grep gates from tools/invariants.yaml
+  # ---------------------------------------------------------------------------
+  # Runs tools/check_invariant_sweep.sh against the 3 starter invariants
+  # (tmp_dollar_pid_absence / pii_server_endpoint_absence /
+  # hardcoded_start_day_absence). Data-INDEPENDENT, ~10s on ubuntu-latest.
+  # Fails the workflow if any invariant MISMATCHes — locks in F20 / F30 /
+  # #56 part-A mktemp adoption, the PII server-IP gate, and PR #54 round-4
+  # F33 / #57 dynamic cfg.para START parsing.
+  #
+  # Placement: parallel sibling to `setup`; build-and-compare depends only
+  # on `setup` (matrix output), so invariant-sweep failure short-circuits
+  # the whole workflow without holding back the matrix expansion.
+  invariant-sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Run invariant sweep (issue #56 Part B)
+        run: bash tools/check_invariant_sweep.sh
+
+  # ---------------------------------------------------------------------------
   # Job 2 — build-and-compare: matrix consumer
   # ---------------------------------------------------------------------------
   build-and-compare:
-    needs: setup
+    needs: [setup, invariant-sweep]
     # Spec mandates ubuntu-22.04 hard requirement: the locked-flag B0 golden
     # was generated against gcc/g++ on Ubuntu 22.04, so bitwise comparison
     # is meaningful only on this image. Do not promote to ubuntu-latest.

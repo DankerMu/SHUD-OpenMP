@@ -1,0 +1,88 @@
+# tools/invariants.yaml — repo-wide grep-based invariants
+#
+# Schema (parsed by tools/check_invariant_sweep.sh):
+#   invariants:
+#     - id: <slug>
+#       token: '<literal-string-or-regex>'
+#       regex: 'false'  # default 'false' = fixed-string (grep -F); 'true' = extended regex (grep -E)
+#       expected_absent_in:
+#         - '<path-or-glob>'        # path patterns expanded via shell glob (bash globstar)
+#       rationale: |
+#         <why this regression must not happen>
+#
+# Adding an invariant:
+#   1. Pick a token that ONLY appears when the regression you fear has
+#      reappeared. False-positive on documentation comments? Either narrow
+#      the token (`/tmp/$$` is fine; `nFCall` is too generic) or scope the
+#      paths to exclude doc files.
+#   2. Add the entry below; locally `bash tools/check_invariant_sweep.sh`
+#      MUST emit [OK] (token absent everywhere expected) before commit.
+#   3. CI's `invariant-sweep` job (.github/workflows/serial-baseline.yml)
+#      enforces these on every PR push.
+#
+# Rationale for the 3 starter invariants (Part B of issue #56, PR <this>):
+#   - tmp_dollar_pid_absence:        anti-regression for F20 / F30 / #56 part-A
+#                                    mktemp adoption — predictable /tmp paths
+#                                    are a TOCTOU / symlink-attack vector on
+#                                    shared hosts.
+#   - pii_server_endpoint_absence:   prevents the prod server IP from ever
+#                                    landing in a tracked file (it currently
+#                                    lives only in CLAUDE.md which is in
+#                                    .gitignore; this gate keeps it that way).
+#   - hardcoded_start_day_absence:   PR #54 round-4 F33 + #57 follow-up moved
+#                                    both tools/snapshot_repeatability/run.sh
+#                                    and .github/workflows/serial-baseline.yml
+#                                    from hardcoded keliya START=12053 to
+#                                    awk-parsed cfg.para. The literal `12053`
+#                                    must not silently come back into either
+#                                    file (case-portable parse).
+#
+# Excluded invariant — nFCall_absence (proposed in issue #56 Part B brief):
+#   nFCall is a LEGITIMATE live SHUD internal counter in SHUD/src/Model/f.cpp
+#   (incremented in 4 places) AND a documented-as-excluded key in CVODE stats
+#   comments in tools/cvode_stats_diff/cvode_stats_diff.sh + SHUD_openMP_master_plan.md.
+#   A simple grep gate against the brief's listed paths would false-positive
+#   on the 3 explanatory mentions in cvode_stats_diff.sh and 3 mentions in
+#   master_plan.md immediately. Locking nFCall out of CVODE stats output
+#   requires source-aware parsing (skip comments / docstrings); deferred to
+#   a follow-up when there is a real regression vector to gate against.
+
+invariants:
+  - id: tmp_dollar_pid_absence
+    token: '/tmp/$$'
+    regex: false
+    expected_absent_in:
+      - 'tools/**/*.sh'
+    rationale: |
+      Predictable /tmp/$$ paths are TOCTOU / symlink-attack vectors on
+      shared hosts. All shell tools must use mktemp + EXIT trap (see
+      F20 archive_s1_bitwise.sh, F30 cvode_stats_diff.sh, #56 part-A
+      archive_b0_output.sh). Adding any new occurrence regresses the
+      hardening work.
+
+  - id: pii_server_endpoint_absence
+    token: '210.77.77.22'
+    regex: false
+    expected_absent_in:
+      - '**/*'
+    rationale: |
+      The production server IP must never appear in a tracked file. It
+      lives only in CLAUDE.md (gitignored, per-machine). Any leak into
+      a tracked file would publish credentials-adjacent infrastructure
+      detail to the open repository.
+
+  - id: hardcoded_start_day_absence
+    token: '12053'
+    regex: false
+    expected_absent_in:
+      - '.github/workflows/serial-baseline.yml'
+      - 'tools/snapshot_repeatability/run.sh'
+    rationale: |
+      keliya START day = 12053 was historically hardcoded into both the
+      snapshot_repeatability harness and the CI workflow. PR #54 round-4
+      F33 + issue #57 follow-up replaced both with `awk '$1=="START"
+      {print $2}' cfg.para` parsing so any case is supported and case-
+      portable cfg.para updates flow through automatically. This gate
+      locks that fix in. Comment references (e.g. "...START<TAB>12053
+      format example..." in run.sh:100) are inside `# `-prefixed lines
+      and are filtered out by the sweep tool's comment-line stripper.

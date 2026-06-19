@@ -24,7 +24,8 @@
 #      END = START + 90 if not already truncated.
 #   3. For each run 1..N: clear output dir, run SHUD, sha256 the manifest
 #      output_files set plus the cvode_stats.txt sibling. Hash file goes to
-#      /tmp/<case>_run<N>.sha256.
+#      a mktemp-allocated path under /tmp (random 6-char suffix; cleaned up
+#      via EXIT trap so no stale files remain even on crash).
 #   4. Diff the N hash files: any disagreement → exit 1 with the diff dump.
 #   5. On agreement, copy run 1's outputs into benchmarks/<case>/B0_output/
 #      (preserving the file basenames; lake-mentioning files skipped when
@@ -317,7 +318,7 @@ run_shud() {
 
 write_sha_manifest() {
     local case_dir="$1"
-    local manifest_file="$2"      # destination /tmp/<case>_run<N>.sha256
+    local manifest_file="$2"      # destination /tmp/<case>_run<N>.<rand>.sha256 (mktemp)
 
     local record_missing="${3:-0}"
     : > "$manifest_file"
@@ -384,12 +385,30 @@ SUM_HASHES=()
 # below before run 1.
 MISSING_FILES=()
 
+# Per F20 / F30 precedent (PR #54 round-3): replace predictable /tmp paths
+# with mktemp's atomic O_CREAT|O_EXCL + 6-char random suffix to close the
+# symlink-attack / pre-create TOCTOU window on shared hosts. We accumulate
+# every allocated temp into TMP_FILES and clean them all up in a single
+# EXIT trap so neither the success nor the failure path leaks scratch state.
+TMP_FILES=()
+# shellcheck disable=SC2317  # invoked via `trap ... EXIT`, not unreachable
+cleanup_tmp_files() {
+    if [[ "${#TMP_FILES[@]}" -gt 0 ]]; then
+        rm -f "${TMP_FILES[@]}"
+    fi
+}
+trap cleanup_tmp_files EXIT
+
 for i in $(seq 1 "$NUM_RUNS"); do
     echo "[archive_b0] run $i / $NUM_RUNS ..."
     if ! WT="$(run_shud "$CASE_DIR" "$PROJECT_NAME")"; then
         exit 2
     fi
-    HF="/tmp/${CASE_NAME}_run${i}.sha256"
+    if ! HF="$(mktemp "/tmp/${CASE_NAME}_run${i}.XXXXXX.sha256")"; then
+        echo "error: mktemp failed for hash manifest (run $i)" >&2
+        exit 2
+    fi
+    TMP_FILES+=("$HF")
     # Only run 1 populates MISSING_FILES; later runs just rebuild hashes.
     if [[ "$i" -eq 1 ]]; then
         MISSING_FILES=()
@@ -423,10 +442,17 @@ fi
 echo "[archive_b0] verifying ${NUM_RUNS}-run SHA256 identity ..."
 DIVERGED=0
 for i in $(seq 2 "$NUM_RUNS"); do
-    if ! diff -u "${HASH_FILES[0]}" "${HASH_FILES[i-1]}" >/tmp/${CASE_NAME}_diff_1_${i}.txt 2>&1; then
+    # mktemp + TMP_FILES + EXIT trap (see top-of-loop comment): closes the
+    # /tmp/<case>_diff_1_<i>.txt TOCTOU/symlink window.
+    if ! DIFF_FILE="$(mktemp "/tmp/${CASE_NAME}_diff_1_${i}.XXXXXX.txt")"; then
+        echo "error: mktemp failed for diff dump (run $i)" >&2
+        exit 2
+    fi
+    TMP_FILES+=("$DIFF_FILE")
+    if ! diff -u "${HASH_FILES[0]}" "${HASH_FILES[i-1]}" >"$DIFF_FILE" 2>&1; then
         DIVERGED=1
-        echo "    FAIL: run 1 vs run $i diverged — /tmp/${CASE_NAME}_diff_1_${i}.txt:" >&2
-        sed 's/^/      /' "/tmp/${CASE_NAME}_diff_1_${i}.txt" >&2
+        echo "    FAIL: run 1 vs run $i diverged — $DIFF_FILE:" >&2
+        sed 's/^/      /' "$DIFF_FILE" >&2
     fi
 done
 
