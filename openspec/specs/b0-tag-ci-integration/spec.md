@@ -7,7 +7,6 @@ S1 CI 闸落地。把 B0-tag bitwise neutrality 验证组装为每 PR 跑的 act
 ## Scope
 
 **Scope Note (S0 ci-serial-baseline 关系澄清)**: 本 capability 在 S0 `ci-serial-baseline` capability 的基础上扩展：(a) `build-and-compare` job case scope 从 keliya 单一扩到 keliya / xinanjiang_upstream / qinyijiang / qhh 4 case；(b) `skip-baseline-ci` label 退役（S0 阶段为通融，S1 后必删）；(c) `actions/checkout` 必须 `fetch-tags: true`；(d) `LEGACY_RHS=0 / 1` 两轴 build matrix。S0 `ci-serial-baseline` 的 Requirement 仍在底层 active；本 capability 不删任何 S0 Requirement，只 ADDED 严格更紧的 gate。proposal.md 中将 `ci-serial-baseline` 移至 'Modified Capabilities' subsection 反映此关系（提示信息：proposal.md 由 Implementer A 维护，本 spec 仅记录 scope 关系不直接 cross-edit）。
-
 ## Requirements
 ### Requirement: CI 4 local case bitwise check 覆盖范围
 
@@ -170,7 +169,7 @@ S0-12 引入的 status-matrix proposer 步骤 SHALL 在 S1 CI 中保留：fast-f
 
 - **WHEN** 维护者执行 `gh label list --repo DankerMu/SHUD-OpenMP --json name`
 - **THEN** 返回的 label 列表 MUST NOT 含 `skip-baseline-ci`
-- **AND** workflow YAML 内 `contains(github.event.pull_request.labels.*.name, 'skip-baseline-ci')` 即使存在也 trivially false（dead-code 性质留作历史 transition 记录，符合 S0-9 spec L75-L82 描述）
+- **AND** workflow YAML 内 `contains(github.event.pull_request.labels.*.name, 'skip-baseline-ci')` 即使存在也 trivially false（dead-code 性质留作历史 transition 记录，符合 S0 `ci-serial-baseline` spec `Skip label respected during S0 development` Requirement 描述）
 
 #### Scenario: skip-baseline-ci label 在仓库层显式删除验证
 
@@ -255,13 +254,13 @@ S0-12 引入的 status-matrix proposer 步骤 SHALL 在 S1 CI 中保留：fast-f
 
 ### Requirement: CVODE stats 15-key archive bitwise check 作 CI 强 gate
 
-CI MUST 在每个 case bitwise compare step 中显式对 `benchmarks/<case>/B0_output/cvode_stats.txt` 进行 15-key 全键 diff，调用共享工具 `tools/cvode_stats_diff/cvode_stats_diff.sh`（task 0.2 创建）。Canonical 15-key set = { `nfe`, `nfeLS`, `nni`, `nli`, `nsetups`, `netf`, `nst`, `npe`, `nps`, `ncfn`, `ncfl`, `lenrw`, `leniw`, `lenrwLS`, `leniwLS` }（F19 修订：归档不含 `nFCall`，由独立 capability 跟踪）。任一键缺失 / 数值不等 MUST 让 case FAIL；该 gate 与 `*.dat` SHA256 / snapshot 对比并列，三 gate 任一 fail 则 case FAIL。
+CI MUST 在每个 case bitwise compare step 中显式对 `benchmarks/<case>/B0_output/cvode_stats.txt` 进行 canonical 15-key 全键 diff，调用共享工具 `tools/cvode_stats_diff/cvode_stats_diff.sh`（task 0.2 创建）。Canonical 15-key set 定义详 `openspec/glossary.md` §CVODE canonical 15-key set（F19 修订：归档不含 `nFCall`，由独立 capability 跟踪）。任一键缺失 / 数值不等 MUST 让 case FAIL；该 gate 与 `*.dat` SHA256 / snapshot 对比并列，三 gate 任一 fail 则 case FAIL。
 
 #### Scenario: CI cvode_stats_diff 15-key 全键 PASS
 
 - **WHEN** workflow 跑完某 case，进入 compare step
 - **THEN** workflow MUST 执行 `tools/cvode_stats_diff/cvode_stats_diff.sh <run.txt> <(git show B0-tag:benchmarks/<case>/B0_output/cvode_stats.txt)`，exit code = 0 才算 CVODE stats PASS
-- **AND** 工具 stdout MUST 列出 15 个键全键 matched 的 summary 行
+- **AND** 工具 stdout MUST 列出 canonical 15-key 全键 matched 的 summary 行（详 `openspec/glossary.md` §CVODE canonical 15-key set）
 - **AND** 该 PASS 与 `*.dat` SHA256 PASS / snapshot PASS 共同构成 case 总 PASS 条件
 
 #### Scenario: CVODE stats 任一键 mismatch 时 CI 错误消息格式
@@ -269,7 +268,7 @@ CI MUST 在每个 case bitwise compare step 中显式对 `benchmarks/<case>/B0_o
 - **WHEN** 当前 run 的 `nfeLS` 值与 B0-tag 归档值不等
 - **THEN** `cvode_stats_diff.sh` SHALL exit 非零，stdout / stderr 内 MUST 含 `MISMATCH key=nfeLS expected=<gold> got=<new>`
 - **AND** workflow 捕获该错误并 `::error title=CVODE stats mismatch` 退出非零
-- **AND** 错误正文 MUST 列出 15 键中全部 mismatched 键的 (key, expected, got) 三元组（不在首个 mismatch 处早退）
+- **AND** 错误正文 MUST 列出 canonical 15-key 全键中全部 mismatched 键的 (key, expected, got) 三元组（不在首个 mismatch 处早退）
 
 #### Scenario: B0_output/cvode_stats.txt 缺失时 CI 显式 fail
 

@@ -34,7 +34,7 @@ S(∞) = 1 / (1 - t_RHS_total / t_wall_total)
 - **决策驱动 case（heihe_x4）：2.99x**（无穷线程）；按 Amdahl 8 核现实上界：`1 / ((1 - 0.6655) + 0.6655/8) = 1 / (0.3345 + 0.0832) = 2.39x` —— 这是 §1.1.1 加速比 gate 对最大 case 的目标上界。
 - **次驱动（qinyijiang，3155 cell）：2.83x** 上界 / 8 核现实 2.30x。
 - **小 case（xinanjiang_upstream，801 cell）：1.78x** 上界 / 8 核现实 1.59x —— 小 case 要靠 `OMP_CUTOFF`（master plan 核心原则 C8）兜底，而不是全力投并行预算。
-- **IO 主导 case（heihe，6335 cell，但 forcing IO 占 79%）：1.14x** 上界 / 8 核现实 1.13x —— 这个 case 的 RHS 并行目标是 "不掉" 而不是 "提速"；真正的改进要么靠 (a) 一次性读入的二进制 cached forcing，要么靠 (b) forcing IO 并行化，逻辑上属于 P9 或更后阶段优化。
+- **IO 主导 case（heihe，6335 cell，但 forcing IO 占 79%）：1.14x** 上界 / 8 核现实 1.13x —— 这个 case 的 RHS 并行目标是 "不掉" 而不是 "提速"；真正的改进要么靠 (a) 一次性读入的二进制 cached forcing，要么靠 (b) forcing IO 并行化。**按 master plan M6 修订（§5 Opt-IO + §1.1.1 P7 strict 表 + §S0.12），Opt-IO 对该 case 升级为 §1.1.1 验收硬性前置，时机为 B1b 后（可与 S2 P1 并行排另一个 issue），不再延后到 P9+。**
 
 §1.1.1 gate "单插槽 8 核加速比目标" 因此读作：**目标 = 决策关键大 case（heihe_x4 + qinyijiang）上 1.5–2.0x**、**小 case 走 OMP_CUTOFF 跳过**、**forcing-IO 主导 case（heihe）延后或与独立 IO 优化配对**。这把头条 §1.1.1 数字（"8x 加速比"）从 "每 case 统一目标" 重新读作 "向大 case 加权的 portfolio 指标"。
 
@@ -132,4 +132,4 @@ xinanjiang_upstream 的 FAIL（19.7s 跑里 22.42% t_other）解读为**启动�
 | signed_against_commit | outer `a860eae58991ce91ea91656cc9d4a08540e48f5b`（#16 merge 后 `baseline/current` HEAD）+ SHUD submodule `78c37a1061de4112bc7c297bb7bd1f107432e6f2`（#14 后 openmp-baseline HEAD） |
 | signed_via | claude-code-s0-13-issue-17 代 DankerMu（按 user 2026-06-17 grant 的 delegated 签字；按 Linus Torvalds persona 编排，遵循 /Users/danker/.claude/CLAUDE.md 的优先级栈） |
 | signed_off_decision | 走原方案 + 调高 large case 权重 + P8-precond 不前置 |
-| follow_up_issues | (a) P1-P3 strict 落地后 re-profile；(b) heihe forcing IO 优化延后到 P9+；(c) 把 t_init 从 t_other 里拆出去（profile timer）；(d) kashigeer 上游 X76-X80 forcing 缺口（issue #29 已开） |
+| follow_up_issues | (a) P1-P3 strict 落地后 re-profile；(b) heihe forcing IO 优化按 master plan M6 升级为硬性前置，时机 B1b 后（可与 S2 P1 并行）；不再 P9+ defer；(c) 把 t_init 从 t_other 里拆出去（profile timer）；(d) kashigeer 上游 X76-X80 forcing 缺口（issue #29 已开） |

@@ -11,11 +11,10 @@ S1b 阶段交付。把 RHS flux 计算（`f_loop` 内的 surface/subsurface elem
 **头文件命名约定**：实现文件 `SHUD/src/Model/MD_rhs_core.cpp`；header `SHUD/src/Model/MD_rhs_core.hpp`（与 scaffolding spec 一致）。
 
 **Temporal scope note**：本 capability 中所有 `_OPENMP_ON` 相关 Scenarios 仅适用于 S1b PR 评审上下文；post-S1d.2 由 `openmp-macro-decoupling` capability 退役 `_OPENMP_ON`（拆分为 `SHUD_ENABLE_OPENMP_RHS` / `SHUD_USE_OPENMP_NVECTOR` / `SHUD_LEGACY_OMP_RHS` 三正交宏），相关 Scenarios 被 superseded。
-
 ## Requirements
 ### Requirement: rhs_flux pure carry-over from serial f_loop
 
-`SHUD/src/Model/MD_rhs_core.cpp` 新增的 `rhs_flux()` 函数体 SHALL 是 serial `f_loop()` 的**逐行原样搬运**（`SHUD/src/ModelData/MD_f.cpp:11-74 (f_loop)`，PR #43 后实际函数体范围 L11 → L74 含 closing brace，包含 #ifdef SHUD_DUMP_RHS 探针块 + after-PassValue no-op 钩子）。逐行 diff SHALL 满足：
+`SHUD/src/Model/MD_rhs_core.cpp` 新增的 `rhs_flux()` 函数体 SHALL 是 serial `f_loop()` 的**逐行原样搬运**（源 `SHUD/src/ModelData/MD_f.cpp::f_loop`，PR #43 后实际函数体包含 `#ifdef SHUD_DUMP_RHS` 探针块 + after-PassValue no-op 钩子）。逐行 diff SHALL 满足：
 
 - 任何**逻辑分支** / **循环条件** / **比较运算符** / **赋值** / **函数调用参数** 与 legacy `f_loop()` **完全一致**
 - **不重命名**任何局部变量、循环索引、临时量（保持 `i` 不改 `idx` / `iele` 等）
@@ -27,7 +26,7 @@ S1b 的唯一目标是"搬运不变 + 逐步 bitwise 验证"，任何"顺手清�
 
 #### Scenario: Diff legacy f_loop vs new rhs_flux
 
-- **WHEN** 对比 `SHUD/src/ModelData/MD_f.cpp:11-74` 中 legacy `f_loop()` 函数体（不含函数签名与 `#ifdef SHUD_DUMP_RHS` 块）与 `SHUD/src/Model/MD_rhs_core.cpp` 中 `rhs_flux()` 函数体
+- **WHEN** 对比 `SHUD/src/ModelData/MD_f.cpp::f_loop` 中 legacy `f_loop()` 函数体（不含函数签名与 `#ifdef SHUD_DUMP_RHS` 块）与 `SHUD/src/Model/MD_rhs_core.cpp` 中 `rhs_flux()` 函数体
 - **THEN** 二者 SHALL 在 token 级别**字符完全一致**（允许的差异仅限于函数签名命名空间限定 `Model_Data::f_loop` → `Model_Data::rhs_flux`）
 - **AND** PR description SHALL 附 `diff legacy_block.cpp new_block.cpp` 命令的零输出截图作为搬运证据
 
@@ -63,7 +62,7 @@ S1b 的唯一目标是"搬运不变 + 逐步 bitwise 验证"，任何"顺手清�
 
 ### Requirement: PassValue call position MUST equal legacy f_loop
 
-`rhs_flux()` 内 `PassValue()` 调用 SHALL 位于**严格 6 步过程的最后一步**（即 river downflow → lake clamp → PassValue），与 legacy `SHUD/src/ModelData/MD_f.cpp:51`（`PassValue();` 紧随 `for (i = 0; i < NumLake; i++)` lake clamp 循环之后）位置精确一致。
+`rhs_flux()` 内 `PassValue()` 调用 SHALL 位于**严格 6 步过程的最后一步**（即 river downflow → lake clamp → PassValue），与 legacy `SHUD/src/ModelData/MD_f.cpp::f_loop` 中 `PassValue();` 的位置（紧随 `for (i = 0; i < NumLake; i++)` lake clamp 循环之后）精确一致。
 
 提前调用（如把 PassValue 移到 segment pass 之前）或推迟调用（如移到 `rhs_apply` 入口）SHALL 视为破坏 flux 累加语义：
 
@@ -181,8 +180,8 @@ S1b 阶段 `rhs_snapshot` hook SHALL 在 `rhs_flux()` 内部 PassValue 调用的
 
 S1b 阶段验证 SHALL 同时保证：
 
-1. **CVODE 统计 15 件套完全相等**：完整集合 `nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS` 在 `USE_RHS_CORE=1` 与 B0 二进制下 SHALL 完全一致；任何统计漂移即使输出 `.dat` 字节相等也 SHALL 视为 FAIL（master plan §S1c 验收门控延伸至 S1b，design R5 风险条目）。比对统一调用 `tools/cvode_stats_diff/cvode_stats_diff.sh`（由 `tasks.md` task 0.2 提供，exit code 0 表 15 键全等）
-2. **`_omp` 三函数零改动**：`Model_Data::f_applyDY_omp`（`SHUD/src/ModelData/MD_f_omp.cpp:9`）/ `Model_Data::f_loop_omp`（`MD_f_omp.cpp:69`）/ `Model_Data::f_update_omp`（`MD_f_omp.cpp:104`）源码在 S1b PR 中 SHALL 行级未改（`git diff` 显示对应函数 0 行变更），保留作为 S2 语义对齐参照（design D3）
+1. **CVODE 统计 canonical 15-key set 完全相等**：完整集合定义详 `openspec/glossary.md` §CVODE canonical 15-key set，在 `USE_RHS_CORE=1` 与 B0 二进制下 SHALL 完全一致；任何统计漂移即使输出 `.dat` 字节相等也 SHALL 视为 FAIL（master plan §S1c 验收门控延伸至 S1b，design R5 风险条目）。比对统一调用 `tools/cvode_stats_diff/cvode_stats_diff.sh`（由 `tasks.md` task 0.2 提供，exit code 0 表全键全等）
+2. **`_omp` 三函数零改动**：`Model_Data::f_applyDY_omp`（`SHUD/src/ModelData/MD_f_omp.cpp::f_applyDY_omp`）/ `Model_Data::f_loop_omp`（`SHUD/src/ModelData/MD_f_omp.cpp::f_loop_omp`）/ `Model_Data::f_update_omp`（`SHUD/src/ModelData/MD_f_omp.cpp::f_update_omp`）源码在 S1b PR 中 SHALL 行级未改（`git diff` 显示对应函数 0 行变更），保留作为 S2 语义对齐参照（design D3）
 3. **`_OPENMP_ON` 默认 OFF**：S1b 编译矩阵 SHALL 保持 `SHUD_ENABLE_OPENMP_RHS=0` / `SHUD_USE_OPENMP_NVECTOR=0` / `SHUD_LEGACY_OMP_RHS=0`（三宏拆分在 S1d 落地，S1b 期间 `_OPENMP_ON` 单宏依然 OFF），`_omp` 路径运行时不可触达
 
 S1b PR 不涉及任何 OpenMP 并行（rhs_flux 内部仍纯 serial），任何 `#pragma omp parallel for` 出现在 `rhs_flux()` 体内 SHALL 视为越界。
@@ -190,7 +189,7 @@ S1b PR 不涉及任何 OpenMP 并行（rhs_flux 内部仍纯 serial），任何 
 #### Scenario: CVODE stats 15-key identical across USE_RHS_CORE switch
 
 - **WHEN** keliya 90 天分别用 (a) `make shud` baseline 与 (b) `make shud USE_RHS_CORE=1` 各跑一次，对比落盘 `cvode_stats.txt`，执行 `tools/cvode_stats_diff/cvode_stats_diff.sh <baseline> <new>`
-- **THEN** 脚本 SHALL 对 15 键（`nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS`）全等返回 exit code 0；任意键不等（含 ±1 误差）SHALL 让 S1b FAIL
+- **THEN** 脚本 SHALL 对 canonical 15-key set（详 `openspec/glossary.md` §CVODE canonical 15-key set）全等返回 exit code 0；任意键不等（含 ±1 误差）SHALL 让 S1b FAIL
 
 #### Scenario: _omp path source diff is zero
 

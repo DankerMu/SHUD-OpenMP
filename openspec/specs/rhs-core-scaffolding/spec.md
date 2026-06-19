@@ -11,7 +11,6 @@ S1a 阶段交付。把 SHUD `f_update` / `f_loop` / `f_applyDY` 的入口与签�
 **头文件命名约定**：实现文件 `SHUD/src/Model/MD_rhs_core.cpp`；header `SHUD/src/Model/MD_rhs_core.hpp`（与 SHUD 既有 `Macros.hpp` / `Element.hpp` 命名风格一致），不使用 `.h` / `rhs_core.hpp` 等异名。
 
 **Temporal scope note**：本 capability 中所有 `_OPENMP_ON` 相关 Scenarios 仅适用于 S1a PR 评审上下文；post-S1d.2 由 `openmp-macro-decoupling` capability 退役 `_OPENMP_ON`（拆分为 `SHUD_ENABLE_OPENMP_RHS` / `SHUD_USE_OPENMP_NVECTOR` / `SHUD_LEGACY_OMP_RHS` 三正交宏），相关 Scenarios 被 superseded。
-
 ## Requirements
 ### Requirement: New `MD_rhs_core.cpp` skeleton with `rhs_update()` carry-over
 
@@ -105,12 +104,10 @@ S1a 完成时，**单次** RHS 评估 DY snapshot——通过 `tools/rhs_snapsho
 
 #### Scenario: First-call-after-CVODE-reinit semantics
 
-- **WHEN** 任意 case（建议 keliya）通过 **deployment-layer override**（部署期 `cfg.para` 直接覆写 `Update_IC_STEP = 43200`（30 day × 1440 min/day；SHUD 解析的 token 是带下划线的 `Update_IC_STEP`，单位是 minute——见 `SHUD/src/classes/Model_Control.cpp:151` + `Model_Control.hpp:111`；cfg.para 已 gitignored，不污染 SHUD submodule）触发 90 day 窗口内 mid-window IC backup（`MD_update.cpp:234` 的 `PrintInit`，不是 CVODE state re-injection——SHUD 无 `CVodeReInit` 路径），并以 `USE_RHS_CORE=1` 跑 90 天截断
+- **WHEN** 任意 case（建议 keliya）通过 **deployment-layer override**（部署期 `cfg.para` 直接覆写 `Update_IC_STEP = 43200`（30 day × 1440 min/day；SHUD 解析的 token 是带下划线的 `Update_IC_STEP`，单位是 minute——见 `SHUD/src/classes/Model_Control.cpp::Control_Data::read` 内 `Update_IC_STEP` 解析分支 + `SHUD/src/classes/Model_Control.hpp::Control_Data::UpdateICStep` 成员声明；cfg.para 已 gitignored，不污染 SHUD submodule）触发 90 day 窗口内 mid-window IC backup（`SHUD/src/ModelData/MD_update.cpp::PrintInit`，不是 CVODE state re-injection——SHUD 无 `CVodeReInit` 路径），并以 `USE_RHS_CORE=1` 跑 90 天截断
 - **THEN** re-init 之后**第一次** `rhs_core()` 调用产生的 DY SHALL 与 legacy `f_update + f_loop + f_applyDY` 路径**字节相等**；所有 3 个 t_value snapshot SHALL PASS（`compare_snapshot` exit 0）
 - **AND** 该 Scenario 防回归 master plan §S1a 风险 R6（warm restart 后 `MD_rhs_core.cpp` 内部状态可能与 legacy 不同步）
 - **AND** 部署期 keliya cfg.para override 由 `tasks.md` task 1.5.a 负责（pre-S1a 落地，与 task 0.1a golden 归档配套使用）
-
----
 
 ### Requirement: Full-run bitwise vs B0-tag across 4 local CI cases
 
@@ -135,14 +132,12 @@ S1a 完成时，`make shud USE_RHS_CORE=1` 编译产物在 keliya / xinanjiang_u
 
 ### Requirement: CVODE statistics invariance (15-key canonical set)
 
-S1a `USE_RHS_CORE=1` 完整 run 收尾时 CVODE 统计 **15 件套** SHALL 与 B0（USE_RHS_CORE 未定义）对应 case 的值完全相等。15 个键完整集合：`nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS`（全部来自 SUNDIALS CVODE / CVSpils API 的 `PrintFinalStats` 输出，与 SHUD 实际归档对齐——`nFCall` 是 SHUD 内部计数器但未写入 `cvode_stats.txt`，由独立 capability 跟踪，详 design.md D10 F19 修订）。即使 `B0_output/*.dat` bitwise 通过，任一键漂移仍视为 FAIL（master plan §S1 风险 R5）。比对统一调用共享脚本 `tools/cvode_stats_diff/cvode_stats_diff.sh`（由 `tasks.md` task 0.2 提供），脚本 exit code 0 表示 15 键全等。
+S1a `USE_RHS_CORE=1` 完整 run 收尾时 CVODE 统计 **canonical 15-key set** SHALL 与 B0（USE_RHS_CORE 未定义）对应 case 的值完全相等。15 个键完整集合定义详 `openspec/glossary.md` §CVODE canonical 15-key set（全部来自 SUNDIALS CVODE / CVSpils API 的 `PrintFinalStats` 输出，与 SHUD 实际归档对齐——`nFCall` 是 SHUD 内部计数器但未写入 `cvode_stats.txt`，由独立 capability 跟踪，详 design.md D10 F19 修订）。即使 `B0_output/*.dat` bitwise 通过，任一键漂移仍视为 FAIL（master plan §S1 风险 R5）。比对统一调用共享脚本 `tools/cvode_stats_diff/cvode_stats_diff.sh`（由 `tasks.md` task 0.2 提供），脚本 exit code 0 表示 canonical 15-key 全等。
 
 #### Scenario: Stats 15-key equality per case via shared diff utility
 
 - **WHEN** keliya / xinanjiang_upstream / qinyijiang / qhh 各跑 USE_RHS_CORE=1 与 USE_RHS_CORE 未定义两次，提取 `cvode_stats.txt`，对每个 case 执行 `tools/cvode_stats_diff/cvode_stats_diff.sh <new_stats.txt> <baseline_stats.txt>`（参数顺序为 `<new> <golden>`，与脚本 `Usage:` 一致；见 `tools/cvode_stats_diff/cvode_stats_diff.sh:4-5`）
-- **THEN** 脚本 SHALL 对 15 个键（`nfe` / `nfeLS` / `nni` / `nli` / `nsetups` / `netf` / `nst` / `npe` / `nps` / `ncfn` / `ncfl` / `lenrw` / `leniw` / `lenrwLS` / `leniwLS`）逐一比较，全等返回 exit code 0；任意键不等 SHALL 让脚本 exit ≠ 0 并让 S1a FAIL，即使 `*.dat` SHA256 全等
-
----
+- **THEN** 脚本 SHALL 对 canonical 15-key set（详 `openspec/glossary.md` §CVODE canonical 15-key set）逐一比较，全等返回 exit code 0；任意键不等 SHALL 让脚本 exit ≠ 0 并让 S1a FAIL，即使 `*.dat` SHA256 全等
 
 ### Requirement: `_omp` path source untouched in this capability
 
