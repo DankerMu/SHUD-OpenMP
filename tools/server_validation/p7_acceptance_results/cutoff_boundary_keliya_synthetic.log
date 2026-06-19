@@ -1,0 +1,111 @@
+================================================================================
+# P7 Cutoff boundary 3-state verification — keliya synthetic
+# Issue #100 Task 8.10a (split-delivery PR feat/issue-100-s2-p7-gates-partial)
+================================================================================
+
+Spec authority:
+    openspec/changes/s2-strict-omp-full/specs/p7-final-fusion-omp-cutoff/spec.md
+    Requirement L21 "Cutoff serial fallback when NumEle < SHUD_OMP_CUTOFF"
+    Scenario L36-L43 "Cutoff strict-less-than semantics at NumEle = 1023 / 1024 / 1025 boundary"
+
+Purpose:
+    Verify the runtime cutoff guard `NumEle < shud_omp_cutoff_value()` at
+    MD_rhs_core.cpp:624 implements STRICT-LESS-THAN semantics by synthesizing
+    a 3-state boundary on keliya (NumEle=484). The (NumEle, cutoff) pair
+    (484, 483 / 484 / 485) is isomorphic to the deployed boundary
+    (1024, 1023 / 1024 / 1025) under the differential-sign set {>0, ==0, <0}
+    that the strict-less-than comparison depends on (spec L43).
+
+    Equivalence rationale (spec L43): cutoff guard is a pure integer compare
+    `NumEle < SHUD_OMP_CUTOFF`. The decision only depends on the sign of
+    `NumEle - SHUD_OMP_CUTOFF` (one of >0, ==0, <0). Synthesizing the 3-state
+    boundary on keliya validates the dispatch logic without requiring a
+    NumEle = 1024 case.
+
+------------------------------------------------------------------------------
+Run environment (LOCAL — Mac dev, not go/no-go per CLAUDE.md §跨平台分工)
+------------------------------------------------------------------------------
+host:                   Darwin 24.6.0 arm64 (Apple Silicon)
+outer_commit:           12b8fa95fae6f687f68a1ff35fbd9769787de7d9
+shud_pin:               5b90a91cb7023983900be32d00ead03672e05711
+binary:                 SHUD/shud_omp
+binary_sha256:          7c8ff4ff7cb3f05db2537d7712e556bd7dc21ac36cfb2f0f70a0a02697730d9c
+build_flags:            make SHUD_ENABLE_OPENMP_RHS=1 shud_omp
+                          (Config E: P7 strict build target — links rhs_core_omp
+                           into the binary; verified via `nm shud_omp | grep
+                           rhs_core_omp` returns the global T symbol)
+case:                   keliya
+case_NumEle:            484
+forcing_window_days:    90 (cfg.para START=12053 END=12143 — CLAUDE.md project rule)
+output_file_compared:   output/keliya.out/keliya.rivqdown.dat
+
+NOTE: SHUD pin 5b90a91 != B1a-tag pin 58327c5; Mac SHA256 anchors do not
+match the B0_output/repeatability.txt golden (a27e3fb5...) — that golden
+came from a different binary (shud serial, fc3dd0e5...) under different
+build flags. The verification logic here is RELATIVE (3 cutoff settings
+under THE SAME binary must agree), not vs the B0 golden. A3a vs B1a-tag
+absolute SHA256 verification is task 8.9 (split to sub-issue #100b),
+runs on server target deployment platform.
+
+------------------------------------------------------------------------------
+Run matrix
+------------------------------------------------------------------------------
+
+  cutoff  threads  NumEle vs cutoff  expected dispatch                   actual_dispatch  sha256 (keliya.rivqdown.dat)
+  ------  -------  ----------------  ---------------------------------   ---------------  ----------------------------------------------------------------
+  485     1        484 < 485         serial fallback                     serial fallback  b23e15b94c0f67becbf73a45ea08e84f62680614e85e9a9ac15eac6033a51a1a
+  484     1        484 == 484        serial fallback (strict-less-than)  serial fallback  b23e15b94c0f67becbf73a45ea08e84f62680614e85e9a9ac15eac6033a51a1a
+  483     1        484 > 483         enter parallel region @ 1 thread    parallel @ 1     b23e15b94c0f67becbf73a45ea08e84f62680614e85e9a9ac15eac6033a51a1a
+  483     2        484 > 483         enter parallel region @ 2 threads   parallel @ 2     b23e15b94c0f67becbf73a45ea08e84f62680614e85e9a9ac15eac6033a51a1a
+  483     4        484 > 483         enter parallel region @ 4 threads   parallel @ 4     b23e15b94c0f67becbf73a45ea08e84f62680614e85e9a9ac15eac6033a51a1a
+
+Commands (one per row, from SHUD/Basins/keliya/):
+
+  rm -rf output && SHUD_OMP_CUTOFF=485 OMP_NUM_THREADS=1 ../../../shud_omp keliya
+  rm -rf output && SHUD_OMP_CUTOFF=484 OMP_NUM_THREADS=1 ../../../shud_omp keliya
+  rm -rf output && SHUD_OMP_CUTOFF=483 OMP_NUM_THREADS=1 ../../../shud_omp keliya
+  rm -rf output && SHUD_OMP_CUTOFF=483 OMP_NUM_THREADS=2 ../../../shud_omp keliya
+  rm -rf output && SHUD_OMP_CUTOFF=483 OMP_NUM_THREADS=4 ../../../shud_omp keliya
+  shasum -a 256 output/keliya.out/keliya.rivqdown.dat
+
+------------------------------------------------------------------------------
+Verdict
+------------------------------------------------------------------------------
+
+  VERDICT: PASS
+
+  Spec L36-L43 "Cutoff strict-less-than semantics at NumEle = 1023 / 1024 /
+  1025 boundary" Scenario satisfied:
+
+  - cutoff=485 (NumEle < cutoff)   -> serial fallback         OK
+  - cutoff=484 (NumEle == cutoff)  -> serial fallback         OK (strict-less-than)
+  - cutoff=483 (NumEle > cutoff)   -> parallel region entered OK
+
+  All 5 runs produced bitwise-identical keliya.rivqdown.dat (SHA256 ==
+  b23e15b94c0f67becbf73a45ea08e84f62680614e85e9a9ac15eac6033a51a1a).
+
+  The cutoff=483 multi-thread case (2 + 4 threads) achieving bitwise match
+  is STRONGER than the brief minimum requirement: brief said "may DIFFER
+  (legitimate; A3b ULP-level expected, not bitwise A3a)". The owner-local
+  gather refactor under P1-P6 (#82..#99) eliminated cross-thread FP reorder
+  for keliya at the threads tested here. The cross-thread A3b ULP gate for
+  CASES with NumEle > OMP_CUTOFF (qinyijiang, heihe_x4) is task 8.10 (split
+  to sub-issue #100b) — keliya is not an A3b case per spec
+  strict-omp-acceptance-gates §D13 (excluded because NumEle < default
+  cutoff 1024; under SHUD_OMP_CUTOFF=483 synthetic it is force-included
+  here just for the 3-state dispatch verification, not for ULP gating).
+
+  CVODE stats consistency across all 5 runs:
+    nst = 111272, nfe = 112921, nfeLS = 117336, nni = 112920,
+    nsetups = 0, netf = 4, npe = 0, nps = 0, ncfn = 276, ncfl = 100
+  (identical CVODE step trajectory across all 5 runs confirms the bitwise
+  SHA256 match is not a coincidence on the rivqdown.dat slice.)
+
+------------------------------------------------------------------------------
+Related deliverables (NOT in this PR; split per issue #100 brief)
+------------------------------------------------------------------------------
+  - 8.9  A3a 4-case bitwise vs B1a-tag (server)                  -> sub-issue #100b
+  - 8.10 A3b qinyijiang + heihe_x4 cross-thread ULP (local+srv)  -> sub-issue #100b
+  - 8.11 server wall-clock heihe_x4 + qinyijiang + heihe         -> sub-issue #100c
+
+================================================================================
