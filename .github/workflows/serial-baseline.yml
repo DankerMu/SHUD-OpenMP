@@ -177,8 +177,10 @@ jobs:
     # was generated against gcc/g++ on Ubuntu 22.04, so bitwise comparison
     # is meaningful only on this image. Do not promote to ubuntu-latest.
     runs-on: ubuntu-22.04
-    # Timeout 15 min: current matrix is keliya × 2 LEGACY = 2 jobs and each
-    # runs build + grep gates + tool selftests in well under 5 min total.
+    # Timeout 15 min: current matrix is keliya × Config {A,B,E} = 3 jobs and
+    # each runs build (3 modes) + grep gates + tool selftests + (Config B)
+    # nm gate in well under 5 min total. With fail-fast: false the 3 jobs
+    # run in parallel, so wall-clock stays comfortably under the budget.
     timeout-minutes: 15
     permissions:
       contents: read
