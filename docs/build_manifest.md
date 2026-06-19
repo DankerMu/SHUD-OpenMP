@@ -172,7 +172,7 @@ done
 
 #### #55 hook site 修正（PR #71）
 
-**问题**：PR #53 第一版 12 张 after-PassValue golden 由 `SHUD_DUMP_SITE="f_update"` 产生，该 hook 位于 `SHUD/src/ModelData/MD_update.cpp:151`，紧接 L147-149 的 `for(i=0;i<NumY;i++) DY[i]=0;` reset 循环——所有 12 张 golden 的 payload 全字节零（仅 header 64 字节非零），只能当作 header-pin tampering detector，**无 B1a 回归诊断价值**（详见 issue #55；与 PR #54 round-1 F4 fix 同源缺陷：probe payload 落在错的位置）。
+**问题**：PR #53 第一版 12 张 after-PassValue golden 由 `SHUD_DUMP_SITE="f_update"` 产生，该 hook 位于 `SHUD/src/ModelData/MD_update.cpp:151`，紧接 L147-149 的 `for(i=0;i<NumY;i++) DY[i]=0;` reset 循环——所有 12 张 golden 的 payload 全字节零（仅 header (66 字节；qhh 因 lake section 加 8 字节 = 74 字节) 非零），只能当作 header-pin tampering detector，**无 B1a 回归诊断价值**（详见 issue #55；与 PR #54 round-1 F4 fix 同源缺陷：probe payload 落在错的位置）。
 
 **修正**：PR #71 采用 Option 3 — 复用 SHUD 已有的 `f_applyDY` hook（位于 `SHUD/src/ModelData/MD_f.cpp:180` 和 `SHUD/src/Model/MD_rhs_core.cpp:350`，rhs_apply 末端，dump 整合后的 `DY[0..3*NumEle+NumRiv+NumLake-1]`）。零 SHUD 源码改动、零 submodule pointer bump，仅外层 repo 改 `SHUD_DUMP_SITE` env var + 重生成 12 张 golden binary + 24 SHA 表。文件名 schema `snapshot_t<v>.bin` 不变（与 CI compare 路径 + manifest 完全对齐）；payload 从 zero-sentinel 升级为 post-integration diagnostic。
 

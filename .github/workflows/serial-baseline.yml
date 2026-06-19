@@ -691,10 +691,11 @@ jobs:
       # cfg.para (post-fix_case_paths + 90-day rewrite). Snapshot filenames
       # from the hook use abs-min; we map to rel-sec at compare time.
       #
-      # Two snapshot sites (#43): "f_update" (legacy, after-PassValue naming
-      # → snapshot_t<v>.bin) and "f_loop_before_passvalue" (#43 new,
+      # Two snapshot sites: "f_applyDY" (#55 fix — diagnostic integrated DY
+      #     after PassValue → snapshot_t<v>.bin) and "f_loop_before_passvalue"
+      #     (#43 — Qe2r_Surf before PassValue → snapshot_t<v>_before_passvalue.bin).
       # SHUD_DUMP_FNAME_SUFFIX=before_passvalue →
-      # snapshot_t<v>_before_passvalue.bin). All 4 cases have both sets of
+      # snapshot_t<v>_before_passvalue.bin. All 4 cases have both sets of
       # 3 goldens checked-in under benchmarks/<case>/B0_output/.
       - name: Compute case-relative snapshot abs-min triple (${{ matrix.case }})
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
@@ -734,15 +735,15 @@ jobs:
         env:
           SHUD_DUMP_OUTPUT_DIR: ${{ github.workspace }}/snapshots_new
           SHUD_DUMP_CASE_ID: ${{ matrix.case }}
-          # #55 fix: was SHUD_DUMP_SITE=f_update, but that hook fires in
-          # MD_update.cpp:151 right after the L147-149 DY[i]=0 reset loop, so
-          # the dumped 24 goldens (PR #53) were entirely-zero payload — only
-          # a header-pin tampering detector, no diagnostic value for B1a
-          # regression. f_applyDY hook lives at MD_f.cpp:180 + MD_rhs_core.cpp:350
-          # (post-integration end of rhs_apply), giving the integrated DY
-          # state. Filename schema unchanged (snapshot_t<v>.bin, no suffix);
-          # only the semantic upgrades from zero-payload sentinel to actual
-          # post-PassValue diagnostic.
+          # #55 fix: PR #53 used the legacy MD_update.cpp:151 hook (right
+          # after the L147-149 DY[i]=0 reset loop), so the dumped 24 goldens
+          # were entirely-zero payload — only a header-pin tampering detector,
+          # no diagnostic value for B1a regression. f_applyDY hook lives at
+          # MD_f.cpp:180 + MD_rhs_core.cpp:350 (post-integration end of
+          # rhs_apply), giving the integrated DY state. Filename schema
+          # unchanged (snapshot_t<v>.bin, no suffix); only the semantic
+          # upgrades from zero-payload sentinel to actual post-PassValue
+          # diagnostic.
           SHUD_DUMP_SITE: f_applyDY
           SHUD_DUMP_T_VALUES: ${{ steps.snapshot_times.outputs.abs_t_values }}
           SHUD_DUMP_T_TOL: "60"
@@ -783,7 +784,12 @@ jobs:
               new_path="${snap_dir}/snapshot_t${abs_min}${suffix}.bin"
               golden="benchmarks/${{ matrix.case }}/B0_output/snapshot_t${rel_sec}${suffix}.bin"
               if [[ ! -f "$new_path" ]]; then
-                echo "::error title=Expected snapshot missing::dump-on did not produce snapshot_t${abs_min}${suffix}.bin (expected for rel_sec=${rel_sec}, site=${suffix:-f_update}, case=${{ matrix.case }}, axis=${{ matrix.rhs_path }}). Check SHUD_DUMP_T_VALUES + cfg.para 90-day window + dump-on build."
+                if [ -z "$suffix" ]; then
+                  site=f_applyDY
+                else
+                  site=f_loop_before_passvalue
+                fi
+                echo "::error title=Expected snapshot missing::dump-on did not produce snapshot_t${abs_min}${suffix}.bin (expected for rel_sec=${rel_sec}, site=${site}, case=${{ matrix.case }}, axis=${{ matrix.rhs_path }}). Check SHUD_DUMP_T_VALUES + cfg.para 90-day window + dump-on build."
                 fail=1
                 continue
               fi
