@@ -120,6 +120,8 @@ B0 / B1a / P-strict bitwise neutrality + CVODE stats invariance gate 用的 **15
 
 **为什么 `nFCall` 不在 canonical 15-key 内**：`nFCall` 是 SHUD 侧在 `f.cpp::f()` 入口处单独 instrumented 的 RHS 调用 counter（不来自 SUNDIALS API），未写入 `cvode_stats.txt` 归档，由独立 capability 跟踪（F19 修订）。canonical 15-key 与 SUNDIALS API 一一对应、稳定可移植，nFCall 作为 SHUD 内部诊断口径不进入 cross-version invariance gate。
 
+**SUNDIALS 6.0.0 API 名注**：上表中 6 个 `CVSpils*` 名是 SUNDIALS legacy alias（兼容保留），SHUD 6.0.0 实际调用的是 unified `CVodeGet*Lin*` API（见 `SHUD/src/Equations/cvode_config.cpp::PrintFinalStats`：`CVodeGetLinWorkSpace` / `CVodeGetNumLinIters` / `CVodeGetNumPrecEvals` / `CVodeGetNumPrecSolves` / `CVodeGetNumLinConvFails` / `CVodeGetNumLinRhsEvals`）。两套 API 返回同一 counter，bitwise neutrality 不受影响；grep SHUD 源码用 unified 名。
+
 **唯一 enforcement point**：`tools/cvode_stats_diff/cvode_stats_diff.sh` exit code 0 = 15 键全等，任一键缺失 / 数值不等 → exit 非零 + `MISMATCH key=<k> expected=<gold> got=<new>` 报告。SUNDIALS 升级时只改本条目 + diff tool key list，不改 spec。
 _Avoid_: 在 spec 内枚举 15 个 key 名（重复 10 处即 entropy；引用本条目即可）
 
