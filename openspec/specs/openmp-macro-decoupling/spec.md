@@ -1,7 +1,9 @@
 # openmp-macro-decoupling Specification
 
 ## Purpose
-TBD - created by archiving change s1-rhs-core-extraction. Update Purpose after archive.
+
+S1d.2 阶段交付。把过载三义的 `_OPENMP_ON` 单宏拆成三个正交宏（`SHUD_ENABLE_OPENMP_RHS` 控制 rhs_core OMP 分支编译 / `SHUD_USE_OPENMP_NVECTOR` 控制 N_Vector 后端 + `-lsundials_nvecopenmp` 链接 / `SHUD_LEGACY_OMP_RHS` 控制 `_omp` 三函数编译），全树退役 `_OPENMP_ON` / `USE_RHS_CORE` / `N_VDestroy_Serial`；`f.cpp` 6 处 `NV_DATA_OMP` / `NV_DATA_S` 统一为 generic `N_VGetArrayPointer`，`Macros.hpp` 的 `SET_VALUE` 改 `N_VGetArrayPointer(v)[i]`；S1d-part2 独立 sub-PR，4 case bitwise vs B0 PASS。
+
 ## Requirements
 ### Requirement: 三正交宏取代 `_OPENMP_ON` 单宏
 

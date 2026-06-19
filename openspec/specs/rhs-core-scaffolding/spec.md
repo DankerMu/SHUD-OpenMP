@@ -1,7 +1,17 @@
 # rhs-core-scaffolding Specification
 
 ## Purpose
-TBD - created by archiving change s1-rhs-core-extraction. Update Purpose after archive.
+
+S1a 阶段交付。把 SHUD `f_update` / `f_loop` / `f_applyDY` 的入口与签名收敛到统一 `Model_Data::rhs_core(Y, DY, t)` 入口点（三参版本），引入 `MD_rhs_core.cpp` / `MD_rhs_core.hpp` 骨架 + `rhs_update()` 纯搬运 + `f.cpp` 内 `#ifdef USE_RHS_CORE` 编译分支，bitwise neutral vs B0。混合模式仅 `rhs_update` 走新路径，`f_loop` / `f_applyDY` 仍 fallback 到 legacy，S1b / S1c 后续逐段抽取。
+
+## Scope
+
+**S1a 阶段签名约定**：本 capability 全程 `rhs_core()` 为**三参版本** `rhs_core(double* Y, double* DY, double t)`，**不**带 `ExecPolicy` 参数。`ExecPolicy` 枚举与四参重载 `rhs_core(Y, DY, t, ExecPolicy policy)` 由 `exec-policy-enum` capability 在 **S1d.1** 引入；S1a / S1b / S1c spec 不引入 `ExecPolicy`，避免阶段越界。
+
+**头文件命名约定**：实现文件 `SHUD/src/Model/MD_rhs_core.cpp`；header `SHUD/src/Model/MD_rhs_core.hpp`（与 SHUD 既有 `Macros.hpp` / `Element.hpp` 命名风格一致），不使用 `.h` / `rhs_core.hpp` 等异名。
+
+**Temporal scope note**：本 capability 中所有 `_OPENMP_ON` 相关 Scenarios 仅适用于 S1a PR 评审上下文；post-S1d.2 由 `openmp-macro-decoupling` capability 退役 `_OPENMP_ON`（拆分为 `SHUD_ENABLE_OPENMP_RHS` / `SHUD_USE_OPENMP_NVECTOR` / `SHUD_LEGACY_OMP_RHS` 三正交宏），相关 Scenarios 被 superseded。
+
 ## Requirements
 ### Requirement: New `MD_rhs_core.cpp` skeleton with `rhs_update()` carry-over
 

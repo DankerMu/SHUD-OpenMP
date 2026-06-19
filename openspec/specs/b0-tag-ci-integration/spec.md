@@ -1,7 +1,13 @@
 # b0-tag-ci-integration Specification
 
 ## Purpose
-TBD - created by archiving change s1-rhs-core-extraction. Update Purpose after archive.
+
+S1 CI 闸落地。把 B0-tag bitwise neutrality 验证组装为每 PR 跑的 active gate：4 local case (keliya / xinanjiang_upstream / qinyijiang / qhh) × `*.dat` SHA256 + 24 snapshot golden + CVODE stats 15-key 全键 diff + 4 类宏移除 grep gate + invariant-sweep + 3-Config Makefile build + skip-baseline-ci label 反验，全 data-independent；fast-feedback (keliya) ≤ 2 分钟、full-bitwise 走 `full-bitwise` label / nightly cron。
+
+## Scope
+
+**Scope Note (S0 ci-serial-baseline 关系澄清)**: 本 capability 在 S0 `ci-serial-baseline` capability 的基础上扩展：(a) `build-and-compare` job case scope 从 keliya 单一扩到 keliya / xinanjiang_upstream / qinyijiang / qhh 4 case；(b) `skip-baseline-ci` label 退役（S0 阶段为通融，S1 后必删）；(c) `actions/checkout` 必须 `fetch-tags: true`；(d) `LEGACY_RHS=0 / 1` 两轴 build matrix。S0 `ci-serial-baseline` 的 Requirement 仍在底层 active；本 capability 不删任何 S0 Requirement，只 ADDED 严格更紧的 gate。proposal.md 中将 `ci-serial-baseline` 移至 'Modified Capabilities' subsection 反映此关系（提示信息：proposal.md 由 Implementer A 维护，本 spec 仅记录 scope 关系不直接 cross-edit）。
+
 ## Requirements
 ### Requirement: CI 4 local case bitwise check 覆盖范围
 

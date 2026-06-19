@@ -1,7 +1,17 @@
 # rhs-core-applydy-extraction Specification
 
 ## Purpose
-TBD - created by archiving change s1-rhs-core-extraction. Update Purpose after archive.
+
+S1c 阶段交付。把 `f_applyDY` 的 integrated DY 累加（element DY + river DY + lake DY + `SHUD_DUMP_RHS` hook）从 SHUD 主路径逐行搬运到 `rhs_core` 的 `rhs_apply()` 新函数；S1c 完成后 `rhs_core(Y, DY, t)` 依次调用 `rhs_update` → `rhs_flux` → `rhs_apply` 三段新路径，混合 fallback 完全退役。24 张 snapshot golden（4 case × 3 t_values × 2 probe-point：before-PassValue + after-PassValue）覆盖 bitwise + CVODE stats 15-key 验收。
+
+## Scope
+
+**S1c 阶段签名约定**：本 capability 全程 `rhs_core()` 为**三参版本** `rhs_core(double* Y, double* DY, double t)`，且 `rhs_apply()` 为**双参版本** `rhs_apply(double* DY, double t)`——**不**带 `ExecPolicy` 参数。`ExecPolicy` 枚举与四参 `rhs_core(Y, DY, t, policy)` / 三参 `rhs_apply(DY, t, policy)` 重载由 `exec-policy-enum` capability 在 **S1d.1** 引入；S1c spec 不引入 `ExecPolicy`，避免阶段越界。
+
+**头文件命名约定**：实现文件 `SHUD/src/Model/MD_rhs_core.cpp`；header `SHUD/src/Model/MD_rhs_core.hpp`（与 scaffolding / flux spec 一致）。
+
+**Temporal scope note**：本 capability 中所有 `_OPENMP_ON` 相关 Scenarios 仅适用于 S1c PR 评审上下文；post-S1d.2 由 `openmp-macro-decoupling` capability 退役 `_OPENMP_ON`（拆分为 `SHUD_ENABLE_OPENMP_RHS` / `SHUD_USE_OPENMP_NVECTOR` / `SHUD_LEGACY_OMP_RHS` 三正交宏），相关 Scenarios 被 superseded。
+
 ## Requirements
 ### Requirement: rhs_apply body is verbatim copy of serial f_applyDY
 

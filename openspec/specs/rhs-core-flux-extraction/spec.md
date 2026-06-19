@@ -1,7 +1,17 @@
 # rhs-core-flux-extraction Specification
 
 ## Purpose
-TBD - created by archiving change s1-rhs-core-extraction. Update Purpose after archive.
+
+S1b 阶段交付。把 RHS flux 计算（`f_loop` 内的 surface/subsurface element pass + segment pass + river pass + lake clamp + PassValue 边界）从 SHUD 主路径逐行搬运到 `rhs_core` 的 `rhs_flux()` 新函数；混合模式下 `rhs_update` + `rhs_flux` 走新路径，`rhs_apply` 仍 fallback 到 legacy `f_applyDY`，bitwise neutral vs B0。before-PassValue + after-PassValue 双探针 snapshot golden 作为 byte-equivalence 基准。
+
+## Scope
+
+**S1b 阶段签名约定**：本 capability 全程 `rhs_core()` 为**三参版本** `rhs_core(double* Y, double* DY, double t)`，**不**带 `ExecPolicy` 参数（`ExecPolicy` 由 `exec-policy-enum` capability 在 S1d.1 引入）。
+
+**头文件命名约定**：实现文件 `SHUD/src/Model/MD_rhs_core.cpp`；header `SHUD/src/Model/MD_rhs_core.hpp`（与 scaffolding spec 一致）。
+
+**Temporal scope note**：本 capability 中所有 `_OPENMP_ON` 相关 Scenarios 仅适用于 S1b PR 评审上下文；post-S1d.2 由 `openmp-macro-decoupling` capability 退役 `_OPENMP_ON`（拆分为 `SHUD_ENABLE_OPENMP_RHS` / `SHUD_USE_OPENMP_NVECTOR` / `SHUD_LEGACY_OMP_RHS` 三正交宏），相关 Scenarios 被 superseded。
+
 ## Requirements
 ### Requirement: rhs_flux pure carry-over from serial f_loop
 

@@ -1,7 +1,13 @@
 # exec-policy-enum Specification
 
 ## Purpose
-TBD - created by archiving change s1-rhs-core-extraction. Update Purpose after archive.
+
+S1d.1 阶段交付。引入 `enum class ExecPolicy { Serial, StrictOMP, ProductionOMP }` 枚举 + `rhs_core(Y, DY, t, ExecPolicy)` 四参重载 + `switch (policy)` 分派；`StrictOMP` / `ProductionOMP` 两分支为 `std::abort()` stub（禁用 `assert(false)` 防 `-DNDEBUG` 静默 fall-through），留给 S2 P1 实现真实并行。同时落地 `USE_RHS_CORE` 脚手架删除 + `LEGACY_RHS` A/B 编译宏引入（A/B atomic landing），本阶段只 land 接口形状与 Serial 路径走通。
+
+## Scope
+
+**Temporal scope note**: 本 capability requirements apply at S1d.1 completion; S1a/S1b/S1c interim states (three-parameter `rhs_core(double*, double*, double)`, `USE_RHS_CORE` 脚手架仍在) 分别由 `rhs-core-scaffolding` / `rhs-core-flux-extraction` / `rhs-core-applydy-extraction` capabilities 治理。本 capability 的 `rhs_core(Y, DY, t, ExecPolicy)` 四参重载 + switch dispatch 在 S1d.1 引入。
+
 ## Requirements
 ### Requirement: ExecPolicy 枚举定义与 rhs_core 调度入口
 
