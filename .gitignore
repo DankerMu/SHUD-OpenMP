@@ -11,3 +11,6 @@ CLAUDE.md
 
 # OpenSpec transient changes (glossary.md & specs stay tracked)
 openspec/changes/
+
+# subagent-workflow round-by-round working notes (issue brief / PR body / verifier verdict / review notes)
+.workplans/
