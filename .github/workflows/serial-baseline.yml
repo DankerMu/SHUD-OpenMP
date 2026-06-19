@@ -28,8 +28,9 @@
 #   What this workflow validates:
 #     - 3-Config Makefile target builds succeed (default / profile-on /
 #       dump-on, each on Config A / B / E rows = 9 builds total)
-#     - Config B nm gate: `nm shud | grep -E 'f_update_omp|f_loop_omp|
-#       f_applyDY_omp' | wc -l == 3` (S2 MOD-B / #103)
+#     - Config B nm gate: `nm shud | grep -E ' T .*(f_update_omp|f_loop_omp|
+#       f_applyDY_omp)' | wc -l == 3` (S2 MOD-B / #103; ' T ' anchor excludes
+#       Linux gcc per-TU _GLOBAL__sub_I__ static-init constructor)
 #     - Macro removal grep gates (USE_RHS_CORE / _OPENMP_ON / NV_DATA_OMP /
 #       NV_DATA_S in f.cpp / N_VDestroy_Serial) — 0 hits across SHUD/src/
 #     - tools/check_invariant_sweep.sh — 3 starter invariants
@@ -120,8 +121,8 @@ jobs:
         #   - Config B: LEGACY_RHS=1 path retired post-S1d.1, replaced here by
         #     SHUD_LEGACY_OMP_RHS=1 which compiles the `_omp` translation
         #     unit into the binary. value-add per spec ADDED Req 2 row 3:
-        #     `nm shud | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' |
-        #     wc -l == 3` + Serial bitwise vs B0-tag (smoke-check that adding
+        #     `nm shud | grep -E ' T .*(f_update_omp|f_loop_omp|f_applyDY_omp)'
+        #     | wc -l == 3` + Serial bitwise vs B0-tag (smoke-check that adding
         #     the `_omp` TU does not perturb the Serial code path).
         #   - Config E: SHUD_ENABLE_OPENMP_RHS=1 — P7 strict build target.
         #     Build-only PASS here; runtime bitwise vs B1a-tag lands at
@@ -422,13 +423,19 @@ jobs:
         if: steps.skip_check.outputs.skipped != 'true' && matrix.config == 'B'
         working-directory: SHUD
         run: |
-          count=$(nm shud_default 2>/dev/null | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' | wc -l | tr -d ' ')
+          # Filter on ' T ' (capital T = external/global text symbol) to
+          # exclude the lowercase 't' _GLOBAL__sub_I__ZN10Model_Data13f_applyDY_omp…
+          # static-init constructor that Linux gcc emits per-TU. Substring
+          # match on '_omp' there would inflate the count from 3 to 4.
+          # macOS clang doesn't emit the static-init symbol; both platforms
+          # converge to count==3 under the ' T ' anchor.
+          count=$(nm shud_default 2>/dev/null | grep -E ' T .*(f_update_omp|f_loop_omp|f_applyDY_omp)' | wc -l | tr -d ' ')
           if [[ "$count" != "3" ]]; then
-            echo "::error title=Config B nm gate FAIL::expected 3 _omp symbols, got $count"
+            echo "::error title=Config B nm gate FAIL::expected 3 _omp symbols (' T ' global), got $count"
             nm shud_default 2>/dev/null | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' || echo "(none found)"
             exit 1
           fi
-          echo "Config B nm gate PASS: 3 _omp symbols present in binary"
+          echo "Config B nm gate PASS: 3 _omp ' T ' symbols present in binary"
 
       # -----------------------------------------------------------------------
       # Step 7 — verify golden SHA256 manifest (PR #54 round-1 F12)
