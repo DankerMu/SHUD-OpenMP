@@ -17,6 +17,12 @@
 #     qLake*[i]; no lake[i+/-N] / nested-bracket neighbor. Audit also
 #     covers _Lake::update() body (Lake.cpp:104-107) which only writes
 #     this->u_toparea (member-of-this, no cross-lake writes).
+#   - DY zeroing loop body (Scenario "DY zeroing static for-schedule landed" +
+#     Requirement "DY array zeroing parallelism over state index"):
+#     writes only via DY[i] (bare state index); no DY[i+/-N] / nested-bracket
+#     DY[Y[…]] / cross-state DY[k] form. The loop body is trivially
+#     state-index-owner-local on `i`; the audit ensures no future refactor
+#     accidentally introduces cross-index DY writes.
 #   - No reduction / atomic / critical / dynamic / guided / nowait clauses
 #     on owner-local pragma (spec L20 + design §D11 P5 三层依赖模型).
 #
@@ -27,11 +33,11 @@
 # the legacy path is only reachable when `LEGACY_RHS=1` Makefile macro is
 # explicitly set, which is not the default CI Config matrix.
 #
-# #83/#84 extension: triple-scope audit (element + river + lake). The audit
-# body is parameterized by `audit_loop_body()`; element scope strips `Ele[i]`,
-# river scope strips `Riv[i]`, lake scope strips `lake[i]`. Each scope
-# independently checks the three invariants (cross-index, neighbor-nested,
-# forbidden pragma clauses).
+# #83/#84/#85 extension: quad-scope audit (element + river + lake + DY). The
+# audit body is parameterized by `audit_loop_body()`; element scope strips
+# `Ele[i]`, river scope strips `Riv[i]`, lake scope strips `lake[i]`, DY scope
+# strips `DY[i]`. Each scope independently checks the three invariants
+# (cross-index, neighbor-nested, forbidden pragma clauses).
 #
 # Exit 0 on PASS; exit 1 on any forbidden pattern found.
 # Run from the outer repo root.
@@ -75,10 +81,10 @@ if [ -z "$riv_end" ]; then
 fi
 
 # Lake scope: starts at the line immediately after the post-river NumEle
-# element-domain Qe2r_Surf/Sub zeroing loop's closing brace, and ends right
-# before the next `for (int i = 0; i < NumY; i++)` line (the DY zeroing
-# loop, which is governed by a SEPARATE spec L5 Requirement "DY array
-# zeroing parallelism over state index" — out of the lake-owner stage).
+# element-domain Qe2r_Surf/Sub zeroing loop's closing brace, and ends at the
+# closing brace `}` of the NumLake for-loop body (the line right BEFORE the
+# DY-owner OMP pragma block + NumY for-loop, which is governed by the
+# SEPARATE L5 DY zeroing Requirement and audited as the DY scope below).
 # Starting at the post-NumEle-loop close brace + 1 (analog to how riv_start
 # = ele_end + 1) ensures the lake-owner OMP pragma block at lines preceding
 # the `for (... i < NumLake; ...)` line is INSIDE the audited slice (the
@@ -100,9 +106,39 @@ if [ -z "$post_riv_ele_close" ]; then
     exit 1
 fi
 lake_start=$((post_riv_ele_close + 1))
-lake_end=$(awk -v s="$lake_start" 'NR>=s && /for[[:space:]]*\([[:space:]]*int[[:space:]]+i[[:space:]]*=[[:space:]]*0;[[:space:]]*i[[:space:]]*<[[:space:]]*NumY/{print NR-1; exit}' "$SCOPE")
+# Lake for-line: first `for (int i = 0; i < NumLake; i++)` after lake_start.
+lake_for=$(awk -v s="$lake_start" 'NR>=s && /for[[:space:]]*\([[:space:]]*int[[:space:]]+i[[:space:]]*=[[:space:]]*0;[[:space:]]*i[[:space:]]*<[[:space:]]*NumLake/{print NR; exit}' "$SCOPE")
+if [ -z "$lake_for" ]; then
+    echo "FAIL: cannot locate NumLake for-loop in rhs_update()"
+    exit 1
+fi
+# Lake scope ends at the closing `}` of the NumLake loop body (first `^    }$`
+# after lake_for). This lands the lake slice strictly BEFORE the DY pragma
+# block, so the DY-owner pragma is fully owned by the DY scope.
+lake_end=$(awk -v s="$lake_for" 'NR>s && /^[[:space:]]*\}[[:space:]]*$/{print NR; exit}' "$SCOPE")
 if [ -z "$lake_end" ]; then
-    echo "FAIL: cannot locate end of lake scope (NumY boundary anchor) in rhs_update()"
+    echo "FAIL: cannot locate end of lake scope (NumLake loop closing brace) in rhs_update()"
+    exit 1
+fi
+
+# DY scope: starts at lake_end + 1 (the line right after the NumLake loop's
+# closing brace, analogous to riv_start = ele_end + 1 and lake_start =
+# post_riv_ele_close + 1). The DY OMP pragma block (`#ifdef SHUD_ENABLE_OPENMP_RHS`
+# / `#pragma omp for schedule(static)` / `#endif`) plus the NumY `for` line
+# itself sit inside this slice so the pragma-clause Check 3 can see the
+# directive. Ends at the FIRST `}` at the matching indentation (`^    }$`)
+# after the NumY for-line — the NumY DY zeroing loop body is plain
+# 1-statement-per-line (just `DY[i] = 0.;`) so a single 4-space-indent
+# close-brace is the unambiguous end marker.
+dy_start=$((lake_end + 1))
+dy_for=$(awk -v s="$lake_end" 'NR>s && /for[[:space:]]*\([[:space:]]*int[[:space:]]+i[[:space:]]*=[[:space:]]*0;[[:space:]]*i[[:space:]]*<[[:space:]]*NumY/{print NR; exit}' "$SCOPE")
+if [ -z "$dy_for" ]; then
+    echo "FAIL: cannot locate NumY DY zeroing for-loop in rhs_update()"
+    exit 1
+fi
+dy_end=$(awk -v s="$dy_for" 'NR>s && /^[[:space:]]*\}[[:space:]]*$/{print NR; exit}' "$SCOPE")
+if [ -z "$dy_end" ]; then
+    echo "FAIL: cannot locate end of DY scope (NumY DY loop closing brace) in rhs_update()"
     exit 1
 fi
 
@@ -208,6 +244,16 @@ audit_loop_body "river" "$riv_start" "$riv_end" 'Riv\[i\]' 'Riv'
 # immutable post-init).
 audit_loop_body "lake" "$lake_start" "$lake_end" 'lake\[i\]' 'lake'
 
+# DY scope audit (#85): own index `DY[i]`, residual prefix `DY`. State-index
+# i owner-local — DY is a NumY-length array of CVODE residual values; the
+# loop body trivially writes only DY[i] per spec Requirement "DY array
+# zeroing parallelism over state index" + Scenario "DY zeroing static
+# for-schedule landed". Residual scan catches DY[i+1] (cross-state-index),
+# DY[Y[…]] (nested-bracket), DY[k] (alias-variable index). Pragma Check 3
+# enforces no nowait clause per spec L20 (DY zero must complete-barrier
+# before downstream RHS stages read it).
+audit_loop_body "dy" "$dy_start" "$dy_end" 'DY\[i\]' 'DY'
+
 if [ "$fail" -ne 0 ]; then
     echo ""
     echo "P1 owner-locality check FAIL"
@@ -219,4 +265,5 @@ echo "  function: $TARGET_FN"
 echo "  element scope @ lines ${start}..${ele_end}  pragma: ${pragma_element:-<not yet present — Config A defaults>}"
 echo "  river scope   @ lines ${riv_start}..${riv_end}  pragma: ${pragma_river:-<not yet present — Config A defaults>}"
 echo "  lake scope    @ lines ${lake_start}..${lake_end}  pragma: ${pragma_lake:-<not yet present — Config A defaults>}"
+echo "  DY scope      @ lines ${dy_start}..${dy_end}  pragma: ${pragma_dy:-<not yet present — Config A defaults>}"
 exit 0
