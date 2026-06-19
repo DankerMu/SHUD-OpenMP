@@ -1,0 +1,249 @@
+# =============================================================================
+# a3-gate.yml — P7 exit A3a + A3b enforcement gate (opt-in)
+# =============================================================================
+# Spec:
+#   - openspec/changes/s2-strict-omp-full/specs/strict-omp-acceptance-gates/spec.md
+#     ADDED Requirement 3 (A3a full-run bitwise enforced at P7 exit)
+#     ADDED Requirement 4 (A3b cross-thread ULP upper bound enforced at P7 exit)
+# Issue: #101 task 9.3 (P7 退出 enforcement).
+#
+# SCOPE:
+#   Opt-in gate that ONLY activates on PRs that touch the artifact dir
+#   (`tools/server_validation/p7_acceptance_results/`) OR carry one of
+#   the labels `p7` / `acceptance-gates`. Pre-#100 (when artifacts are
+#   not yet produced) this gate skips gracefully on every PR.
+#
+#   Validates the schema + thresholds documented in
+#   `tools/server_validation/p7_acceptance_results/README.md`:
+#     - A3a.json: 4-case .dat SHA256 match + CVODE 15-key diff exit 0 +
+#       snapshot 48/48 PASS + tag_base anchor frozen at B1a-tag commit
+#     - A3b.json: qinyijiang + heihe_x4 pairwise max_ulp(DY) <= 4,
+#       max_abs_diff_state < 1e-12, nst_diff_pct < 0.1,
+#       water_balance_cross_thread_diff < 1e-10
+#
+# GRACEFUL-SKIP CONTRACT:
+#   If either JSON is absent, the gate SKIPS with a WARNING annotation
+#   (does NOT fail). Matches the #101 task 9.3 contract "Pre-#102: this
+#   gate currently SKIPS (no artifacts present) — that's correct. It
+#   activates once #100 lands the artifacts."
+# =============================================================================
+
+name: a3-gate
+
+on:
+  pull_request:
+    branches:
+      - main
+      - baseline/current
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+    paths:
+      - 'tools/server_validation/p7_acceptance_results/**'
+      - '.github/workflows/a3-gate.yml'
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'tools/server_validation/p7_acceptance_results/**'
+      - '.github/workflows/a3-gate.yml'
+
+concurrency:
+  group: a3-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  a3-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # -----------------------------------------------------------------------
+      # Activation check: opt-in via path OR label
+      # -----------------------------------------------------------------------
+      # GitHub Actions `paths:` already filters PR events to relevant
+      # changes. But this gate is ALSO triggered by labels `p7` /
+      # `acceptance-gates` (per task 9.3 contract), which require a
+      # separate runtime check since `paths:` only filters by path.
+      - name: Activation check (label OR path)
+        id: activate
+        env:
+          LABEL_LIST: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          active=0
+          # Path-trigger: GitHub filters by `paths:` above; if the job
+          # starts at all on a PR event with a path-only filter, the path
+          # was touched. (For label-only triggers we still need to check
+          # the label list explicitly.)
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if echo "$LABEL_LIST" | grep -qE '"(p7|acceptance-gates)"'; then
+              echo "::notice title=A3 gate active::PR carries p7 / acceptance-gates label."
+              active=1
+            fi
+          fi
+          # Path was modified (any pull_request / push event that matched
+          # the paths filter -> we got here -> path triggered).
+          if [ -f tools/server_validation/p7_acceptance_results/A3a.json ] \
+             || [ -f tools/server_validation/p7_acceptance_results/A3b.json ]; then
+            echo "::notice title=A3 gate active::A3a.json / A3b.json present."
+            active=1
+          fi
+          echo "active=$active" >> "$GITHUB_OUTPUT"
+          if [ "$active" = "0" ]; then
+            echo "::notice title=A3 gate skipped::No P7 acceptance artifacts present + PR does not carry p7 / acceptance-gates label. This is the expected pre-#100 state; the gate activates once #100 task 8.9 + 8.10 land A3a.json + A3b.json."
+          fi
+
+      # -----------------------------------------------------------------------
+      # JSON tool dependency
+      # -----------------------------------------------------------------------
+      - name: Install jq
+        if: steps.activate.outputs.active == '1'
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y jq
+          fi
+          jq --version
+
+      # -----------------------------------------------------------------------
+      # A3a.json validation (spec Requirement 3)
+      # -----------------------------------------------------------------------
+      # Schema fields validated per p7_acceptance_results/README.md:
+      #   - result == "PASS"
+      #   - tag_base_commit_sha == B1a-tag commit anchor (status_matrix L97)
+      #   - all 4 cases: dat_sha256_match == true AND cvode_stats_diff_exit == 0
+      #   - snapshot_48_48_pass == true AND snapshot_check_exit == 0
+      - name: A3a gate (full-run bitwise vs B1a-tag, Req 3)
+        if: steps.activate.outputs.active == '1'
+        run: |
+          A3A=tools/server_validation/p7_acceptance_results/A3a.json
+          if [ ! -f "$A3A" ]; then
+            echo "::warning title=A3a gate SKIP::$A3A absent — task 8.9 has not yet populated it."
+            exit 0
+          fi
+          jq . "$A3A" >/dev/null || { echo "::error title=A3a gate FAIL::$A3A is not valid JSON"; exit 1; }
+          fail=0
+          result=$(jq -r '.result' "$A3A")
+          if [ "$result" != "PASS" ]; then
+            echo "::error title=A3a gate FAIL::result=$result, expected PASS"
+            fail=1
+          fi
+          tag_anchor=$(jq -r '.tag_base_commit_sha' "$A3A")
+          if [ "$tag_anchor" != "64569b3fa1826122262242e7cf14686384269cc9" ]; then
+            echo "::error title=A3a gate FAIL::tag_base_commit_sha=$tag_anchor, expected B1a-tag 64569b3fa1826122262242e7cf14686384269cc9 (status_matrix.md L97)"
+            fail=1
+          fi
+          ncase=$(jq -r '.cases | length' "$A3A")
+          if [ "$ncase" -ne 4 ]; then
+            echo "::error title=A3a gate FAIL::cases length=$ncase, expected 4 (keliya/xinanjiang_upstream/qinyijiang/qhh)"
+            fail=1
+          fi
+          # Per-case checks.
+          jq -r '.cases[] | "\(.name) \(.dat_sha256_match) \(.cvode_stats_diff_exit)"' "$A3A" | while read -r name dat_ok cvode_exit; do
+            if [ "$dat_ok" != "true" ]; then
+              echo "::error title=A3a gate FAIL::$name dat_sha256_match=$dat_ok, expected true"
+              echo "fail" >> /tmp/a3a_fail
+            fi
+            if [ "$cvode_exit" != "0" ]; then
+              echo "::error title=A3a gate FAIL::$name cvode_stats_diff_exit=$cvode_exit, expected 0"
+              echo "fail" >> /tmp/a3a_fail
+            fi
+          done
+          if [ -f /tmp/a3a_fail ]; then
+            fail=1
+          fi
+          snap_pass=$(jq -r '.snapshot_48_48_pass' "$A3A")
+          snap_exit=$(jq -r '.snapshot_check_exit' "$A3A")
+          if [ "$snap_pass" != "true" ]; then
+            echo "::error title=A3a gate FAIL::snapshot_48_48_pass=$snap_pass, expected true"
+            fail=1
+          fi
+          if [ "$snap_exit" != "0" ]; then
+            echo "::error title=A3a gate FAIL::snapshot_check_exit=$snap_exit, expected 0"
+            fail=1
+          fi
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "A3a gate PASS (4-case .dat SHA256 + CVODE 15-key + 48/48 snapshot all matched B1a-tag)"
+
+      # -----------------------------------------------------------------------
+      # A3b.json validation (spec Requirement 4)
+      # -----------------------------------------------------------------------
+      # Per-pairwise threshold:
+      #   max_ulp_dy <= 4, max_abs_diff_state < 1e-12, nst_diff_pct < 0.1
+      # Per-case water_balance_cross_thread_diff < 1e-10
+      # Required cases: qinyijiang + heihe_x4 (NumEle > OMP_CUTOFF)
+      - name: A3b gate (cross-thread ULP upper bound, Req 4)
+        if: steps.activate.outputs.active == '1'
+        run: |
+          A3B=tools/server_validation/p7_acceptance_results/A3b.json
+          if [ ! -f "$A3B" ]; then
+            echo "::warning title=A3b gate SKIP::$A3B absent — task 8.10 has not yet populated it."
+            exit 0
+          fi
+          jq . "$A3B" >/dev/null || { echo "::error title=A3b gate FAIL::$A3B is not valid JSON"; exit 1; }
+          fail=0
+          result=$(jq -r '.result' "$A3B")
+          if [ "$result" != "PASS" ]; then
+            echo "::error title=A3b gate FAIL::result=$result, expected PASS"
+            fail=1
+          fi
+          # Verify required cases present (qinyijiang + heihe_x4).
+          for required in qinyijiang heihe_x4; do
+            has=$(jq -r --arg n "$required" '.cases[] | select(.name == $n) | .name' "$A3B")
+            if [ -z "$has" ]; then
+              echo "::error title=A3b gate FAIL::required case $required missing from A3b.json (design §D13)"
+              fail=1
+            fi
+          done
+          # Per-case thresholds.
+          ncases=$(jq -r '.cases | length' "$A3B")
+          i=0
+          while [ "$i" -lt "$ncases" ]; do
+            cname=$(jq -r ".cases[$i].name" "$A3B")
+            wb=$(jq -r ".cases[$i].water_balance_cross_thread_diff" "$A3B")
+            # float compare via awk.
+            wb_ok=$(awk -v v="$wb" 'BEGIN { print (v < 1e-10) ? "1" : "0" }')
+            if [ "$wb_ok" != "1" ]; then
+              echo "::error title=A3b gate FAIL::$cname water_balance_cross_thread_diff=$wb, expected < 1e-10"
+              fail=1
+            fi
+            # pairwise sweep.
+            npair=$(jq -r ".cases[$i].pairwise | length" "$A3B")
+            j=0
+            while [ "$j" -lt "$npair" ]; do
+              row=$(jq -r ".cases[$i].pairwise[$j] | \"\(.a) \(.b) \(.max_ulp_dy) \(.max_abs_diff_state) \(.nst_diff_pct)\"" "$A3B")
+              ta=$(echo "$row" | awk '{print $1}')
+              tb=$(echo "$row" | awk '{print $2}')
+              ulp=$(echo "$row" | awk '{print $3}')
+              absd=$(echo "$row" | awk '{print $4}')
+              nstd=$(echo "$row" | awk '{print $5}')
+              ulp_ok=$(awk -v v="$ulp" 'BEGIN { print (v <= 4) ? "1" : "0" }')
+              absd_ok=$(awk -v v="$absd" 'BEGIN { print (v < 1e-12) ? "1" : "0" }')
+              nstd_ok=$(awk -v v="$nstd" 'BEGIN { print (v < 0.1) ? "1" : "0" }')
+              if [ "$ulp_ok" != "1" ]; then
+                echo "::error title=A3b gate FAIL::$cname pair(${ta},${tb}) max_ulp_dy=$ulp, expected <= 4"
+                fail=1
+              fi
+              if [ "$absd_ok" != "1" ]; then
+                echo "::error title=A3b gate FAIL::$cname pair(${ta},${tb}) max_abs_diff_state=$absd, expected < 1e-12"
+                fail=1
+              fi
+              if [ "$nstd_ok" != "1" ]; then
+                echo "::error title=A3b gate FAIL::$cname pair(${ta},${tb}) nst_diff_pct=$nstd, expected < 0.1"
+                fail=1
+              fi
+              j=$((j + 1))
+            done
+            i=$((i + 1))
+          done
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "A3b gate PASS (qinyijiang + heihe_x4 pairwise ULP / abs_diff / nst within spec Requirement 4 thresholds)"
