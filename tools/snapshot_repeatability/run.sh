@@ -1,14 +1,29 @@
 #!/bin/bash
-# run.sh — 3-run repeatability harness for before-PassValue snapshots.
+# run.sh — 3-run repeatability harness for snapshot determinism evidence.
 #
-# Generates `benchmarks/<case>/B0_output/repeatability_snapshots.txt`:
-# 3 independent SHUD runs × 3 t-values = 9 SHA256 rows; deterministic iff
-# the 3 per-row SHAs are identical across runs. F27b (PR #54 round-3)
-# promoted this from a one-shot .workplans/ harness to a committed tool
-# so any reviewer can re-run the evidence on any machine + any case.
+# Supports two snapshot sites that the SHUD dump hook can target:
+#
+#   --site=before  (default; legacy behavior)
+#                  SHUD_DUMP_SITE=f_loop_before_passvalue +
+#                  SHUD_DUMP_FNAME_SUFFIX=before_passvalue → files like
+#                  snapshot_t<v>_before_passvalue.bin; archived 3 runs ×
+#                  3 t-values = 9 SHA256 rows to
+#                  benchmarks/<case>/B0_output/repeatability_snapshots.txt.
+#
+#   --site=after   (#55 follow-up to PR #53)
+#                  SHUD_DUMP_SITE=f_applyDY (after-PassValue, DY integrated
+#                  diagnostic; was f_update where the in-loop reset zeroed
+#                  the payload — #55) + no SHUD_DUMP_FNAME_SUFFIX → files
+#                  like snapshot_t<v>.bin; archived 9 SHA256 rows to
+#                  benchmarks/<case>/B0_output/repeatability_snapshots_after_passvalue.txt.
+#
+# F27b (PR #54 round-3) promoted this from a one-shot .workplans/ harness
+# to a committed tool so any reviewer can re-run the evidence on any
+# machine + any case. PR #71 / #55 generalized it to both sites without
+# duplicating the script.
 #
 # Usage:
-#   bash tools/snapshot_repeatability/run.sh <case>
+#   bash tools/snapshot_repeatability/run.sh <case> [--site=before|after]
 #
 # Supported cases (must match SHUD/Basins/<case> layout + benchmarks/<case>):
 #   keliya                 proj=keliya
@@ -26,15 +41,17 @@
 #   3. cfg.para END = START + 90 (project-level truncation rule)
 #
 # Outputs:
-#   benchmarks/<case>/B0_output/repeatability_snapshots.txt
+#   --site=before → benchmarks/<case>/B0_output/repeatability_snapshots.txt
+#   --site=after  → benchmarks/<case>/B0_output/repeatability_snapshots_after_passvalue.txt
 #     (overwritten on each invocation; 9 SHA rows + header + verdict)
 #
 # Exit codes:
 #   0  3 runs complete, all 9 snapshots produced, file written
 #   1  any run failed / any expected snapshot missing
-#   2  usage error / unsupported case
+#   2  usage error / unsupported case / unsupported --site value
 #
-# Owned by: PR #54 round-3 F27 (promoted from .workplans/run_f13_repeatability.sh).
+# Owned by: PR #54 round-3 F27 (promoted from .workplans/run_f13_repeatability.sh);
+#           PR #71 / #55 added --site=after for after-PassValue diagnostic.
 
 set -eu
 
@@ -44,16 +61,50 @@ REPO=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 usage() {
     cat <<EOF >&2
-Usage: $PROG <case>
+Usage: $PROG <case> [--site=before|after]
 
 Supported cases: keliya / xinanjiang_upstream / qinyijiang / qhh
+
+Site selector:
+  --site=before  (default) f_loop_before_passvalue, suffix=_before_passvalue
+                  → repeatability_snapshots.txt
+  --site=after   #55 fix: f_applyDY (after-PassValue diagnostic), no suffix
+                  → repeatability_snapshots_after_passvalue.txt
 EOF
     exit 2
 }
 
-[ $# -eq 1 ] || usage
+# Argument parsing: 1st positional = CASE, optional --site=before|after.
+SITE="before"
+CASE=""
+for arg in "$@"; do
+    case "$arg" in
+        --site=before|--site=after)
+            SITE="${arg#--site=}"
+            ;;
+        --site=*)
+            printf "%s: bad --site value '%s' (want before|after)\n\n" "$PROG" "${arg#--site=}" >&2
+            usage
+            ;;
+        -h|--help)
+            usage
+            ;;
+        -*)
+            printf "%s: unknown flag '%s'\n\n" "$PROG" "$arg" >&2
+            usage
+            ;;
+        *)
+            if [ -z "$CASE" ]; then
+                CASE="$arg"
+            else
+                printf "%s: unexpected extra positional arg '%s'\n\n" "$PROG" "$arg" >&2
+                usage
+            fi
+            ;;
+    esac
+done
 
-CASE="$1"
+[ -n "$CASE" ] || usage
 
 # Per-case parameters: only PROJ (SHUD project key in input/<proj>/, which is
 # the filename prefix for cfg.para and other inputs). START / END day values
@@ -79,8 +130,35 @@ case "$CASE" in
         ;;
 esac
 
+# Derive site-dependent settings:
+#   DUMP_SITE        → env var that selects which dump hook fires
+#   ARCHIVE_SUFFIX   → filename suffix (empty for after-PassValue)
+#   FNAME_SUFFIX_ENV → SHUD_DUMP_FNAME_SUFFIX value (empty string = unset suffix
+#                      → hook writes snapshot_t<v>.bin instead of snapshot_t<v>_<suf>.bin)
+#   OUTFILE          → archive file under benchmarks/<case>/B0_output/
+#   HEADER_LABEL     → human-readable label for the file header comment
+case "$SITE" in
+    before)
+        DUMP_SITE="f_loop_before_passvalue"
+        ARCHIVE_SUFFIX="_before_passvalue"
+        FNAME_SUFFIX_ENV="before_passvalue"
+        OUTFILE="$REPO/benchmarks/$CASE/B0_output/repeatability_snapshots.txt"
+        HEADER_LABEL="before-PassValue snapshots"
+        ;;
+    after)
+        DUMP_SITE="f_applyDY"
+        ARCHIVE_SUFFIX=""
+        FNAME_SUFFIX_ENV=""
+        OUTFILE="$REPO/benchmarks/$CASE/B0_output/repeatability_snapshots_after_passvalue.txt"
+        HEADER_LABEL="after-PassValue snapshots (#55 fix: f_applyDY diagnostic)"
+        ;;
+    *)
+        printf "%s: bad SITE '%s' (internal error)\n" "$PROG" "$SITE" >&2
+        exit 2
+        ;;
+esac
+
 CASEDIR="$REPO/SHUD/Basins/$CASE"
-OUTFILE="$REPO/benchmarks/$CASE/B0_output/repeatability_snapshots.txt"
 CFG_PARA="$CASEDIR/input/$PROJ/$PROJ.cfg.para"
 
 [ -d "$CASEDIR" ] || {
@@ -133,12 +211,14 @@ ABS_TS=("$ABS_T1" "$ABS_T2" "$ABS_T3")
 DATE=$(git -C "$REPO" log -1 --format=%ci HEAD)
 SHUD_HEAD=$(git -C "$REPO/SHUD" rev-parse --short=12 HEAD)
 
-printf "===== %s (proj=%s, start_day=%d, end_day=%d) =====\n" "$CASE" "$PROJ" "$START_DAY" "$END_DAY"
+printf "===== %s (proj=%s, start_day=%d, end_day=%d, site=%s) =====\n" \
+    "$CASE" "$PROJ" "$START_DAY" "$END_DAY" "$SITE"
 
 # Write header.
 {
-    echo "# 3-run repeatability for before-PassValue snapshots"
+    echo "# 3-run repeatability for $HEADER_LABEL"
     echo "# case: $CASE"
+    echo "# site: $DUMP_SITE (--site=$SITE)"
     echo "# date: $DATE"
     echo "# SHUD pin: $SHUD_HEAD"
     echo "# cfg.para END = START + 90 (gitignored deployment cfg)"
@@ -160,15 +240,15 @@ for i in 1 2 3; do
         SHUD_DUMP_T_TOL=60 \
         SHUD_DUMP_OUTPUT_DIR="$STAGING" \
         SHUD_DUMP_CASE_ID="$PROJ" \
-        SHUD_DUMP_SITE="f_loop_before_passvalue" \
-        SHUD_DUMP_FNAME_SUFFIX="before_passvalue" \
+        SHUD_DUMP_SITE="$DUMP_SITE" \
+        SHUD_DUMP_FNAME_SUFFIX="$FNAME_SUFFIX_ENV" \
         ../../shud "$PROJ" >"$STAGING/run.log" 2>&1
     )
 
     # Verify all 3 expected files produced.
     PRODUCED=0
     for ABS in "${ABS_TS[@]}"; do
-        F="$STAGING/snapshot_t${ABS}_before_passvalue.bin"
+        F="$STAGING/snapshot_t${ABS}${ARCHIVE_SUFFIX}.bin"
         if [ ! -f "$F" ]; then
             printf "FATAL: %s run%d missing %s\n" "$CASE" "$i" "$F" >&2
             tail -10 "$STAGING/run.log" >&2 || true
@@ -185,8 +265,8 @@ for i in 1 2 3; do
     for idx in 0 1 2; do
         ABS="${ABS_TS[$idx]}"
         REL="${REL_T[$idx]}"
-        ARCHIVE_FNAME="snapshot_t${REL}_before_passvalue.bin"
-        SHA=$($SHA_CMD "$STAGING/snapshot_t${ABS}_before_passvalue.bin" | awk '{print $1}')
+        ARCHIVE_FNAME="snapshot_t${REL}${ARCHIVE_SUFFIX}.bin"
+        SHA=$($SHA_CMD "$STAGING/snapshot_t${ABS}${ARCHIVE_SUFFIX}.bin" | awk '{print $1}')
         printf "run%d  %s  %s\n" "$i" "$ARCHIVE_FNAME" "$SHA" >> "$OUTFILE"
     done
 done

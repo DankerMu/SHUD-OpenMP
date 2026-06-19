@@ -1,0 +1,20 @@
+# 3-run repeatability for after-PassValue snapshots (#55 fix: f_applyDY diagnostic)
+# case: qhh
+# site: f_applyDY (--site=after)
+# date: 2026-06-18 20:34:39 -0400
+# SHUD pin: 58327c5a1140
+# cfg.para END = START + 90 (gitignored deployment cfg)
+# t_values (abs min): 12098880,12140640,12227040
+# rel t_values (sec) for filename: 86400,2592000,7776000
+# columns: run_label  filename_as_archived  sha256
+run1  snapshot_t86400.bin  6c75107d16ca5449953f101701120f131e56f42478583b6ff8a890179aae7413
+run1  snapshot_t2592000.bin  186c6cba659d1be87734f6a186f4292ba95e439d22d5b500bf87ce0e1c9113b5
+run1  snapshot_t7776000.bin  5a606aabf5808914eba1f84b442565addeb4fe74ae53ab2f5073f84c7498d604
+run2  snapshot_t86400.bin  6c75107d16ca5449953f101701120f131e56f42478583b6ff8a890179aae7413
+run2  snapshot_t2592000.bin  186c6cba659d1be87734f6a186f4292ba95e439d22d5b500bf87ce0e1c9113b5
+run2  snapshot_t7776000.bin  5a606aabf5808914eba1f84b442565addeb4fe74ae53ab2f5073f84c7498d604
+run3  snapshot_t86400.bin  6c75107d16ca5449953f101701120f131e56f42478583b6ff8a890179aae7413
+run3  snapshot_t2592000.bin  186c6cba659d1be87734f6a186f4292ba95e439d22d5b500bf87ce0e1c9113b5
+run3  snapshot_t7776000.bin  5a606aabf5808914eba1f84b442565addeb4fe74ae53ab2f5073f84c7498d604
+
+# All 3 per-row SHAs identical across runs = deterministic.
