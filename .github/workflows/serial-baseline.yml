@@ -689,9 +689,24 @@ jobs:
       - name: Compute case-relative snapshot abs-min triple (${{ matrix.case }})
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         id: snapshot_times
+        # Issue #57 hardening: explicit START-not-empty check before the
+        # `$((start_day * 1440))` arithmetic. Without the guard, a missing
+        # START line silently produces `start_min=0`, all 3 t_values then
+        # land at `(0+1440)/(0+43200)/(0+129600)` — far before the actual
+        # case window — and the dump hook never fires, surfacing as a
+        # confusing "expected snapshot missing" downstream instead of the
+        # actual root cause. Fail-fast here with an actionable ::error.
         run: |
           cfg="SHUD/Basins/${{ matrix.case }}/input/${{ matrix.case }}/${{ matrix.case }}.cfg.para"
+          if [ ! -f "$cfg" ]; then
+            echo "::error title=cfg.para missing for snapshot timing::expected $cfg before snapshot_times computation (case=${{ matrix.case }})"
+            exit 1
+          fi
           start_day=$(awk '$1=="START" {print $2; exit}' "$cfg")
+          if [ -z "$start_day" ]; then
+            echo "::error title=Cannot parse START from cfg.para::awk found no START key in $cfg; cannot compute snapshot t_values (case=${{ matrix.case }})"
+            exit 1
+          fi
           start_min=$((start_day * 1440))
           # rel-sec → abs-min:  86400/60 = 1440, 2592000/60 = 43200, 7776000/60 = 129600
           t1=$((start_min + 1440))
