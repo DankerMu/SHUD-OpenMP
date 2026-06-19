@@ -44,21 +44,22 @@
 
 ## 进入 S2 前要处理的事
 
-只有四件，都不阻塞 P1 起步：
+只有两件，都不阻塞 P1 起步：
 
-- **R10 `StrictOMP` 是 `std::abort` stub**：S1d.1 落 ExecPolicy 枚举时只实现 `Serial`，`StrictOMP` / `ProductionOMP` 当前会触发 abort。这是 S2 P1 主线工作——把真实 OpenMP execution policy 接上 `rhs_core` kernel。
 - **heihe forcing IO 占 79%**（S0 决策遗留）：RHS 并行化 Amdahl 上限 1.14×，决策文档建议从 P9+ 提前到 P1 并行排另一个 issue。S1 期间未动，仍然 valid。
 - **openspec/changes/s1-rhs-core-extraction tasks.md 0/84 checkoff**：S1 全程没维护 tasks.md 的 `[x]`；fixture 已被消费完毕但没 `openspec archive`。这是 housekeeping，可在 S2 任何时候补，不影响 strict 阶段进入。
-- **CI 仅 keliya 跑 forcing-data-dependent step**：xinanjiang_upstream / qinyijiang / qhh 在 CI 上因 data_probe 为 false 走 no-op-with-notice。P1 阶段考虑接入 LFS / artifact cache 给 CI 真跑全 4 case；4 个 case 90-day truncation 本地 wall-time ~3 分钟级，可控。
+
+> CI 范围维持 keliya × LEGACY_RHS 双轴是**有意的设计**——xinanjiang_upstream / qinyijiang / qhh 走本地 + heihe / heihe_x4 走服务器手动验证；4-case × 90-day 在 S1 期间已 16+ 次跑过 bitwise PASS（S1c #46 4-case + #48/#49 + #55 重生 + #71 invariant gate 验证）。把 forcing data 拉进 CI 既慢又贵且与本地验证冗余，不在 S2 议程内。
 
 ## 下一步：S2
 
 S2 起 strict 阶段进入条件已就位：
 
-1. B1a-tag binary 是 strict 阶段 zero-参考点（A3a bitwise 基准从 B0 切到 B1a）。
-2. CI 4-case × LEGACY_RHS 双轴 matrix 是每 PR 自动 gate；新增 invariant-sweep job 防 pattern P1 (fix-1-site-miss-N-siblings) 类回归。
-3. 24 张 after-PassValue + 24 张 before-PassValue + B0 archive 三组共 60+ 个对比点全部 diagnostic（非 zero-payload），任何 S2 RHS execution policy 改动都能 byte-diff 出来。
-4. heihe forcing IO 提前并行化（S0 决策遗留）可与 S2 P1 并行排另一个 issue。
+1. **R10 `StrictOMP` 是 `std::abort` stub → S2 P1 第一刀**：S1d.1 落 ExecPolicy 枚举时只实现 `Serial`，`StrictOMP` / `ProductionOMP` 当前触发 abort。把真实 OpenMP execution policy 接上 `rhs_core` kernel（compute / gather 分离 + owner-local gather + fork-join 最小化）是 P1 主线工作。
+2. B1a-tag binary 是 strict 阶段 zero-参考点（A3a bitwise 基准从 B0 切到 B1a）。
+3. CI keliya × LEGACY_RHS 双轴 matrix 是每 PR 自动 gate；新增 invariant-sweep job 防 pattern P1 (fix-1-site-miss-N-siblings) 类回归；非 keliya case 在本地 + 服务器人工验证（4-case × 90-day 在 S1 已 16+ 次验证过 bitwise）。
+4. 24 张 after-PassValue + 24 张 before-PassValue + B0 archive 三组共 60+ 个对比点全部 diagnostic（非 zero-payload），任何 S2 RHS execution policy 改动都能 byte-diff 出来。
+5. heihe forcing IO 提前并行化（S0 决策遗留）可与 S2 P1 并行排另一个 issue。
 
 开 S2 工作前花 20 分钟看：master plan §3.2（P1 范围）+ §C1（红线，"OpenMP 只是 execution policy"）+ `docs/profile_decision.md`（为什么走原方案）+ 本文件。
 
