@@ -41,6 +41,15 @@
 #     - tools/check_goldens/check_goldens.sh — 48 SHA256 rows
 #       (build_manifest.md + repeatability files) data-independent drift gate
 #
+#   What this workflow does NOT validate (intentional, local-only):
+#     - `make smoke_configd` (Config D OpenMP NVector runtime probe;
+#       task 10.2b "smoke-compile sanity") is exercised by local
+#       pre-push checks, NOT in CI, per spec ADDED Req 2 "Config C / D
+#       不入 CI matrix". Recipe is preserved on every PR via
+#       $(SHUD_OMP_CUTOFF_DEFINE) propagation in SHUD/Makefile.
+#     - `make smoke_strictomp` (S1d.1 / #47 StrictOMP SIGABRT regression
+#       smoke test) is local-only for the same scope reason.
+#
 # All gates listed above are active on every PR. There is no scaffolded /
 # data-conditional path; bitwise compare runs locally + server (see
 # docs/s1_summary.md).
@@ -81,10 +90,12 @@ jobs:
   # ---------------------------------------------------------------------------
   # Job 1 — setup: emit the build matrix JSON
   # ---------------------------------------------------------------------------
-  # Matrix is fixed at keliya × LEGACY_RHS={0,1} = 2 jobs. Non-keliya bitwise
-  # compare runs locally + server (see SCOPE block at file top + docs/s1_summary.md).
-  # The setup job still emits matrix JSON via outputs so build-and-compare can
-  # stay matrix-driven (vs a hardcoded job).
+  # Matrix is Config A / B / E × keliya = 3 jobs (S2 MOD-B / #103). Build +
+  # grep + invariant gates on all 3 Configs; bitwise compare on A + B
+  # (Config E build-only pre-P7, runtime bitwise lands at #100 P7-Gates).
+  # Non-keliya 4-case bitwise validates locally + server per
+  # docs/s1_summary.md. The setup job still emits matrix JSON via outputs so
+  # build-and-compare can stay matrix-driven (vs a hardcoded job).
   setup:
     runs-on: ubuntu-22.04
     timeout-minutes: 2
