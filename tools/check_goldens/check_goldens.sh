@@ -1,24 +1,32 @@
 #!/bin/sh
-# check_goldens.sh — verify all 24 snapshot golden SHA256s vs docs manifest
-# + 12 unique-bin SHAs from per-case repeatability_snapshots.txt files.
+# check_goldens.sh — verify 24 snapshot golden SHA256s vs docs manifest
+# + 24 unique-bin SHAs from per-case repeatability_snapshots*.txt files.
 #
 # Parses `docs/build_manifest.md` for the two SHA tables (after-PassValue
 # 12 + before-PassValue 12), computes sha256 of each listed file, and
 # emits per-row [OK] / [MISMATCH] lines.
 #
 # F27c (PR #54 round-3): also parses 4 × `benchmarks/<case>/B0_output/
-# repeatability_snapshots.txt`. For each `run<N>  <filename>  <sha>` row,
-# verifies the SHA matches `sha256sum benchmarks/<case>/B0_output/<filename>`.
-# This catches drift between the 3-run repeatability evidence and the
-# shipped before-PassValue golden bins.
+# repeatability_snapshots.txt` (before-PassValue side). For each
+# `run<N>  <filename>  <sha>` row, verifies the SHA matches
+# `sha256sum benchmarks/<case>/B0_output/<filename>`. This catches drift
+# between the 3-run repeatability evidence and the shipped
+# before-PassValue golden bins.
+#
+# PR #71 / #55 follow-up: extended to also parse 4 × `benchmarks/<case>/
+# B0_output/repeatability_snapshots_after_passvalue.txt` (after-PassValue
+# side, produced by `tools/snapshot_repeatability/run.sh <case> --site=after`
+# from the f_applyDY hook). Same row format; archive filename has no
+# `_before_passvalue` suffix (snapshot_t<v>.bin).
 #
 # Exit 0 iff 24 build_manifest.md rows + 12 unique-bin rows from
-# repeatability files all match (36 entries total). Exit non-zero on any
-# mismatch or missing file. Run from anywhere — the script resolves the
-# repo root from its own location.
+# before-PassValue repeatability files + 12 unique-bin rows from
+# after-PassValue repeatability files all match (48 entries total).
+# Exit non-zero on any mismatch or missing file. Run from anywhere — the
+# script resolves the repo root from its own location.
 #
 # Owned by: openspec change s1-rhs-core-extraction (PR #54 round-1 F12 +
-# round-3 F27c).
+# round-3 F27c; PR #71 / #55 after-PassValue extension).
 
 set -eu
 
@@ -98,16 +106,22 @@ if [ "$TOTAL" -lt 24 ]; then
 fi
 
 # -----------------------------------------------------------------------------
-# F27c — repeatability_snapshots.txt drift detector.
+# F27c — repeatability_snapshots*.txt drift detector.
 #
 # For each of the 4 cases (keliya / xinanjiang_upstream / qinyijiang / qhh),
-# parse `benchmarks/<case>/B0_output/repeatability_snapshots.txt` rows of
-# the form `run<N>  snapshot_t<v>_before_passvalue.bin  <sha>`. Take the
-# 3 unique-bin SHAs (one per t-value; 3 runs × 3 t-values = 9 rows, but
+# and for each of the 2 sides (before-PassValue + after-PassValue), parse
+# `benchmarks/<case>/B0_output/repeatability_snapshots[_after_passvalue].txt`
+# rows of the form `run<N>  <archive_filename>  <sha>`. Take the 3
+# unique-bin SHAs (one per t-value; 3 runs × 3 t-values = 9 rows, but
 # determinism collapses to 3 unique SHAs per file). Verify each matches
 # `sha256sum benchmarks/<case>/B0_output/<filename>`.
 #
-# Total: 4 cases × 3 t-values = 12 unique-bin checks.
+# Before-PassValue: archive_filename = snapshot_t<v>_before_passvalue.bin
+# After-PassValue:  archive_filename = snapshot_t<v>.bin (no suffix; #55 fix
+#                   re-archived these via the f_applyDY hook so the SHA
+#                   matches the diagnostic post-integration DY state).
+#
+# Total: 4 cases × 3 t-values × 2 sides = 24 unique-bin checks.
 # -----------------------------------------------------------------------------
 REPEAT_PASS=0
 REPEAT_FAIL=0
@@ -123,60 +137,98 @@ REPEAT_SCRATCH=$(mktemp -t check_goldens_repeat.XXXXXX) || {
 }
 trap 'rm -f "$REPEAT_SCRATCH"' EXIT
 
-for case_name in keliya xinanjiang_upstream qinyijiang qhh; do
-    repeat_file="$REPO_ROOT/benchmarks/$case_name/B0_output/repeatability_snapshots.txt"
+# check_repeat_file <case_name> <repeat_filename> <archive_glob_regex> <side_label>
+#
+# Generic per-(case, side) check. Parses 9 rows from the per-case repeatability
+# file, collapses to 3 unique (filename, sha) pairs via `sort -u`, and verifies
+# each SHA matches `sha256sum benchmarks/<case>/B0_output/<filename>`. Emits
+# per-row [OK-REPEAT] / [MISMATCH-REPEAT] / [MISSING-REPEAT] lines to stdout
+# and __REPEAT_OK__ / __REPEAT_FAIL__ sentinels to the scratch file (for the
+# subshell-tally workaround documented above). $side_label is included in the
+# user-visible diagnostic so a mismatch on one side doesn't get confused with
+# the other.
+check_repeat_file() {
+    case_name="$1"
+    repeat_filename="$2"
+    archive_glob_regex="$3"
+    side_label="$4"
+
+    repeat_file="$REPO_ROOT/benchmarks/$case_name/B0_output/$repeat_filename"
     if [ ! -f "$repeat_file" ]; then
-        printf '[MISSING-REPEAT] benchmarks/%s/B0_output/repeatability_snapshots.txt\n' "$case_name"
-        REPEAT_FAIL=$((REPEAT_FAIL + 1))
-        continue
+        printf '[MISSING-REPEAT] %s/B0_output/%s (%s side)\n' \
+            "$case_name" "$repeat_filename" "$side_label"
+        # Single missing-file failure counts as one entry (the file would
+        # otherwise contribute 3 unique-bin rows).
+        printf '__REPEAT_FAIL__\n' >> "$REPEAT_SCRATCH"
+        return 0
     fi
-    # Parse `run<N>  <filename>  <sha>` rows, take unique (filename, sha) pairs.
-    # awk: skip blank lines + comment lines (^#), emit "filename<TAB>sha".
-    # `sort -u` collapses 3 runs into 3 unique rows when deterministic.
-    awk '/^run[0-9]+[[:space:]]+snapshot_t[0-9]+_before_passvalue\.bin[[:space:]]+[0-9a-f]+/ {
+    # awk: skip blank lines + comment lines (^#), emit "filename<TAB>sha"
+    # only for archive_glob_regex-matching rows. `sort -u` collapses 3 runs
+    # into 3 unique rows when deterministic.
+    awk -v re="$archive_glob_regex" '
+        $0 ~ "^run[0-9]+[[:space:]]+" re "[[:space:]]+[0-9a-f]+" {
             print $2 "\t" $3
         }' "$repeat_file" | sort -u | while IFS="$(printf '\t')" read -r fname expected_sha; do
         [ -z "$fname" ] && continue
         abs_path="$REPO_ROOT/benchmarks/$case_name/B0_output/$fname"
         if [ ! -f "$abs_path" ]; then
-            printf '[MISSING-REPEAT] %s/B0_output/%s (expected %s)\n' "$case_name" "$fname" "$expected_sha"
-            printf '__REPEAT_FAIL__\n'
+            printf '[MISSING-REPEAT] %s/B0_output/%s (%s side, expected %s)\n' \
+                "$case_name" "$fname" "$side_label" "$expected_sha"
+            printf '__REPEAT_FAIL__\n' >> "$REPEAT_SCRATCH"
             continue
         fi
         actual=$($SHA_CMD "$abs_path" | awk '{print $1}')
         if [ "$actual" = "$expected_sha" ]; then
-            printf '[OK-REPEAT] %s/%s  %s\n' "$case_name" "$fname" "$actual"
-            printf '__REPEAT_OK__\n'
+            printf '[OK-REPEAT] %s/%s (%s)  %s\n' \
+                "$case_name" "$fname" "$side_label" "$actual"
+            printf '__REPEAT_OK__\n' >> "$REPEAT_SCRATCH"
         else
-            printf '[MISMATCH-REPEAT] %s/%s  expected=%s actual=%s\n' "$case_name" "$fname" "$expected_sha" "$actual"
-            printf '__REPEAT_FAIL__\n'
+            printf '[MISMATCH-REPEAT] %s/%s (%s)  expected=%s actual=%s\n' \
+                "$case_name" "$fname" "$side_label" "$expected_sha" "$actual"
+            printf '__REPEAT_FAIL__\n' >> "$REPEAT_SCRATCH"
         fi
-    done > "$REPEAT_SCRATCH"
-    while IFS= read -r line; do
-        case "$line" in
-            __REPEAT_OK__)
-                REPEAT_PASS=$((REPEAT_PASS + 1))
-                REPEAT_TOTAL=$((REPEAT_TOTAL + 1))
-                ;;
-            __REPEAT_FAIL__)
-                REPEAT_FAIL=$((REPEAT_FAIL + 1))
-                REPEAT_TOTAL=$((REPEAT_TOTAL + 1))
-                ;;
-            "[OK-REPEAT]"*|"[MISMATCH-REPEAT]"*|"[MISSING-REPEAT]"*)
-                # Emit per-row diagnostic to stdout (was previously written
-                # to scratch interleaved with sentinels; print here for the
-                # user-visible output).
-                printf '%s\n' "$line"
-                ;;
-        esac
-    done < "$REPEAT_SCRATCH"
+    done
+}
+
+# Reset the scratch file at the top of the repeatability sweep so the tally
+# loop below counts only this run's sentinels (the file is also auto-cleaned
+# by the EXIT trap; this is just defense-in-depth against stale data if the
+# script were ever sourced).
+: > "$REPEAT_SCRATCH"
+
+for case_name in keliya xinanjiang_upstream qinyijiang qhh; do
+    # Before-PassValue side (PR #54 round-3 F27b/c).
+    check_repeat_file "$case_name" \
+        "repeatability_snapshots.txt" \
+        "snapshot_t[0-9]+_before_passvalue\\.bin" \
+        "before"
+
+    # After-PassValue side (PR #71 / #55: f_applyDY hook diagnostic).
+    check_repeat_file "$case_name" \
+        "repeatability_snapshots_after_passvalue.txt" \
+        "snapshot_t[0-9]+\\.bin" \
+        "after"
 done
+
+# Tally sentinels written to scratch by all sub-shell pipelines above.
+while IFS= read -r line; do
+    case "$line" in
+        __REPEAT_OK__)
+            REPEAT_PASS=$((REPEAT_PASS + 1))
+            REPEAT_TOTAL=$((REPEAT_TOTAL + 1))
+            ;;
+        __REPEAT_FAIL__)
+            REPEAT_FAIL=$((REPEAT_FAIL + 1))
+            REPEAT_TOTAL=$((REPEAT_TOTAL + 1))
+            ;;
+    esac
+done < "$REPEAT_SCRATCH"
 
 printf '\nREPEATABILITY CHECK SUMMARY  total=%d  pass=%d  fail=%d\n' \
     "$REPEAT_TOTAL" "$REPEAT_PASS" "$REPEAT_FAIL"
 
-if [ "$REPEAT_TOTAL" -lt 12 ]; then
-    printf 'WARNING: expected 12 repeatability rows (4 cases × 3 t-values), parsed %d. Check repeatability_snapshots.txt files.\n' "$REPEAT_TOTAL" >&2
+if [ "$REPEAT_TOTAL" -lt 24 ]; then
+    printf 'WARNING: expected 24 repeatability rows (4 cases × 3 t-values × 2 sides), parsed %d. Check repeatability_snapshots*.txt files.\n' "$REPEAT_TOTAL" >&2
     exit 1
 fi
 
