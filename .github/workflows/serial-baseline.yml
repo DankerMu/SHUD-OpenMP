@@ -314,10 +314,10 @@ jobs:
 
       # -----------------------------------------------------------------------
       # Step 3b — S2 P1 owner-locality grep gate (#82 element + #83 river +
-      # #84 lake scope)
+      # #84 lake + #85 DY scope)
       # -----------------------------------------------------------------------
-      # Verifies that the rhs_update() element + river + lake loop bodies in
-      # MD_rhs_core.cpp (the canonical runtime path under default Config A +
+      # Verifies that the rhs_update() element + river + lake + DY loop bodies
+      # in MD_rhs_core.cpp (the canonical runtime path under default Config A +
       # Config E builds; f.cpp dispatch routes f() → rhs_core(... Serial) →
       # rhs_update()) only write owner-local fields:
       #   - element loop: Ele[i] / qEle*[i] / Q*[i][*] (#82 scope)
@@ -327,11 +327,13 @@ jobs:
       #   - lake    loop: lake[i] / yLakeStg[i] / y2LakeArea[i] / Q*Lake*[i] /
       #     q*Lake*[i] (#84 scope; from the NumLake loop down to the NumY
       #     boundary, exclusive — DY zeroing is a separate spec Requirement)
+      #   - DY      loop: DY[i] (#85 scope; bare state-index owner-local, single
+      #     `DY[i] = 0.;` statement at the NumY zeroing loop body)
       # Enforced once per build, matrix-independent (the gate is a property of
       # the SHUD source, not the Config build flag), so guarded
       # `matrix.config == 'A'` to avoid 3× redundant runs across the Config
       # A/B/E rows.
-      - name: P1 owner-locality grep gate (element + river + lake)
+      - name: P1 owner-locality grep gate (element + river + lake + DY)
         if: steps.skip_check.outputs.skipped != 'true' && matrix.config == 'A'
         run: tools/check_p1_owner_locality.sh
 
