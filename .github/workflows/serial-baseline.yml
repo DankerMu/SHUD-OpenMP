@@ -4,16 +4,22 @@
 # Spec:
 #   - S0  ci-serial-baseline:   openspec/changes/s0-baseline-lock/specs/ci-serial-baseline/spec.md
 #   - S1  b0-tag-ci-integration: openspec/changes/s1-rhs-core-extraction/specs/b0-tag-ci-integration/spec.md
+#   - S2  openmp-macro-decoupling: openspec/changes/s2-strict-omp-full/specs/openmp-macro-decoupling/spec.md
 # Issues: openmp #13 (S0-9 initial) → #50 (S1-ci-A: grep gates) → #51 (S1-ci-B:
 #   fetch-tags + label deletion verify) → #71 (P3 sweep: invariant gate) →
 #   #75 (S2-onramp: drop cron + full-bitwise mode, simplify matrix) →
-#   follow-up cleanup PR (drop scaffolded run+compare path; KISS/YAGNI).
+#   follow-up cleanup PR (drop scaffolded run+compare path; KISS/YAGNI) →
+#   #103 (S2 MOD-B: build matrix expanded to Config A / B / E + Config B nm gate).
 #
 # SCOPE:
 #   This workflow gates build correctness + grep / invariant invariants only.
-#   The matrix is fixed at keliya × LEGACY_RHS={0,1} = 2 jobs. All gates listed
-#   below are active on every PR — there is no scaffolded / data-conditional
-#   path. Bitwise compare (B0-tag .dat SHA256, CVODE 15-key, snapshot 90d) is
+#   The matrix covers Config A / Config B / Config E on keliya = 3 jobs per
+#   openmp-macro-decoupling spec ADDED Req 2 (S2 MOD-B / #103). Config E is
+#   build-only on this workflow: runtime bitwise vs B1a-tag lands at P7 exit
+#   (#100 P7-Gates) when StrictOMP dispatch becomes real (currently a
+#   `std::abort()` stub per the same spec). All gates listed below are
+#   active on every PR — there is no scaffolded / data-conditional path.
+#   Bitwise compare (B0-tag .dat SHA256, CVODE 15-key, snapshot 90d) is
 #   validated locally (4-case × 90-day) + server (heihe / heihe_x4 Slurm) per
 #   docs/s1_summary.md design. If a future scope change adds forcing data to
 #   a self-hosted runner, the pre-cleanup scaffold can be cherry-picked from
@@ -21,7 +27,9 @@
 #
 #   What this workflow validates:
 #     - 3-Config Makefile target builds succeed (default / profile-on /
-#       dump-on, each on LEGACY_RHS={0,1} axes)
+#       dump-on, each on Config A / B / E rows = 9 builds total)
+#     - Config B nm gate: `nm shud | grep -E 'f_update_omp|f_loop_omp|
+#       f_applyDY_omp' | wc -l == 3` (S2 MOD-B / #103)
 #     - Macro removal grep gates (USE_RHS_CORE / _OPENMP_ON / NV_DATA_OMP /
 #       NV_DATA_S in f.cpp / N_VDestroy_Serial) — 0 hits across SHUD/src/
 #     - tools/check_invariant_sweep.sh — 3 starter invariants
@@ -87,11 +95,33 @@ jobs:
         run: |
           echo "::notice title=Excluded cases::kashigeer endpoint=deferred-upstream (per S0-13 spec amendment); heihe / heihe_x4 endpoint=server-only (no forcing data on GitHub runner); xinanjiang_upstream / qinyijiang / qhh = local-validated (S1 期间已 16+ 次 bitwise PASS，CI 不跑 per docs/s1_summary.md design). See benchmarks/INDEX.md for the full case×endpoint matrix."
 
-      - name: Emit fixed build matrix (keliya × LEGACY_RHS={0,1})
+      - name: Emit build matrix (Config A / B / E on keliya)
         id: matrix
+        # S2 MOD-B (#103): matrix expanded from rhs_path axis (Config A + B)
+        # to explicit Config A / B / E `include`-list entries per spec
+        # `openmp-macro-decoupling` ADDED Requirement 2 + tasks 10.2 / 10.2a /
+        # 10.2b. Each entry carries its own `make_flags` so downstream steps
+        # can pass them verbatim. The `config` key names the row for log /
+        # artifact disambiguation.
+        #
+        #   - Config A: defaults (LEGACY_RHS=0; B1a serial path; bitwise vs
+        #     B0-tag on keliya). No extra flags.
+        #   - Config B: LEGACY_RHS=1 path retired post-S1d.1, replaced here by
+        #     SHUD_LEGACY_OMP_RHS=1 which compiles the `_omp` translation
+        #     unit into the binary. value-add per spec ADDED Req 2 row 3:
+        #     `nm shud | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' |
+        #     wc -l == 3` + Serial bitwise vs B0-tag (smoke-check that adding
+        #     the `_omp` TU does not perturb the Serial code path).
+        #   - Config E: SHUD_ENABLE_OPENMP_RHS=1 — P7 strict build target.
+        #     Build-only PASS here; runtime bitwise vs B1a-tag lands at
+        #     P7 exit (#100 P7-Gates) when ExecPolicy::StrictOMP dispatch
+        #     becomes real (currently a `std::abort()` stub per spec
+        #     ADDED Req 2 Scenario "Config C smoke-compile"). The
+        #     `if: matrix.config != 'E'` guards on downstream run / compare
+        #     steps enforce this boundary at job level.
         run: |
-          echo 'matrix={"rhs_path":["LEGACY_RHS=0","LEGACY_RHS=1"],"case":["keliya"]}' >> "$GITHUB_OUTPUT"
-          echo "::notice title=serial-baseline matrix::keliya × LEGACY_RHS={0,1} = 2 jobs. Build + grep + invariant gates only; bitwise compare validated locally + server (see SCOPE block + docs/s1_summary.md)."
+          echo 'matrix={"include":[{"config":"A","case":"keliya","make_flags":"","desc":"Config A: defaults (Serial baseline; bitwise vs B0-tag)"},{"config":"B","case":"keliya","make_flags":"SHUD_LEGACY_OMP_RHS=1","desc":"Config B: legacy _omp TU compile-in (smoke + nm 3 symbols)"},{"config":"E","case":"keliya","make_flags":"SHUD_ENABLE_OPENMP_RHS=1","desc":"Config E: P7 strict build target (build-only PASS pre-P7; runtime bitwise lands at #100 P7-Gates)"}]}' >> "$GITHUB_OUTPUT"
+          echo "::notice title=serial-baseline matrix::Config A / B / E × keliya = 3 jobs. Build + grep + invariant gates on all configs; bitwise compare on A + B only (Config E build-only pre-P7, runtime bitwise at #100). See SCOPE block + docs/s1_summary.md."
 
   # ---------------------------------------------------------------------------
   # Job 1b — invariant-sweep: repo-wide grep gates from tools/invariants.yaml
@@ -316,47 +346,76 @@ jobs:
           ./configure
 
       # -----------------------------------------------------------------------
-      # Step 6 — build three SHUD binaries (axis-aware: ${{ matrix.rhs_path }})
+      # Step 6 — build three SHUD binaries (Config-aware: ${{ matrix.config }})
       # -----------------------------------------------------------------------
-      # S1-ci-A (#50) splits build on LEGACY_RHS axis. For each axis (=0/=1)
-      # we still build the 3 binary modes (default / profile-on / dump-on) so
-      # the bitwise / neutrality / snapshot gates remain valid on each axis.
+      # S2 MOD-B (#103) restructured the strategy matrix from `rhs_path` axis
+      # (LEGACY_RHS={0,1}) into explicit Config A / B / E `include`-list entries
+      # (see setup job matrix-emit). Each row carries its own `make_flags`:
+      #   - Config A: empty (`make shud` defaults; B0 serial bitwise gate)
+      #   - Config B: `SHUD_LEGACY_OMP_RHS=1` (compiles in legacy `_omp` TU;
+      #     nm gate at Step 6b verifies 3 symbols)
+      #   - Config E: `SHUD_ENABLE_OPENMP_RHS=1` (P7 strict build target;
+      #     build-only PASS here, runtime bitwise at #100 P7-Gates)
+      #
+      # For each Config we still build the 3 binary modes (default / profile-on
+      # / dump-on) so the bitwise / neutrality / snapshot gates remain valid on
+      # each Config when scope expands to include runtime bitwise compare.
       #
       # `make clean` between modes is defensive: SHUD's Makefile compiles
       # single-source (all .cpp in $(SRC) compiled in one shot per target),
       # so per-flag incremental compile does not happen. We do not trust
-      # object-file invalidation across SHUD_DUMP_DEFINE / LEGACY_RHS changes.
+      # object-file invalidation across SHUD_DUMP_DEFINE / Config changes.
       # Build logs are tee'd to build_<mode>.log so the failure-artifact
       # step can pick them up even when the build succeeded but a later
       # step failed.
       #
-      # Flag names match SHUD/Makefile: SHUD_DUMP_RHS (line 99), SHUD_ENABLE_PROFILE
-      # (line ~135), and LEGACY_RHS (post-S1d.1 introduction, #47). All three
-      # are guarded by `$(error … must be 0 or 1, got 'X')` rules so explicit
-      # `FOO=0` is required.
-      - name: Build default (axis ${{ matrix.rhs_path }})
+      # Flag names match SHUD/Makefile: SHUD_DUMP_RHS (line ~107), SHUD_ENABLE_PROFILE
+      # (line ~265), SHUD_LEGACY_OMP_RHS (S1d.2 #48), SHUD_ENABLE_OPENMP_RHS
+      # (S1d.1 #47). All are guarded by `$(error … must be 0 or 1, got 'X')`
+      # so explicit values are required.
+      - name: Build default (Config ${{ matrix.config }})
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 ${{ matrix.rhs_path }} shud 2>&1 | tee build_default.log
+          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 ${{ matrix.make_flags }} shud 2>&1 | tee build_default.log
           cp shud shud_default
 
-      - name: Build profile-on (axis ${{ matrix.rhs_path }})
+      - name: Build profile-on (Config ${{ matrix.config }})
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1 ${{ matrix.rhs_path }} shud 2>&1 | tee build_profile.log
+          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1 ${{ matrix.make_flags }} shud 2>&1 | tee build_profile.log
           cp shud shud_profile
 
-      - name: Build dump-on (axis ${{ matrix.rhs_path }})
+      - name: Build dump-on (Config ${{ matrix.config }})
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 ${{ matrix.rhs_path }} shud 2>&1 | tee build_dump.log
+          make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 ${{ matrix.make_flags }} shud 2>&1 | tee build_dump.log
           cp shud shud_dump
+
+      # -----------------------------------------------------------------------
+      # Step 6b — Config B nm gate (S2 MOD-B #103, spec ADDED Req 2 row 3)
+      # -----------------------------------------------------------------------
+      # Verifies that Config B's value-add is in place: the binary symbol
+      # table contains the 3 legacy `_omp` receivers (T or t section).
+      # On Config A / Config E this step is skipped — the symbols are
+      # NOT expected to be linked in (Config A: TU filter-out; Config E:
+      # OMP RHS macro enabled but legacy _omp filter-out unchanged).
+      - name: Config B nm gate (3 legacy _omp symbols)
+        if: steps.skip_check.outputs.skipped != 'true' && matrix.config == 'B'
+        working-directory: SHUD
+        run: |
+          count=$(nm shud_default 2>/dev/null | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' | wc -l | tr -d ' ')
+          if [[ "$count" != "3" ]]; then
+            echo "::error title=Config B nm gate FAIL::expected 3 _omp symbols, got $count"
+            nm shud_default 2>/dev/null | grep -E 'f_update_omp|f_loop_omp|f_applyDY_omp' || echo "(none found)"
+            exit 1
+          fi
+          echo "Config B nm gate PASS: 3 _omp symbols present in binary"
 
       # -----------------------------------------------------------------------
       # Step 7 — verify golden SHA256 manifest (PR #54 round-1 F12)
@@ -386,7 +445,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: baseline-failure-diff-${{ matrix.case }}-${{ matrix.rhs_path }}
+          name: baseline-failure-diff-${{ matrix.case }}-config${{ matrix.config }}
           if-no-files-found: ignore
           retention-days: 14
           path: |
