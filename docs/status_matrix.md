@@ -10,7 +10,7 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-17（S0-13 / #17：B0-tag 已打；heihe_x4 归档在服务器 Slurm 8256 / cn21 完成，3 次跑 bitwise PASS @ SHA `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06`）_
+> _最近一次更新：2026-06-18（S1 完工 + post-tag P3 follow-up sweep 全清：B1a-tag `4fafb8e5…` / commit `64569b3f` / SHUD pin `58327c5`；PR #71 + #72 落地 8 个 issue closure；零 open issue）_
 
 ## 矩阵
 
@@ -90,6 +90,12 @@ Aggregate gate（D12 收尾约束）：
 
 **B0-tag-applied**: `true`
 **B0-tag-date**: `2026-06-17`
+
+**B1a-tag-applied**: `true`
+**B1a-tag-date**: `2026-06-18`
+**B1a-tag-object-sha**: `4fafb8e570a020833395c7f57fe84eaabc7c7319`
+**B1a-tag-commit-sha**: `64569b3fa1826122262242e7cf14686384269cc9`
+**B1a-tag-SHUD-pin**: `58327c5a114052ffe8f25b6d3e2aec6b404963f2`
 
 ### B0-tag 已打（2026-06-17）
 
