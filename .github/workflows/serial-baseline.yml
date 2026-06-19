@@ -463,6 +463,58 @@ jobs:
           echo "Config B nm gate PASS: 3 _omp ' T ' symbols present in binary"
 
       # -----------------------------------------------------------------------
+      # Step 6c — Config A nm gate (S2 MOD-A #102, spec exec-policy-enum
+      # MODIFIED Req 2 Scenario "默认编译 binary 不含 OMP 路径符号" L53-L59)
+      # -----------------------------------------------------------------------
+      # Default-build invariant: SHUD_ENABLE_OPENMP_RHS=0 (Config A) MUST
+      # produce a binary whose symbol table contains zero references to the
+      # OMP-path identifiers — neither the user-facing `rhs_core_omp` entry
+      # nor the ExecPolicy enum tag mangled forms (`StrictOMP`,
+      # `ProductionOMP`). The `#ifdef SHUD_ENABLE_OPENMP_RHS` block in
+      # MD_rhs_core.cpp gates both the enum branches AND the
+      # `rhs_core_omp` definition out of the translation unit, so the
+      # linker has nothing to emit. A regression here would silently leak
+      # OMP code into the default build path.
+      #
+      # Case-insensitive grep (-iE) catches both the de-mangled C++
+      # identifier (e.g. `Model_Data::rhs_core_omp`) and the C++
+      # name-mangled form (which encodes class + method as
+      # `_ZN10Model_Data12rhs_core_ompEPdS0_d`); the literal substring
+      # `rhs_core_omp` appears in both. Same applies to enum tag tokens.
+      - name: Config A nm gate (no OMP-path symbols in default build)
+        if: steps.skip_check.outputs.skipped != 'true' && matrix.config == 'A'
+        working-directory: SHUD
+        run: |
+          if nm shud_default 2>/dev/null | grep -iE 'StrictOMP|ProductionOMP|rhs_core_omp'; then
+            echo "::error title=Config A nm gate FAIL::OMP-path symbols leaked into SHUD_ENABLE_OPENMP_RHS=0 default build (spec exec-policy-enum MODIFIED Req 2 L53-L59)"
+            exit 1
+          fi
+          echo "Config A nm gate PASS: no StrictOMP / ProductionOMP / rhs_core_omp symbols in default build (SHUD_ENABLE_OPENMP_RHS=0)"
+
+      # -----------------------------------------------------------------------
+      # Step 6d — Config E nm gate (S2 MOD-A #102, spec exec-policy-enum
+      # MODIFIED Req 2 Scenario "SHUD_ENABLE_OPENMP_RHS=1 编译入 StrictOMP
+      # 真实路径" L61-L68)
+      # -----------------------------------------------------------------------
+      # Positive symbol check: Config E (`SHUD_ENABLE_OPENMP_RHS=1`) MUST
+      # link in `Model_Data::rhs_core_omp` — without it the StrictOMP
+      # dispatch arm at MD_rhs_core.cpp::rhs_core() else-branch would have
+      # no implementation to call. Counterpart to Step 6c (Config A
+      # negative); together they enforce that the macro decoupling is
+      # actually doing work and not collapsing to "no symbols ever, in any
+      # config".
+      - name: Config E nm gate (rhs_core_omp present in OMP build)
+        if: steps.skip_check.outputs.skipped != 'true' && matrix.config == 'E'
+        working-directory: SHUD
+        run: |
+          if ! nm shud_default 2>/dev/null | grep -E 'rhs_core_omp' > /dev/null; then
+            echo "::error title=Config E nm gate FAIL::rhs_core_omp symbol missing from SHUD_ENABLE_OPENMP_RHS=1 build (spec exec-policy-enum MODIFIED Req 2 L61-L68)"
+            nm shud_default 2>/dev/null | grep -iE 'StrictOMP|ProductionOMP|rhs_core_omp' || echo "(no OMP-path symbols found at all)"
+            exit 1
+          fi
+          echo "Config E nm gate PASS: rhs_core_omp symbol present in build (SHUD_ENABLE_OPENMP_RHS=1)"
+
+      # -----------------------------------------------------------------------
       # Step 7 — verify golden SHA256 manifest (PR #54 round-1 F12)
       # -----------------------------------------------------------------------
       # tools/check_goldens/check_goldens.sh parses the 24 SHA256 rows from
