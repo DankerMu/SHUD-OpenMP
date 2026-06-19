@@ -99,3 +99,138 @@ invariants:
       locks that fix in. Comment references (e.g. "...START<TAB>12053
       format example..." in run.sh:100) are inside `# `-prefixed lines
       and are filtered out by the sweep tool's comment-line stripper.
+
+  # ---------------------------------------------------------------------------
+  # S2 P7-Gates (#100 / Task 8.8) — 4 invariants
+  #
+  # Spec authority:
+  #   openspec/changes/s2-strict-omp-full/specs/p7-final-fusion-omp-cutoff/spec.md
+  #     Requirement L45  "Single parallel region in MD_rhs_core.cpp (C7 strict gate)"
+  #     Requirement L56  "`#pragma omp for` only, ban `parallel for` and dynamic/guided"
+  #     Requirement L113 "P7 exit acceptance"
+  #   openspec/changes/s2-strict-omp-full/specs/exec-policy-enum/spec.md
+  #     MODIFIED Req 1 L37-L40 "ProductionOMP NDEBUG stub MUST use std::abort()"
+  #
+  # These 4 are "negative" regression gates — the sweep tool's expected_absent_in
+  # schema enforces "token MUST NOT appear in listed files". For the positive
+  # "exactly 1 parallel region" assertion (count == 1) the spec demands, see
+  # tools/check_p7_single_region.sh (count-based gate wired into CI).
+  # ---------------------------------------------------------------------------
+
+  - id: p7_single_parallel_region_strict
+    # NOTE on effective enforcement: this YAML token starts with `#`
+    # which the sweep tool's strip_comments filter (`^[[:space:]]*#`)
+    # removes BEFORE the grep runs. The sweep is intentionally
+    # designed for shell / yaml / python `#` comments and unavoidably
+    # blinds itself to C++ preprocessor directives. Real enforcement
+    # of this gate lives in tools/check_p7_single_region.sh (run from
+    # .github/workflows/serial-baseline.yml), which:
+    #   - counts the SCOPE's `#pragma omp parallel` regions (must == 1)
+    #   - bans `#pragma omp parallel for` (no second fork-join)
+    # The YAML entry remains as the SPECIFICATION identifier so the
+    # 4-tuple required by issue #100 task 8.8 is visible here.
+    token: '#pragma omp parallel for'
+    regex: false
+    expected_absent_in:
+      - 'SHUD/src/Model/MD_rhs_core.cpp'
+    rationale: |
+      P7 single parallel region invariant (spec p7-final-fusion-omp-cutoff
+      Req L45 + Scenario L63). The P7 fusion design demands EXACTLY ONE
+      `#pragma omp parallel default(none)` region inside rhs_core_omp; any
+      `#pragma omp parallel for` would produce a SECOND fork-join region,
+      doubling the fork-join cost per RHS call and breaking C7 fork-join
+      minimization (plan §1.2 C7 + §6 P7.2 强制规则 #2). Stage worksharing
+      MUST use the inner `#pragma omp for schedule(static)` form chained
+      under the single outer parallel region.
+      ACTUAL CI enforcement: tools/check_p7_single_region.sh
+      (count == 1 positive gate + zero `parallel for` negative gate).
+      This YAML entry serves as the spec identifier; the helper script
+      is the runtime gate (the sweep tool's `^[[:space:]]*#` strip
+      filter is blind to C++ `#pragma` directives by design).
+
+  - id: update_element_owner_local
+    token: 'Ele[i].nabr[j] - 1] +='
+    regex: false
+    expected_absent_in:
+      - 'SHUD/src/Model/MD_rhs_core.cpp'
+    rationale: |
+      Stage 1 element-update owner-locality regression gate (spec
+      p7-final-fusion-omp-cutoff Req L45 + p1-rhs-update-owner-local-omp
+      Req "Element state update only writes Ele[i] owner"). The Stage 1
+      element loop body writes ONLY to owner-local indices `Ele[i]` /
+      `qEle*[i]` / `Q*[i][*]`. A cross-element neighbor write of the form
+      `<arr>[Ele[i].nabr[j] - 1] += <expr>` would simultaneously target
+      the i-th element's neighbor (i.e. some j != i), which races across
+      threads under the shared parallel region. Belt-and-suspenders
+      companion to tools/check_p1_owner_locality.sh (which scopes by AST
+      slice + residual scan): this YAML invariant catches the *literal
+      regression pattern* sweep-wide, even if a future Stage 2 / 3 / etc.
+      mistakenly inherits the pattern outside the structured slice.
+      Current code uses `Ele[i].iLake - 1] +=` (Stage 2 lake gather) and
+      `Ele[i].iLake - 1].NumEleLake` (read-only), but no `nabr[j] - 1] +=`
+      anywhere — keeping it that way is the gate's purpose. See
+      MD_rhs_core.cpp Stage 1 block (L778-L834) for the locked-in
+      owner-local shape; deviation would surface here as the first
+      [MISMATCH].
+
+  - id: p5_no_reduction_atomic_critical
+    # NOTE on effective enforcement (same as p7_single_parallel_region_strict
+    # above): the token starts with `#` and is blind to the sweep tool's
+    # `^[[:space:]]*#` strip filter. The actual enforcement is in
+    # tools/check_p7_single_region.sh (gate 3 — zero `#pragma omp critical`
+    # in MD_rhs_core.cpp). This YAML entry serves as the SPEC IDENTIFIER
+    # so the 4-tuple required by issue #100 task 8.8 is present here.
+    #
+    # We pick `#pragma omp critical` (single fixed-string) because the
+    # brief's recommended regex `^[[:space:]]*#pragma omp
+    # (atomic|critical|reduction)` would collide with the awk parser's
+    # `|` inter-field delimiter (`id|regex|token|hex_token|paths`); the
+    # shell consumer's IFS='|' read truncates the token at the first
+    # `|`. `#pragma omp critical` is the most likely regression vector:
+    # the quickest fallback when a `+=` race surfaces under multi-thread
+    # testing. Atomic / reduction siblings are guarded indirectly by:
+    #   - A3a bitwise vs B1a-tag (any FP reorder fails at >=2 threads)
+    #   - spec p7 Req L57 grep gates in CI
+    #   - tools/check_p7_single_region.sh gate 3 (this script enforces
+    #     all 3 in one place; see its docstring)
+    token: '#pragma omp critical'
+    regex: false
+    expected_absent_in:
+      - 'SHUD/src/Model/MD_rhs_core.cpp'
+    rationale: |
+      P5 owner-local gather invariant (spec p5-owner-local-gather Req +
+      design.md §D11 "三层依赖模型" + spec p7 Req L57). The Stage 5
+      gather design eliminates the need for atomic / critical /
+      reduction by partitioning writes into owner-disjoint slices
+      guarded by `#pragma omp for schedule(static)` + barrier
+      discipline. Reintroducing `#pragma omp critical` would serialize
+      the offending hot loop region — silent at 1 thread but
+      catastrophic for >=2 threads (breaks both A3a bitwise FP-reorder
+      gate AND C6 profile-driven priority). Scoped strictly to
+      MD_rhs_core.cpp: `MD_ET.cpp` carries 1 documented pre-existing
+      `#pragma omp critical` (named region per #86) which is OUT of
+      scope for this gate.
+      ACTUAL CI enforcement: tools/check_p7_single_region.sh gate 3.
+      This YAML entry serves as the spec identifier (see NOTE comment
+      above for sweep-tool blindness to `#pragma` lines).
+
+  - id: production_omp_abort_stub_ndebug_safe
+    token: 'assert\(false\)[[:space:]]*;'
+    regex: true
+    expected_absent_in:
+      - 'SHUD/src/Model/MD_rhs_core.cpp'
+    rationale: |
+      ProductionOMP stub MUST use `std::abort()` (NOT `assert(false);`)
+      per spec exec-policy-enum MODIFIED Req 1 L37-L40 + L67 NDEBUG
+      safety. Release builds (`-DNDEBUG`) strip `assert(...)` to a no-op
+      and would let execution silently fall through to the next switch
+      arm, destroying the contract that ProductionOMP / unrecognized
+      ExecPolicy values MUST trap rather than impersonate Serial.
+      `std::abort()` is preserved at all `-DNDEBUG` levels per libc
+      spec, so this is the only NDEBUG-safe choice for the OMP stubs
+      and the `default:` catch-all (MD_rhs_core.cpp L642-L654 + L656-L665
+      under SHUD pin 5b90a91). Token uses regex form with a trailing
+      `;` to discriminate ACTUAL statement-form `assert(false);` from
+      doc / comment mentions like `\`assert(false)\` is forbidden ...`
+      in the file header (L568 + L647), which lack the terminating
+      semicolon adjacent to the parenthesis.
