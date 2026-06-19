@@ -6,32 +6,45 @@
 #   - S1  b0-tag-ci-integration: openspec/changes/s1-rhs-core-extraction/specs/b0-tag-ci-integration/spec.md
 # Issues: openmp #13 (S0-9 initial) → #50 (S1-ci-A: matrix + grep gates + nightly)
 #
-# S1-ci-A scope (issue #50):
-#   - Build matrix split on LEGACY_RHS axis (=0 default, =1 legacy fallback)
-#   - PR fast-feedback path: 2 axes × 1 case (keliya) = 2 jobs
-#   - Nightly cron + PR `full-bitwise` label: 2 axes × 4 cases = 8 jobs
-#   - Macro removal grep gates (USE_RHS_CORE / _OPENMP_ON / NV_DATA_OMP /
-#     NV_DATA_S in f.cpp / N_VDestroy_Serial) — runs unconditionally even
-#     without forcing data
-#   - LEGACY_RHS=1 axis additionally asserts the 3 `*_omp` symbols are
-#     still present in the legacy binary (spec L20-23, #49 precedent)
-#   - 90-day truncation: explicit END = START + 90 rewrite in the CI step
-#     (tools/fix_case_paths/fix_case_paths.sh does NOT touch END; see note
-#     in "Fix case paths" step below)
+# SCOPE (post-S1 P3 sweep, reframed per docs/s1_summary.md "下一步：S2" §3):
+#   This workflow gates **build correctness + grep / invariant invariants only**,
+#   NOT bitwise compare. The matrix is fixed at keliya × LEGACY_RHS={0,1} = 2 jobs
+#   because forcing data is local-only (see "Data strategy" below). Non-keliya
+#   bitwise compare is validated locally (4-case × 90-day) + server (heihe /
+#   heihe_x4 Slurm) per S1 design — see docs/s1_summary.md.
 #
-# S1-ci-B scope (issue #51) — LANDED on top of #50:
-#   - fetch-tags: true + fetch-depth: 0 on actions/checkout (spec L71-76)
-#   - B0-tag reachability smoke check immediately after checkout (spec L65-69)
-#   - CVODE 15-key stats diff per (case, axis) via cvode_stats_diff.sh (spec L251-274)
-#   - snapshot t_values HARD-fail gate (4 in-matrix cases; spec L102-108)
-#   - on.pull_request.types extended to include labeled/unlabeled (spec L206-211)
-#   - skip-baseline-ci label deletion verified at runtime (spec L170-174)
+#   What this workflow ACTUALLY validates:
+#     - 3-Config Makefile target builds succeed (Config A default, Config B
+#       LEGACY_RHS=1, ...)
+#     - Macro removal grep gates (USE_RHS_CORE / _OPENMP_ON / NV_DATA_OMP /
+#       NV_DATA_S in f.cpp / N_VDestroy_Serial) — 0 hits across SHUD/src/
+#     - tools/check_invariant_sweep.sh — 3 starter invariants
+#       (tmp_dollar_pid_absence / pii_server_endpoint_absence /
+#       hardcoded_start_day_absence) all [OK]
+#     - LEGACY_RHS=1 axis: 3 `*_omp` symbols still present in legacy binary
+#       (spec L20-23, #49 precedent)
+#     - skip-baseline-ci label deleted verified at runtime (spec L170-174)
+#     - B0-tag reachability smoke check
 #
-# Note: switching the SHA256 golden source from worktree
-# (benchmarks/<case>/B0_output/) to `git show B0-tag:...` (spec L54-56) is
-# tracked in a follow-up issue; the bitwise check is functionally equivalent
-# today because PRs that touch B0_output also trigger the check_goldens
-# manifest verifier (step 11) which catches worktree drift.
+#   What this workflow does NOT do (intentional per design):
+#     - Run SHUD binary against any case's forcing data
+#     - Bitwise compare .dat outputs vs B0-tag goldens
+#     - Snapshot probe diff
+#     - CVODE 15-key stats diff
+#     - Nightly full-matrix sweep
+#
+#   The data_probe + 30 if-guarded run+compare steps below are **scaffolding
+#   reserved for future deployment** (e.g. self-hosted runner with forcing
+#   data mounted). They currently exit silently with `data not deployed`
+#   notice for every case — that is by design, not a bug; do not "fix" by
+#   adding forcing data to the workflow without a deliberate scope change.
+#
+# Spec:
+#   - S0  ci-serial-baseline:   openspec/changes/s0-baseline-lock/specs/ci-serial-baseline/spec.md
+#   - S1  b0-tag-ci-integration: openspec/changes/s1-rhs-core-extraction/specs/b0-tag-ci-integration/spec.md
+# Issues: openmp #13 (S0-9 initial) → #50 (S1-ci-A: grep gates) → #51 (S1-ci-B:
+#   fetch-tags + label deletion verify) → #71 (P3 sweep: invariant gate) →
+#   PR after #74 (S2-onramp: drop cron + full-bitwise mode, simplify matrix).
 #
 # -----------------------------------------------------------------------------
 # Data strategy: STRATEGY C  (skip-label-only + scaffolded run-and-compare)
@@ -76,22 +89,18 @@ on:
     branches:
       - main
       - baseline/current
-    # S1-ci-B (#51): include labeled/unlabeled so add/remove of `full-bitwise`
-    # label re-triggers the workflow (spec b0-tag-ci-integration L206-211
-    # "标签即开关" — without labeled/unlabeled, switching label requires a
-    # fresh push to actually swap fast-feedback / full-bitwise modes).
-    types: [opened, reopened, synchronize, labeled, unlabeled]
-  # S1-ci-A (#50): nightly cron triggers the 8-job full-bitwise matrix
-  # (2 LEGACY_RHS axes × 4 cases). Per b0-tag-ci-integration spec L213-218
-  # "nightly cron 03:00 UTC 跑全 4 case", the schedule runs on the default
-  # branch HEAD (GitHub Actions cron always runs on the default branch, which
-  # is `main` here; nightly verifies whatever was last merged into main).
-  schedule:
-    - cron: '0 3 * * *'
+    # Default PR event types only — no labeled/unlabeled. The `full-bitwise`
+    # label / mode-switching logic was removed alongside nightly cron when
+    # CI scope was reframed (see SCOPE block above + docs/s1_summary.md).
+    types: [opened, reopened, synchronize]
+  # Nightly cron removed: per docs/s1_summary.md design, CI does NOT run
+  # SHUD binary or bitwise compare. A daily cron would generate 8 jobs of
+  # silently-skipped run+compare scaffold noise with zero validation signal.
+  # If a future scope change adds forcing data deployment, add `schedule:`
+  # back here AND restore the matrix expansion in the setup job.
 
 # Cancel superseded runs on the same ref so PR push spam does not pile up
 # in the queue. Each push to a PR cancels the previous in-flight job.
-# Scheduled runs do not collide with PR refs so cron jobs survive.
 concurrency:
   group: serial-baseline-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -100,46 +109,31 @@ jobs:
   # ---------------------------------------------------------------------------
   # Job 1 — setup: emit the build matrix JSON
   # ---------------------------------------------------------------------------
-  # Per b0-tag-ci-integration spec "CI build matrix 跑 LEGACY_RHS=0 与 =1 两轴"
-  # (L276-301) and "PR fast-feedback 路径只跑 keliya" (L36-52):
+  # Matrix is fixed at keliya × LEGACY_RHS={0,1} = 2 jobs. The fast-feedback /
+  # full-bitwise mode toggle and nightly cron full-matrix sweep were removed
+  # when CI scope was reframed (see SCOPE block at file top + docs/s1_summary.md
+  # "下一步：S2" §3). Non-keliya bitwise compare runs locally + server, not
+  # in CI. To restore matrix expansion in a future scope change, add the if/
+  # else mode logic back here AND re-add nightly cron in the `on:` block.
   #
-  #   - PR default (no full-bitwise label, not a schedule event):
-  #       2 axes × 1 case (keliya) = 2 jobs, wall-clock ≤ 4 min
-  #   - PR with `full-bitwise` label OR schedule (nightly cron):
-  #       2 axes × 4 cases = 8 jobs, timeout ≥ 25 min
-  #
-  # Emitting the matrix from a separate setup job avoids 8 stub matrix entries
-  # gated by `if:` (which would still show as skipped checks on the PR UI,
-  # confusing readers). The matrix JSON is exposed via job outputs and the
-  # consumer job pulls it via `fromJson(needs.setup.outputs.matrix)`.
+  # The setup job still emits matrix JSON via outputs so build-and-compare
+  # can stay matrix-driven (vs a hardcoded job) — keeps future expansion a
+  # one-line change.
   setup:
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
-      mode: ${{ steps.matrix.outputs.mode }}
     steps:
       - name: Notice excluded cases (spec b0-tag-ci-integration L18-28)
         run: |
-          echo "::notice title=Excluded cases::kashigeer endpoint=deferred-upstream (per S0-13 spec amendment); heihe / heihe_x4 endpoint=server-only (no forcing data on GitHub runner). See benchmarks/INDEX.md for the full case×endpoint matrix."
+          echo "::notice title=Excluded cases::kashigeer endpoint=deferred-upstream (per S0-13 spec amendment); heihe / heihe_x4 endpoint=server-only (no forcing data on GitHub runner); xinanjiang_upstream / qinyijiang / qhh = local-validated (S1 期间已 16+ 次 bitwise PASS，CI 不跑 per docs/s1_summary.md design). See benchmarks/INDEX.md for the full case×endpoint matrix."
 
-      - name: Compute build matrix (fast-feedback vs full-bitwise)
+      - name: Emit fixed build matrix (keliya × LEGACY_RHS={0,1})
         id: matrix
         run: |
-          # `contains()` returns string "true"/"false"; quote both sides
-          # to keep bash test happy on PR events where labels may be empty.
-          full_bitwise_label="${{ contains(github.event.pull_request.labels.*.name, 'full-bitwise') }}"
-          if [[ "${{ github.event_name }}" == "schedule" || "$full_bitwise_label" == "true" ]]; then
-            # 8-job full matrix: 2 axes × 4 cases
-            echo 'matrix={"rhs_path":["LEGACY_RHS=0","LEGACY_RHS=1"],"case":["keliya","xinanjiang_upstream","qinyijiang","qhh"]}' >> "$GITHUB_OUTPUT"
-            echo 'mode=full-bitwise' >> "$GITHUB_OUTPUT"
-            echo "::notice title=serial-baseline matrix mode::full-bitwise (2 axes × 4 cases = 8 jobs); trigger=${{ github.event_name }} full_bitwise_label=$full_bitwise_label"
-          else
-            # 2-job PR fast-feedback: 2 axes × 1 case (keliya)
-            echo 'matrix={"rhs_path":["LEGACY_RHS=0","LEGACY_RHS=1"],"case":["keliya"]}' >> "$GITHUB_OUTPUT"
-            echo 'mode=fast-feedback' >> "$GITHUB_OUTPUT"
-            echo "::notice title=serial-baseline matrix mode::fast-feedback (2 axes × 1 case = 2 jobs, keliya only); add `full-bitwise` label or wait for nightly cron to run all 4 cases"
-          fi
+          echo 'matrix={"rhs_path":["LEGACY_RHS=0","LEGACY_RHS=1"],"case":["keliya"]}' >> "$GITHUB_OUTPUT"
+          echo "::notice title=serial-baseline matrix::keliya × LEGACY_RHS={0,1} = 2 jobs. Build + grep + invariant gates only; bitwise compare validated locally + server (see SCOPE block + docs/s1_summary.md)."
 
   # ---------------------------------------------------------------------------
   # Job 1b — invariant-sweep: repo-wide grep gates from tools/invariants.yaml
@@ -184,10 +178,11 @@ jobs:
     # was generated against gcc/g++ on Ubuntu 22.04, so bitwise comparison
     # is meaningful only on this image. Do not promote to ubuntu-latest.
     runs-on: ubuntu-22.04
-    # Timeout selected per spec L52 (full-bitwise ≥ 15 min, increased to 25
-    # in S1 L293 to accommodate 4-case serial × 2-axis parallel).
-    # Each individual matrix job stays under 25 min; the GitHub Actions UI
-    # parallelizes per matrix entry up to the runner quota.
+    # Timeout 25 min is generous — current matrix is keliya × 2 LEGACY = 2 jobs
+    # and each runs build + grep gates + invariant + scaffolded data probe
+    # in well under 5 min total. The 25 min ceiling is kept as headroom so a
+    # future scope change (e.g. forcing data deployed to self-hosted runner +
+    # multi-case re-expansion) doesn't immediately trip the timeout.
     timeout-minutes: 25
     # Repo-wide default is contents:read only; the matrix-proposer step needs
     # pull-requests:write for `gh pr comment` + `gh pr view`. Scoped at job
@@ -892,8 +887,9 @@ jobs:
           # Compose the suggested matrix diff. Per spec scenario "CI proposes
           # update via PR comment", the comment SHOULD include a diff-style
           # snippet a maintainer can copy verbatim into a follow-up PR.
-          # The comment marker includes case name so per-case proposals can
-          # coexist on a full-bitwise PR without overlapping.
+          # The comment marker includes case name so per-case proposals do not
+          # overlap (matrix is keliya-only today; multi-case naming kept for
+          # future scope-change flexibility).
           cat > /tmp/matrix_comment.md <<EOF
           <!-- s0-12-matrix-proposer:${CASE_NAME} -->
           ## Status matrix update proposal (CI auto-generated, case=${CASE_NAME})
