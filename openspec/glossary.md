@@ -174,6 +174,18 @@ Linux 内存页归属策略；主线程串行初始化会让数据页落单 node
 **RHS snapshot**:
 在指定 `t_values` 处把 DY/flux 数组 dump 到二进制的工具（`tools/rhs_snapshot/`）。
 
+**P5 gather 三层依赖模型**:
+S2 P5 owner-local gather 的 7 类 gather 在 P7 fusion Stage 5 内部的依赖分层，由 `s2-strict-omp-full` design.md §D11 确立：
+- **层 1**（仅依赖 P3 + P4 output，无 P5 内部依赖；可同段 `nowait`）= seg → river surf/sub + seg → element surf/sub + river → lake + lake bank edge → lake surf/sub + lake element evap/precip → lake，共 5 项；
+- **层 2**（依赖层 1 内 seg → element gather 写入的 `Qe2r_Surf` / `Qe2r_Sub`）= element edge → element total；
+- **层 3**（依赖 P4 / inline `Flux_RiverDown` 写入的 `QrivDown`）= upstream → downstream river。
+
+层间须由隐式 / 显式 OpenMP barrier 守住数据依赖；P7 fusion 落地为 ≥ 3 个 `#pragma omp for` 区段（区段 A 层 1 + 区段 B 层 2 + 区段 C 层 3），中间夹隐式 barrier。
+_Avoid_: 把 element edge total 划进层 1 / 把 upstream → downstream 与层 1+层 2 共 `nowait`。
+
+**Stage 5 inner barrier discipline**:
+P7 fusion 单 parallel 区内 Stage 5 多个 `#pragma omp for` 必须按"P5 gather 三层依赖模型"编排 nowait / barrier 顺序，由 p5 spec Req 6 (consumer side) + p7 spec Req 5 (enforce side) 两面 spec 一致守护。违反该 discipline 会触发 `QrivDown` / `Qe2r_*` 读旧值 race → A2 / A3a heihe_x4 cross-thread bitwise FAIL。该术语在 master plan §6 P7.2 code example L1822-L1838 给出 reference template。
+
 **compare_snapshot**:
 二进制 bitwise diff + 人类可读 ULP report、有差异时返回非零 exit code 的比对工具（`tools/compare_snapshot/`）。
 
