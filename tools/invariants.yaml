@@ -3,7 +3,10 @@
 # Schema (parsed by tools/check_invariant_sweep.sh):
 #   invariants:
 #     - id: <slug>
-#       token: '<literal-string-or-regex>'
+#       token: '<literal-string-or-regex>'      # OR hex_token (XOR; exactly one)
+#       hex_token: '<lowercase-hex-no-0x>'      # OR token (XOR); use this for PII / endpoints
+#                                               # so the literal never lands in this tracked file.
+#                                               # Decoded at scan time via `xxd -r -p`.
 #       regex: 'false'  # default 'false' = fixed-string (grep -F); 'true' = extended regex (grep -E)
 #       expected_absent_in:
 #         - '<path-or-glob>'        # path patterns expanded via shell glob (bash globstar)
@@ -15,9 +18,12 @@
 #      reappeared. False-positive on documentation comments? Either narrow
 #      the token (`/tmp/$$` is fine; `nFCall` is too generic) or scope the
 #      paths to exclude doc files.
-#   2. Add the entry below; locally `bash tools/check_invariant_sweep.sh`
+#   2. If the token itself is PII or otherwise sensitive (e.g. a server IP),
+#      use `hex_token` instead of `token` so the literal never appears in
+#      this tracked spec file. Generate with: `printf '%s' '<literal>' | xxd -p`.
+#   3. Add the entry below; locally `bash tools/check_invariant_sweep.sh`
 #      MUST emit [OK] (token absent everywhere expected) before commit.
-#   3. CI's `invariant-sweep` job (.github/workflows/serial-baseline.yml)
+#   4. CI's `invariant-sweep` job (.github/workflows/serial-baseline.yml)
 #      enforces these on every PR push.
 #
 # Rationale for the 3 starter invariants (Part B of issue #56, PR <this>):
@@ -29,6 +35,8 @@
 #                                    landing in a tracked file (it currently
 #                                    lives only in CLAUDE.md which is in
 #                                    .gitignore; this gate keeps it that way).
+#                                    Uses hex_token so this spec file itself
+#                                    is clean of the IP literal (PR #71 fix).
 #   - hardcoded_start_day_absence:   PR #54 round-4 F33 + #57 follow-up moved
 #                                    both tools/snapshot_repeatability/run.sh
 #                                    and .github/workflows/serial-baseline.yml
@@ -61,7 +69,12 @@ invariants:
       hardening work.
 
   - id: pii_server_endpoint_absence
-    token: '210.77.77.22'
+    # hex-encoded so this spec file itself does not contain the literal IP.
+    # Decode (offline reference): `echo '3231302e37372e37372e3232' | xxd -r -p`.
+    # The check tool decodes at scan time; the literal is never persisted to
+    # disk inside the repo. PR #71 round-1 fix (F3): removes self-referential
+    # PII leak introduced by the original `token:` form.
+    hex_token: '3231302e37372e37372e3232'
     regex: false
     expected_absent_in:
       - '**/*'

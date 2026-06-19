@@ -318,7 +318,7 @@ run_shud() {
 
 write_sha_manifest() {
     local case_dir="$1"
-    local manifest_file="$2"      # destination /tmp/<case>_run<N>.<rand>.sha256 (mktemp)
+    local manifest_file="$2"      # destination /tmp/<case>_run<N>_sha256_<rand> (mktemp)
 
     local record_missing="${3:-0}"
     : > "$manifest_file"
@@ -404,10 +404,27 @@ for i in $(seq 1 "$NUM_RUNS"); do
     if ! WT="$(run_shud "$CASE_DIR" "$PROJECT_NAME")"; then
         exit 2
     fi
-    if ! HF="$(mktemp "/tmp/${CASE_NAME}_run${i}.XXXXXX.sha256")"; then
+    # Trailing-XXXXXX template required: macOS BSD mktemp leaves mid-template
+    # X's as literal (so e.g. `mktemp /tmp/x.XXXXXX.sha256` creates a file
+    # named literally `/tmp/x.XXXXXX.sha256` — no random suffix). Drop the
+    # literal `.sha256` extension and move XXXXXX to the end. Cosmetic-only
+    # rename: no downstream tooling parses the filename suffix; we keep an
+    # `_sha256_` infix for human readability. PR #71 round-1 F2 fix.
+    if ! HF="$(mktemp "/tmp/${CASE_NAME}_run${i}_sha256_XXXXXX")"; then
         echo "error: mktemp failed for hash manifest (run $i)" >&2
         exit 2
     fi
+    # Defensive guard: if a future shell/OS regresses to leaving XXXXXX as a
+    # literal, fail-fast here rather than silently creating predictable paths
+    # that defeat the F20 / F30 / #56 mktemp hardening rationale (TOCTOU /
+    # symlink-attack window on shared hosts).
+    case "$HF" in
+        *XXXXXX*)
+            echo "error: mktemp template not honored (got literal XXXXXX): $HF" >&2
+            rm -f "$HF"
+            exit 2
+            ;;
+    esac
     TMP_FILES+=("$HF")
     # Only run 1 populates MISSING_FILES; later runs just rebuild hashes.
     if [[ "$i" -eq 1 ]]; then
@@ -443,11 +460,19 @@ echo "[archive_b0] verifying ${NUM_RUNS}-run SHA256 identity ..."
 DIVERGED=0
 for i in $(seq 2 "$NUM_RUNS"); do
     # mktemp + TMP_FILES + EXIT trap (see top-of-loop comment): closes the
-    # /tmp/<case>_diff_1_<i>.txt TOCTOU/symlink window.
-    if ! DIFF_FILE="$(mktemp "/tmp/${CASE_NAME}_diff_1_${i}.XXXXXX.txt")"; then
+    # /tmp/<case>_diff_1_<i> TOCTOU/symlink window.
+    # Trailing-XXXXXX template required: see HF allocation above (PR #71 R1 F2).
+    if ! DIFF_FILE="$(mktemp "/tmp/${CASE_NAME}_diff_1_${i}_XXXXXX")"; then
         echo "error: mktemp failed for diff dump (run $i)" >&2
         exit 2
     fi
+    case "$DIFF_FILE" in
+        *XXXXXX*)
+            echo "error: mktemp template not honored (got literal XXXXXX): $DIFF_FILE" >&2
+            rm -f "$DIFF_FILE"
+            exit 2
+            ;;
+    esac
     TMP_FILES+=("$DIFF_FILE")
     if ! diff -u "${HASH_FILES[0]}" "${HASH_FILES[i-1]}" >"$DIFF_FILE" 2>&1; then
         DIVERGED=1

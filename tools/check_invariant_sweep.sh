@@ -59,7 +59,8 @@ FILTER_ID="${1:-}"
 # Layout we accept:
 #   invariants:
 #     - id: <slug>
-#       token: '<literal>'
+#       token: '<literal>'                # OR hex_token: '<lowercase-hex>'
+#       hex_token: '<lowercase-hex>'      # OR token: '<literal>' (XOR; exactly one)
 #       regex: false|true                 # optional, default false
 #       expected_absent_in:
 #         - '<glob>'
@@ -67,12 +68,19 @@ FILTER_ID="${1:-}"
 #       rationale: |
 #         <free text>
 #
+# hex_token rationale: for PII / endpoint / credentials-adjacent invariants,
+# embedding the literal token here would itself violate the gate (the spec
+# is a tracked file). hex_token sidesteps that by carrying an `xxd -r -p`-
+# decodable hex string; the decoded literal is materialized only in memory
+# at scan time. See `pii_server_endpoint_absence` in tools/invariants.yaml.
+#
 # State machine over single-pass read; rationale block is consumed-and-discarded
 # (the tool emits only OK/MISMATCH, not the rationale).
 #
 # Emits to stdout, one record per invariant, format:
-#   <id>|<regex>|<token>|<glob1>,<glob2>,...
-# (pipe-separated; globs comma-joined). Caller splits on this.
+#   <id>|<regex>|<token>|<hex_token>|<glob1>,<glob2>,...
+# (pipe-separated; globs comma-joined). Caller splits on this. Exactly one
+# of <token> / <hex_token> is populated per record.
 # -----------------------------------------------------------------------------
 
 parse_invariants() {
@@ -82,14 +90,18 @@ parse_invariants() {
             in_one = 0       # inside one - id: ... record
             in_paths = 0     # inside expected_absent_in list
             in_rationale = 0 # inside rationale: | block (skip lines)
-            id = ""; token = ""; regex = "false"; paths = ""
+            id = ""; token = ""; hex_token = ""; regex = "false"; paths = ""
         }
 
         function flush() {
             if (id != "") {
-                print id "|" regex "|" token "|" paths
+                # Emit 5 fields: id | regex | token | hex_token | paths_csv
+                # Consumer decodes hex_token (if non-empty) to derive the
+                # effective token, so the spec file itself never has to carry
+                # the literal PII / secret string.
+                print id "|" regex "|" token "|" hex_token "|" paths
             }
-            id = ""; token = ""; regex = "false"; paths = ""
+            id = ""; token = ""; hex_token = ""; regex = "false"; paths = ""
             in_paths = 0
             in_rationale = 0
         }
@@ -132,6 +144,19 @@ parse_invariants() {
             # Strip a single layer of leading + trailing single OR double quotes
             gsub(/^[\"\x27]|[\"\x27]$/, "")
             token = $0
+            in_paths = 0
+            next
+        }
+
+        # hex_token: <lowercase-hex>   (PII-safe alternative to token; decoded
+        # in the caller via xxd -r -p). Exactly one of token / hex_token MUST
+        # be set; check_one() enforces. (Quote-free comment: this awk program
+        # itself is wrapped in single quotes by the bash heredoc-like form, so
+        # any embedded single quote inside the awk source closes the string.)
+        in_one && /^[[:space:]]+hex_token:/ {
+            sub(/^[[:space:]]+hex_token:[[:space:]]*/, "")
+            gsub(/^[\"\x27]|[\"\x27]$/, "")
+            hex_token = $0
             in_paths = 0
             next
         }
@@ -248,17 +273,48 @@ strip_comments() {
 # -----------------------------------------------------------------------------
 
 check_one() {
-    local id="$1" regex="$2" token="$3" paths_csv="$4"
+    local id="$1" regex="$2" token="$3" hex_token="$4" paths_csv="$5"
     local grep_flag="-F"
     if [ "$regex" = "true" ]; then
         grep_flag="-E"
     fi
 
+    # Exactly-one source check (token XOR hex_token); aborts the run so a
+    # malformed spec entry never silently becomes a no-op gate.
+    if [ -n "$hex_token" ] && [ -n "$token" ]; then
+        printf "[MISMATCH] %-32s  spec error: both 'token:' and 'hex_token:' set; pick exactly one\n" "$id" >&2
+        return 1
+    fi
+    if [ -z "$hex_token" ] && [ -z "$token" ]; then
+        printf "[MISMATCH] %-32s  spec error: neither 'token:' nor 'hex_token:' set\n" "$id" >&2
+        return 1
+    fi
+    # Decode hex_token (PII-safe path) at scan time so the spec file itself
+    # never carries the literal secret/PII string.
+    if [ -n "$hex_token" ]; then
+        if ! token="$(printf '%s' "$hex_token" | xxd -r -p)" || [ -z "$token" ]; then
+            printf "[MISMATCH] %-32s  spec error: hex_token '%s' failed xxd decode\n" "$id" "$hex_token" >&2
+            return 1
+        fi
+    fi
+
+    # CSV-aware split that preserves literal `**/`, `**/*`, and other glob
+    # metachars. The old `local globs=( $paths_csv )` form ran a pathname
+    # expansion on each comma-segment BEFORE the array assignment, snapshotting
+    # whatever happened to be on disk at parse time (and silently dropping
+    # `**` since bash <4 has no globstar). expand_glob() never received the
+    # literal pattern, so its `**/` / `**/*` branches were dead.
+    local globs=()
     local IFS_SAVE="$IFS"
     IFS=','
-    # shellcheck disable=SC2206  # intentional split on comma
-    local globs=( $paths_csv )
+    read -ra globs <<< "$paths_csv"
     IFS="$IFS_SAVE"
+    # Trim leading/trailing whitespace per entry (CSV-without-quotes friendly)
+    local i
+    for i in "${!globs[@]}"; do
+        globs[i]="${globs[i]#"${globs[i]%%[![:space:]]*}"}"
+        globs[i]="${globs[i]%"${globs[i]##*[![:space:]]}"}"
+    done
 
     local seen_files=()
     local pat
@@ -276,9 +332,13 @@ check_one() {
     local found=0
     local f hits
     for f in "${seen_files[@]}"; do
-        # Skip the spec file itself + this script — they document the token
+        # Skip this script itself — it documents the token via comments and
+        # CLI examples. The SPEC file is NOT self-excluded: invariants.yaml
+        # entries use hex_token for PII (see F3 / PR #71) so the literal
+        # string never lives in the spec; if it ever appears as a `token:`
+        # field the gate SHOULD fire.
         case "$f" in
-            "$SPEC"|"$SCRIPT_DIR/check_invariant_sweep.sh") continue;;
+            "$SCRIPT_DIR/check_invariant_sweep.sh") continue;;
         esac
         if hits=$(strip_comments "$f" | grep -n "$grep_flag" -- "$token" 2>/dev/null); then
             if [ -n "$hits" ]; then
@@ -306,13 +366,13 @@ check_one() {
 
 OVERALL=0
 COUNT=0
-while IFS='|' read -r id regex token paths_csv; do
+while IFS='|' read -r id regex token hex_token paths_csv; do
     [ -z "$id" ] && continue
     if [ -n "$FILTER_ID" ] && [ "$id" != "$FILTER_ID" ]; then
         continue
     fi
     COUNT=$((COUNT + 1))
-    if ! check_one "$id" "$regex" "$token" "$paths_csv"; then
+    if ! check_one "$id" "$regex" "$token" "$hex_token" "$paths_csv"; then
         OVERALL=1
     fi
 done < <(parse_invariants)
