@@ -107,6 +107,31 @@
 - `git show B1a-tag --stat -- SHUD` → SHUD pin 显示 `58327c5`
 - `git ls-remote --tags origin | grep B1a-tag` → 远端 tag 存在
 
+## IEEE-754 跨平台 anchor 分支（#134）
+
+`benchmarks/<case>/B0_output/<case>.rivqdown.dat`（Mac Apple Clang arm64 bin）锁的 SHA 在 server gcc 13.3.0 x86_64 Linux 上**不可复现**——`8455` FP diag 实测 6 build variants（Config A pure / Config E -O2/-O0/-fno-tree-vectorize/-fno-tree-slp-vectorize/no-vec-both）全部输出同一 SHA `fe4f9c99...` (keliya)，与 Mac archived `89686fb8...` 不一致；不是 6-stage fusion bug，是 IEEE-754 浮点表达不跨编译器 / 架构 bit-equivalent。
+
+为让 A3a vs B1a-tag bitwise gate 在 server 平台数学可达，按 platform 分支 anchor：
+
+- **Mac / Apple Clang arm64**：直接对 archived `<case>.rivqdown.dat` 跑 `shasum -a 256`（与 archive 同 SHA → PASS）。
+- **Linux gcc ≥ 13.3.0 x86_64**：`sha256sum -c <case>.rivqdown.dat.sha256.gcc13.x86_64`（同目录、sha256sum 标准格式）。
+- **其它平台**：A3a 暂不支持（master plan §1.1.1 目标部署平台铁律 = 单插槽 8 物理核 x86_64 Linux）。
+
+命名约定：`<case>.rivqdown.dat.sha256.<compiler-family>.<arch>`。未来扩展（如 Apple Silicon M5 minor 升级）走同 pattern。文件内容严格 sha256sum 格式：64-char 小写 hex + 两空格 + dat 文件名。
+
+### gcc 13.3.0 x86_64 server anchor SHA256（job 8488 / cn05 / 3-rep PASS）
+
+| Case | Mac archived (Apple Clang arm64) | server (gcc 13.3.0 x86_64) |
+|------|-----------------------------------|----------------------------|
+| `keliya` | `89686fb8c97a385251a8d77fc434ee9cea7eb1bce71c8bc44ed537683e99a8fc` | `fe4f9c995d3d84878684bdf36c41838977b96fa724f0a8b65e10b61365efc070` |
+| `xinanjiang_upstream` | `3794e7d366d844da22191fef0e42217f6cfc8a6715994ca72ebd9e2354023020` | `542e5ed1d6dcb8f206c7c1d6e85a2844faab953e4fef1be230c7a70d745a4d17` |
+| `qinyijiang` | `48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57` | `40e86772205ddd209570c286450ed0e73d8ad6ca354c2d91a09c0fbc6260bc59` |
+| `qhh` | `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce` | `cb81463f94f85adec7d9395a44d2b558f0a4e9b3b3e3687b2c849878cee97900` |
+
+Server anchor 来源：`8488` cn05 exclusive Slurm job（2026-06-20，Elapsed 00:52:53，State COMPLETED）：Config A pure baseline（`make shud`，无 `SHUD_ENABLE_OPENMP_RHS`、无 `-fopenmp`），4 case × 3 reps 90-day 截断，每 case 3 个独立 SHA bitwise 一致 → archived `.sha256.gcc13.x86_64` 文件。job evidence trail：`/scratch/frd_muziyao/SHUD-OpenMP/.s2-134-anchor-regen/8488/{anchor_results.json, META.txt, run_<case>_rep{1,2,3}.log}`。
+
+CI 行为不变：`.github/workflows/serial-baseline.yml` 当前在 Linux runner 不做 runtime SHA256 compare（只 build + nm gate + manifest verify），平台分支 anchor 是为 server A3a 验收脚本与未来扩展使用。
+
 ## S1-pre snapshot golden re-archival
 
 为支持 S1（B1a refactor-equivalent serial reference），在 pre-S1a 重新归档 12 张 after-PassValue snapshot golden（4 case × 3 t_values）。**注意：本节 12 张 SHA 表已由 PR #71 / issue #55 第三次重生（详见本节末"#55 hook site 修正"段）；表格仅记录最新 SHA 值，旧 SHA 不保留**——历史 SHA 可经 `git log -- docs/build_manifest.md` 追溯。
