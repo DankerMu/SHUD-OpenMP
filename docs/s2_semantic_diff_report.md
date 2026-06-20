@@ -128,3 +128,34 @@ PR-7b 落地后:
 ## Master plan 一致性
 
 每个 section 的 **Master plan reference** 字段 verbatim 引用 master plan §5 S2.x 段落开头一句话，确保 record 内容与上游 spec 一致；任何 master plan §5 update 都需要本文档对应 section 同步 amend (作为后续 docs sync PR)。
+
+## S2 capstone 时间线
+
+PR-8 (#152) 是 S2 capstone landing PR，完成 `_omp` RHS receivers + 退役-fork 的实际删除工作，把 S2.1–S2.17 record-only 决策落到代码层。
+
+**Code-level changes (SHUD submodule, `openmp-baseline` 分支):**
+
+- 删除 `SHUD/src/ModelData/MD_f_omp.cpp` 整文件 (176 行；保存 `f_update_omp` / `f_loop_omp` / `f_applyDY_omp` 三个 legacy `_omp` 函数体 —— S1 phase frozen，至 PR-8 retire)。
+- 删除 `SHUD/src/ModelData/Model_Data.hpp` 3 个 `_omp` 方法声明 (L261–263)。
+- 简化 `SHUD/src/Model/f.cpp`：`f()` 不再 `#ifdef LEGACY_RHS` 分叉，无条件调用 `MD->rhs_core(Y, DY, t, ExecPolicy::Serial)`；PURE CARRY-OVER `rhs_update / rhs_flux / rhs_apply` 仍然是 `f_update / f_loop / f_applyDY` 的 byte-for-byte 复制源 (B0 baseline 保留)。
+- 清理 `SHUD/src/Model/MD_rhs_core.cpp` / `MD_rhs_core.hpp` / `Macros.hpp` / `classes/CommandIn.cpp` 中所有提及 `LEGACY_RHS` 或 `SHUD_LEGACY_OMP_RHS` 的注释。
+- 退役 `SHUD/Makefile` 中 `LEGACY_RHS ?= 0` + `SHUD_LEGACY_OMP_RHS ?= 0` 两个 macro 块及其 `$(LEGACY_RHS_DEFINE)` / `$(SHUD_LEGACY_OMP_DEFINE)` 编译行引用 + `make shud LEGACY_RHS=…` / `make shud SHUD_LEGACY_OMP_RHS=…` help 文字 + MD_f_omp.cpp filter-out 逻辑；保留 `SHUD_USE_OPENMP_NVECTOR` / `SHUD_ENABLE_OPENMP_RHS` / `SHUD_DUMP_RHS` / `SHUD_ENABLE_PROFILE` 与本 capstone 正交的 macros。
+
+**Tree-wide grep gates (deterministic, 0 hits)：**
+
+- `ls SHUD/src/ModelData/MD_f_omp.cpp` — file not found (entire TU deleted).
+- `grep -rn 'f_update_omp\|f_loop_omp\|f_applyDY_omp' SHUD/src/` — 0 hits.
+- `grep -rn 'SHUD_LEGACY_OMP_RHS\|LEGACY_RHS' SHUD/src/ SHUD/Makefile` — 0 hits.
+
+**CI workflow updates (`.github/workflows/serial-baseline.yml`):**
+
+- Build matrix 由 2-axis (`rhs_path × case`) 折叠为 1-axis (`case` only)。fast-feedback PR 跑 keliya 1 job；full-bitwise / nightly cron 跑 4 cases 4 jobs。
+- 新增 `S2 capstone grep gate` step：上述 3 gates 在 CI 每次跑都执行 (data-independent, source-only check)。
+- 移除所有 `${{ matrix.rhs_path }}` 字符串引用与 `make … LEGACY_RHS=…` 编译参数；message / log / artifact naming 同步去掉 `axis=` 标记。
+
+**Verification:**
+
+- Default `make shud` 编译成功 (Mac local Apple Silicon)。
+- 4-case Mac local (`keliya / xinanjiang_upstream / qinyijiang / qhh`) 90-day window 跑：`rivqdown.dat` SHA256 == B0-tag `benchmarks/<case>/B0_output/*.dat`；`qhh` lake 输出 (`lakystage.dat` / `lakqrivin.dat` / `lakqrivout.dat`) SHA256 == B0-tag archive。CVODE 15-key stats invariance 在 PROFILE=1 build 下应同样成立 (PR-12 capstone 中再验)。
+- `kashigeer` 上游 forcing-gap pre-existing deferred 状态保持不变 (`benchmarks/kashigeer/B0_output/DEFERRED.txt`，S0-13 N/A reclassification)。
+- Server `heihe` / `heihe_x4` DEBUG/RELEASE 验证按 `openspec/changes/b1a-finalization/design.md` D10 延至 PR-12 capstone。
