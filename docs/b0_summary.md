@@ -1,6 +1,8 @@
-# S0 总结
+# B0 Baseline 总结
 
-> S0（baseline lock）完成于 2026-06-17。`B0-tag` 已打。可以进入 S1。
+> B0 = master plan §3 定义的"SHUD 原样编译的单线程结果"。本文件对应的 work stage 是 master plan §5 S0（"锁定 B0 历史基线"）。**stage = 工作阶段（S0/S1/...）**；**baseline = 工作产物（B0/B1a/...）**；S0 一对一产出 B0。
+>
+> 完成于 2026-06-17。`B0-tag` 已打。B1a 工作（S1 / S2 / S3 / S4）从这里起步。
 
 ## 这一阶段做了什么
 
@@ -23,28 +25,19 @@ A0 验收 9 项全过。
 - `B0-tag`：annotated git tag，指向 commit `884cfb13`、SHUD submodule pin `78c37a1`。这是 B1a 重构后所有 bitwise 对比的参照物。
 - `benchmarks/`：7 个 manifest + 6 份 B0 archive（4 local + heihe / heihe_x4 server）+ 12 张 snapshot golden + kashigeer 一份 `DEFERRED.txt` 解释为何跑不动。
 - `tools/`：profile 计时器、snapshot 写入 / 对比、3-run 归档器、case 部署修复、manifest 校验。后续工作直接复用，不要再写一遍。
-- `docs/`：`status_matrix.md` 是阶段 go/no-go 唯一真实状态来源；`profile_decision.md` 是决策依据；`build_manifest.md` 是编译环境合约。本文件是一次性总结，**不会再更新**。
-- `.github/workflows/serial-baseline.yml`：每个 PR 自动跑 3 种 build 然后 keliya bitwise 对比 B0。`baseline/current` 现在要求这个 check 通过才能 merge。
+- `docs/`：`status_matrix.md` 是阶段 go/no-go 唯一真实状态来源；`profile_decision.md` 是决策依据；`build_manifest.md` 是编译环境合约。
+- `.github/workflows/serial-baseline.yml`：每个 PR 自动跑 3 种 build 然后 keliya bitwise 对比 B0。
 
-## 进入 S1 前要处理的事
+## B0 之后的两件遗留事项
 
 只有两件，都不阻塞 B1a 起步：
 
 - **heihe forcing IO 占 79%**：RHS 并行化 Amdahl 上限只有 1.14×。决策文档建议把 forcing IO 并行化从 P9+ 提前到与 P1 并行排上来。
 - **xinanjiang_upstream `t_other` 22%**：profile 时间桶切得不够细，FortranIO init / mesh load / config 解析这些几秒 fixed-cost 被短跑（19.7s wall）的小 case 稀释不掉，全掉进 t_other。给 timer 加一个 `t_init` 桶就分出来了。B1a 阶段不影响，P1 开始算加速比之前补一下，避免分母被污染。
 
-## 下一步：S1
+## 下一步：B1a
 
-S1 的目标是 B1a——把 SHUD 现在的 serial / omp 两套 RHS 实现合并成同一份代码，instrumentation 关掉时和 B0 **bitwise identical**。这不是改物理、不是改算法，纯重构。
-
-推荐做法：
-
-1. 从 keliya 开始（484 cells，30 秒跑完）。bitwise 不过的时候迭代成本最低。
-2. 重构通过后扩到 xinanjiang_upstream → qinyijiang → qhh。heihe / heihe_x4 只在服务器上验。
-3. 把 `B0-tag` 引进 CI workflow：每个 PR 跑 `git show B0-tag:benchmarks/<case>/B0_output/<file>` 和当前输出做 SHA256 对比。
-4. heihe forcing IO 提前的事可以和 B1a 并行排另一个 issue 上手。
-
-开 S1 工作前花 20 分钟看：master plan §3.1（B1a 范围）+ §C1（红线）+ `docs/profile_decision.md`（为什么走原方案）+ `docs/status_matrix.md`（当前状态）。
+B1a baseline 定义见 master plan §3：**"S0–S4 完成后"** 的重构等价单线程结果，必须与 B0 bitwise identical。当前进度见 [`docs/b1a_summary.md`](b1a_summary.md)。
 
 ## 验证 B0-tag
 

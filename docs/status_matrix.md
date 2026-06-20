@@ -17,7 +17,7 @@
 | 阶段       | keliya | xinanjiang_upstream | qinyijiang | kashigeer            | qhh     | heihe         | heihe_x4      | aggregate |
 |-----------|--------|---------------------|------------|----------------------|---------|---------------|---------------|-----------|
 | **B0**    | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
-| **B1a**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
+| **B1a**   | IN-PROGRESS | IN-PROGRESS | IN-PROGRESS | N/A (deferred-upstream) | IN-PROGRESS | IN-PROGRESS @ server | IN-PROGRESS @ server | IN-PROGRESS (S0+S1 PASS / S2–S4 PENDING) |
 | **B1b**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **Opt-IO**| PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P1**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
@@ -53,15 +53,17 @@ aggregate 列 = **PASS**（2026-06-17）。
 
 ## B1a 行证据
 
-| Case | 单元格 | 证据 |
+> **2026-06-20 修订**：B1a 整体 = master plan §3 "S0–S4 完成"。当前实际仅完成 S0 + S1（详见 [`docs/b1a_summary.md`](b1a_summary.md)）；下表 evidence 来自 S1 完成时刻（SHUD `58327c5`），**只覆盖 S1 substage 的 bitwise vs B0**，**未**覆盖 S2.1–S2.17 语义对齐 / S3a/S3b/S3c PassValue 拆解 / S4.1–S4.7 adjacency list。这些 S2-S4 子项的 bitwise vs B0 是 B1a 行 PASS 化的剩余前置条件。
+
+| Case | 单元格 | 证据（S0+S1 only） |
 |---|---|---|
-| keliya | PASS | LEGACY_RHS=0 + LEGACY_RHS=1 双轴 bitwise vs B0-tag PASS（#47-#49 本地 + #50/#51 CI gate）；S1c #46 4-case .dat 8/8 + 24/24 snapshot；S1d.2 #48 9 SHUD 文件改造后 Config A 默认 binary 与 B0 bitwise identical |
-| xinanjiang_upstream | PASS | 同上：4-case 中之一，所有 S1 substage 验证均覆盖 |
-| qinyijiang | PASS | 同上：S1c #46 中 negative test (`s1c_river_dy_omp_negative.patch`) 触发 bitwise diff EXPECTED_FAIL_SHA `042698d6...3fed00`，证明 gate 工作 |
+| keliya | IN-PROGRESS | LEGACY_RHS=0 + LEGACY_RHS=1 双轴 bitwise vs B0-tag PASS（#47-#49 本地 + #50/#51 CI gate）；S1c #46 4-case .dat 8/8 + 24/24 snapshot；S1d.2 #48 9 SHUD 文件改造后 Config A 默认 binary 与 B0 bitwise identical；S2/S3/S4 验证待补 |
+| xinanjiang_upstream | IN-PROGRESS | 同上：4-case 中之一，所有 S1 substage 验证均覆盖；S2/S3/S4 验证待补 |
+| qinyijiang | IN-PROGRESS | 同上：S1c #46 中 negative test (`s1c_river_dy_omp_negative.patch`) 触发 bitwise diff EXPECTED_FAIL_SHA `042698d6...3fed00`，证明 gate 工作；S2/S3/S4 验证待补 |
 | kashigeer | N/A (deferred-upstream) | 同 B0：上游 X76 forcing 段缺失，CI matrix 排除 (spec b0-tag-ci-integration L24-28 + INDEX 已标 deferred-upstream)，S1 阶段沿用 N/A |
-| qhh | PASS | 4-case 中之一（含 lake），S1c #46 / S1d.2 #48 / S1d.2-configs #49 三轮 4-case 中 bitwise 均 8/8 PASS |
-| heihe | PASS @ server | 服务器侧 sbatch 模板 (`tools/server_validation/`) 已就位；24h Slurm bitwise validation per spec L188-201；本地 (Apple Silicon Mac) 不验收 server-only case |
-| heihe_x4 | PASS @ server | 同 heihe：服务器 cn21 / cn08 节点跑 Slurm，wall_times 1216/1211/1214s @ B0-tag pin；S1 时刻同一 sbatch 模板复用，SHUD `58327c5` |
+| qhh | IN-PROGRESS | 4-case 中之一（含 lake），S1c #46 / S1d.2 #48 / S1d.2-configs #49 三轮 4-case 中 bitwise 均 8/8 PASS；S2/S3/S4 验证待补 |
+| heihe | IN-PROGRESS @ server | 服务器侧 sbatch 模板 (`tools/server_validation/`) 已就位；24h Slurm bitwise validation per spec L188-201；本地 (Apple Silicon Mac) 不验收 server-only case；S2/S3/S4 验证待补 |
+| heihe_x4 | IN-PROGRESS @ server | 同 heihe：服务器 cn21 / cn08 节点跑 Slurm，wall_times 1216/1211/1214s @ B0-tag pin；S1 时刻同一 sbatch 模板复用，SHUD `58327c5`；S2/S3/S4 验证待补 |
 
 Aggregate gate（D12 收尾约束）：
 - 4-case (keliya / xinanjiang_upstream / qinyijiang / qhh) LEGACY_RHS=0 + LEGACY_RHS=1 双轴 SHA256 vs B0-tag 全 PASS
