@@ -114,7 +114,7 @@
 为让 A3a vs B1a-tag bitwise gate 在 server 平台数学可达，按 platform 分支 anchor：
 
 - **Mac / Apple Clang arm64**：直接对 archived `<case>.rivqdown.dat` 跑 `shasum -a 256`（与 archive 同 SHA → PASS）。
-- **Linux gcc ≥ 13.3.0 x86_64**：`sha256sum -c <case>.rivqdown.dat.sha256.gcc13.x86_64`（同目录、sha256sum 标准格式）。
+- **Linux gcc ≥ 13.3.0 x86_64**：anchor 文件名按 case (`<case>.rivqdown.dat.sha256.gcc13.x86_64`)，文件**内容引用按 mesh** (`<sha>  <mesh>.rivqdown.dat`)，因此在含 `<mesh>.rivqdown.dat` 的目录（典型为 `SHUD/Basins/<case>/output/<mesh>.out/`）跑 `sha256sum -c <repo-root>/benchmarks/<case>/B0_output/<case>.rivqdown.dat.sha256.gcc13.x86_64` 即可校验。keliya / qhh 是 case=mesh identity，xinanjiang_upstream→xinanjiang、qinyijiang→nanlin。
 - **其它平台**：A3a 暂不支持（master plan §1.1.1 目标部署平台铁律 = 单插槽 8 物理核 x86_64 Linux）。
 
 命名约定：`<case>.rivqdown.dat.sha256.<compiler-family>.<arch>`。未来扩展（如 Apple Silicon M5 minor 升级）走同 pattern。文件内容严格 sha256sum 格式：64-char 小写 hex + 两空格 + dat 文件名。
