@@ -1,0 +1,10 @@
+case=qinyijiang
+repeats=3
+serial_walls=0.01 0.00 0.00
+serial_median_s=0.00
+serial_variance_pct=173.21
+omp_walls=0.00 0.00 0.00
+omp_median_s=0.00
+omp_variance_pct=inf
+speedup=inf
+target=1.5

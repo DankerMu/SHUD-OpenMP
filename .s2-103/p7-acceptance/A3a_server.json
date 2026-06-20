@@ -1,0 +1,63 @@
+{
+  "schema": "A3a.json v1",
+  "issue": 126,
+  "parent": 100,
+  "timestamp": "2026-06-20T09:45:38+08:00",
+  "host": "cn03",
+  "slurm_job_id": "8450",
+  "shud_pin": "5e0577718c11835fa59e1075e40fa7e35ee53da0",
+  "outer_head": "dad7876a4c9674503a01938295f67befa065becc",
+  "binary": {
+    "make_target": "shud",
+    "shud_enable_openmp_rhs": 1,
+    "shud_omp_cutoff": 256,
+    "nvec_backend": "serial",
+    "fopenmp": false,
+    "comment": "Pure Config E - tests 6-stage fusion rhs_core_omp body bitwise vs Serial dispatch chain"
+  },
+  "baseline_anchor": "B0/B1a-tag (commit 64569b3 / B0 anchor SHA256 per benchmarks/<case>/B0_output)",
+  "cases": [
+    {
+      "case": "keliya",
+      "mesh_prefix": "keliya",
+      "num_ele": 484,
+      "expected_sha256": "89686fb8c97a385251a8d77fc434ee9cea7eb1bce71c8bc44ed537683e99a8fc",
+      "actual_sha256": "fe4f9c995d3d84878684bdf36c41838977b96fa724f0a8b65e10b61365efc070",
+      "verdict": "FAIL",
+      "wall_seconds": 81.073771346
+    },
+    {
+      "case": "xinanjiang_upstream",
+      "mesh_prefix": "xinanjiang",
+      "num_ele": 801,
+      "expected_sha256": "3794e7d366d844da22191fef0e42217f6cfc8a6715994ca72ebd9e2354023020",
+      "actual_sha256": "542e5ed1d6dcb8f206c7c1d6e85a2844faab953e4fef1be230c7a70d745a4d17",
+      "verdict": "FAIL",
+      "wall_seconds": 23.400814669
+    },
+    {
+      "case": "qinyijiang",
+      "mesh_prefix": "nanlin",
+      "num_ele": 3155,
+      "expected_sha256": "48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57",
+      "actual_sha256": "40e86772205ddd209570c286450ed0e73d8ad6ca354c2d91a09c0fbc6260bc59",
+      "verdict": "FAIL",
+      "wall_seconds": 756.899494418
+    },
+    {
+      "case": "qhh",
+      "mesh_prefix": "qhh",
+      "num_ele": 4773,
+      "expected_sha256": "d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce",
+      "actual_sha256": "cb81463f94f85adec7d9395a44d2b558f0a4e9b3b3e3687b2c849878cee97900",
+      "verdict": "FAIL",
+      "wall_seconds": 211.365500914
+    }
+  ],
+  "summary": {
+    "total_cases": 4,
+    "passed": 0,
+    "failed": 4,
+    "verdict": "FAIL"
+  }
+}

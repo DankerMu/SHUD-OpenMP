@@ -1,0 +1,4 @@
+PASS  qinyijiang   speedup=infx  target>=1.5x
+FAIL  heihe_x4     speedup=1.040x  target>=1.5x
+PASS  heihe        speedup=1.009x  target>=0.95x
+RESULT: FAIL (1 case(s) below target; see wallclock_*.txt)

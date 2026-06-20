@@ -1,0 +1,12 @@
+B0 anchor expected: 89686fb8c97a385251a8d77fc434ee9cea7eb1bce71c8bc44ed537683e99a8fc
+Compiler: g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+
+=== Server gcc 13 keliya 90d SHA256 variants ===
+  configA_baseline               fe4f9c995d3d84878684bdf36c41838977b96fa724f0a8b65e10b61365efc070
+  configE_O2_default             fe4f9c995d3d84878684bdf36c41838977b96fa724f0a8b65e10b61365efc070
+  configE_O0                     fe4f9c995d3d84878684bdf36c41838977b96fa724f0a8b65e10b61365efc070
+  configE_O2_no_tree_vec         fe4f9c995d3d84878684bdf36c41838977b96fa724f0a8b65e10b61365efc070
+  configE_O2_no_slp_vec          fe4f9c995d3d84878684bdf36c41838977b96fa724f0a8b65e10b61365efc070
+  configE_O2_no_vec_both         fe4f9c995d3d84878684bdf36c41838977b96fa724f0a8b65e10b61365efc070
+
+Done

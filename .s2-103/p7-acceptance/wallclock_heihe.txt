@@ -1,0 +1,10 @@
+case=heihe
+repeats=3
+serial_walls=507.16 470.68 467.05
+serial_median_s=470.68
+serial_variance_pct=4.61
+omp_walls=466.43 467.88 465.77
+omp_median_s=466.43
+omp_variance_pct=0.23
+speedup=1.009
+target=0.95

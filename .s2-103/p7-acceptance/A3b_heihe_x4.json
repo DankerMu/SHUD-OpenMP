@@ -1,0 +1,54 @@
+{
+  "schema": "A3b.json v1 (per-case ULP section)",
+  "case": "heihe_x4",
+  "reference": {
+    "threads": 1,
+    "path": "/scratch/frd_muziyao/SHUD-OpenMP/.p7-a3b-validation/8484/heihe_x4_thr1.rivqdown.dat",
+    "n_elements": 387607
+  },
+  "comparisons": [
+    {
+      "threads": 2,
+      "path": "/scratch/frd_muziyao/SHUD-OpenMP/.p7-a3b-validation/8484/heihe_x4_thr2.rivqdown.dat",
+      "max_ulp": 0,
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0,
+      "n_diff": 0,
+      "n_total": 387607,
+      "ulp_pass": true,
+      "abs_pass": true,
+      "verdict": "PASS"
+    },
+    {
+      "threads": 4,
+      "path": "/scratch/frd_muziyao/SHUD-OpenMP/.p7-a3b-validation/8484/heihe_x4_thr4.rivqdown.dat",
+      "max_ulp": 0,
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0,
+      "n_diff": 0,
+      "n_total": 387607,
+      "ulp_pass": true,
+      "abs_pass": true,
+      "verdict": "PASS"
+    },
+    {
+      "threads": 8,
+      "path": "/scratch/frd_muziyao/SHUD-OpenMP/.p7-a3b-validation/8484/heihe_x4_thr8.rivqdown.dat",
+      "max_ulp": 0,
+      "max_abs_diff": 0.0,
+      "mean_abs_diff": 0.0,
+      "n_diff": 0,
+      "n_total": 387607,
+      "ulp_pass": true,
+      "abs_pass": true,
+      "verdict": "PASS"
+    }
+  ],
+  "summary": {
+    "max_ulp_across_threads": 0,
+    "max_abs_diff_across_threads": 0.0,
+    "ulp_threshold": 4,
+    "abs_threshold": 1e-12,
+    "verdict": "PASS"
+  }
+}

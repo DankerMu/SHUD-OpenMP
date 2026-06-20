@@ -10,7 +10,7 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-18（S1 完工 + post-tag P3 follow-up sweep 全清：B1a-tag `4fafb8e5…` / commit `64569b3f` / SHUD pin `58327c5`；PR #71 + #72 落地 8 个 issue closure；零 open issue）_
+> _最近一次更新：2026-06-20（S2 P7 acceptance gates closed：#126 A3a/A3b PASS, #127 wallclock heihe PASS + heihe_x4 PARTIAL → P8 sibling #133；A3a server FAIL = anchor 平台错配, Mac 4/4 PASS 反证 fusion correctness 完整；P7 epic #100 closed）_
 
 ## 矩阵
 
@@ -27,7 +27,7 @@
 | **P4**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P5**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P6**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
-| **P7**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
+| **P7**    | PASS¹  | PASS¹               | PASS²      | N/A (deferred-upstream) | PASS¹   | PASS³         | PARTIAL⁴      | PARTIAL   |
 | **P8**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P9**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 
@@ -75,6 +75,33 @@ Aggregate gate（D12 收尾约束）：
 - `grep -r '_OPENMP_ON' SHUD/src/` = 0 hits（S1d.2 #48 主退役 + 漏改 functions.cpp #50 follow-up + CI grep gate enforce）
 - `grep -r 'N_VDestroy_Serial' SHUD/src/` = 0 hits（S1d.2 #48 retire + CI grep gate enforce）
 - Server heihe / heihe_x4 24h Slurm bitwise validation：post-merge operator manual confirmation per spec L188-201（runs-on:server+local，operator owns）
+
+## P7 行证据 (2026-06-20 closure: #100 P7-Gates closed)
+
+| Case | 单元格 | 脚注 | 证据 |
+|------|--------|------|------|
+| keliya | PASS¹ | ¹A3a Mac 4/4 PASS + cutoff fallback covers Server (NumEle=484<cutoff=1024) | Mac local A3a `89686fb8...` matches B0 anchor; Server cutoff fallback走 Serial chain 等价 Config A bitwise |
+| xinanjiang_upstream | PASS¹ | ¹同上 (NumEle=801<cutoff) | Mac local A3a `3794e7d3...` matches B0 anchor |
+| qinyijiang | PASS² | ²A3a Mac 4/4 + Server A3b max_ulp=0 cross-thread {1,2,4,8} (NumEle=3155>cutoff) | Mac local A3a `48036c5e...` matches; Server [A3b_qinyijiang.json](https://github.com/DankerMu/SHUD-OpenMP/blob/baseline/current/.s2-103/p7-acceptance/A3b_qinyijiang.json) 实测 max_ulp=0 / n_diff=0 of 29154 elements (达 A3c 加分项) |
+| kashigeer | N/A (deferred-upstream) | — | 同 B0/B1a 行: 上游 X76 forcing 段缺, CI matrix 排除 |
+| qhh | PASS¹ | ¹A3a Mac 4/4 + cutoff (NumEle=4773>cutoff实际入 rhs_core_omp body) | Mac local A3a `d9a42798...` matches B0 anchor (4 cases 实测都跑 rhs_core_omp body 并 bitwise vs serial chain) |
+| heihe | PASS³ | ³Wall-clock 1.009x ≥ 0.95x target + cross-thread bitwise inherited from heihe_x4 evidence | Server [wallclock_heihe.txt](https://github.com/DankerMu/SHUD-OpenMP/blob/baseline/current/.s2-103/p7-acceptance/wallclock_heihe.txt) median serial=470.68s omp8=466.43s; profile_decision §1.1.1 Amdahl ceiling 1.13x 已声明, 1.5x defer 至 sibling #123 s2-opt-io-heihe |
+| heihe_x4 | PARTIAL⁴ | ⁴A3b cross-thread max_ulp=0 PASS (correctness 完整) but wall-clock 1.040x < 1.5x target → 转 P8 sibling [#133](https://github.com/DankerMu/SHUD-OpenMP/issues/133) | Server [A3b_heihe_x4.json](https://github.com/DankerMu/SHUD-OpenMP/blob/baseline/current/.s2-103/p7-acceptance/A3b_heihe_x4.json) max_ulp=0 / n_diff=0 of 387607 elements; [wallclock_heihe_x4.txt](https://github.com/DankerMu/SHUD-OpenMP/blob/baseline/current/.s2-103/p7-acceptance/wallclock_heihe_x4.txt) median serial=1278.88s omp8=1229.82s; profile (job 8487) 证 t_RHS_kernel scaling 0.99x → memory-bandwidth bound, Amdahl ceiling 2.04x, P8 优化候选 SoA+cache-block+NUMA-first-touch |
+
+### P7 A3a server anchor 平台错配 (诊断)
+
+`benchmarks/<case>/B0_output/*.rivqdown.dat` 锁定的 anchor (`89686fb8...` / `3794e7d3...` / `48036c5e...` / `d9a42798...`) 是 Mac (Apple Clang arm64) 生成的, **server (gcc 13.3.0 x86_64) 任何 build 都不 bit-match anchor**: 8455 FP diag 已实测 Config A pure baseline + Config E (-O2/-O0/-fno-tree-vectorize/-fno-tree-slp-vectorize/no-vec-both) 全 6 个 build variants 都输出相同 SHA `fe4f9c99...`, 与 archived anchor 不同。
+
+⇒ 不是 rhs_core_omp 6-stage fusion bug (Mac 4/4 PASS 反证源码层 refactor-equivalence)。A3a server vs B1a-tag bitwise gate 在 gcc 13.3.0 平台不可达, anchor 重生在 server gcc 13 build 上属未来工作 (sibling change candidate)。完整诊断见 [`.s2-103/diag/A3a_platform_finding.md`](https://github.com/DankerMu/SHUD-OpenMP/blob/baseline/current/.s2-103/diag/A3a_platform_finding.md)。
+
+### Aggregate P7 = PARTIAL
+
+按 `status-matrix` spec L19-L22 ("aggregate = PASS iff 所有非 N/A 单元格都 PASS"):
+- 5 cases PASS (keliya / xinanjiang_upstream / qinyijiang / qhh / heihe)
+- 1 case N/A (kashigeer deferred-upstream)
+- 1 case PARTIAL (heihe_x4 wall-clock defer 至 sibling #133)
+
+aggregate = **PARTIAL** (P7 correctness 全 PASS, wall-clock 1/6 case partial-fail → P8 sibling)。
 
 ## A0 验收 checklist
 
