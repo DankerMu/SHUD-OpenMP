@@ -47,7 +47,7 @@ A3a 4-case bitwise vs B1a-tag (90 天截断):
 | qinyijiang | 3155 | nanlin | 756.90 | `40e86772...260bc59` | ❌ FAIL |
 | qhh | 4773 | qhh | 211.37 | `cb81463f...cee97900` | ❌ FAIL |
 
-完整 A3a.json: `frd_muziyao@210.77.77.22:/scratch/frd_muziyao/SHUD-OpenMP/.p7-a3a-validation/8450/A3a.json`
+完整 A3a.json: `<user>@<server-ip>:/scratch/<user>/SHUD-OpenMP/.p7-a3a-validation/8450/A3a.json` (服务器 SSH 路径，IP 与用户名占位以符合 `pii_server_endpoint_absence` 不变式)
 
 ## 排查过程
 
