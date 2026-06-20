@@ -107,6 +107,27 @@
 - `git show B1a-tag --stat -- SHUD` → SHUD pin 显示 `58327c5`
 - `git ls-remote --tags origin | grep B1a-tag` → 远端 tag 存在
 
+## SoA hot-field mirror for heihe_x4 mem-BW relief（#133）
+
+job 8487 + 8491 profile 实测 heihe_x4 (NumEle=40046) 在 thr=2/4 时 `t_RHS_kernel` 765-767s 不 scale（0.2% Δ = noise）→ memory-bandwidth bound 而非 compute bound。Element AoS struct 单元素 size ~500-800B 跨 8 cache lines，7 个 hot fields (iLake 15x, iBC 14x, QBC 9x, iSS 6x, yBC 4x, QSS 4x, area 2x) 命中 87.5% cache miss penalty。
+
+SoA refactor 引入 `eleSoA` namespace 镜像（7 个 `std::vector` 对齐到 cache line，2.2MB working set for heihe_x4，L2-friendly），仅 `SHUD_ENABLE_OPENMP_RHS=1` 编译期启用：
+
+- 新增 `SHUD/src/Model/MD_rhs_ele_soa.{hpp,cpp}`：`#ifdef SHUD_ENABLE_OPENMP_RHS` 整文件 guard，namespace `eleSoA` 内 7 `std::vector` + `populate()` + `sync_QBC/sync_yBC/sync_QSS` API
+- `MD_rhs_core.cpp` rhs_core_omp Stage 1/2/3/6 命中 SoA reads，sync 协议 write-AoS-then-sync-SoA（owner-local 双写，无 race）
+- AoS `_Element` 类零改动；`MD_update.cpp` / `MD_f.cpp` / I/O 路径走原 AoS path 不动
+- Config A 编译 (`make shud`) byte-identical 到 B1a-tag baseline；`nm shud | grep eleSoA` 0 hits 强保证
+
+Mac A3a 4-case bitwise vs B1a-tag PASS（@ `OMP_NUM_THREADS=4`）：
+- keliya: `89686fb8...e99a8fc`（identity vs Mac archived）
+- xinanjiang_upstream: `3794e7d3...4023020`
+- qinyijiang: `48036c5e...86dfbc57`
+- qhh: `d9a42798...fa7b62ce`
+
+Server wallclock ≥ 1.5x acceptance 走 post-merge sequel（spec `strict-omp-acceptance-gates` Requirement 6）；A3b cross-thread max_ulp ≤ 2 ULP 走 server 验收（Mac A3a 0 ULP 已经达 strict 上限作为预报）。
+
+SHUD pointer bump：`5e0577718c11835fa59e1075e40fa7e35ee53da0` → `dc733cd2a0cf76d633c8550246f4a983329de237`（push 走 SHUD-System/SHUD `openmp-baseline` 分支，不动 master）。
+
 ## IEEE-754 跨平台 anchor 分支（#134）
 
 `benchmarks/<case>/B0_output/<case>.rivqdown.dat`（Mac Apple Clang arm64 bin）锁的 SHA 在 server gcc 13.3.0 x86_64 Linux 上**不可复现**——`8455` FP diag 实测 6 build variants（Config A pure / Config E -O2/-O0/-fno-tree-vectorize/-fno-tree-slp-vectorize/no-vec-both）全部输出同一 SHA `fe4f9c99...` (keliya)，与 Mac archived `89686fb8...` 不一致；不是 6-stage fusion bug，是 IEEE-754 浮点表达不跨编译器 / 架构 bit-equivalent。
