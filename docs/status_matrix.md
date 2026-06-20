@@ -10,7 +10,7 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-20（S2 P7 acceptance gates closed：#126 A3a/A3b PASS, #127 wallclock heihe PASS + heihe_x4 PARTIAL → P8 sibling #133；A3a server FAIL = anchor 平台错配, Mac 4/4 PASS 反证 fusion correctness 完整；P7 epic #100 closed）_
+> _最近一次更新：2026-06-20（S2 P7 acceptance gates closed：#126 A3a/A3b PASS, #127 wallclock heihe PASS + heihe_x4 PARTIAL → P8 sibling #133；A3a server FAIL = anchor 平台错配, Mac 4/4 PASS 反证 fusion correctness 完整；P7 epic #100 closed; 后续 #135 wallclock case→mesh 解耦 + #137 measure_case errexit 加固两项 closed via PR #136 + #138 — 余下 #123 / #133 / #134 三项均需服务器执行）_
 
 ## 矩阵
 
@@ -105,16 +105,19 @@ aggregate = **PARTIAL** (P7 correctness 全 PASS, wall-clock 1/6 case partial-fa
 
 ### S2 strict-OMP 闭合 follow-up issues
 
-P7 epic (#100/#126/#127) 关闭后, 余下 4 个 sibling/follow-up issue 跟踪 "S2 strict-OMP 完整目标" 缺口:
+P7 epic (#100/#126/#127) 关闭后, 余下 sibling/follow-up issue 跟踪 "S2 strict-OMP 完整目标" 缺口:
 
-| Issue | 范围 | 阻塞 | Priority |
-|-------|------|------|----------|
-| [#123](https://github.com/DankerMu/SHUD-OpenMP/issues/123) | s2-opt-io-heihe: heihe ≥1.5x via forcing-IO 并行 (profile §1.1.1 Amdahl ceiling 1.13x 必须改 IO) | heihe 1.5x wall-clock 完整闭合 | P2 |
-| [#133](https://github.com/DankerMu/SHUD-OpenMP/issues/133) | heihe_x4 wall-clock 1.04x → 1.5x via memory-layout (SoA + cache-block + NUMA + simd) | heihe_x4 1.5x wall-clock 完整闭合 | P1 |
-| [#134](https://github.com/DankerMu/SHUD-OpenMP/issues/134) | B0/B1a server-gcc13.x86_64 anchor 平台分支 for A3a bitwise gate (8455 FP diag 证 server anchor 不可复现 Mac archived) | A3a server 4/4 bitwise PASS | P1 |
-| [#135](https://github.com/DankerMu/SHUD-OpenMP/issues/135) | wallclock 脚本 case→mesh 映射修复 (qinyijiang INVALID 0.01s) | qinyijiang wallclock 有效数据 | P1 |
+| Issue | 范围 | 阻塞 | Priority | 状态 |
+|-------|------|------|----------|------|
+| [#123](https://github.com/DankerMu/SHUD-OpenMP/issues/123) | s2-opt-io-heihe: heihe ≥1.5x via forcing-IO 并行 (profile §1.1.1 Amdahl ceiling 1.13x 必须改 IO) | heihe 1.5x wall-clock 完整闭合 | P2 | OPEN — 服务器执行 |
+| [#133](https://github.com/DankerMu/SHUD-OpenMP/issues/133) | heihe_x4 wall-clock 1.04x → 1.5x via memory-layout (SoA + cache-block + NUMA + simd) | heihe_x4 1.5x wall-clock 完整闭合 | P1 | OPEN — 服务器执行 |
+| [#134](https://github.com/DankerMu/SHUD-OpenMP/issues/134) | B0/B1a server-gcc13.x86_64 anchor 平台分支 for A3a bitwise gate (8455 FP diag 证 server anchor 不可复现 Mac archived) | A3a server 4/4 bitwise PASS | P1 | OPEN — 服务器执行 |
+| [#135](https://github.com/DankerMu/SHUD-OpenMP/issues/135) | wallclock 脚本 case→mesh 映射修复 (qinyijiang INVALID 0.01s) | qinyijiang wallclock 有效数据 | P1 | **CLOSED** via [PR #136](https://github.com/DankerMu/SHUD-OpenMP/pull/136) (`dc09fa9`) |
+| [#137](https://github.com/DankerMu/SHUD-OpenMP/issues/137) | measure_case `\|\| true` 防御 errexit 早退，保证 `RESULT:` 行写出 (#136 Phase 4.5 PLAUSIBLE spawned) | acceptance summary 可靠性 | P2 | **CLOSED** via [PR #138](https://github.com/DankerMu/SHUD-OpenMP/pull/138) (`1470e36`) |
 
-依赖关系: #135 → #133 (qinyijiang wallclock 对照前置), #134 ⊥ {#123, #133, #135} (anchor regen 独立于 perf 优化)。
+依赖关系: #135（已 close）→ #133 (qinyijiang wallclock 对照前置), #134 ⊥ {#123, #133} (anchor regen 独立于 perf 优化), #137 ⊥ 其余（defensive hardening）。
+
+**本地可完成范围已 saturate**: 余下 #123 / #133 / #134 均按 master plan §1.1.1 跨平台 验收铁律必须在目标部署服务器 (gcc 13.3.0 x86_64 Linux, 8-core 单插槽) 执行 — Mac 本地数字不计入 go/no-go，需 user 启动 Slurm 跑量产 case (#123 + #133) 或服务器跑 baseline anchor (#134)。
 
 ## A0 验收 checklist
 
