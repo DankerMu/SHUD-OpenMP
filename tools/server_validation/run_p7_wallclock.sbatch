@@ -333,10 +333,14 @@ measure_case() {
 # Wipe / re-create the summary at the top of the run.
 : > "$ARCHIVE_DIR/acceptance_summary.txt"
 
+# `|| true` 防止 measure_case 内层 fail-fast (run_case return 1 →
+# `return 1`) 经 set -euo pipefail 触发 bash errexit, 跳过 Summary 块。
+# FAIL 计数由 measure_case 内部累计, 最终 exit code 由 line 351 if 决定。
+# 详 spec wallclock-script-result-always-emitted / #137.
 for case in $CASES_OMP_TARGET; do
-    measure_case "$case" "1.5"
+    measure_case "$case" "1.5" || true
 done
-measure_case "$CASE_HEIHE" "0.95"
+measure_case "$CASE_HEIHE" "0.95" || true
 
 # -----------------------------------------------------------------------------
 # Summary.
