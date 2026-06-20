@@ -31,9 +31,9 @@
 > **S2.13 — 全局变量裸指针（记录，不迁移）** — **差异**：`uYsf/uYus/uYgw/uYriv/uYlake/timeNow` 是全局变量，非 `Model_Data` 成员 —— **P1-P7 影响**：strict OpenMP 下 CVODE 仍单线程调 `f()`，全局指针在 RHS 入口赋值后在 parallel region 内只读，无竞争。**不是 P1-P7 前置条件** —— **S2 阶段原则**：仅**记录**风险和当前使用模式（哪些函数读、哪些写、赋值时机），不做迁移 —— **迁移时机**：推迟到 P8+ / LibSHUD / Reentrant RHS 阶段 (master plan §5 S2.13)
 
 **File:line(s):**
-- `uYsf` / `uYus` / `uYgw` — `SHUD/src/ModelData/Macros.hpp` (global decl) + `SHUD/src/Model/MD_rhs_core.cpp` `rhs_update()` (write in RHS entry, read in flux/apply)
-- `uYriv` / `uYlake` — same pattern
-- `timeNow` — global time variable, written in `f()` entry, read by all flux functions
+- `uYsf` / `uYus` / `uYgw` — `SHUD/src/Model/Macros.hpp` (global `extern` decl, L126-134) + `SHUD/src/Model/MD_rhs_core.cpp` `rhs_update()` (write in RHS entry, read in flux/apply)
+- `uYriv` / `uYlake` — same pattern (`SHUD/src/Model/Macros.hpp`)
+- `timeNow` — global time variable (`SHUD/src/Model/Macros.hpp`), written in `f()` entry, read by all flux functions
 
 **Risk / observation:** 6 个全局裸指针是 RHS 入口 (`f()` / `rhs_core()`) 对 `N_Vector y` 做 `N_VGetArrayPointer` 后的便捷别名。在 strict OpenMP (P1-P7) 下 CVODE 单线程调 `f()`，parallel region 在内部 NumEle/NumRiv loop 内启动，全局指针在 parallel region 内**只读**，无竞争。但在 Reentrant RHS (P8+) 下 (如 Jacobian 并行差分估计需要并发调多次 `f()`)，全局可变指针会冲突。
 
@@ -50,7 +50,7 @@
 
 **Reason for deferral:** 推迟到 **P8+ / LibSHUD / Reentrant RHS** 阶段。迁移涉及 `Macros.hpp` 宏重构 + 大量函数签名变更 (所有 flux 函数需加 `Model_Data&` 参数)，改动面巨大；当前 B1a/P1-P7 不需要这次重构 (CVODE 单线程调用 `f()` 即可)，提前做违反 KISS/YAGNI。
 
-**Verification:** `git diff B0-tag HEAD -- SHUD/src/ModelData/Macros.hpp` SHALL 不包含 6 个全局变量声明的实质改动；`grep -E 'extern.*(uYsf|uYus|uYgw|uYriv|uYlake|timeNow)' SHUD/src/ModelData/Macros.hpp` SHALL 保持 B0-tag 状态。
+**Verification:** `git diff B0-tag HEAD -- SHUD/src/Model/Macros.hpp` SHALL 不包含 6 个全局变量声明的实质改动；`grep -E 'extern.*(uYsf|uYus|uYgw|uYriv|uYlake|timeNow)' SHUD/src/Model/Macros.hpp` SHALL 保持 B0-tag 状态。
 
 **Linked future issue (if any):** 无（P8 Reentrant RHS 启动时再开 Epic 跟踪）。
 
@@ -59,7 +59,7 @@
 **Master plan reference:**
 > **S2.15 — `AccTemperature.getACC()` 除零** — **差异**：`que.size()==0` 时除零 → NaN —— **S2 阶段原则**：仅**记录**此 bug，不在 S2 修复——修复会改变输出，违反 B1a == B0 的约束 —— **B1b 阶段修复**（S6a/S6b.1）：加 guard `que.empty() ? 0.0 : ACC/que.size()` (master plan §5 S2.15 + §6 S6b.1)
 
-**File:line(s):** `SHUD/src/ModelData/AccTemperature.hpp:60-62` (`getACC()` method)
+**File:line(s):** `SHUD/src/classes/AccTemperature.hpp:60-62` (`getACC()` method)
 
 **Risk / observation:** 当 `que.size() == 0` (初始化早期，cryosphere 启用且模拟前 1440 min 未填满 24h average queue) `return ACC / que.size()` 触发整数除零 → 返回 NaN/Inf；NaN 通过 frozen-soil 温度依赖路径传播到 `qElePrep` / `qEleInfil`，可能污染 1440 min 内的整体输出。
 
@@ -67,7 +67,7 @@
 
 **Reason for deferral:** 加 guard 会改变输出（修前 NaN vs 修后 0.0），违反 B1a == B0 的 bitwise reproducibility 约束。修复属 "输出改变类 bug fix" (master plan §5 表，与 S2.15/S2.17 同类)，必须在独立 B1b 阶段做，避免与 OpenMP 并行加速 (B1a 主线) 改动混合，难以审计哪个改动引起输出变化。
 
-**Verification:** `git diff B0-tag HEAD -- SHUD/src/ModelData/AccTemperature.hpp` SHALL 不包含 L60-62 范围内的实质改动；`getACC()` 方法体保持 B0-tag 状态（仍含潜在除零）。
+**Verification:** `git diff B0-tag HEAD -- SHUD/src/classes/AccTemperature.hpp` SHALL 不包含 L60-62 范围内的实质改动；`getACC()` 方法体保持 B0-tag 状态（仍含潜在除零）。
 
 **Linked future issue (if any):** 无（B1b Epic 启动时开 issue 跟踪 S6b.1）。
 
