@@ -417,6 +417,66 @@ jobs:
         run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight
 
       # -----------------------------------------------------------------------
+      # Step 4b — S4 PR-10 (#154) topology manifest schema validation
+      # -----------------------------------------------------------------------
+      # Per spec s4-adjacency-topology Scenario "manifest 文件存在 + schema
+      # 合规 + CI 校验通过": validate docs/topology_manifest.yaml has
+      #   - 7 adjacency_lists entries, each with 5 required fields
+      #     (name / purpose / sort_rule / b0_source / iter_pattern)
+      #   - 21 asserts entries (3 entity × 7 case), each with 4 required
+      #     fields (entity / case / rule / result); optional fallback_note
+      #     only on result == fail
+      # Data-INDEPENDENT (yaml-only); uses `uv run python` per CLAUDE.md
+      # §"Python 一律用 uv". PyYAML is pre-installed on ubuntu-22.04 runner
+      # image; if missing, `uv pip install pyyaml --system` falls back.
+      - name: Setup uv (S4 manifest schema validation)
+        if: steps.skip_check.outputs.skipped != 'true'
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+      - name: Validate topology_manifest.yaml schema (S4 PR-10 #154)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          uv run --with pyyaml python <<'PYEOF'
+          import sys, yaml
+          with open('docs/topology_manifest.yaml') as f:
+              data = yaml.safe_load(f)
+          assert isinstance(data, dict), "manifest root must be a mapping"
+          assert 'adjacency_lists' in data, "manifest missing 'adjacency_lists' key"
+          assert 'asserts' in data, "manifest missing 'asserts' key"
+          lists = data['adjacency_lists']
+          asserts = data['asserts']
+          assert isinstance(lists, list) and len(lists) == 7, \
+              f"expected 7 adjacency_lists, got {len(lists)}"
+          assert isinstance(asserts, list) and len(asserts) == 21, \
+              f"expected 21 asserts (3 entity x 7 case), got {len(asserts)}"
+          required_list_fields = {'name', 'purpose', 'sort_rule', 'b0_source', 'iter_pattern'}
+          for i, entry in enumerate(lists):
+              missing = required_list_fields - set(entry.keys())
+              assert not missing, f"adjacency_lists[{i}] missing fields: {missing}"
+          required_assert_fields = {'entity', 'case', 'rule', 'result'}
+          for i, entry in enumerate(asserts):
+              missing = required_assert_fields - set(entry.keys())
+              assert not missing, f"asserts[{i}] missing fields: {missing}"
+              # fail result MUST carry fallback_note
+              if entry['result'] == 'fail':
+                  assert 'fallback_note' in entry, \
+                      f"asserts[{i}] result=fail must include fallback_note"
+          # Verify name uniqueness
+          names = [e['name'] for e in lists]
+          assert len(set(names)) == 7, f"adjacency_lists names not unique: {names}"
+          # Verify the 7 canonical names per spec L33-104
+          expected_names = {
+              'seg_by_riv', 'seg_by_ele', 'upstream_by_down',
+              'riv_in_by_lake', 'ele_by_lake',
+              'lake_bank_edge_by_lake', 'edge_by_ele',
+          }
+          assert set(names) == expected_names, \
+              f"adjacency_lists names {set(names)} != spec canonical {expected_names}"
+          print(f"OK: 7 adjacency_lists + 21 asserts; canonical names verified")
+          PYEOF
+
+      # -----------------------------------------------------------------------
       # Step 5 — SUNDIALS 6.0.x cache + (re)install
       # -----------------------------------------------------------------------
       # Cache key strategy:
@@ -495,6 +555,34 @@ jobs:
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: tools/compare_snapshot
         run: make all
+
+      # -----------------------------------------------------------------------
+      # Step 7b — S4 PR-10 (#154) adjacency fallback unit test
+      # -----------------------------------------------------------------------
+      # Builds tests/test_adjacency_fallback.cpp (SHUD/Makefile target
+      # `test_adjacency_fallback`) and runs it. The test constructs a
+      # synthetic Model_Data mock whose entity `.index` fields violate
+      # `index == array_index + 1` and asserts that
+      # build_adjacency_lists() sets `adjacency_fallback_triggered = true`
+      # AND constructs lists in array-index order (NOT id-sort) — per spec
+      # s4-adjacency-topology Scenario "三条 assert 在所有 6 case 都 pass
+      # + fallback 单测 PASS". Failure blocks PR-10 merge.
+      #
+      # The Makefile recipe wraps build + run; recipe-internal pass/fail
+      # message is "OK: adjacency fallback unit test PASS" or
+      # "FAIL: adjacency fallback unit test"; recipe exits non-zero on
+      # FAIL so this `run:` returns the same exit code unmodified.
+      - name: Run S4 adjacency fallback unit test (#154)
+        if: steps.skip_check.outputs.skipped != 'true'
+        working-directory: SHUD
+        run: |
+          make test_adjacency_fallback 2>&1 | tee test_adjacency_fallback.log
+          # Defense in depth: re-grep the log for the OK marker even if
+          # the recipe's `&& exit 1` was somehow short-circuited.
+          if ! grep -q "OK: adjacency fallback unit test PASS" test_adjacency_fallback.log; then
+            echo "::error title=S4 fallback unit test FAILED::test_adjacency_fallback did not print OK marker; see SHUD/test_adjacency_fallback.log artifact."
+            exit 1
+          fi
 
       # -----------------------------------------------------------------------
       # Step 8 — case data availability probe (parameterized on ${{ matrix.case }})
@@ -828,6 +916,7 @@ jobs:
             SHUD/build_default.log
             SHUD/build_profile.log
             SHUD/build_dump.log
+            SHUD/test_adjacency_fallback.log
             run_default.log
             run_profile.log
             run_dump.log
