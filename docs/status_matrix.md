@@ -111,7 +111,7 @@ P7 epic (#100/#126/#127) 关闭后, 余下 sibling/follow-up issue 跟踪 "S2 st
 |-------|------|------|----------|------|
 | [#123](https://github.com/DankerMu/SHUD-OpenMP/issues/123) | s2-opt-io-heihe: heihe ≥1.5x via forcing-IO 并行 (profile §1.1.1 Amdahl ceiling 1.13x 必须改 IO) | heihe 1.5x wall-clock 完整闭合 | P2 | OPEN — 服务器执行 |
 | [#133](https://github.com/DankerMu/SHUD-OpenMP/issues/133) | heihe_x4 wall-clock 1.04x → 1.5x via memory-layout (SoA + cache-block + NUMA + simd) | heihe_x4 1.5x wall-clock 完整闭合 | P1 | OPEN — 服务器执行 |
-| [#134](https://github.com/DankerMu/SHUD-OpenMP/issues/134) | B0/B1a server-gcc13.x86_64 anchor 平台分支 for A3a bitwise gate (8455 FP diag 证 server anchor 不可复现 Mac archived) | A3a server 4/4 bitwise PASS | P1 | **CLOSED** via PR (this PR — 4 anchor `.sha256.gcc13.x86_64` 归档；job 8488 cn05 exclusive Config A pure 4 case × 3 rep PASS) |
+| [#134](https://github.com/DankerMu/SHUD-OpenMP/issues/134) | B0/B1a server-gcc13.x86_64 anchor 平台分支 for A3a bitwise gate (8455 FP diag 证 server anchor 不可复现 Mac archived) | A3a server 4/4 bitwise PASS | P1 | **CLOSED** via [PR #139](https://github.com/DankerMu/SHUD-OpenMP/pull/139)（4 anchor `.sha256.gcc13.x86_64` 归档；job 8488 cn05 exclusive Config A pure 4 case × 3 rep PASS） |
 | [#135](https://github.com/DankerMu/SHUD-OpenMP/issues/135) | wallclock 脚本 case→mesh 映射修复 (qinyijiang INVALID 0.01s) | qinyijiang wallclock 有效数据 | P1 | **CLOSED** via [PR #136](https://github.com/DankerMu/SHUD-OpenMP/pull/136) (`dc09fa9`) |
 | [#137](https://github.com/DankerMu/SHUD-OpenMP/issues/137) | measure_case `\|\| true` 防御 errexit 早退，保证 `RESULT:` 行写出 (#136 Phase 4.5 PLAUSIBLE spawned) | acceptance summary 可靠性 | P2 | **CLOSED** via [PR #138](https://github.com/DankerMu/SHUD-OpenMP/pull/138) (`1470e36`) |
 
