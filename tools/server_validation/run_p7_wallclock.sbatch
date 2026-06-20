@@ -52,7 +52,12 @@
 #   - Cases:
 #       * heihe       (NumEle = 6335, server-only forcing)
 #       * heihe_x4    (NumEle ~ 25k, server-only forcing, rSHUD-generated)
-#       * qinyijiang  (NumEle = 3155, mirrored from local case set)
+#       * qinyijiang  (NumEle = 3155, mirrored from local case set;
+#                     mesh-prefix = `nanlin` — see CASE_TO_MESH map below.
+#                     rSHUD generated the mesh under input/nanlin/, so SHUD
+#                     binary must be invoked as `./shud_omp nanlin` from
+#                     Basins/qinyijiang/. Identity fallback is forbidden
+#                     per spec wallclock-script-mesh-mapping and #135.)
 #     keliya / xinanjiang_upstream are NumEle < OMP_CUTOFF (1024) so they
 #     would fall through to serial fallback — excluded from wall-clock
 #     acceptance per design §D13 logic (mirrors A3b case-selection rules).
@@ -101,6 +106,17 @@ REPEATS=3
 # Requirement 7 + design §D13 case-selection):
 CASES_OMP_TARGET="qinyijiang heihe_x4"  # both expect >= 1.5x
 CASE_HEIHE="heihe"                       # expects >= 0.95x (non-regressive)
+
+# Case → mesh-prefix map (rSHUD case dir-name may differ from mesh prefix).
+# qinyijiang case stores its mesh under input/nanlin/ (per #135 + spec
+# wallclock-script-mesh-mapping); heihe / heihe_x4 are identity-mapped.
+# Missing entries fail-fast via :? expansion below — NO silent identity
+# fallback (that fallback was the original bug; #127 job 8453 wrote 0.01s).
+declare -A CASE_TO_MESH=(
+    [qinyijiang]=nanlin
+    [heihe]=heihe
+    [heihe_x4]=heihe_x4
+)
 
 # Preflight: scratch path sanity (mirrors run_s1_bitwise.sbatch).
 if [ ! -d "$PROJECT_ROOT" ]; then
@@ -178,6 +194,24 @@ variance_pct() {
     '
 }
 
+# assert_real_s_sane <real_s>
+# Fail-fast if SHUD's reported `time -p` real wall is < 1.0s under
+# 90-day truncation — any 90-day legit run is >= ~30s on the smallest
+# case (keliya local) and >= ~480s on qinyijiang (mesh=nanlin) server
+# per #135 design.md §D3. Sub-second values mean SHUD early-exited
+# (EXIT 12 missing cfg, SIGABRT, etc.) but `time -p` still wrote a row
+# — see #127 job 8453 wallclock_qinyijiang.txt 0.01s INVALID.
+# Per spec wallclock-script-mesh-mapping Requirement "SHUD anomalously
+# short run SHALL fail-fast".
+assert_real_s_sane() {
+    arss_real="$1"
+    if awk -v r="$arss_real" 'BEGIN { exit !(r < 1.0) }'; then
+        echo "[run] FAIL: anomalously short run real_s=${arss_real}s < 1.0s threshold — likely SHUD early-exit (EXIT 12 / SIGABRT); inspect rep_log for 'Fatal Error' / 'EXIT' lines" >&2
+        return 1
+    fi
+    return 0
+}
+
 # run_case <case> <proj> <binary_path> [omp_threads]
 # Runs the binary REPEATS times, parses wall-clock from a SHUD-produced
 # log line or wraps with `time -p`. Emits "wall_1 wall_2 wall_3" on stdout.
@@ -218,6 +252,11 @@ run_case() {
             cd "$PROJECT_ROOT"
             return 1
         fi
+        if ! assert_real_s_sane "$real_s"; then
+            echo "[run] FAIL: $rc_case $rc_label rep${rep} rep_log preserved: $rep_log" >&2
+            cd "$PROJECT_ROOT"
+            return 1
+        fi
         rc_walls="$rc_walls $real_s"
         rep=$((rep + 1))
     done
@@ -249,7 +288,7 @@ FAIL=0
 measure_case() {
     mc_case="$1"
     mc_target="$2"
-    mc_proj="$mc_case"
+    mc_proj="${CASE_TO_MESH[$mc_case]:?case→mesh mapping missing for $mc_case (add entry to CASE_TO_MESH map; identity fallback forbidden per spec wallclock-script-mesh-mapping)}"
     echo ""
     echo "=== measure: $mc_case target=${mc_target}x repeats=$REPEATS ==="
 
