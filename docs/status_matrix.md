@@ -103,6 +103,19 @@ Aggregate gate（D12 收尾约束）：
 
 aggregate = **PARTIAL** (P7 correctness 全 PASS, wall-clock 1/6 case partial-fail → P8 sibling)。
 
+### S2 strict-OMP 闭合 follow-up issues
+
+P7 epic (#100/#126/#127) 关闭后, 余下 4 个 sibling/follow-up issue 跟踪 "S2 strict-OMP 完整目标" 缺口:
+
+| Issue | 范围 | 阻塞 | Priority |
+|-------|------|------|----------|
+| [#123](https://github.com/DankerMu/SHUD-OpenMP/issues/123) | s2-opt-io-heihe: heihe ≥1.5x via forcing-IO 并行 (profile §1.1.1 Amdahl ceiling 1.13x 必须改 IO) | heihe 1.5x wall-clock 完整闭合 | P2 |
+| [#133](https://github.com/DankerMu/SHUD-OpenMP/issues/133) | heihe_x4 wall-clock 1.04x → 1.5x via memory-layout (SoA + cache-block + NUMA + simd) | heihe_x4 1.5x wall-clock 完整闭合 | P1 |
+| [#134](https://github.com/DankerMu/SHUD-OpenMP/issues/134) | B0/B1a server-gcc13.x86_64 anchor 平台分支 for A3a bitwise gate (8455 FP diag 证 server anchor 不可复现 Mac archived) | A3a server 4/4 bitwise PASS | P1 |
+| [#135](https://github.com/DankerMu/SHUD-OpenMP/issues/135) | wallclock 脚本 case→mesh 映射修复 (qinyijiang INVALID 0.01s) | qinyijiang wallclock 有效数据 | P1 |
+
+依赖关系: #135 → #133 (qinyijiang wallclock 对照前置), #134 ⊥ {#123, #133, #135} (anchor regen 独立于 perf 优化)。
+
 ## A0 验收 checklist
 
 对应 `status-matrix` spec L47 + master plan §S0 A0 验收门。各项映射到 S0 PR 的交付物，当前状态：
