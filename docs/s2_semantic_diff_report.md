@@ -5,8 +5,8 @@
 按 7 字段 schema 描述。
 
 **PR 范围说明**：
-- **PR-7a (本 PR)**：S2.12 / S2.13 / S2.15 / S2.16 共 4 项 record-only
-- **PR-7b**：S2.17（lake 分支 assert + DEBUG 6-case run + record） — 单独 PR
+- **PR-7a**：S2.12 / S2.13 / S2.15 / S2.16 共 4 项 record-only
+- **PR-7b (本 PR)**：S2.17（lake 分支 assert + DEBUG qhh run + RELEASE 4-case bitwise + record） — 完成 5/5 sections
 
 ## S2.12 uncoupled 路径 clamp 差异
 
@@ -96,13 +96,34 @@ S2 阶段无需额外处理；记录"已解决"状态供审计追溯。
 
 **Linked future issue (if any):** D13 (in `openspec/changes/b1a-finalization/design.md` D13 entry — OpenMP NVector backend reduction-order baseline gap)；P8-NVector Epic 启动时开 follow-up。
 
+## S2.17 fun_Ele_sub lake 分支 assert
+
+**Master plan reference:**
+> **S2.17 — `fun_Ele_sub()` lake 分支 `Ele[inabr].u_effKH` 越界/语义风险**（⚠️ blocker） — **问题**：`MD_ElementFlux.cpp` L107–L121，lake 分支进入条件是 `ilake >= 0`，但 L117 计算 `Kmean` 时使用了 `Ele[inabr].u_effKH`（`inabr = Ele[i].nabr[j] - 1`），**未检查 `inabr >= 0`** —— **S2 阶段原则**：在 `fun_Ele_sub()` lake 分支入口加 `assert(inabr >= 0)` 防御性检查（不影响 release 输出）+ 审查并**记录** lake element 的 `u_effKH` 赋值来源和物理意义分析结论 (master plan §5 S2.17 + §4.18)
+
+**File:line(s):** `SHUD/src/ModelData/MD_ElementFlux.cpp:107-121` (lake 分支位于 `fun_Ele_sub()`，源 L101 起)
+
+**Risk / observation:** lake 分支 (L107 `if(ilake >= 0)`) 进入条件只检查 `ilake`，不检查 `inabr`；但 L119 `Kmean = 0.5 * (Ele[i].u_effKH + Ele[inabr].u_effKH)` 直接索引 `Ele[inabr]`，其中 `inabr = Ele[i].nabr[j] - 1` (源 L105)。若 `Ele[i].nabr[j] == 0` 则 `inabr == -1`，触发 UB (`Ele[-1].u_effKH`)。数据流分析 (master plan §4.18) 表明 `MD_Lake.cpp` L133–L144 `lakenabr[j]` 赋值前已经检查 `inabr >= 0`，所以当前数据流下 `inabr` 在 lake 分支内**应当**合法；但这是隐含依赖，没有源码层显式保证。另存在物理语义疑问：lake element 的 `u_effKH` 是否有物理意义？取均值 `0.5 * (Ele[i] + Ele[inabr])` 是否合理？
+
+**Decision (record-only / defer to B1b / etc.):** S2 阶段加 `assert(inabr >= 0)` 防御性 DEBUG 检查；`u_effKH` 公式变更推迟到 B1b/S6a。
+
+**Reason for deferral:** 修改 `Kmean` 公式（如改为仅用 `Ele[i].u_effKH` 或引入 lake-bed 导水率参数）会改变 lake 算例输出，违反 B1a == B0 的 bitwise reproducibility 约束。`assert(inabr >= 0)` 仅在 DEBUG build (未定义 `NDEBUG`) 生效，在 RELEASE build (`-DNDEBUG`) 被编译器 strip 为 no-op，因此**不影响输出 bitwise 等价性**。公式审查 + 物理语义结论入 B1b/S6a (master plan §6 S6b.2)。
+
+**Verification:**
+- DEBUG build (默认 `make shud`，未定义 `NDEBUG`) qhh 90-day 跑 (qhh 是唯一本地 lake case，`NumLake=1`, `NumEle=4773`) — `assert(inabr >= 0)` **未 trigger**，正常退出 0；这是步骤的 success outcome (sentinel 未触发 = 数据流分析正确，inabr 在 lake 分支内确实合法)。其余 4 个 Mac 本地 case (keliya / xinanjiang_upstream / qinyijiang / kashigeer) 无 lake element，assert 路径死代码，跳过 DEBUG 跑。Server heihe / heihe_x4 DEBUG/RELEASE 验证推迟到 PR-12 capstone (per `openspec/changes/b1a-finalization/design.md` D10)。
+- RELEASE build (`make shud EXTRA_CXXFLAGS=-DNDEBUG`) 4-case Mac local (keliya / xinanjiang_upstream / qinyijiang / qhh，kashigeer 上游 forcing 缺失 deferred — `benchmarks/kashigeer/B0_output/DEFERRED.txt`)：所有 B0_output `.dat` 文件 (rivqdown.dat 全 case + qhh 的 lakystage.dat / lakqrivin.dat / lakqrivout.dat + xinanjiang_upstream 的 eleygw.dat) SHA256 == B0-tag archive；cvode_stats 15-key bitwise == B0-tag archive。
+- `git diff B0-tag HEAD -- SHUD/src/ModelData/MD_ElementFlux.cpp` SHALL 仅包含 `#include <cassert>` (新行 L2) 与 `assert(inabr >= 0)` (新行 L109)，不含 L117 `Kmean` 公式或其他 lake-branch 计算的改动。
+
+**Linked future issue (if any):** 无（B1b/S6a Epic 启动时开 issue 跟踪 `u_effKH` 公式 review；master plan §6 S6b.2 已列入"输出改变类 bug fix"待修清单）。
+
 ## Section completeness verification
 
-PR-7a 落地后:
-- 本 PR：4 sections (S2.12 / S2.13 / S2.15 / S2.16) 齐全，每 section 7 字段完整
-- PR-7b：追加 1 section (S2.17)；总 5 sections
+PR-7b 落地后:
+- 总 5 sections (S2.12 / S2.13 / S2.15 / S2.16 / S2.17) 齐全，每 section 7 字段完整
+- PR-7a 4 sections record-only (0 SHUD 源码改动)
+- PR-7b S2.17 = 1 section + 1 SHUD 源码改动 (defensive DEBUG-only `assert`，`#include <cassert>` + 1 行 assert)，RELEASE bitwise vs B0 保持
 
-`git diff B0-tag <PR-7a HEAD> -- SHUD/src/` SHALL 不包含本 PR 4 项 record-only 涉及的 file:line 范围内的实质改动 — 本 PR 0 SHUD 源码改动。
+`git diff B0-tag <PR-7b HEAD> -- SHUD/src/` 仅含 `MD_ElementFlux.cpp` 2 行新增 (cassert include + assert)；其余 PR-7a record-only 涉及的 file:line 范围内无实质改动。
 
 ## Master plan 一致性
 
