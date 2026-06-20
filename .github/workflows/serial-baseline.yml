@@ -5,16 +5,23 @@
 #   - S0  ci-serial-baseline:   openspec/changes/s0-baseline-lock/specs/ci-serial-baseline/spec.md
 #   - S1  b0-tag-ci-integration: openspec/changes/s1-rhs-core-extraction/specs/b0-tag-ci-integration/spec.md
 # Issues: openmp #13 (S0-9 initial) → #50 (S1-ci-A: matrix + grep gates + nightly)
+#         → #152 (PR-8 S2 capstone: collapse axis + retire LEGACY paths)
 #
-# S1-ci-A scope (issue #50):
-#   - Build matrix split on LEGACY_RHS axis (=0 default, =1 legacy fallback)
-#   - PR fast-feedback path: 2 axes × 1 case (keliya) = 2 jobs
-#   - Nightly cron + PR `full-bitwise` label: 2 axes × 4 cases = 8 jobs
+# S2 capstone scope (issue #152 / PR-8):
+#   - Collapse 2-axis matrix (rhs_path × case) to 1-axis (case only). The
+#     legacy `_omp` RHS receivers (MD_f_omp.cpp) and the legacy-vs-rhs_core
+#     fork are deleted from SHUD source; there is no longer a second axis
+#     to vary.
+#   - Add `S2 capstone grep gate` step: MD_f_omp.cpp absent + the 3 `_omp`
+#     RHS receiver function names produce 0 hits tree-wide + the legacy
+#     gating macros produce 0 hits in src/ + Makefile.
+#
+# S1-ci-A scope (issue #50; retained):
+#   - PR fast-feedback path: 1 case (keliya) = 1 job
+#   - Nightly cron + PR `full-bitwise` label: 4 cases = 4 jobs
 #   - Macro removal grep gates (USE_RHS_CORE / _OPENMP_ON / NV_DATA_OMP /
 #     NV_DATA_S in f.cpp / N_VDestroy_Serial) — runs unconditionally even
 #     without forcing data
-#   - LEGACY_RHS=1 axis additionally asserts the 3 `*_omp` symbols are
-#     still present in the legacy binary (spec L20-23, #49 precedent)
 #   - 90-day truncation: explicit END = START + 90 rewrite in the CI step
 #     (tools/fix_case_paths/fix_case_paths.sh does NOT touch END; see note
 #     in "Fix case paths" step below)
@@ -81,11 +88,12 @@ on:
     # "标签即开关" — without labeled/unlabeled, switching label requires a
     # fresh push to actually swap fast-feedback / full-bitwise modes).
     types: [opened, reopened, synchronize, labeled, unlabeled]
-  # S1-ci-A (#50): nightly cron triggers the 8-job full-bitwise matrix
-  # (2 LEGACY_RHS axes × 4 cases). Per b0-tag-ci-integration spec L213-218
-  # "nightly cron 03:00 UTC 跑全 4 case", the schedule runs on the default
-  # branch HEAD (GitHub Actions cron always runs on the default branch, which
-  # is `main` here; nightly verifies whatever was last merged into main).
+  # S1-ci-A (#50) / S2 capstone (#152): nightly cron triggers the 4-job
+  # full-bitwise matrix (4 cases, single axis post-PR-8 collapse). Per
+  # b0-tag-ci-integration spec L213-218 "nightly cron 03:00 UTC 跑全 4 case",
+  # the schedule runs on the default branch HEAD (GitHub Actions cron always
+  # runs on the default branch, which is `main` here; nightly verifies
+  # whatever was last merged into main).
   schedule:
     - cron: '0 3 * * *'
 
@@ -100,15 +108,18 @@ jobs:
   # ---------------------------------------------------------------------------
   # Job 1 — setup: emit the build matrix JSON
   # ---------------------------------------------------------------------------
-  # Per b0-tag-ci-integration spec "CI build matrix 跑 LEGACY_RHS=0 与 =1 两轴"
-  # (L276-301) and "PR fast-feedback 路径只跑 keliya" (L36-52):
+  # S2 capstone (PR-8 #152): the 2-axis matrix (rhs_path × case) has been
+  # collapsed to 1-axis (case only). The legacy `_omp` RHS receivers are
+  # deleted and the legacy-vs-rhs_core fork is retired; no second axis.
+  # Original "PR fast-feedback 路径只跑 keliya" (b0-tag-ci-integration
+  # spec L36-52) intent is preserved:
   #
   #   - PR default (no full-bitwise label, not a schedule event):
-  #       2 axes × 1 case (keliya) = 2 jobs, wall-clock ≤ 4 min
+  #       1 case (keliya) = 1 job, wall-clock ≤ 4 min
   #   - PR with `full-bitwise` label OR schedule (nightly cron):
-  #       2 axes × 4 cases = 8 jobs, timeout ≥ 25 min
+  #       4 cases = 4 jobs, timeout ≥ 25 min
   #
-  # Emitting the matrix from a separate setup job avoids 8 stub matrix entries
+  # Emitting the matrix from a separate setup job avoids stub matrix entries
   # gated by `if:` (which would still show as skipped checks on the PR UI,
   # confusing readers). The matrix JSON is exposed via job outputs and the
   # consumer job pulls it via `fromJson(needs.setup.outputs.matrix)`.
@@ -130,15 +141,15 @@ jobs:
           # to keep bash test happy on PR events where labels may be empty.
           full_bitwise_label="${{ contains(github.event.pull_request.labels.*.name, 'full-bitwise') }}"
           if [[ "${{ github.event_name }}" == "schedule" || "$full_bitwise_label" == "true" ]]; then
-            # 8-job full matrix: 2 axes × 4 cases
-            echo 'matrix={"rhs_path":["LEGACY_RHS=0","LEGACY_RHS=1"],"case":["keliya","xinanjiang_upstream","qinyijiang","qhh"]}' >> "$GITHUB_OUTPUT"
+            # 4-job full matrix: 4 cases (S2 capstone collapsed axis)
+            echo 'matrix={"case":["keliya","xinanjiang_upstream","qinyijiang","qhh"]}' >> "$GITHUB_OUTPUT"
             echo 'mode=full-bitwise' >> "$GITHUB_OUTPUT"
-            echo "::notice title=serial-baseline matrix mode::full-bitwise (2 axes × 4 cases = 8 jobs); trigger=${{ github.event_name }} full_bitwise_label=$full_bitwise_label"
+            echo "::notice title=serial-baseline matrix mode::full-bitwise (4 cases = 4 jobs); trigger=${{ github.event_name }} full_bitwise_label=$full_bitwise_label"
           else
-            # 2-job PR fast-feedback: 2 axes × 1 case (keliya)
-            echo 'matrix={"rhs_path":["LEGACY_RHS=0","LEGACY_RHS=1"],"case":["keliya"]}' >> "$GITHUB_OUTPUT"
+            # 1-job PR fast-feedback: 1 case (keliya)
+            echo 'matrix={"case":["keliya"]}' >> "$GITHUB_OUTPUT"
             echo 'mode=fast-feedback' >> "$GITHUB_OUTPUT"
-            echo "::notice title=serial-baseline matrix mode::fast-feedback (2 axes × 1 case = 2 jobs, keliya only); add `full-bitwise` label or wait for nightly cron to run all 4 cases"
+            echo "::notice title=serial-baseline matrix mode::fast-feedback (1 case = 1 job, keliya only); add `full-bitwise` label or wait for nightly cron to run all 4 cases"
           fi
 
   # ---------------------------------------------------------------------------
@@ -351,6 +362,43 @@ jobs:
           echo "All macro removal grep gates PASS (USE_RHS_CORE / _OPENMP_ON / NV_DATA_* / N_VDestroy_Serial all returned zero matches)"
 
       # -----------------------------------------------------------------------
+      # Step 3b — S2 capstone grep gate (PR-8 #152)
+      # -----------------------------------------------------------------------
+      # Three deterministic gates that all MUST report 0 hits:
+      #   (1) SHUD/src/ModelData/MD_f_omp.cpp file is absent (entire TU deleted)
+      #   (2) tree-wide grep for the 3 `_omp` RHS receiver names returns 0 hits
+      #   (3) tree-wide grep for the retired legacy gating macros returns 0 hits
+      # Data-INDEPENDENT (source-only); runs in <2 seconds.
+      - name: S2 capstone grep gate (MD_f_omp.cpp deleted + _omp callers 0 hits)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          set -e
+          echo "=== Gate 1: MD_f_omp.cpp file absent ==="
+          if [ -f SHUD/src/ModelData/MD_f_omp.cpp ]; then
+            echo "::error title=S2 capstone gate 1 FAIL::SHUD/src/ModelData/MD_f_omp.cpp still exists; PR-8 (#152) deleted this TU."
+            exit 1
+          fi
+          echo "PASS: MD_f_omp.cpp deleted"
+
+          echo "=== Gate 2: _omp 3 functions 0 hits tree-wide ==="
+          HITS=$(grep -rn 'f_update_omp\|f_loop_omp\|f_applyDY_omp' SHUD/src/ | wc -l | tr -d ' ')
+          if [ "$HITS" != "0" ]; then
+            echo "::error title=S2 capstone gate 2 FAIL::tree-wide grep found $HITS hits for f_update_omp/f_loop_omp/f_applyDY_omp; PR-8 (#152) retired these symbols."
+            grep -rn 'f_update_omp\|f_loop_omp\|f_applyDY_omp' SHUD/src/
+            exit 1
+          fi
+          echo "PASS: 0 hits tree-wide"
+
+          echo "=== Gate 3: SHUD_LEGACY_OMP_RHS + LEGACY_RHS 0 hits ==="
+          HITS=$(grep -rn 'SHUD_LEGACY_OMP_RHS\|LEGACY_RHS' SHUD/src/ SHUD/Makefile | wc -l | tr -d ' ')
+          if [ "$HITS" != "0" ]; then
+            echo "::error title=S2 capstone gate 3 FAIL::tree-wide grep found $HITS hits for SHUD_LEGACY_OMP_RHS/LEGACY_RHS; PR-8 (#152) retired the legacy gating macros."
+            grep -rn 'SHUD_LEGACY_OMP_RHS\|LEGACY_RHS' SHUD/src/ SHUD/Makefile
+            exit 1
+          fi
+          echo "PASS: 0 hits"
+
+      # -----------------------------------------------------------------------
       # Step 4 — tool selftests (F26 / PR #54 round-3)
       # -----------------------------------------------------------------------
       # Helper-script regression detection runs in seconds; failing here
@@ -398,46 +446,44 @@ jobs:
           ./configure
 
       # -----------------------------------------------------------------------
-      # Step 6 — build three SHUD binaries (axis-aware: ${{ matrix.rhs_path }})
+      # Step 6 — build three SHUD binaries (single axis post-S2 capstone)
       # -----------------------------------------------------------------------
-      # S1-ci-A (#50) splits build on LEGACY_RHS axis. For each axis (=0/=1)
-      # we still build the 3 binary modes (default / profile-on / dump-on) so
-      # the bitwise / neutrality / snapshot gates remain valid on each axis.
+      # PR-8 (#152) retired the LEGACY_RHS axis; we build the 3 binary modes
+      # (default / profile-on / dump-on) once per matrix case.
       #
       # `make clean` between modes is defensive: SHUD's Makefile compiles
       # single-source (all .cpp in $(SRC) compiled in one shot per target),
       # so per-flag incremental compile does not happen. We do not trust
-      # object-file invalidation across SHUD_DUMP_DEFINE / LEGACY_RHS changes.
+      # object-file invalidation across SHUD_DUMP_DEFINE changes.
       # Build logs are tee'd to build_<mode>.log so the failure-artifact
       # step can pick them up even when the build succeeded but a later
       # step failed.
       #
-      # Flag names match SHUD/Makefile: SHUD_DUMP_RHS (line 99), SHUD_ENABLE_PROFILE
-      # (line ~135), and LEGACY_RHS (post-S1d.1 introduction, #47). All three
-      # are guarded by `$(error … must be 0 or 1, got 'X')` rules so explicit
-      # `FOO=0` is required.
-      - name: Build default (axis ${{ matrix.rhs_path }})
+      # Flag names match SHUD/Makefile: SHUD_DUMP_RHS, SHUD_ENABLE_PROFILE.
+      # Both are guarded by `$(error … must be 0 or 1, got 'X')` rules so
+      # explicit `FOO=0` is required.
+      - name: Build default
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 ${{ matrix.rhs_path }} shud 2>&1 | tee build_default.log
+          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 shud 2>&1 | tee build_default.log
           cp shud shud_default
 
-      - name: Build profile-on (axis ${{ matrix.rhs_path }})
+      - name: Build profile-on
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1 ${{ matrix.rhs_path }} shud 2>&1 | tee build_profile.log
+          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1 shud 2>&1 | tee build_profile.log
           cp shud shud_profile
 
-      - name: Build dump-on (axis ${{ matrix.rhs_path }})
+      - name: Build dump-on
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 ${{ matrix.rhs_path }} shud 2>&1 | tee build_dump.log
+          make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 shud 2>&1 | tee build_dump.log
           cp shud shud_dump
 
       # -----------------------------------------------------------------------
@@ -478,7 +524,7 @@ jobs:
           fi
           if [[ "$forcing_present" == "true" && "$input_present" == "true" ]]; then
             echo "data_available=true" >> "$GITHUB_OUTPUT"
-            echo "${{ matrix.case }} data present; will run + compare against B0 golden (axis ${{ matrix.rhs_path }})"
+            echo "${{ matrix.case }} data present; will run + compare against B0 golden"
           else
             echo "data_available=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=${{ matrix.case }} data not deployed::CI runner has no ${{ matrix.case }} forcing/input data; build verification + grep gates PASSED, run+compare SKIPPED. forcing=$forcing_present input=$input_present"
@@ -558,7 +604,7 @@ jobs:
       # loop is generic so future per-case dat additions are picked up
       # automatically. Failures accumulate (no early break) so multi-file
       # mismatches surface together (spec L122-127 "聚合报告").
-      - name: Compare ${{ matrix.case }} output vs B0 golden (SHA256, axis ${{ matrix.rhs_path }})
+      - name: Compare ${{ matrix.case }} output vs B0 golden (SHA256)
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         run: |
           fail=0
@@ -566,7 +612,7 @@ jobs:
             filename=$(basename "$golden")
             new_file="SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/$filename"
             if [[ ! -f "$new_file" ]]; then
-              echo "::error title=Run output missing::Expected $new_file after default run but file not found (case=${{ matrix.case }}, axis=${{ matrix.rhs_path }})"
+              echo "::error title=Run output missing::Expected $new_file after default run but file not found (case=${{ matrix.case }})"
               fail=1
               continue
             fi
@@ -574,14 +620,14 @@ jobs:
             new_sha=$(sha256sum "$new_file" | awk '{print $1}')
             echo "  $filename: golden=$golden_sha new=$new_sha"
             if [[ "$golden_sha" != "$new_sha" ]]; then
-              echo "::error title=B0 bitwise compare FAILED::${{ matrix.case }}/$filename SHA256 mismatch (axis=${{ matrix.rhs_path }}). Expected $golden_sha, got $new_sha. Reproduce: cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }} && sha256sum output/${{ matrix.case }}.out/$filename"
+              echo "::error title=B0 bitwise compare FAILED::${{ matrix.case }}/$filename SHA256 mismatch. Expected $golden_sha, got $new_sha. Reproduce: cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }} && sha256sum output/${{ matrix.case }}.out/$filename"
               fail=1
             fi
           done
           if [[ $fail -ne 0 ]]; then
             exit 1
           fi
-          echo "B0 bitwise compare PASS (all *.dat for ${{ matrix.case }} match golden, axis=${{ matrix.rhs_path }})"
+          echo "B0 bitwise compare PASS (all *.dat for ${{ matrix.case }} match golden)"
 
       # -----------------------------------------------------------------------
       # Step 10b.1 — CVODE 15-key stats bitwise diff vs B0 golden
@@ -597,7 +643,7 @@ jobs:
       # not `git show B0-tag:...`. Switching to B0-tag source is tracked in
       # spec L54-56 (Requirement "B0-tag 引用方式") but is out of scope for
       # #51 (small-PR boundary); follow-up issue covers the swap.
-      - name: Compare CVODE 15-key stats vs B0 golden (${{ matrix.case }}, axis ${{ matrix.rhs_path }})
+      - name: Compare CVODE 15-key stats vs B0 golden (${{ matrix.case }})
         if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         run: |
           golden="benchmarks/${{ matrix.case }}/B0_output/cvode_stats.txt"
@@ -607,14 +653,14 @@ jobs:
             exit 1
           fi
           if [[ ! -f "$new" ]]; then
-            echo "::error title=CVODE stats archive missing::$new not produced by default run; SHUD did not emit cvode_stats.txt for ${{ matrix.case }} (axis=${{ matrix.rhs_path }}). Check default run step output."
+            echo "::error title=CVODE stats archive missing::$new not produced by default run; SHUD did not emit cvode_stats.txt for ${{ matrix.case }}. Check default run step output."
             exit 1
           fi
           if ! bash tools/cvode_stats_diff/cvode_stats_diff.sh "$new" "$golden"; then
-            echo "::error title=CVODE 15-key mismatch (${{ matrix.case }}, ${{ matrix.rhs_path }})::Any of {nfe,nfeLS,nni,nli,nsetups,netf,nst,npe,nps,ncfn,ncfl,lenrw,leniw,lenrwLS,leniwLS} drifted vs B0 golden. Reproduce: cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }} && bash \$GITHUB_WORKSPACE/tools/cvode_stats_diff/cvode_stats_diff.sh output/${{ matrix.case }}.out/cvode_stats.txt \$GITHUB_WORKSPACE/$golden"
+            echo "::error title=CVODE 15-key mismatch (${{ matrix.case }})::Any of {nfe,nfeLS,nni,nli,nsetups,netf,nst,npe,nps,ncfn,ncfl,lenrw,leniw,lenrwLS,leniwLS} drifted vs B0 golden. Reproduce: cd SHUD/Basins/${{ matrix.case }} && ../../shud ${{ matrix.case }} && bash \$GITHUB_WORKSPACE/tools/cvode_stats_diff/cvode_stats_diff.sh output/${{ matrix.case }}.out/cvode_stats.txt \$GITHUB_WORKSPACE/$golden"
             exit 1
           fi
-          echo "CVODE 15-key stats invariance PASS (${{ matrix.case }}, ${{ matrix.rhs_path }})"
+          echo "CVODE 15-key stats invariance PASS (${{ matrix.case }})"
 
       # -----------------------------------------------------------------------
       # Step 10c — run profile-on + verify bitwise neutrality vs default
@@ -639,10 +685,10 @@ jobs:
           echo "default SHA256: $default_sha"
           echo "profile SHA256: $profile_sha"
           if [[ "$default_sha" != "$profile_sha" ]]; then
-            echo "::error title=Profile neutrality FAILED::SHUD_ENABLE_PROFILE=1 build produced different ${{ matrix.case }}.rivqdown.dat than default (axis=${{ matrix.rhs_path }}). Profile timer is leaking into RHS path. default=$default_sha profile=$profile_sha"
+            echo "::error title=Profile neutrality FAILED::SHUD_ENABLE_PROFILE=1 build produced different ${{ matrix.case }}.rivqdown.dat than default. Profile timer is leaking into RHS path. default=$default_sha profile=$profile_sha"
             exit 1
           fi
-          echo "Profile-on bitwise neutrality PASS (axis=${{ matrix.rhs_path }})"
+          echo "Profile-on bitwise neutrality PASS"
 
       # -----------------------------------------------------------------------
       # Step 10d — run dump-on + compare snapshots (after-PassValue + before-PassValue)
@@ -725,7 +771,7 @@ jobs:
               new_path="${snap_dir}/snapshot_t${abs_min}${suffix}.bin"
               golden="benchmarks/${{ matrix.case }}/B0_output/snapshot_t${rel_sec}${suffix}.bin"
               if [[ ! -f "$new_path" ]]; then
-                echo "::error title=Expected snapshot missing::dump-on did not produce snapshot_t${abs_min}${suffix}.bin (expected for rel_sec=${rel_sec}, site=${suffix:-f_update}, case=${{ matrix.case }}, axis=${{ matrix.rhs_path }}). Check SHUD_DUMP_T_VALUES + cfg.para 90-day window + dump-on build."
+                echo "::error title=Expected snapshot missing::dump-on did not produce snapshot_t${abs_min}${suffix}.bin (expected for rel_sec=${rel_sec}, site=${suffix:-f_update}, case=${{ matrix.case }}). Check SHUD_DUMP_T_VALUES + cfg.para 90-day window + dump-on build."
                 fail=1
                 continue
               fi
@@ -736,7 +782,7 @@ jobs:
               fi
               echo "Comparing snapshot_t${abs_min}${suffix}.bin vs golden snapshot_t${rel_sec}${suffix}.bin..."
               if ! tools/compare_snapshot/compare_snapshot "$new_path" "$golden" 2>&1 | tee -a snapshot_compare.log; then
-                echo "::error title=Snapshot diff::compare_snapshot reported diff for ${{ matrix.case }}/snapshot_t${rel_sec}${suffix}.bin (axis=${{ matrix.rhs_path }}); see snapshot_compare.log. Reproduce: tools/compare_snapshot/compare_snapshot benchmarks/${{ matrix.case }}/B0_output/snapshot_t${rel_sec}${suffix}.bin ${new_path}"
+                echo "::error title=Snapshot diff::compare_snapshot reported diff for ${{ matrix.case }}/snapshot_t${rel_sec}${suffix}.bin; see snapshot_compare.log. Reproduce: tools/compare_snapshot/compare_snapshot benchmarks/${{ matrix.case }}/B0_output/snapshot_t${rel_sec}${suffix}.bin ${new_path}"
                 fail=1
               fi
             done
@@ -744,7 +790,7 @@ jobs:
           if [[ $fail -ne 0 ]]; then
             exit 1
           fi
-          echo "All 6 snapshots (3 t_values × 2 sites) bitwise identical to B0 golden for ${{ matrix.case }} (axis=${{ matrix.rhs_path }})"
+          echo "All 6 snapshots (3 t_values × 2 sites) bitwise identical to B0 golden for ${{ matrix.case }}"
 
       # -----------------------------------------------------------------------
       # Step 11 — verify golden SHA256 manifest (PR #54 round-1 F12)
@@ -775,7 +821,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: baseline-failure-diff-${{ matrix.case }}-${{ matrix.rhs_path }}
+          name: baseline-failure-diff-${{ matrix.case }}
           if-no-files-found: ignore
           retention-days: 14
           path: |
@@ -809,16 +855,13 @@ jobs:
       #   - This is a push / schedule event (no PR to comment on)
       #   - Data probe set `data_available=false` (no real compare to attest)
       #   - Any earlier step failed (already covered by `if: success()`)
-      #   - Matrix axis is LEGACY_RHS=1 (legacy path PASS does not warrant
-      #     a B1a row update; only LEGACY_RHS=0 axis attests B1a binary)
       # ----------------------------------------------------------------------
       - name: Propose status-matrix update
         if: >
           success() &&
           steps.skip_check.outputs.skipped != 'true' &&
           github.event_name == 'pull_request' &&
-          steps.data_probe.outputs.data_available == 'true' &&
-          matrix.rhs_path == 'LEGACY_RHS=0'
+          steps.data_probe.outputs.data_available == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUM: ${{ github.event.pull_request.number }}
@@ -835,7 +878,7 @@ jobs:
           ## Status matrix update proposal (CI auto-generated, case=${CASE_NAME})
 
           The serial-baseline workflow built + compared \`${CASE_NAME}\` at commit
-          \`$COMMIT_SHA\` on the LEGACY_RHS=0 axis and the (B0, ${CASE_NAME})
+          \`$COMMIT_SHA\` and the (B0, ${CASE_NAME})
           cell is PASS as of this run. Per \`status-matrix\` spec L19, CI does
           **not** push to \`baseline/current\` directly. Maintainer to apply
           the suggested edit below via a follow-up PR (or merge this PR if it
@@ -851,7 +894,7 @@ jobs:
 
           ### What was actually verified
 
-          - Default build (\`SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 LEGACY_RHS=0\`) → ${CASE_NAME}
+          - Default build (\`SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0\`) → ${CASE_NAME}
             output SHA256 matches \`benchmarks/${CASE_NAME}/B0_output/*.dat\`
           - Profile-on build (\`SHUD_ENABLE_PROFILE=1\`) → bitwise neutral to default
           - Dump-on build (\`SHUD_DUMP_RHS=1\`) → 6 snapshots (3 t × 2 sites)
