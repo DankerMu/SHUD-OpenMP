@@ -83,7 +83,7 @@ PR-12 内部顺序硬约束（design.md D11，违反则 rollback）：
 #### Scenario: status_matrix B1a 行升级 PASS
 
 - **WHEN** B1a capstone PR-12 merge
-- **THEN** `docs/status_matrix.md` L20 SHALL 显示 B1a 行：B0 | rivqdown | t_values | log | qhh.lakystage | PASS @ server | PASS @ server | PASS
+- **THEN** `docs/status_matrix.md` L20 SHALL 显示 B1a 行：`PASS` | `PASS` | `PASS` | `N/A (deferred-upstream)` | `PASS` | `PASS @ server` | `PASS @ server` | `PASS`
 - **THEN** `docs/status_matrix.md` B1a 行证据 段 SHALL 不再包含 "2026-06-20 修订" 或 "S2/S3/S4 验证待补" 字样
 - **THEN** evidence 段每 case 的 "证据" 列 SHALL 引用 S2/S3/S4 关键 commit / PR + 完整 6 case bitwise PASS 证据（heihe / heihe_x4 evidence 列 SHALL 含 Slurm JobId + wall_time + SHA256 + cn08 节点信息，PR-12 已直接服务器验收，issue `#171` 同步关闭）
 

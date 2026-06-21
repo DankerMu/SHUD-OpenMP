@@ -53,7 +53,7 @@ aggregate 列 = **PASS**（2026-06-17）。
 
 ## B1a 行证据
 
-> **2026-06-20 capstone（PR-12 #156）**：B1a 整体 = master plan §3 "S0–S4 完成"。S0 + S1 + S2 + S3 + S4 全部完成（PR-1 #144 through PR-11 #155 已 merge 进 `baseline/B1a`；详见 [`docs/b1a_summary.md`](b1a_summary.md) 时间线）。下表 evidence 来自 PR-12 capstone 时刻（SHUD `0b3998d`），4-case Mac 本地 + qhh 3 lake outputs bitwise vs B0-tag 全 PASS；7 grep gate 0 hits 全部 enforce；heihe / heihe_x4 服务器 Slurm 验证 = **PENDING**，跟进 issue 捕获 Slurm SHA evidence 后单元格 flip 到 `PASS @ server`，aggregate 同步 flip 到 `PASS`（PR-12 本身在 Mac 端无 Slurm 调用通道）。
+> **2026-06-21 capstone（PR-12 #156）**：B1a 整体 = master plan §3 "S0–S4 完成"。S0 + S1 + S2 + S3 + S4 全部完成（PR-1 #144 through PR-11 #155 已 merge 进 `baseline/B1a`；详见 [`docs/b1a_summary.md`](b1a_summary.md) 时间线）。下表 evidence 来自 PR-12 capstone 时刻（SHUD `0b3998d`），4-case Mac 本地 + qhh 3 lake outputs bitwise vs B0-tag 全 PASS；7 grep gate 0 hits 全部 enforce；heihe / heihe_x4 通过免密 SSH 直接服务器 Slurm 8537/8538 (cn08) bitwise PASS @ server；aggregate = PASS；follow-up issue #171 已同步关闭（2026-06-21 closedAt）。
 
 | Case | 单元格 | 证据（S0–S4 complete） |
 |---|---|---|
