@@ -459,8 +459,9 @@ jobs:
           python3 -m pip install --quiet pyyaml
           python3 tools/check_manifest/check_hot_fields.py
       # S5d.2-5a (#179): RHS hot-path bare flat-index grep gate. Asserts
-      # the 3 RHS hot-path TUs (MD_ElementFlux.cpp / MD_f.cpp / MD_ET.cpp)
-      # use ONLY QeleSurfAt(i,j) / QeleSubAt(i,j) accessors — no bare
+      # the 4 hot-path TUs (MD_ElementFlux.cpp / MD_f.cpp /
+      # MD_f_uncouple.cpp / MD_update.cpp) use ONLY QeleSurfAt(i,j) /
+      # QeleSubAt(i,j) accessors — no bare
       # QeleSurf_flat[...] / QeleSub_flat[...] indexing. See spec
       # s5d-data-layout-soa-numa Scenario "inline 访问器全 hot 路径生效".
       # Zero third-party deps (pure stdlib), no pip install needed.
