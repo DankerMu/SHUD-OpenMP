@@ -446,6 +446,18 @@ jobs:
         run: |
           python3 -m pip install --quiet pyyaml
           python3 tools/cvode_stats_diff/test_15key_excludes_nfcall.py
+      # S5d.1 (#178): RHS hot-field grep gate — assert MD_layout.hpp +
+      # RHS 3 files align with docs/s5d_hot_fields.yaml. See spec
+      # s5d-data-layout-soa-numa Scenario "RHS hot path 改读 SoA". The
+      # tool fails on any `Ele[<expr>].<hot-field>` hit in the three
+      # hot-path TUs (method invocations are excluded per design D2
+      # double-track contract). Same bare-python3 + pyyaml exception
+      # as the 15-key gate above; uv is not yet set up at this stage.
+      - name: Run S5d.1 hot field grep gate (#178)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 tools/check_manifest/check_hot_fields.py
       - name: Run sbatch preflight selftest
         if: steps.skip_check.outputs.skipped != 'true'
         run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight
