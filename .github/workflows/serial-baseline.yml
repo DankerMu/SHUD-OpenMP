@@ -399,6 +399,27 @@ jobs:
           echo "PASS: 0 hits"
 
       # -----------------------------------------------------------------------
+      # Step 3c — PR-11 S3c (#155) PassValue retirement gate
+      # -----------------------------------------------------------------------
+      # PR-11 deletes the legacy `PassValue()` entry-point from MD_f.cpp and
+      # introduces `rhs_deterministic_gather()` in MD_rhs_core.cpp (per
+      # design.md D12). Historical doc-comment references were renamed to
+      # `PassValue_legacy` (does NOT match \b boundary thanks to the `_`
+      # suffix) so the tree-wide grep cleanly returns 0 hits. Data-INDEPENDENT
+      # (source-only); runs in <1 second.
+      - name: PR-11 S3c — PassValue tree-wide 0 hits gate
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          set -e
+          HITS=$(grep -rn 'PassValue\b' SHUD/src/ | wc -l | tr -d ' ')
+          if [ "$HITS" != "0" ]; then
+            echo "::error title=PR-11 PassValue gate FAIL::tree-wide grep found $HITS hits for PassValue; PR-11 (#155) retired this entry-point in favor of rhs_deterministic_gather()."
+            grep -rn 'PassValue\b' SHUD/src/
+            exit 1
+          fi
+          echo "PASS: PassValue 0 hits tree-wide"
+
+      # -----------------------------------------------------------------------
       # Step 4 — tool selftests (F26 / PR #54 round-3)
       # -----------------------------------------------------------------------
       # Helper-script regression detection runs in seconds; failing here
