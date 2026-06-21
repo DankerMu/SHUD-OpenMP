@@ -22,9 +22,9 @@
 
 PR-12 capstone 之后：
 
-- `B1a-tag` = 由 orchestrator 在 PR-12 merge 后 force-update 至新 `main` HEAD（SHUD pin `0b3998d`）。force-update 从原 `64569b3`（S1d-end snapshot）→ PR-12 squash-merge SHA。
+- `B1a-tag` = `f7f992cabab5d5aec3bf08ab2db7c0669ef7fe75` / SHUD `0b3998d` — orchestrator 已 force-update from prior `64569b3` (S1d-end snapshot) at B1a capstone (2026-06-21)。
 - 原 `64569b3` 时刻的 S1d snapshot 不再作为 B1a 实质引用；后续 strict 阶段（B1b/P1+）的"vs B1a-tag" 对比一律走 force-update 之后的新 tag。
-- B1a-tag = TBD（orchestrator 在 PR-12 squash-merge 后通过 PR body post-merge **step 7a** 回填到本节 L25 + L27 — `amend docs/b1a_summary.md L25 + L27 with PR-12 squash-merge SHA, commit directly onto main as part of post-merge sequence`，再走 step 8 force-update `B1a-tag` 到新 main HEAD）。
+- B1a-tag force-update 完成：旧 commit `64569b3` → 新 commit `f7f992c`，已 push 到 origin（`git ls-remote --tags origin | grep B1a-tag`）。
 
 ## B1a 完成时间线
 
