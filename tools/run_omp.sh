@@ -37,17 +37,28 @@
 
 set -euo pipefail
 
+# Argv check FIRST — fail fast before any env echo / export so a bare
+# `tools/run_omp.sh` (no command) emits ONLY the ERROR on stderr without
+# polluting the operator log with state lines for a run that never starts.
+if [[ $# -eq 0 ]]; then
+    echo "[OMP] ERROR: no command provided. Usage: tools/run_omp.sh ./shud <case>" 1>&2
+    exit 2
+fi
+
 # Defaults satisfy spec Scenario L93-95: >= 3 export OMP_* + 1 ./shud
 # invocation + 1 stderr state echo.
 #
-# Why `:=` (assign-if-unset) instead of `=`:
+# Why `=` (assign-if-unset, colon-less) instead of `:=`:
 #   - Caller's env wins (SLURM/PBS scripts already exporting OMP_*
 #     keep their values).
 #   - Empty string is treated as set (so `OMP_PROC_BIND=` from the
-#     caller would NOT be overwritten — operator override discipline).
-: "${OMP_PROC_BIND:=close}"
-: "${OMP_PLACES:=cores}"
-: "${OMP_NUM_THREADS:=1}"
+#     caller is NOT overwritten — operator override discipline per
+#     design D5 "do not strip user testing knobs"). The colon form
+#     `:=` would treat empty as unset and silently substitute the
+#     default, defeating the override.
+: "${OMP_PROC_BIND=close}"
+: "${OMP_PLACES=cores}"
+: "${OMP_NUM_THREADS=1}"
 
 export OMP_PROC_BIND OMP_PLACES OMP_NUM_THREADS
 
@@ -62,8 +73,4 @@ printf '[OMP] PROC_BIND=%s, PLACES=%s, NUM_THREADS=%s\n' \
 # Forward all remaining args to the SHUD binary (or whichever exe the
 # caller provides as $1; this lets the wrapper sit in front of e.g.
 # shud_asan or shud_profile too).
-if [[ $# -eq 0 ]]; then
-    echo "[OMP] ERROR: no command provided. Usage: tools/run_omp.sh ./shud <case>" 1>&2
-    exit 2
-fi
 exec "$@"

@@ -21,8 +21,12 @@
 #   tools/numa_check.sh <run_dir>
 #
 # Exit status:
-#   0  — probe completed (happy path, both single- and multi-socket).
+#   0  — probe completed (single-socket UMA, or multi-socket with
+#        OMP_PROC_BIND set — first-touch is actionable).
 #   1  — script-side error (missing $1, run_dir not writable).
+#   3  — multi-socket host with OMP_PROC_BIND unset; first-touch
+#        structurally ineffective. Calling sbatch / CI gate SHOULD fail
+#        on this exit code so the operator notices the misconfiguration.
 #
 # Design notes (Linus-grade tooling discipline):
 #   - The probe is idempotent: re-running overwrites numa_topo.log and
@@ -76,6 +80,12 @@ fi
 # "summary `socket_count: 2`", the value we surface IS the NUMA node count,
 # which on multi-socket Xeon equates 1:1 with sockets (numactl labels each
 # CPU package as a NUMA node).
+#
+# socket_count guard — must remain numeric (the warning_state computation
+# below uses string comparisons `== "0"` / `== "1"` for the single-socket
+# branch). If you simplify or rewrite the extraction, also update the
+# string-comparison check below; otherwise a non-numeric value could
+# silently fall through to the multi-socket branch.
 socket_count=1
 if grep -qE '^available: ' "$topo_log" 2>/dev/null; then
     # Extract the first integer that follows `available:`. awk handles
@@ -86,29 +96,65 @@ if grep -qE '^available: ' "$topo_log" 2>/dev/null; then
     fi
 fi
 
-# Step 3 — emit summary + cross-check OMP_PROC_BIND
+# Step 3a — compute warning state BEFORE the emit pipeline.
+#
+# Why outside the pipe: in bash the LHS of a pipeline runs in a subshell,
+# so any variable assignment inside `{ ... } | tee` is lost after the
+# pipe completes. To propagate the WARNING decision to the final exit
+# code (3 on multi-socket + OMP_PROC_BIND unset, 0 otherwise) we resolve
+# the state here, then drive both the emit branch and the exit branch
+# from the same single source of truth.
+warning_state="ok"
+if [[ "$socket_count" != "0" && "$socket_count" != "1" ]] && \
+   [[ -z "${OMP_PROC_BIND:-}" ]]; then
+    warning_state="warning"
+fi
+
+# Step 3b — emit summary + cross-check OMP_PROC_BIND.
+#
+# The producer block writes EVERY line that should land in both
+# numa_summary.txt (via `tee`) and the operator stderr channel
+# (via `1>&2` redirection of tee's stdout). The previous version
+# duplicated the `[NUMA] WARNING:` line by emitting it both INSIDE
+# the producer (via tee) AND OUTSIDE via a stderr-only printf —
+# operators saw it twice. Now there is exactly one source: the
+# producer block. tee mirrors it to both summary file and stderr.
 {
     printf 'socket_count: %s\n' "$socket_count"
-    if [[ "$socket_count" -le 1 ]]; then
-        # Single-socket UMA path. Spec L115-117 mandates `socket_count: 1`
-        # + `N/A (single-socket UMA)` label.
-        printf 'numa_first_touch: N/A (single-socket UMA)\n'
-    else
-        # Multi-socket path. Cross-check OMP_PROC_BIND in the calling
-        # env; an unset binding on a multi-socket host means first-touch
-        # is structurally ineffective (PR #181 skip path triggers and
-        # NUMA pages bind to whatever thread happens to touch them
-        # first — typically all on socket 0).
-        bind_val="${OMP_PROC_BIND:-}"
-        if [[ -z "$bind_val" ]]; then
+    case "$warning_state" in
+        ok)
+            if [[ "$socket_count" == "0" || "$socket_count" == "1" ]]; then
+                # Single-socket UMA path. Spec L115-117 mandates
+                # `socket_count: 1` + `N/A (single-socket UMA)` label.
+                printf 'numa_first_touch: N/A (single-socket UMA)\n'
+            else
+                # Multi-socket WITH OMP_PROC_BIND set — first-touch is
+                # actionable; report OK with the bind value for traceability.
+                printf 'numa_first_touch: OK (OMP_PROC_BIND=%s on %s-socket host)\n' \
+                    "${OMP_PROC_BIND}" "$socket_count"
+            fi
+            ;;
+        warning)
+            # Multi-socket WITHOUT OMP_PROC_BIND. First-touch is
+            # structurally ineffective (PR #181 skip path triggers and
+            # NUMA pages bind to whatever thread happens to touch them
+            # first — typically all on socket 0). Emit both the
+            # summary-line (for numa_summary.txt) AND the actionable
+            # `[NUMA] WARNING:` (for operator log greps). Both lines
+            # land in numa_summary.txt + stderr in one pass.
             printf 'numa_first_touch: WARNING (OMP_PROC_BIND unset on %s-socket host)\n' \
                 "$socket_count"
             printf '[NUMA] WARNING: OMP_PROC_BIND unset on %s-socket host; first-touch ineffective. Use tools/run_omp.sh.\n' \
-                "$socket_count" 1>&2
-        else
-            printf 'numa_first_touch: OK (OMP_PROC_BIND=%s)\n' "$bind_val"
-        fi
-    fi
+                "$socket_count"
+            ;;
+    esac
 } | tee "$summary_log" 1>&2
 
-exit 0
+# Step 4 — exit code reflects the WARNING decision computed in Step 3a.
+#   0 — happy path (single-socket UMA, or multi-socket with binding set).
+#   3 — multi-socket host with OMP_PROC_BIND unset (first-touch
+#       structurally ineffective; calling sbatch / CI gate SHOULD fail).
+case "$warning_state" in
+    warning) exit 3 ;;
+    *) exit 0 ;;
+esac
