@@ -1,3 +1,7 @@
+## Purpose
+
+记录 SHUD OpenMP B0 → B1a 语义合并阶段验收契约（删 MD_f_omp.cpp + 退役 LEGACY_RHS + bitwise neutrality）。
+
 ## Conventions
 
 ### Case Scope
@@ -29,7 +33,7 @@
 
 本 spec 的 "B0-tag" 指 `B0-tag` annotated tag 指向的 commit（`git rev-parse B0-tag^{}` = `884cfb13...`）。验收用 `benchmarks/<case>/B0_output/<file>` 归档与当前 run 输出 SHA256 byte-equal。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: B1a 期间 S1 grep gate 持续 0 hits
 

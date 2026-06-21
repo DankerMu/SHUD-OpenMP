@@ -1,3 +1,7 @@
+## Purpose
+
+记录 B1a S3 阶段 deterministic gather 重构契约（PassValue → rhs_deterministic_gather + 死代码删除）。
+
 ## Conventions
 
 本 spec 沿用 `s2-semantic-merge` 的 Conventions（Case Scope / Lake-related 输出文件清单 / B0-tag 引用），不重复列出。
@@ -8,7 +12,7 @@ PR-9（S3a/S3b）把 lake 共享写拆为 per-edge / per-element contribution sl
 
 理由：S3a/S3b 拆 (compute) 与 S3c 重写 (gather) 在两个 PR，中间 phase 不能让 lake 数组失去 reset / 累加，否则 bitwise 立即 fail。S3c 依赖 S4 adjacency list（见 design.md D5），所以 PR 顺序是 PR-9 (S3a/S3b + temp gather) → PR-10 (S4) → PR-11 (S3c)。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: S3a.1 删除 `QrivSurf[iRiv] += QsegSurf[i]` 死代码
 

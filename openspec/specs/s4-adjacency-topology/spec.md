@@ -1,10 +1,14 @@
+## Purpose
+
+记录 B1a S4 阶段 adjacency topology 模块化契约（7 lists + manifest + fallback unit test）。
+
 ## Conventions
 
 本 spec 沿用 `s2-semantic-merge` 的 Conventions（Case Scope / Lake-related 输出文件清单 / B0-tag 引用），不重复列出。
 
 S4 PR-10 内部 SHALL 按 S4.1 → S4.2 → S4.3 → S4.4 → S4.5 → S4.6 → S4.7 顺序分 7 个独立 commit，每个 commit 跑 4-case Mac bitwise + 与 PR-9 临时扩的 `PassValue()` 内部 gather 顺序 bitwise identical 验证（design.md D4 / D5）。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: B1a 期间 S1 grep gate 持续 0 hits（S4 PR-10 范围）
 
