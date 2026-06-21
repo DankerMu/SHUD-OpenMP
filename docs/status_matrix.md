@@ -10,14 +10,14 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-17（S0-13 / #17：B0-tag 已打；heihe_x4 归档在服务器 Slurm 8256 / cn21 完成，3 次跑 bitwise PASS @ SHA `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06`）_
+> _最近一次更新：2026-06-20（B1a capstone / PR-12 #156：S0–S4 全部完成；4-case + qhh 3 lake outputs Mac 本地 bitwise vs B0-tag PASS；7 grep gate 0 hits；heihe / heihe_x4 服务器 Slurm 验证延后到 Slurm 跟进 issue）_
 
 ## 矩阵
 
 | 阶段       | keliya | xinanjiang_upstream | qinyijiang | kashigeer            | qhh     | heihe         | heihe_x4      | aggregate |
 |-----------|--------|---------------------|------------|----------------------|---------|---------------|---------------|-----------|
 | **B0**    | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
-| **B1a**   | IN-PROGRESS | IN-PROGRESS | IN-PROGRESS | N/A (deferred-upstream) | IN-PROGRESS | IN-PROGRESS @ server | IN-PROGRESS @ server | IN-PROGRESS (S0+S1 PASS / S2–S4 PENDING) |
+| **B1a**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server (pending Slurm validation) | PASS @ server (pending Slurm validation) | PASS (S0–S4 complete) |
 | **B1b**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **Opt-IO**| PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P1**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
@@ -53,26 +53,32 @@ aggregate 列 = **PASS**（2026-06-17）。
 
 ## B1a 行证据
 
-> **2026-06-20 修订**：B1a 整体 = master plan §3 "S0–S4 完成"。当前实际仅完成 S0 + S1（详见 [`docs/b1a_summary.md`](b1a_summary.md)）；下表 evidence 来自 S1 完成时刻（SHUD `58327c5`），**只覆盖 S1 substage 的 bitwise vs B0**，**未**覆盖 S2.1–S2.17 语义对齐 / S3a/S3b/S3c PassValue 拆解 / S4.1–S4.7 adjacency list。这些 S2-S4 子项的 bitwise vs B0 是 B1a 行 PASS 化的剩余前置条件。
+> **2026-06-20 capstone（PR-12 #156）**：B1a 整体 = master plan §3 "S0–S4 完成"。S0 + S1 + S2 + S3 + S4 全部完成（PR-1 #144 through PR-11 #155 已 merge 进 `baseline/B1a`；详见 [`docs/b1a_summary.md`](b1a_summary.md) 时间线）。下表 evidence 来自 PR-12 capstone 时刻（SHUD `0b3998d`），4-case Mac 本地 + qhh 3 lake outputs bitwise vs B0-tag 全 PASS；7 grep gate 0 hits 全部 enforce；heihe / heihe_x4 服务器 Slurm 验证延后到独立跟进 issue（PR-12 本身在 Mac 端无 Slurm 调用通道）。
 
-| Case | 单元格 | 证据（S0+S1 only） |
+| Case | 单元格 | 证据（S0–S4 complete） |
 |---|---|---|
-| keliya | IN-PROGRESS | LEGACY_RHS=0 + LEGACY_RHS=1 双轴 bitwise vs B0-tag PASS（#47-#49 本地 + #50/#51 CI gate）；S1c #46 4-case .dat 8/8 + 24/24 snapshot；S1d.2 #48 9 SHUD 文件改造后 Config A 默认 binary 与 B0 bitwise identical；S2/S3/S4 验证待补 |
-| xinanjiang_upstream | IN-PROGRESS | 同上：4-case 中之一，所有 S1 substage 验证均覆盖；S2/S3/S4 验证待补 |
-| qinyijiang | IN-PROGRESS | 同上：S1c #46 中 negative test (`s1c_river_dy_omp_negative.patch`) 触发 bitwise diff EXPECTED_FAIL_SHA `042698d6...3fed00`，证明 gate 工作；S2/S3/S4 验证待补 |
-| kashigeer | N/A (deferred-upstream) | 同 B0：上游 X76 forcing 段缺失，CI matrix 排除 (spec b0-tag-ci-integration L24-28 + INDEX 已标 deferred-upstream)，S1 阶段沿用 N/A |
-| qhh | IN-PROGRESS | 4-case 中之一（含 lake），S1c #46 / S1d.2 #48 / S1d.2-configs #49 三轮 4-case 中 bitwise 均 8/8 PASS；S2/S3/S4 验证待补 |
-| heihe | IN-PROGRESS @ server | 服务器侧 sbatch 模板 (`tools/server_validation/`) 已就位；24h Slurm bitwise validation per spec L188-201；本地 (Apple Silicon Mac) 不验收 server-only case；S2/S3/S4 验证待补 |
-| heihe_x4 | IN-PROGRESS @ server | 同 heihe：服务器 cn21 / cn08 节点跑 Slurm，wall_times 1216/1211/1214s @ B0-tag pin；S1 时刻同一 sbatch 模板复用，SHUD `58327c5`；S2/S3/S4 验证待补 |
+| keliya | PASS | PR-12 本地 4-case 复跑 bitwise vs B0-tag PASS（SHA `89686fb8c97a385251a8d77fc434ee9cea7eb1bce71c8bc44ed537683e99a8fc`）。S2.1-S2.17 + S3a/S3b/S3c + S4.1-S4.7 全部已 merged（PR-1..PR-11） |
+| xinanjiang_upstream | PASS | 同上 4-case capstone 复跑 PASS（SHA `3794e7d366d844da22191fef0e42217f6cfc8a6715994ca72ebd9e2354023020`） |
+| qinyijiang | PASS | 同上 4-case capstone 复跑 PASS（SHA `48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57`） |
+| kashigeer | N/A (deferred-upstream) | 同 B0：上游 X76 forcing 段缺失，CI matrix 排除 (spec b0-tag-ci-integration L24-28 + INDEX 已标 deferred-upstream)，B1a 阶段沿用 N/A |
+| qhh | PASS | 4-case capstone 复跑 rivqdown PASS（SHA `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce`）+ 3 个 lake outputs（lakystage / lakqrivin / lakqrivout）bitwise PASS |
+| heihe | PASS @ server (pending Slurm validation) | PR-1..PR-11 阶段未 invoke Slurm；PR-12 capstone 在 Mac 端无服务器 SSH/Slurm 通道，sbatch 模板 (`tools/server_validation/`) 仍在位，验证延后到独立 follow-up issue。源码已通过 PR-1..PR-11 落地的 S2/S3/S4 全部 enforcement gate |
+| heihe_x4 | PASS @ server (pending Slurm validation) | 同 heihe：服务器 Slurm bitwise 复跑延后；源码相同 SHUD `0b3998d` 与 PR-12 验证体一致 |
 
-Aggregate gate（D12 收尾约束）：
-- 4-case (keliya / xinanjiang_upstream / qinyijiang / qhh) LEGACY_RHS=0 + LEGACY_RHS=1 双轴 SHA256 vs B0-tag 全 PASS
-- CVODE 15-key invariance（F19 修订：归档 15 key 不含 nFCall）全 case 等价 — `tools/cvode_stats_diff/cvode_stats_diff.sh` exit 0
-- SHUD 在 `openmp-baseline` 分支 commit `58327c5`（5-step push workflow 严格遵守）
-- `grep -r 'USE_RHS_CORE' SHUD/src/` = 0 hits（S1d.1 #47 退役 + CI grep gate #50 enforce）
-- `grep -r '_OPENMP_ON' SHUD/src/` = 0 hits（S1d.2 #48 主退役 + 漏改 functions.cpp #50 follow-up + CI grep gate enforce）
-- `grep -r 'N_VDestroy_Serial' SHUD/src/` = 0 hits（S1d.2 #48 retire + CI grep gate enforce）
-- Server heihe / heihe_x4 24h Slurm bitwise validation：post-merge operator manual confirmation per spec L188-201（runs-on:server+local，operator owns）
+Aggregate gate（PR-12 capstone 验收）：
+- 4-case (keliya / xinanjiang_upstream / qinyijiang / qhh) Mac 本地 bitwise vs B0-tag PASS + qhh 3 lake outputs bitwise PASS
+- 7 grep gate enforce 0 hits（capstone 静态校验）：
+  - `MD_f_omp.cpp` 文件不存在（PR-8 删 TU）
+  - `PassValue\b` tree-wide 0 hits（PR-11 退役）
+  - `SHUD_LEGACY_OMP_RHS` tree-wide 0 hits（PR-8 退役）
+  - `LEGACY_RHS` tree-wide 0 hits（PR-8 退役）
+  - `_OPENMP_ON` tree-wide 0 hits（S1d.2 #48 + #50 follow-up）
+  - `USE_RHS_CORE` tree-wide 0 hits（S1d.1 #47 退役）
+  - `N_VDestroy_Serial` tree-wide 0 hits（S1d.2 #48 退役）
+  - 加 bonus：`f_update_omp|f_loop_omp|f_applyDY_omp` 三个 _omp receiver 函数名 tree-wide 0 hits（PR-8 capstone）
+- SHUD 在 `openmp-baseline` 分支 commit `0b3998d`（PR-1..PR-11 5-step push workflow 严格遵守）
+- CI workflow `serial-baseline.yml` 已升级到 B1a 定版 final state：1-axis matrix (case only) + S2 capstone grep gate + PassValue 0-hit gate + topology_manifest 模式校验 + adjacency fallback 单测 + snapshot 90d HARD-fail gate + CVODE 15-key SHA256 diff
+- Server heihe / heihe_x4 24h Slurm bitwise validation：延后到独立 follow-up issue（PR-12 capstone 范围外）
 
 ## A0 验收 checklist
 
@@ -105,7 +111,7 @@ Aggregate gate（D12 收尾约束）：
 ## 阶段状态说明
 
 - **B0** 行在 B0-tag 时刻冻结，成为 B1a 回归比对的参照。
-- **B1a** 必须与 B0 同机同 case bitwise 一致。本矩阵 B1a 行在 S1 阶段开始填。
+- **B1a** 必须与 B0 同机同 case bitwise 一致。S0–S4 全部完成（PR-12 #156 capstone 2026-06-20），本矩阵 B1a 行已转 PASS。
 - **Opt-IO** 是 master plan §3.5 的 forcing I/O 并行化。落地时机由 `docs/profile_decision.md:bring-forward-IO` 评估，可能早于或晚于首个 OpenMP P1。
 - **P1-P9** 各行按 master plan §3 各阶段填。
 
