@@ -38,6 +38,16 @@ B1a-tag golden（`git show B1a-tag:benchmarks/qinyijiang/B0_output/nanlin.rivqdo
 
 三个 SHUD HEAD 单进程跑都收敛到 `48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57`，与 B1a-tag golden 严格 bitwise 一致。**S5d.1 (d21ee34) 在 ElementHotData SoA 引入后仍保持 bitwise neutrality**。
 
+### 补充：keliya 交叉验证
+
+Gap Sweep 时加测 keliya（484 element，最快 case）on `d21ee34`：
+
+| Case | Run 1 | Run 2 | Run 3 | B1a-tag golden | Match |
+|---|---|---|---|---|---|
+| keliya | `89686fb8…` | `89686fb8…` | `89686fb8…` | `89686fb8c97a385251a8d77fc434ee9cea7eb1bce71c8bc44ed537683e99a8fc` | ✅ |
+
+第二个 case 独立确认 S5d.1 SoA 无 bitwise 回归。
+
 ## 4. 根因
 
 之前 session 在 PR #196 review/verify 时为提速调用了多个 `run_in_background: true` 的 `shud nanlin` 进程，它们**对同一 `output/nanlin.out/` 目录并发写**。SHA 取自最后一个进程 partial 写完的状态，多次 run 自然 SHA 不同——这是 orchestrator-side process contamination，**不是源码非确定性**。
