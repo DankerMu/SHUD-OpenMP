@@ -532,6 +532,20 @@ jobs:
           HITS=$(grep -rnE '#pragma omp parallel for' SHUD/src/ModelData/Model_Data.cpp SHUD/src/ModelData/MD_initialize.cpp | wc -l | tr -d ' ')
           if [ "$HITS" -lt 3 ]; then echo "::error::expected >=3 #pragma omp parallel for sites, found $HITS"; exit 1; fi
           echo "PASS: $HITS pragma sites (>=3 spec gate)"
+
+      # S5d.4 (#182): manifest omp_env schema gate. Asserts every
+      # benchmarks/<case>/manifest.yaml carries the canonical
+      # `omp_env: {OMP_PROC_BIND: close, OMP_PLACES: cores}` block.
+      # Spec s5d-data-layout-soa-numa Requirement "线程绑定 run script
+      # 与 manifest 字段必填" Scenario "7 case manifest 全有 omp_env
+      # 字段". Same bare-python3 + pyyaml exception as the S5d.1/.2
+      # gates above — uv is set up later in the workflow but this gate
+      # runs early to fail fast if a new manifest forgets the block.
+      - name: Run S5d.4 manifest omp_env schema gate (#182)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 tools/check_manifest/check_omp_env.py
       - name: Run sbatch preflight selftest
         if: steps.skip_check.outputs.skipped != 'true'
         run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight

@@ -8,6 +8,14 @@
 project_name: "keliya"
 description: "NWM keliya basin (arid Tarim headwater); CI primary case, OMP_CUTOFF serial fallback, A0 repeatability"
 
+# --- OMP environment (S5d.4 #182; design D5 + master plan §S5d.4.3) ---
+# Required deployment-layer thread-binding defaults. Wired via tools/run_omp.sh
+# (the program does NOT override these env vars per design D5). CI schema gate:
+# tools/check_manifest/check_omp_env.py + .github/workflows/serial-baseline.yml.
+omp_env:
+  OMP_PROC_BIND: close
+  OMP_PLACES: cores
+
 # --- Basin scale ---
 NumEle: 484
 NumRiv: 333
