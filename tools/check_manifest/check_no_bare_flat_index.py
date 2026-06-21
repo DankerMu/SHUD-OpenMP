@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """check_no_bare_flat_index.py — S5d.2-5a (#179) RHS hot-path accessor gate.
 
-Asserts the three RHS hot-path TUs
-  SHUD/src/ModelData/MD_ElementFlux.cpp
-  SHUD/src/ModelData/MD_f.cpp
-  SHUD/src/ModelData/MD_ET.cpp
-contain ZERO bare `QeleSurf_flat[...]` or `QeleSub_flat[...]` indexing
+Asserts every hot-path TU that touches QeleSurf_flat / QeleSub_flat
+contains ZERO bare `QeleSurf_flat[...]` or `QeleSub_flat[...]` indexing
 expressions in active code lines. Every access MUST go through the
 inline accessors `QeleSurfAt(i, j)` / `QeleSubAt(i, j)` declared in
 SHUD/src/ModelData/Model_Data.hpp.
+
+HOT_PATH_FILES enumerates the union of "every TU that calls
+QeleSurfAt / QeleSubAt" — established by
+  grep -rn 'QeleSurfAt\\|QeleSubAt' SHUD/src/ModelData/
+during PR #197 (review A-S2 / B-B5). MD_ET.cpp was dropped from the
+list — it contains no Q-array access. MD_rhs_core.cpp does not exist
+in this tree (the corresponding hot-path code lives in MD_f.cpp).
 
 Rationale (design D3 + R2 mitigation): the inline accessor centralizes
 the row-major index expression `3*i + j` so a future SIMD / NUMA tuning
@@ -34,10 +38,18 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-RHS_FILES = [
+# Files that ACCESS QeleSurfAt / QeleSubAt (PR #197 audit, review A-S2):
+#   MD_ElementFlux.cpp  — 3 sites (zero-init + surface + sub writes)
+#   MD_f.cpp            — 4 sites (f_update zero-loop + f_applyDYi sum)
+#   MD_f_uncouple.cpp   — 2 sites (uncoupled-GW total sum)
+#   MD_update.cpp       — 2 sites (zero-init in f_update fast path)
+# MD_ET.cpp dropped: no Q-array references at all (audit returns 0 hits).
+# MD_rhs_core.cpp not present in this tree (legacy fork retired by S2 capstone).
+HOT_PATH_FILES = [
     REPO_ROOT / "SHUD" / "src" / "ModelData" / "MD_ElementFlux.cpp",
     REPO_ROOT / "SHUD" / "src" / "ModelData" / "MD_f.cpp",
-    REPO_ROOT / "SHUD" / "src" / "ModelData" / "MD_ET.cpp",
+    REPO_ROOT / "SHUD" / "src" / "ModelData" / "MD_f_uncouple.cpp",
+    REPO_ROOT / "SHUD" / "src" / "ModelData" / "MD_update.cpp",
 ]
 
 # Pattern: `QeleSurf_flat[<anything>]` or `QeleSub_flat[<anything>]`
@@ -55,9 +67,9 @@ def fail(msg: str) -> None:
 
 def main() -> None:
     violators = []
-    for f in RHS_FILES:
+    for f in HOT_PATH_FILES:
         if not f.exists():
-            fail(f"missing RHS file {f}")
+            fail(f"missing hot-path file {f}")
         text = f.read_text()
         # Strip block comments first so `/* ... QeleSurf_flat[3*i+j] ... */`
         # is removed wholesale.
@@ -74,14 +86,14 @@ def main() -> None:
 
     if violators:
         fail(
-            "RHS hot path bare flat-index grep gate failed; "
+            "Hot-path bare flat-index grep gate failed; "
             "every hot-path read/write of QeleSurf_flat / QeleSub_flat "
             "MUST go through the QeleSurfAt(i,j) / QeleSubAt(i,j) "
             "inline accessors. Violations:\n  " + "\n  ".join(violators)
         )
 
     print(
-        f"PASS: {len(RHS_FILES)} RHS files have 0 bare "
+        f"PASS: {len(HOT_PATH_FILES)} hot-path files have 0 bare "
         f"QeleSurf_flat[...] / QeleSub_flat[...] indexing"
     )
 

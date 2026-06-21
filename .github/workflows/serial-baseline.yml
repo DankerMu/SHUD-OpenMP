@@ -1304,7 +1304,12 @@ jobs:
           echo "S5d.2-5a ASan + UBSan ${{ matrix.case }} 90-day NUM_OPENMP=1 CLEAN (0 errors / 0 warnings)"
 
       - name: Upload sanitizer diagnostics
-        if: failure()
+        # Always upload when the case actually ran (active gate satisfied
+        # and data probe succeeded). Spec L55-57 makes the sanitizer log a
+        # deliverable unconditionally, not only on failure (review B-B2,
+        # PR #197). `if: always()` plus the same gating predicates as the
+        # run step keeps the artifact present on green runs too.
+        if: always() && steps.skip_check.outputs.skipped != 'true' && steps.case_gate.outputs.active == 'true' && steps.data_probe.outputs.data_available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: asan-ubsan-${{ matrix.case }}
