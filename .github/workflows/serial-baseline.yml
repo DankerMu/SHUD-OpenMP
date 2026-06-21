@@ -789,7 +789,7 @@ jobs:
       # Acceptance: a non-empty nfcall.txt + readable nFCall line at the
       # case output dir.
       - name: Read nFCall independent counter (${{ matrix.case }})
-        if: steps.skip_check.outputs.skipped != 'true'
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
         run: |
           nfcall_file="SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/nfcall.txt"
           if [[ ! -f "$nfcall_file" ]]; then
