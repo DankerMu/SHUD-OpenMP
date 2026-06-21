@@ -433,6 +433,19 @@ jobs:
       - name: Run cvode_stats_diff test
         if: steps.skip_check.outputs.skipped != 'true'
         run: bash tools/cvode_stats_diff/test_cvode_stats_diff.sh
+      # S5c-C (#175): nFCall exclusion unit test — assert canonical_15_keys.yaml
+      # + cvode_stats_diff.sh CANONICAL_KEYS both exclude nFCall (per spec
+      # "15-key snapshot 不包含 nFCall" + design D10 F19 round-2). The CI
+      # runner does not have uv pre-installed at this early helper-script
+      # stage (uv setup happens later for the S4 manifest validation step);
+      # this single bare-python3 invocation is the documented exception to
+      # the CLAUDE.md "uv only" rule because pyyaml is the sole dependency
+      # and `python3 -m pip install --quiet pyyaml` is sufficient.
+      - name: Run 15-key excludes nFCall unit test
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 tools/cvode_stats_diff/test_15key_excludes_nfcall.py
       - name: Run sbatch preflight selftest
         if: steps.skip_check.outputs.skipped != 'true'
         run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight
@@ -770,6 +783,22 @@ jobs:
             exit 1
           fi
           echo "CVODE 15-key stats invariance PASS (${{ matrix.case }})"
+
+      # S5c-C (#175): independent nFCall column (NOT part of 15-key gate per
+      # design D10). Free-running counter; log only, no diff vs golden.
+      # Acceptance: a non-empty nfcall.txt + readable nFCall line at the
+      # case output dir.
+      - name: Read nFCall independent counter (${{ matrix.case }})
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
+        run: |
+          nfcall_file="SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/nfcall.txt"
+          if [[ ! -f "$nfcall_file" ]]; then
+            echo "::warning title=nfcall.txt missing (${{ matrix.case }})::Expected at $nfcall_file; SHUD did not emit nFCall counter (S5c-C scope)."
+            exit 0
+          fi
+          nfcall_val=$(awk -F= '/^nFCall=/ {print $2}' "$nfcall_file")
+          nfe_val=$(awk -F= '/^nfe=/ {print $2}' "SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out/cvode_stats.txt")
+          echo "::notice title=S5c-C nFCall vs nfe (${{ matrix.case }})::nFCall=${nfcall_val:-MISSING} nfe=${nfe_val:-MISSING} (free-running; D10 nFCall != nfe allowed)"
 
       # -----------------------------------------------------------------------
       # Step 10c — run profile-on + verify bitwise neutrality vs default
