@@ -858,6 +858,18 @@ jobs:
           fi
           echo "CVODE 15-key stats invariance PASS (${{ matrix.case }})"
 
+      # S5d.3 (#181): [NUMA] log-token presence + ordering gate on the
+      # default-binary run.log. Spec L75-77: `grep -n '[NUMA] OMP_PROC_BIND='`
+      # smallest line number MUST be < smallest line number of
+      # `grep -n '[NUMA] first-touch begin'`. The CI runner does not set
+      # OMP_PROC_BIND by default, so the unset path is hit and the
+      # ordering check is vacuously satisfied (skip path emits zero
+      # first-touch begin lines); but the OMP_PROC_BIND= token MUST
+      # still appear once. `--mode any` accepts both paths cleanly.
+      - name: Run S5d.3 [NUMA] token presence + ordering gate (#181)
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
+        run: python3 tools/check_manifest/check_numa_token_order.py run_default.log --mode any
+
       # S5c-C (#175): independent nFCall column (NOT part of 15-key gate per
       # design D10). Free-running counter; log only, no diff vs golden.
       # Acceptance: a non-empty nfcall.txt + readable nFCall line at the
