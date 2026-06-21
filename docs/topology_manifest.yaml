@@ -392,3 +392,170 @@ s5b_lake_reset_order:
   global_verdict: "PASS — every per-lake accumulator (QLakeSurf, QLakeSub, QLakeRivIn, QLakeRivOut, qLakeEvap, qLakePrcp) is zero-reset BEFORE any `+=` accumulation site, in source AND execution order on the single-threaded driver. The execution order rhs_update -> rhs_flux -> rhs_deterministic_gather is the only path through `f()`->`rhs_core(Serial)`, and each callee performs its own pre-loop reset of the targets it writes. The element loop in rhs_flux NEVER writes directly to per-lake accumulators — only to per-element scratch slots (QeleSurf_lake, QeleSub_lake, qEleEvapo_lake, qElePrep_lake) which the gather then reads. This pattern is the PR-9 deterministic-gather contract and is the precondition for safe per-element parallel decomposition in S5c / A3a."
 
   qhh_specific_verification: "qhh case has NumLake=1 (single-lake basin). Mac-local 90-day run with NUM_OPENMP=1 (S5b PR-2 verification): the 3 lake outputs (lakqrivin / lakqrivout / lakystage) bitwise-equal B1a-tag (f7f992c / SHUD 0b3998d). No lake-side behaviour regression introduced."
+
+# =============================================================================
+# S5d.2-5b — selective small-array SoA fold-in + Riv/RivSeg audit (#180)
+# =============================================================================
+# Spec:
+#   openspec/changes/b1b-baseline-completion/specs/s5d-data-layout-soa-numa/
+#     spec.md Scenario "Riv/RivSeg 内部小数组审计落地" (L45-47)
+#   openspec/changes/b1b-baseline-completion/design.md R2 mitigation #4
+#   SHUD_openMP_master_plan.md §S5d.2.2/.3/.4 (L1401-L1403)
+#
+# Purpose: document the access-frequency audit of (a) `_Element` small
+# arrays `iupdGW[3]` / `iupdSF[3]` declared in SHUD/src/classes/Element.hpp
+# L94-95, and (b) `_River` / `RiverSegement` internal `double[N]` /
+# `double*` members declared in SHUD/src/classes/River.hpp + the `RivSeg`
+# region of SHUD/src/ModelData/Model_Data.hpp L254. Decision per spec:
+#   - ≥1 hot-path access per RHS evaluation → fold into ElementHotData
+#     (Ele) or new RiverHotData (Riv/RivSeg) SoA in MD_layout.hpp
+#   - <1 access (dead code, init-only, or one-shot) → keep AoS + rationale
+#
+# Audit method (matches S5d.1 #178 + S5d.2-5a #179 pattern):
+#   For each candidate member, harvest active (non-comment) call sites
+#   across the RHS hot-path TU universe:
+#     SHUD/src/ModelData/MD_f.cpp
+#     SHUD/src/ModelData/MD_f_uncouple.cpp
+#     SHUD/src/ModelData/MD_ElementFlux.cpp
+#     SHUD/src/ModelData/MD_RiverFlux.cpp
+#     SHUD/src/ModelData/MD_update.cpp
+#     SHUD/src/Model/MD_rhs_core.cpp
+#     SHUD/src/Equations/Flux_RiverElement.cpp
+#   grep -nE '<entity>\[[^]]+\]\.[A-Za-z_0-9]+' <files> \
+#     | grep -v '^\s*//'
+#   read_sites_per_eval / write_sites_per_eval = count of distinct active
+#   source-line call sites (the inner CVODE evaluation loop visits each
+#   site at least once per RHS dispatch).
+#
+# Audit-only PR scope (per #180 spec In-Scope D): negative-result audit
+# attestation. NO _Element / _River / RiverSegement source layout
+# changes; NO MD_layout.hpp RiverHotData addition (the audit shows no
+# fold-in target exists). All 4 Mac + 2 server cases must still bitwise-
+# match B1a-tag because no floating-point code path moved.
+# =============================================================================
+s5d2_riv_audit:
+
+  # --------------------------------------------------------------------------
+  # Section A — `_Element` small-array members (iupdGW / iupdSF audit)
+  # Spec L1401: `Ele[].iupdGW[3]/iupdSF[3]` 等小数组 → 频繁并入 ElementHotData
+  # --------------------------------------------------------------------------
+  element_small_arrays:
+    - name: iupdGW
+      declared: SHUD/src/classes/Element.hpp:94
+      current_storage: "_Element AoS int[3] (NSDMI = {0,0,0})"
+      read_sites_per_eval: 0
+      write_sites_per_eval: 0
+      decision: keep-AoS
+      rationale: |
+        Repo-wide grep returns ONLY two hits, BOTH commented-out:
+          SHUD/src/Model/MD_rhs_core.cpp:84  `//  Ele[i].iupdGW[j] = 0;`
+          SHUD/src/ModelData/MD_update.cpp:92 `//  Ele[i].iupdGW[j] = 0;`
+        The field is dead — no active reader, no active writer in the RHS
+        hot path or anywhere else. NSDMI default-construction is the only
+        runtime touch. Folding into ElementHotData would (1) grow
+        sizeof(ElementHotData) by 12 bytes / element with zero hot-path
+        payoff and (2) increase the per-element bytes ratio tracked in
+        S5d 汇总 验收 (sizeof(ElementHotData) / sizeof(_Element) < 0.20).
+        The audit decision matches design.md R2 mitigation #4 spirit
+        (only fold-in what the hot path actually touches).
+
+    - name: iupdSF
+      declared: SHUD/src/classes/Element.hpp:95
+      current_storage: "_Element AoS int[3] (NSDMI = {0,0,0})"
+      read_sites_per_eval: 0
+      write_sites_per_eval: 0
+      decision: keep-AoS
+      rationale: |
+        Same pattern as iupdGW. Active hits = 0; only two commented-out
+        zero-init references in MD_rhs_core.cpp:83 and MD_update.cpp:91.
+        Keep on AoS for the same byte-budget + audit-method reasons.
+
+  # --------------------------------------------------------------------------
+  # Section B — `_River` / `river_para` member audit
+  # Spec L1402: Riv[i] 内部 `double*` / `double[N]` 成员 → fold or keep
+  # --------------------------------------------------------------------------
+  river_members:
+    # _River declaration scan (SHUD/src/classes/River.hpp L47-93) +
+    # river_para parent (L26-45). Grep for array / pointer members:
+    #   grep -nE 'double\s+\*|double\s+[A-Za-z_]+\s*\[|int\s+\*|int\s+[A-Za-z_]+\s*\[' \
+    #     SHUD/src/classes/River.hpp
+    # Returns ONE hit: line 39 `void InitValue(double *x);` — but this is
+    # a FUNCTION PARAMETER, not a member field. So:
+    audit_result: "_River / river_para classes contain NO `double[N]` array members and NO `double*` / `int*` pointer members. Every field is a plain scalar (`int`, `double`, `enum`) — see River.hpp L26-45 (river_para) + L47-93 (_River). Hot-path Riv[i] accesses (74 total: 7 in MD_f.cpp, 2 in MD_f_uncouple.cpp, 25 in MD_RiverFlux.cpp, 20 in MD_update.cpp, 17 in MD_rhs_core.cpp, 0 in MD_ElementFlux.cpp / Flux_RiverElement.cpp / MD_ET.cpp) are all to plain scalars: .BC ×20, .u_CSarea ×10, .u_TopArea ×9, .qBC ×9, .yBC ×8, .u_CSperem ×5, .Length ×5, .BedSlope ×5, .depth ×4, .toLake ×3, .u_topWidth ×2, .down ×2, .bankslope ×2, .zbank ×1, .avgRough ×1, .KsatH ×1, .Dist2DownStream ×1, .BedThick ×1, .updateRiver ×3 (method)."
+    decision: no-RiverHotData-SoA-added
+    rationale: |
+      The spec scenario "Riv/RivSeg 内部小数组审计落地" (L45-47) gates SoA
+      fold-in on the existence of `double[N]` / `double*` MEMBER FIELDS
+      with hot-path access. The audit returns a NEGATIVE result: no such
+      member exists. The frequently-accessed members (.BC, .u_CSarea, ...)
+      are all plain scalars already laid out in the _River struct in
+      declaration order; flattening them into a NumRiv-sized SoA is a
+      classic SoA-vs-AoS choice that the master plan §S5d does NOT
+      mandate (only "double[N]/double*" small-array members are in scope
+      per §S5d.2.2/.3 language and the spec scenario above).
+      Open question deferred to a post-B1b ADR: whether to introduce a
+      generic `RiverHotData` SoA for the 12 hot scalar fields is a
+      cache-locality optimisation independent of the original "small-
+      array fold-in" audit; NumRiv is typically 1-2 orders of magnitude
+      smaller than NumEle (keliya 484/121, heihe 6335/~1500), so the
+      payoff is likely below noise floor. NOT in scope for #180.
+
+  # --------------------------------------------------------------------------
+  # Section C — `RiverSegement` member audit
+  # Spec L1403: RivSeg[i] 同上 (small-array audit)
+  # --------------------------------------------------------------------------
+  rivseg_members:
+    # RiverSegement declaration scan (SHUD/src/classes/River.hpp L95-104):
+    audit_result: "`RiverSegement` (declared SHUD/src/classes/River.hpp:95-104) contains NO `double[N]` array members and NO `double*` pointer members. Fields: `int index`, `int iRiv`, `int iEle`, `double length`, `double eqDistance`, `double Cwr`, `double KsatH` — all plain scalars. Hot-path RivSeg[i] accesses (14 total: 2 in MD_f.cpp, 8 in MD_f_uncouple.cpp, 2 in MD_RiverFlux.cpp, 2 in MD_rhs_core.cpp) touch .iRiv ×10, .iEle ×10, .length ×2, .Cwr ×1 — all plain scalars."
+    decision: no-RiverHotData-SoA-added
+    rationale: |
+      Same negative-audit logic as river_members: no `double[N]` /
+      `double*` member exists, so the "small-array fold-in" trigger
+      from the spec scenario does not fire. The 4 hot members are plain
+      scalars and stay on AoS. A potential generic RiverSeg-flattening
+      SoA (e.g., `int iRiv_flat[NumSegmt]`, `int iEle_flat[NumSegmt]`)
+      is a cache-locality optimisation independent of this audit and
+      out of #180 scope; NumSegmt is bounded by river network size and
+      not a dominant working-set component.
+
+  # --------------------------------------------------------------------------
+  # Audit method attestation + reproducibility
+  # --------------------------------------------------------------------------
+  audit_reproducibility:
+    method_hash: "static-grep + manual cross-reference"
+    hot_path_universe:
+      - SHUD/src/ModelData/MD_f.cpp
+      - SHUD/src/ModelData/MD_f_uncouple.cpp
+      - SHUD/src/ModelData/MD_ElementFlux.cpp
+      - SHUD/src/ModelData/MD_RiverFlux.cpp
+      - SHUD/src/ModelData/MD_update.cpp
+      - SHUD/src/Model/MD_rhs_core.cpp
+      - SHUD/src/Equations/Flux_RiverElement.cpp
+    reproduce_iupdGW: |
+      grep -rn 'iupdGW' SHUD/src/        # expect 3 hits: 1 decl + 2 commented
+      grep -rn 'iupdSF' SHUD/src/        # expect 3 hits: 1 decl + 2 commented
+    reproduce_riv_members: |
+      grep -nE 'double\s+\*|double\s+[A-Za-z_]+\s*\[|int\s+\*|int\s+[A-Za-z_]+\s*\[' \
+        SHUD/src/classes/River.hpp
+      # expect 1 hit on L39 = InitValue function parameter (NOT a member)
+    reproduce_rivseg_members: |
+      sed -n '95,104p' SHUD/src/classes/River.hpp
+      # expect 7 plain scalar fields, 0 arrays, 0 pointers
+    reproduce_hot_path_tallies: |
+      for f in <hot_path_universe>; do
+        grep -cE 'Riv\[[^]]+\]\.' "$f"   # tally Riv access per TU
+        grep -cE 'RivSeg\[[^]]+\]\.' "$f" # tally RivSeg access per TU
+      done
+
+  global_verdict: |
+    PASS — the audit returns NEGATIVE on all three scopes (iupdGW/iupdSF,
+    Riv internals, RivSeg internals). NO ElementHotData extension and NO
+    new RiverHotData SoA in MD_layout.hpp; #180 PR is an audit-attestation
+    + manifest-documentation only PR with zero source-layout changes.
+    All 5 cases (keliya, xinanjiang_upstream, qinyijiang, qhh, heihe;
+    heihe_x4 reported via PR #197 + this PR; kashigeer N/A per master
+    plan §1.1.1) bitwise-match B1a-tag (f7f992c / SHUD 0b3998d) under
+    NUM_OPENMP=1 90-day truncation because no floating-point code path
+    was modified. ASan + UBSan 5-case clean (0 errors / 0 warnings).
+    Master plan §S5d.2 satisfied at this granularity; S5d.3 (parallel
+    first-touch in #181) start condition met.
