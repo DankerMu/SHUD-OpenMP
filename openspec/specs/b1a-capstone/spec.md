@@ -83,17 +83,18 @@ PR-12 内部顺序硬约束（design.md D11，违反则 rollback）：
 #### Scenario: status_matrix B1a 行升级 PASS
 
 - **WHEN** B1a capstone PR-12 merge
-- **THEN** `docs/status_matrix.md` L20 SHALL 显示 B1a 行：B0 | rivqdown | t_values | log | qhh.lakystage | PENDING (server Slurm) | PENDING (server Slurm) | PENDING (server Slurm; Mac local 4-case + qhh PASS) | PASS (S0–S4 source complete)
+- **THEN** `docs/status_matrix.md` L20 SHALL 显示 B1a 行：B0 | rivqdown | t_values | log | qhh.lakystage | PASS @ server | PASS @ server | PASS
 - **THEN** `docs/status_matrix.md` B1a 行证据 段 SHALL 不再包含 "2026-06-20 修订" 或 "S2/S3/S4 验证待补" 字样
-- **THEN** evidence 段每 case 的 "证据" 列 SHALL 引用 S2/S3/S4 关键 commit / PR + 完整 6 case bitwise PASS 证据（其中 heihe / heihe_x4 evidence 列 SHALL 引用服务器 Slurm follow-up issue `#171`，且 server cells PENDING 由 Slurm follow-up issue `#171` 收尾）
+- **THEN** evidence 段每 case 的 "证据" 列 SHALL 引用 S2/S3/S4 关键 commit / PR + 完整 6 case bitwise PASS 证据（heihe / heihe_x4 evidence 列 SHALL 含 Slurm JobId + wall_time + SHA256 + cn08 节点信息，PR-12 已直接服务器验收，issue `#171` 同步关闭）
 
-#### Scenario: Mac-only verification, server PENDING
+#### Scenario: Mac-only verification fallback (撤回备份，PR-12 未走此路径)
 
-- **WHEN** PR-12 capstone 在 Mac local 完成 4-case + qhh bitwise PASS 但服务器 Slurm 不可用
-- **THEN** status_matrix.md L20 heihe/heihe_x4 cells SHALL = PENDING (server Slurm)
-- **THEN** aggregate cell SHALL = PENDING (server Slurm; Mac local 4-case + qhh PASS)
+- **WHEN** capstone PR 在 Mac local 完成 4-case + qhh bitwise PASS 但服务器 Slurm 暂不可用
+- **THEN** status_matrix.md L20 heihe / heihe_x4 cells MAY = `PENDING (server Slurm)`
+- **THEN** aggregate cell MAY = `PENDING (server Slurm; Mac local 4-case + qhh PASS)`
 - **THEN** B1a-tag SHALL 仍然 force-update（Mac side 已 PASS 是 B1a source-complete 充分证据）
-- **THEN** follow-up Slurm issue `#171` SHALL 单独跟踪服务器 cells 转 PASS @ server
+- **THEN** SHALL 建 follow-up Slurm issue 单独跟踪服务器 cells 转 `PASS @ server`
+- **NOTE** PR-12 #156 未走此备份路径——orchestrator 通过免密 SSH 直接服务器 Slurm 8537 (heihe) + 8538 (heihe_x4) 跑出 bitwise PASS 证据，本 Scenario 仅保留为未来类似 capstone PR 在服务器不可用时的契约
 
 ### Requirement: `b1a_summary.md` 标题升级 "完成" + 时间线 + B1a-tag 处理
 

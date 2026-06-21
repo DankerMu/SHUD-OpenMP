@@ -86,7 +86,10 @@ S1d-end 代码层面（vs B0）：SHUD `78c37a1` → `58327c5`；外层 commit `
 - 4-case Mac 本地 bitwise vs B0-tag：keliya / xinanjiang_upstream / qinyijiang / qhh rivqdown.dat 全 PASS。
 - qhh 3 个 lake outputs（lakystage / lakqrivin / lakqrivout）bitwise vs B0-tag PASS。
 - kashigeer：N/A（S0-13 deferred-upstream forcing-gap）。
-- heihe / heihe_x4：服务器 Slurm 验证延后到独立 follow-up issue（PR-12 capstone 在 Mac 端无 SSH/Slurm 通道）。
+- heihe / heihe_x4：直接服务器 Slurm bitwise PASS。orchestrator 通过免密 SSH (`210.77.77.22:32099`) 在 `cn08` 上跑 90 天截断（cfg.para 端口 START=14245 END=14335 for heihe / START=1 END=91 for heihe_x4，NUM_OPENMP=1，SHUD `0b3998d`）：
+  - JobId 8537 heihe wall=500s SHA256 `55abad2809418ea8e994e75137988cd94ea302641cfdd23202c7ace50965260f` == B0-tag golden
+  - JobId 8538 heihe_x4 wall=1290s SHA256 `f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524` == B0-tag golden
+  - follow-up issue #171 同步关闭（PR-12 直接覆盖了原打算延后的范围）
 - 7+1 grep gate 0 hits：`MD_f_omp.cpp` absent / `PassValue\b` / `SHUD_LEGACY_OMP_RHS` / `LEGACY_RHS` / `_OPENMP_ON` / `USE_RHS_CORE` / `N_VDestroy_Serial` / bonus `f_update_omp|f_loop_omp|f_applyDY_omp`。
 - openspec archive：4 specs（`b1a-capstone` / `s2-semantic-merge` / `s3-deterministic-gather` / `s4-adjacency-topology`）已 PROMOTE 为 system-level capability specs at `openspec/specs/<capability>/spec.md`（new tracked files），并将 change 文件夹 archive 到 `openspec/changes/archive/2026-06-20-b1a-finalization/`（local-only per `.gitignore`，匹配前两次 archive precedent `2026-06-19-s1-rhs-core-extraction/` + `2026-06-19-s2-pre-spec-housekeeping/`）。
 - CI workflow `serial-baseline.yml` B1a 定版 final state read-only verified：1-axis matrix + S2 capstone grep gate + PR-11 PassValue gate + topology_manifest schema + adjacency fallback test + snapshot 90d HARD-fail + CVODE 15-key SHA256 diff 全在位。

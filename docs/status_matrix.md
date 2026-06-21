@@ -10,14 +10,14 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-20（B1a capstone / PR-12 #156：S0–S4 全部完成；4-case + qhh 3 lake outputs Mac 本地 bitwise vs B0-tag PASS；7 grep gate 0 hits；heihe / heihe_x4 = **PENDING** 服务器 Slurm follow-up issue；aggregate = PENDING 直到 Slurm SHA 落地）_
+> _最近一次更新：2026-06-21（B1a capstone / PR-12 #156：S0–S4 全部完成；4-case + qhh 3 lake outputs Mac 本地 bitwise vs B0-tag PASS；7 grep gate 0 hits；heihe / heihe_x4 直接服务器 Slurm 8537 / 8538 bitwise PASS @ cn08；aggregate = PASS；follow-up issue #171 已 close）_
 
 ## 矩阵
 
 | 阶段       | keliya | xinanjiang_upstream | qinyijiang | kashigeer            | qhh     | heihe         | heihe_x4      | aggregate |
 |-----------|--------|---------------------|------------|----------------------|---------|---------------|---------------|-----------|
 | **B0**    | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
-| **B1a**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PENDING (server Slurm) | PENDING (server Slurm) | PENDING (server Slurm; Mac local 4-case + qhh PASS) |
+| **B1a**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
 | **B1b**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **Opt-IO**| PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P1**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
@@ -62,8 +62,8 @@ aggregate 列 = **PASS**（2026-06-17）。
 | qinyijiang | PASS | 同上 4-case capstone 复跑 PASS（SHA `48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57`） |
 | kashigeer | N/A (deferred-upstream) | 同 B0：上游 X76 forcing 段缺失，CI matrix 排除 (spec b0-tag-ci-integration L24-28 + INDEX 已标 deferred-upstream)，B1a 阶段沿用 N/A |
 | qhh | PASS | 4-case capstone 复跑 rivqdown PASS（SHA `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce`）+ 3 个 lake outputs（lakystage / lakqrivin / lakqrivout）bitwise PASS |
-| heihe | PENDING (server Slurm) | PR-1..PR-11 阶段未 invoke Slurm；PR-12 capstone 在 Mac 端无服务器 SSH/Slurm 通道，sbatch 模板 (`tools/server_validation/`) 仍在位，跟进 follow-up issue #171 在服务器跑 Slurm 后捕获 SHA evidence 单元格 flip 到 `PASS @ server`。源码已通过 PR-1..PR-11 落地的 S2/S3/S4 全部 enforcement gate |
-| heihe_x4 | PENDING (server Slurm) | 同 heihe：服务器 Slurm bitwise 复跑延后到 follow-up issue #171；源码相同 SHUD `0b3998d` 与 PR-12 验证体一致；Slurm SHA 落地后单元格 flip `PASS @ server` |
+| heihe | PASS @ server | PR-12 直接在 `210.77.77.22:32099` Slurm `cn08` 跑 90 天截断（cfg.para START=14245 END=14335 / NUM_OPENMP=1 / SHUD `0b3998d`），JobId 8537，wall 500s，SHA256 `55abad2809418ea8e994e75137988cd94ea302641cfdd23202c7ace50965260f` bitwise vs B0-tag golden |
+| heihe_x4 | PASS @ server | PR-12 同 SSH/Slurm 通道，JobId 8538 (cn08)，wall 1290s，SHA256 `f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524` bitwise vs B0-tag golden |
 
 Aggregate gate（PR-12 capstone 验收）：
 - 4-case (keliya / xinanjiang_upstream / qinyijiang / qhh) Mac 本地 bitwise vs B0-tag PASS + qhh 3 lake outputs bitwise PASS
@@ -78,7 +78,7 @@ Aggregate gate（PR-12 capstone 验收）：
   - 加 bonus：`f_update_omp|f_loop_omp|f_applyDY_omp` 三个 _omp receiver 函数名 tree-wide 0 hits（PR-8 capstone）
 - SHUD 在 `openmp-baseline` 分支 commit `0b3998d`（PR-1..PR-11 5-step push workflow 严格遵守）
 - CI workflow `serial-baseline.yml` 已升级到 B1a 定版 final state：1-axis matrix (case only) + S2 capstone grep gate + PassValue 0-hit gate + topology_manifest 模式校验 + adjacency fallback 单测 + snapshot 90d HARD-fail gate + CVODE 15-key SHA256 diff
-- Server heihe / heihe_x4 24h Slurm bitwise validation：延后到 follow-up issue #171（PR-12 capstone 范围外）
+- Server heihe / heihe_x4 90 天截断 Slurm bitwise validation：PR-12 直接通过免密 SSH 在 `210.77.77.22:32099 cn08` 上 Slurm 8537 (heihe) + 8538 (heihe_x4) 跑出 bitwise PASS（详见 B1a 行 evidence 段；issue #171 同步关闭）
 
 ## A0 验收 checklist
 
@@ -111,7 +111,7 @@ Aggregate gate（PR-12 capstone 验收）：
 ## 阶段状态说明
 
 - **B0** 行在 B0-tag 时刻冻结，成为 B1a 回归比对的参照。
-- **B1a** 必须与 B0 同机同 case bitwise 一致。S0–S4 全部完成（PR-12 #156 capstone 2026-06-20）；本矩阵 B1a 行 Mac 本地 4-case + qhh 3 lake outputs 已 PASS，heihe / heihe_x4 PENDING（服务器 Slurm follow-up issue），故 aggregate 当前为 PENDING；Slurm SHA 落地后两单元格 + aggregate flip 到 PASS。
+- **B1a** 必须与 B0 同机同 case bitwise 一致。S0–S4 全部完成（PR-12 #156 capstone 2026-06-21）；本矩阵 B1a 行 Mac 本地 4-case + qhh 3 lake outputs 已 PASS；heihe / heihe_x4 直接服务器 Slurm 8537 / 8538 (cn08) bitwise PASS；aggregate = PASS。kashigeer 沿 B0 deferred-upstream 排除。
 - **Opt-IO** 是 master plan §3.5 的 forcing I/O 并行化。落地时机由 `docs/profile_decision.md:bring-forward-IO` 评估，可能早于或晚于首个 OpenMP P1。
 - **P1-P9** 各行按 master plan §3 各阶段填。
 
