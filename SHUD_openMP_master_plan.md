@@ -12,6 +12,7 @@
 > **v1.3 修订要点**（S0 完成后，按 S0.12 profile 实测数据与 profile_decision.md 签字结论回写）：
 > 6. **M6（§1.1.1 + §S0.2 + §S0.12 + §5 Opt-IO）**：S0 实测后 spec 与现实校齐——§1.1.1 拆 P7 strict Amdahl-bounded 中间目标 vs P9 production T 目标；§S0.12 profile gate 改为"先剔除 IO 主导 case 再按决策驱动 case 阈值判定"，跨平台 delta > 10pp 改为"不阻塞 + review note"，timer bucket 拆 `t_init`；§S0.2 manifest 加 `endpoint` 字段（含 `deferred-upstream`），90 天截断升为项目纪律；§5 Opt-IO 对 IO 主导 case（heihe）升级为硬性前置。
 > 7. **M7（§6 P1 入口前）**：B1a capstone PR-12 实测发现 90 天 cfg 截断（§S0.2 部署铁律）只动 `cfg.para END`、**不动** forcing CSV，SHUD 启动期仍把 1951-2024 全量 forcing 塞内存（heihe_x4 1693 站 × 21.6 万行 ≈ 13min I/O），bitwise 不受影响但 P1+ 任何 timing 测量都被 I/O 严重污染。新增 §6 P1 入口前置铁律：所有 P-strict / P-prod 部署必须用 trimmed forcing（窗口 = cfg [START, END] ± 2 天 buffer），否则 §1.1.1 加速比目标与 §S0.12 profile gate 全部不可信。
+> 8. **M8（§5 S5 / §S5d / §S6a / §S6b）**：B1a capstone PR-12 #156 实操按"S0–S4 完成即锁 B1a-tag"（与 §4.22 L690 "S5d 必须在 B1a 锁定**之后**" 一致），但 §S5d 旧 preamble L1378 写"B1a 尚未锁定（S5d 是 B1a 的最后一块）" + §S6a 旧 B1a 必备清单 L1455-1458 把 S5a/S5b/S5c/S5d 列为 B1a prereq——两处与 §4.22 L690 + PR-12 实操矛盾。本修订：(a) §S5 preamble 明确标注"B1a 锁定后启动 = B1b 结构改造前置"；(b) §S5d L1378 改 "B1a 尚未锁定 → B1a 已锁定，S5d 是 B1b 的最后一块结构改造"；(c) §S6a B1a 必备清单删除 S5a/S5b/S5c/S5d 4 行（B1a 只要求 S0–S4 完成 + bitwise == B0）；(d) §S6b preamble 追加"在 S5a/S5b/S5c/S5d 全部完成后" 前置门，bug fix 列表保持不变。
 
 > **v1.2 修订要点**（基于第二轮深度审查，吸收 M1–M5 五条结构性修订）：
 > 1. **M5（§2.2）**：A3 拆为 A3a/A3b/A3c，跨线程数 bitwise 从硬门控降为加分项
@@ -1326,6 +1327,8 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 
 ### S5：forcing 线程安全、scratch arrays 与诊断接口
 
+> **阶段定位（M8 修订）**：§S5 整体 = **B1a 锁定后启动 + B1b 结构改造前置**。S5a→S5d 全部完成是进入 §S6b（bug fix）+ §S6c（锁定 B1b）的硬门。所有 S5 子项严格 bitwise = B1a（结构变更不改运算）。原 v1.1 把 S5* 列为 B1a prereq 与 §4.22 L690 矛盾，经 PR-12 #156 capstone 实操确认 S5* 属 B1b 范围。
+
 **目标**：确保 forcing 访问在并行环境下安全、整理 scratch arrays 写入所有权、增加 solver 诊断。**此阶段不做 I/O 性能优化**。
 
 #### S5a：forcing 线程安全（correctness-minimal）
@@ -1375,7 +1378,7 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 
 > **定位**：S5d 是 v1.1 新增的关键阶段，承担 §4.22 全部改造。S5d 完成后才能保证后续 P1–P7 的并行加速不被 memory bandwidth / NUMA 拖死。S5d **不改变任何运算**，只换内存布局和访问顺序，必须保持 bitwise = B1a。
 
-**前置条件**：S5a/S5b/S5c 已完成；B1a 尚未锁定（S5d 是 B1a 的最后一块）。
+**前置条件（M8 修订）**：S5a/S5b/S5c 已完成；**B1a 已锁定**（S5d 是 B1b 的最后一块结构改造，进入 §S6b 前必须完成；bitwise = B1a 必须保持）。
 
 **实施粒度**：分四步，每步独立验证 bitwise = B0/B1a，不通过不进入下一步。
 
@@ -1446,19 +1449,17 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 
 **目标**：证明 S1–S5 全部重构**没有改变任何计算结果**。B1a 是"重构正确性"的最终证据。
 
-**B1a 必须具备的性质**：
+**B1a 必须具备的性质（M8 修订：S5* 已移到 §S6b 前置）**：
 
 - [ ] 唯一 RHS core（S1 完成）
 - [ ] 所有 serial/omp 语义差异已对齐，`_omp` 函数已删除（S2 完成）
 - [ ] flux compute 与 gather 已拆分（S3 完成）
 - [ ] 拓扑顺序固定（S4 完成）
-- [ ] forcing 线程安全契约已标注（S5a 完成）
-- [ ] scratch arrays owner 明确（S5b 完成）
-- [ ] solver 诊断接入（S5c 完成）
-- [ ] **数据布局 SoA + jagged 一维 + parallel first-touch + 线程绑定（S5d 完成）**
 - [ ] 宏解耦完成，`_OPENMP_ON` 已消除（S1d.3 完成）
 - [ ] 单线程完整 run 可复现
 - [ ] strict instrumentation 可定位差异
+
+> S5a/S5b/S5c/S5d **不是** B1a 必备项。S5* 全部归入 §S6b B1b 结构改造前置（M8 修订；与 §4.22 L690 一致）。
 
 **验收标准（A1，无例外）**：
 
@@ -1478,7 +1479,9 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 
 #### S6b：应用已知 bug fix（B1a → B1b）
 
-**目标**：在 B1a 锁定基础上，逐项修复 S2 阶段记录但推迟的已知 bug。每个 fix 独立 commit，单独验证影响。
+> **前置门（M8 修订）**：S5a + S5b + S5c + S5d 全部完成（bitwise == B1a 已验证）。S5* 是 B1b 结构改造前置——必须在 §S6a 锁定 B1a-tag 之后、§S6b 启动 bug fix 之前完成。详见 §S5 阶段定位与 §4.22 L690。
+
+**目标**：在 B1a 锁定 + S5* 结构改造完成的基础上，逐项修复 S2 阶段记录但推迟的已知 bug。每个 fix 独立 commit，单独验证影响。
 
 | # | bug fix | 涉及文件 | 输出影响 | 说明 |
 |---|---|---|---|---|
