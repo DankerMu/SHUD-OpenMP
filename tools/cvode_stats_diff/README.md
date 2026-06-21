@@ -25,7 +25,7 @@ CVODE 6.0.0 stats emitted by `SHUD/src/Equations/cvode_config.cpp::PrintFinalSta
 
 `nFCall` is SHUD's own RHS-kernel entry counter (`Model_Data::nFCall`, declared
 at `SHUD/src/ModelData/Model_Data.hpp:58`; incremented in
-`SHUD/src/Model/f.cpp:62`). It is emitted to a SEPARATE file
+`SHUD/src/Model/f.cpp:61`). It is emitted to a SEPARATE file
 `<output>/nfcall.txt` (one `nFCall=<N>` line) and is NOT part of the 15-key
 gate. Rationale: CVODE's `nfe` counter (number of RHS calls observed by the
 solver) may diverge from SHUD's `nFCall` due to finite-difference Jacobian
