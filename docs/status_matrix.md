@@ -62,8 +62,8 @@ aggregate 列 = **PASS**（2026-06-17）。
 | qinyijiang | PASS | 同上 4-case capstone 复跑 PASS（SHA `48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57`） |
 | kashigeer | N/A (deferred-upstream) | 同 B0：上游 X76 forcing 段缺失，CI matrix 排除 (spec b0-tag-ci-integration L24-28 + INDEX 已标 deferred-upstream)，B1a 阶段沿用 N/A |
 | qhh | PASS | 4-case capstone 复跑 rivqdown PASS（SHA `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce`）+ 3 个 lake outputs（lakystage / lakqrivin / lakqrivout）bitwise PASS |
-| heihe | PENDING (server Slurm) | PR-1..PR-11 阶段未 invoke Slurm；PR-12 capstone 在 Mac 端无服务器 SSH/Slurm 通道，sbatch 模板 (`tools/server_validation/`) 仍在位，跟进 follow-up issue 在服务器跑 Slurm 后捕获 SHA evidence 单元格 flip 到 `PASS @ server`。源码已通过 PR-1..PR-11 落地的 S2/S3/S4 全部 enforcement gate |
-| heihe_x4 | PENDING (server Slurm) | 同 heihe：服务器 Slurm bitwise 复跑延后到 follow-up issue；源码相同 SHUD `0b3998d` 与 PR-12 验证体一致；Slurm SHA 落地后单元格 flip `PASS @ server` |
+| heihe | PENDING (server Slurm) | PR-1..PR-11 阶段未 invoke Slurm；PR-12 capstone 在 Mac 端无服务器 SSH/Slurm 通道，sbatch 模板 (`tools/server_validation/`) 仍在位，跟进 follow-up issue #171 在服务器跑 Slurm 后捕获 SHA evidence 单元格 flip 到 `PASS @ server`。源码已通过 PR-1..PR-11 落地的 S2/S3/S4 全部 enforcement gate |
+| heihe_x4 | PENDING (server Slurm) | 同 heihe：服务器 Slurm bitwise 复跑延后到 follow-up issue #171；源码相同 SHUD `0b3998d` 与 PR-12 验证体一致；Slurm SHA 落地后单元格 flip `PASS @ server` |
 
 Aggregate gate（PR-12 capstone 验收）：
 - 4-case (keliya / xinanjiang_upstream / qinyijiang / qhh) Mac 本地 bitwise vs B0-tag PASS + qhh 3 lake outputs bitwise PASS
@@ -78,7 +78,7 @@ Aggregate gate（PR-12 capstone 验收）：
   - 加 bonus：`f_update_omp|f_loop_omp|f_applyDY_omp` 三个 _omp receiver 函数名 tree-wide 0 hits（PR-8 capstone）
 - SHUD 在 `openmp-baseline` 分支 commit `0b3998d`（PR-1..PR-11 5-step push workflow 严格遵守）
 - CI workflow `serial-baseline.yml` 已升级到 B1a 定版 final state：1-axis matrix (case only) + S2 capstone grep gate + PassValue 0-hit gate + topology_manifest 模式校验 + adjacency fallback 单测 + snapshot 90d HARD-fail gate + CVODE 15-key SHA256 diff
-- Server heihe / heihe_x4 24h Slurm bitwise validation：延后到独立 follow-up issue（PR-12 capstone 范围外）
+- Server heihe / heihe_x4 24h Slurm bitwise validation：延后到 follow-up issue #171（PR-12 capstone 范围外）
 
 ## A0 验收 checklist
 

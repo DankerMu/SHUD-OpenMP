@@ -85,7 +85,7 @@ PR-12 内部顺序硬约束（design.md D11，违反则 rollback）：
 - **WHEN** B1a capstone PR-12 merge
 - **THEN** `docs/status_matrix.md` L20 SHALL 显示 B1a 行：B0 | rivqdown | t_values | log | qhh.lakystage | PENDING (server Slurm) | PENDING (server Slurm) | PENDING (server Slurm; Mac local 4-case + qhh PASS) | PASS (S0–S4 source complete)
 - **THEN** `docs/status_matrix.md` B1a 行证据 段 SHALL 不再包含 "2026-06-20 修订" 或 "S2/S3/S4 验证待补" 字样
-- **THEN** evidence 段每 case 的 "证据" 列 SHALL 引用 S2/S3/S4 关键 commit / PR + 完整 6 case bitwise PASS 证据（其中 heihe / heihe_x4 evidence 列 SHALL 引用服务器 Slurm follow-up issue `#NN`，且 server cells PENDING 由 Slurm follow-up issue 收尾）
+- **THEN** evidence 段每 case 的 "证据" 列 SHALL 引用 S2/S3/S4 关键 commit / PR + 完整 6 case bitwise PASS 证据（其中 heihe / heihe_x4 evidence 列 SHALL 引用服务器 Slurm follow-up issue `#171`，且 server cells PENDING 由 Slurm follow-up issue `#171` 收尾）
 
 #### Scenario: Mac-only verification, server PENDING
 
@@ -93,7 +93,7 @@ PR-12 内部顺序硬约束（design.md D11，违反则 rollback）：
 - **THEN** status_matrix.md L20 heihe/heihe_x4 cells SHALL = PENDING (server Slurm)
 - **THEN** aggregate cell SHALL = PENDING (server Slurm; Mac local 4-case + qhh PASS)
 - **THEN** B1a-tag SHALL 仍然 force-update（Mac side 已 PASS 是 B1a source-complete 充分证据）
-- **THEN** follow-up Slurm issue SHALL 单独跟踪服务器 cells 转 PASS @ server
+- **THEN** follow-up Slurm issue `#171` SHALL 单独跟踪服务器 cells 转 PASS @ server
 
 ### Requirement: `b1a_summary.md` 标题升级 "完成" + 时间线 + B1a-tag 处理
 
