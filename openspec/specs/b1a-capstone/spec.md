@@ -73,8 +73,8 @@ PR-12 内部顺序硬约束（design.md D11，违反则 rollback）：
 - **THEN** 第 3 步执行后 `git rev-parse B1a-tag^{}` SHALL 等于 B1a capstone PR-12 squash-merge commit SHA
 - **THEN** `git rev-parse B1a-tag^{}` SHALL **不**再等于 `64569b3`
 - **THEN** `git log 64569b3` SHALL exit 0（旧 commit 仍在 history，作 S1d-end snapshot 可访问）
-- **THEN** B1a capstone PR body 与 `docs/b1a_summary.md` 时间线 SHALL 明确写明 "旧 B1a-tag commit `64569b3` 已被 force-update 到 `<new-commit>`"
-- **THEN** `git tag -l --contains <new-commit>` SHALL 包含 `B1a-tag`，验证 tag 已落到新 commit
+- **THEN** B1a capstone PR body 与 `docs/b1a_summary.md` 时间线 SHALL 明确写明 "旧 B1a-tag commit `64569b3` 已被 force-update 到 `f7f992c`"
+- **THEN** `git tag -l --contains f7f992c` SHALL 包含 `B1a-tag`，验证 tag 已落到新 commit
 
 ### Requirement: `status_matrix.md` B1a 行 IN-PROGRESS → PASS
 
@@ -98,7 +98,7 @@ PR-12 内部顺序硬约束（design.md D11，违反则 rollback）：
 
 ### Requirement: `b1a_summary.md` 标题升级 "完成" + 时间线 + B1a-tag 处理
 
-工程 SHALL 在 B1a capstone PR-12 中修改 `docs/b1a_summary.md`：(a) 标题 "B1a Baseline 进度（IN PROGRESS）" → "B1a Baseline 完成"；(b) 开头声明从 "当前进度：S0 + S1 完成；S2/S3/S4 全未做" 更新为 "S0–S4 全部完成于 <date>"；(c) "B1a-tag 的处理" 段更新为 "已 force-update 旧 `B1a-tag` 从 `64569b3` 到 `<new-commit>`"；(d) 时间线段追加 S2.1–S2.17 + S2 capstone + S3a/S3b/S3c + S4 + B1a capstone 各 PR 引用。
+工程 SHALL 在 B1a capstone PR-12 中修改 `docs/b1a_summary.md`：(a) 标题 "B1a Baseline 进度（IN PROGRESS）" → "B1a Baseline 完成"；(b) 开头声明从 "当前进度：S0 + S1 完成；S2/S3/S4 全未做" 更新为 "S0–S4 全部完成于 <date>"；(c) "B1a-tag 的处理" 段更新为 "已 force-update 旧 `B1a-tag` 从 `64569b3` 到 `f7f992c`"；(d) 时间线段追加 S2.1–S2.17 + S2 capstone + S3a/S3b/S3c + S4 + B1a capstone 各 PR 引用。
 
 #### Scenario: b1a_summary 升级完成
 
