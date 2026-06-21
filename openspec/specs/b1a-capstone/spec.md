@@ -3,7 +3,7 @@
 本 spec 沿用 `s2-semantic-merge` 的 Conventions（Case Scope / Lake-related 输出文件清单 / B0-tag 引用），不重复列出。
 
 PR-12 内部顺序硬约束（design.md D11，违反则 rollback）：
-1. PR-12 内顺带 `openspec archive b1a-finalization`（diff 包含 4 个 spec 文件从 `openspec/changes/b1a-finalization/specs/<capability>/spec.md` 移动到 `openspec/specs/<capability>/spec.md`）
+1. PR-12 内顺带 `openspec archive b1a-finalization` → 4 specs PROMOTED 到 `openspec/specs/<capability>/spec.md`（committed，diff 包含 4 个新增 spec 文件）+ change 文件夹 RELOCATED 到 `openspec/changes/archive/2026-06-20-b1a-finalization/`（local-only per `.gitignore` convention，匹配前两次 archive precedent `2026-06-19-s1-rhs-core-extraction/` + `2026-06-19-s2-pre-spec-housekeeping/`）
 2. 6 case 全量 bitwise + grep gates 验证（CI PR-12 阶段）
 3. PR-12 merge 入 `baseline/B1a`
 4. `git push origin baseline/B1a:main`（fast-forward main HEAD）
@@ -102,8 +102,8 @@ PR-12 内部顺序硬约束（design.md D11，违反则 rollback）：
 #### Scenario: 收尾 5 动作全部完成（顺序符合 Conventions）
 
 - **WHEN** B1a capstone PR-12 内 + merge 后执行收尾
-- **THEN** **PR-12 内**：4 个 spec 文件 SHALL 已从 `openspec/changes/b1a-finalization/specs/<capability>/spec.md` 移动到 `openspec/specs/<capability>/spec.md`（4 个 capability：`s2-semantic-merge` / `s3-deterministic-gather` / `s4-adjacency-topology` / `b1a-capstone`）
-- **THEN** **PR-12 内**：`openspec/changes/b1a-finalization/` 目录在 archive 后 SHALL 不再存在（或仅保留一个标记 archive 完成的占位文件）
+- **THEN** **PR-12 内**：4 个 spec 文件 SHALL 已 PROMOTE 到 `openspec/specs/<capability>/spec.md`（committed 新增，4 个 capability：`s2-semantic-merge` / `s3-deterministic-gather` / `s4-adjacency-topology` / `b1a-capstone`）
+- **THEN** **PR-12 内**：`openspec/changes/b1a-finalization/` 目录 SHALL 已 RELOCATE 到 `openspec/changes/archive/2026-06-20-b1a-finalization/`（local-only per `.gitignore` convention，不进 git diff，匹配前两次 archive precedent）
 - **THEN** **merge 后第 4 步**：`git push origin baseline/B1a:main` 完成；`gh api repos/DankerMu/SHUD-OpenMP/branches/baseline/B1a --jq '.commit.sha'` SHALL == `gh api repos/DankerMu/SHUD-OpenMP/branches/main --jq '.commit.sha'`（fast-forward 后 baseline/B1a == main HEAD）
 - **THEN** **merge 后第 5 步**：tag force-update 完成（详见 B1a-tag Requirement Scenario）
 - **THEN** **merge 后第 6 步**：`gh api repos/DankerMu/SHUD-OpenMP/branches/baseline/B1a/protection --jq '.lock_branch.enabled'` SHALL = `true`；`allow_force_pushes=false` + `allow_deletions=false`

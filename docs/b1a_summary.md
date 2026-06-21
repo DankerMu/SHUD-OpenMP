@@ -24,11 +24,11 @@ PR-12 capstone 之后：
 
 - `B1a-tag` = 由 orchestrator 在 PR-12 merge 后 force-update 至新 `main` HEAD（SHUD pin `0b3998d`）。force-update 从原 `64569b3`（S1d-end snapshot）→ PR-12 squash-merge SHA。
 - 原 `64569b3` 时刻的 S1d snapshot 不再作为 B1a 实质引用；后续 strict 阶段（B1b/P1+）的"vs B1a-tag" 对比一律走 force-update 之后的新 tag。
-- 关于 PR-12 squash-merge SHA：由 orchestrator 在 squash 时刻补充进本节，本文件成稿时未知（PR-12 in-PR 阶段）。
+- B1a-tag = TBD（orchestrator 在 PR-12 squash-merge 后通过 PR body post-merge **step 7a** 回填到本节 L25 + L27 — `amend docs/b1a_summary.md L25 + L27 with PR-12 squash-merge SHA, commit directly onto main as part of post-merge sequence`，再走 step 8 force-update `B1a-tag` 到新 main HEAD）。
 
 ## B1a 完成时间线
 
-PR-1 through PR-12 共 11 个 PR + 1 个 capstone，覆盖 S2.1–S2.17 + S3a/S3b/S3c + S4.1–S4.7 全部子项：
+PR-1 through PR-12 共 12 个 PR + 1 个 capstone（PR-7 拆 7a/7b 两个 PR），覆盖 S2.1–S2.17 + S3a/S3b/S3c + S4.1–S4.7 全部子项：
 
 - PR-1 #144 [S2.10 + S2.14] — MD_ET 孤立 omp for 移除 + 16 标量移入 + snapshot sanity
 - PR-2 #145 [S2.6 + S2.9] — 负状态 clamp + f_applyDY_omp data race
@@ -88,7 +88,7 @@ S1d-end 代码层面（vs B0）：SHUD `78c37a1` → `58327c5`；外层 commit `
 - kashigeer：N/A（S0-13 deferred-upstream forcing-gap）。
 - heihe / heihe_x4：服务器 Slurm 验证延后到独立 follow-up issue（PR-12 capstone 在 Mac 端无 SSH/Slurm 通道）。
 - 7+1 grep gate 0 hits：`MD_f_omp.cpp` absent / `PassValue\b` / `SHUD_LEGACY_OMP_RHS` / `LEGACY_RHS` / `_OPENMP_ON` / `USE_RHS_CORE` / `N_VDestroy_Serial` / bonus `f_update_omp|f_loop_omp|f_applyDY_omp`。
-- openspec archive：4 specs（`b1a-capstone` / `s2-semantic-merge` / `s3-deterministic-gather` / `s4-adjacency-topology`）已从 `openspec/changes/b1a-finalization/specs/` 移到 `openspec/specs/<capability>/`。
+- openspec archive：4 specs（`b1a-capstone` / `s2-semantic-merge` / `s3-deterministic-gather` / `s4-adjacency-topology`）已 PROMOTE 为 system-level capability specs at `openspec/specs/<capability>/spec.md`（new tracked files），并将 change 文件夹 archive 到 `openspec/changes/archive/2026-06-20-b1a-finalization/`（local-only per `.gitignore`，匹配前两次 archive precedent `2026-06-19-s1-rhs-core-extraction/` + `2026-06-19-s2-pre-spec-housekeeping/`）。
 - CI workflow `serial-baseline.yml` B1a 定版 final state read-only verified：1-axis matrix + S2 capstone grep gate + PR-11 PassValue gate + topology_manifest schema + adjacency fallback test + snapshot 90d HARD-fail + CVODE 15-key SHA256 diff 全在位。
 
 ## 验证 B1a-tag（force-update 后）
