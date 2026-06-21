@@ -520,6 +520,18 @@ jobs:
               sys.exit(1)
           print(f"PASS: 0 nested `new double*[...]` hits; {len(contig)} contiguous `new double[NumEle * 3]` allocs in malloc_EleRiv")
           PYEOF
+      # S5d.3 (#181): parallel first-touch pragma count gate. Asserts the
+      # 4 documented `#pragma omp parallel for` sites (3 in Model_Data.cpp
+      # malloc_EleRiv + 1 in MD_initialize.cpp LoadIC) remain present in
+      # source. Spec Scenario "三处 first-touch 全部命中" requires >= 3
+      # hits; we count and fail closed if regression deletes them. Pure
+      # grep, zero deps. Per PR #199 Phase 5 repair (B-S2 fold-in).
+      - name: Run S5d.3 first-touch pragma count gate (#181)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          HITS=$(grep -rnE '#pragma omp parallel for' SHUD/src/ModelData/Model_Data.cpp SHUD/src/ModelData/MD_initialize.cpp | wc -l | tr -d ' ')
+          if [ "$HITS" -lt 3 ]; then echo "::error::expected >=3 #pragma omp parallel for sites, found $HITS"; exit 1; fi
+          echo "PASS: $HITS pragma sites (>=3 spec gate)"
       - name: Run sbatch preflight selftest
         if: steps.skip_check.outputs.skipped != 'true'
         run: bash tools/server_validation/archive_s1_bitwise.sh --selftest-preflight
