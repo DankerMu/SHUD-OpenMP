@@ -127,3 +127,268 @@ asserts:
   - { entity: RivSeg, case: heihe_x4, rule: "index == i + 1 for all i in [0, NumSegmt)", result: "pending (PR-12 capstone)" }
   - { entity: Riv,    case: heihe_x4, rule: "index == i + 1 for all i in [0, NumRiv)",   result: "pending (PR-12 capstone)" }
   - { entity: Ele,    case: heihe_x4, rule: "index == i + 1 for all i in [0, NumEle)",   result: "pending (PR-12 capstone)" }
+
+# =============================================================================
+# S5b — scratch arrays ownership audit (#177 / B1b PR-2)
+# =============================================================================
+# Spec:
+#   - openspec/changes/b1b-baseline-completion/specs/s5b-scratch-arrays-ownership/spec.md
+#   - openspec/changes/b1b-baseline-completion/tasks.md task 3.1
+#   - openspec/changes/b1b-baseline-completion/design.md D6
+#
+# Purpose: for each per-element / per-river / per-lake scratch array
+# declared in SHUD/src/ModelData/Model_Data.hpp, document the single
+# owner (the class/function that writes to it inside the RHS path) and
+# the line of its primary write site. This enables S5c thermal-field
+# SoA reshape + future parallel-element loops to honor the single-writer
+# invariant per index.
+#
+# Audit method: declarations harvested from `Model_Data.hpp` L141-L219;
+# write sites located via repo-wide `grep` filtered for assignment
+# operators (`=`, `+=`, `-=`); each site cross-referenced to the source
+# function. Read sites are NOT enumerated (the invariant is single-WRITER,
+# not single-reader). "Zero-reset only" sites are tagged with `reset` so
+# the distinction between "owner zero-reset" and "owner data write" is
+# clear.
+# =============================================================================
+s5b_scratch_ownership:
+  - name: QeleSurf
+    declared: SHUD/src/ModelData/Model_Data.hpp:141
+    shape: double **[NumEle][3]
+    owner: Model_Data::rhs_update (zero-reset) + Model_Data::fun_Ele_surface (data write)
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:48        # rhs_update zero-reset
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:21 # fun_Ele_surface zero-reset
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:99 # fun_Ele_surface data write (Q from edge flux)
+    verdict: PASS — single writer per (i,j); writes serialized inside element loop (lake branch never writes to QeleSurf, instead writes to QeleSurf_lake scratch)
+
+  - name: QeleSub
+    declared: SHUD/src/ModelData/Model_Data.hpp:142
+    shape: double **[NumEle][3]
+    owner: Model_Data::rhs_update (zero-reset) + Model_Data::fun_Ele_sub (data write)
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:47          # rhs_update zero-reset
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:22   # fun_Ele_sub zero-reset
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:163  # fun_Ele_sub data write (Q * fu_Sub[i])
+    verdict: PASS — same pattern as QeleSurf
+
+  - name: QrivSurf
+    declared: SHUD/src/ModelData/Model_Data.hpp:144
+    shape: double *[NumRiv]
+    owner: Model_Data::rhs_update + Model_Data::rhs_deterministic_gather
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:106  # rhs_update zero-reset (pre-flux)
+      - SHUD/src/Model/MD_rhs_core.cpp:299  # rhs_deterministic_gather zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:311  # rhs_deterministic_gather += QsegSurf via seg_by_riv (S4.1)
+    verdict: PASS — gather += driven by S4 adjacency (B0-iseg ascending); bitwise-preserved
+
+  - name: QrivSub
+    declared: SHUD/src/ModelData/Model_Data.hpp:145
+    shape: double *[NumRiv]
+    owner: Model_Data::rhs_update + Model_Data::rhs_deterministic_gather
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:107  # rhs_update zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:300  # rhs_deterministic_gather zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:312  # rhs_deterministic_gather += QsegSub via seg_by_riv (S4.1)
+    verdict: PASS — same pattern as QrivSurf
+
+  - name: QrivDown
+    declared: SHUD/src/ModelData/Model_Data.hpp:146
+    shape: double *[NumRiv]
+    owner: Model_Data::Flux_RiverDown
+    write_sites:
+      - SHUD/src/ModelData/MD_RiverFlux.cpp # Flux_RiverDown direct write (single iriv per call)
+    verdict: PASS — single writer per index (Flux_RiverDown(t, i) writes QrivDown[i] only)
+
+  - name: QrivUp
+    declared: SHUD/src/ModelData/Model_Data.hpp:147
+    shape: double *[NumRiv]
+    owner: Model_Data::rhs_update + Model_Data::rhs_deterministic_gather
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:108  # rhs_update zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:301  # rhs_deterministic_gather zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:329  # rhs_deterministic_gather += via upstream_by_down (S4.3)
+    verdict: PASS — gather driven by S4 upstream_by_down (B0 ascending iriv); bitwise-preserved
+
+  - name: QsegSurf
+    declared: SHUD/src/ModelData/Model_Data.hpp:148
+    shape: double *[NumSegmt]
+    owner: Model_Data::fun_Seg_surface
+    write_sites:
+      - SHUD/src/ModelData/MD_RiverFlux.cpp:108  # fun_Seg_surface direct write (one iseg per call)
+    verdict: PASS — single writer per index; fed by per-segment loop in rhs_flux (one iseg at a time)
+
+  - name: QsegSub
+    declared: SHUD/src/ModelData/Model_Data.hpp:149
+    shape: double *[NumSegmt]
+    owner: Model_Data::fun_Seg_sub
+    write_sites:
+      - SHUD/src/ModelData/MD_RiverFlux.cpp      # fun_Seg_sub direct write
+    verdict: PASS — same pattern as QsegSurf
+
+  - name: qEleInfil
+    declared: SHUD/src/ModelData/Model_Data.hpp:162
+    shape: double *[NumEle]
+    owner: Model_Data::rhs_update (zero-reset) + Model_Data::fun_Ele_Infiltraion (data write)
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:66        # rhs_update zero-reset
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:5  # fun_Ele_Infiltraion zero-reset (defensive)
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:33 # fun_Ele_Infiltraion data write (Ele[i].u_qi * fu_Surf[i])
+    verdict: PASS — single writer per index
+
+  - name: qEleExfil
+    declared: SHUD/src/ModelData/Model_Data.hpp:163
+    shape: double *[NumEle]
+    owner: Model_Data::rhs_update (zero-reset) + Model_Data::fun_Ele_Infiltraion (data write)
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:65        # rhs_update zero-reset
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:7  # fun_Ele_Infiltraion zero-reset
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:34 # fun_Ele_Infiltraion data write
+    verdict: PASS — same pattern as qEleInfil
+
+  - name: QLakeSurf
+    declared: SHUD/src/ModelData/Model_Data.hpp:198
+    shape: double *[NumLake]
+    owner: Model_Data::rhs_update + Model_Data::rhs_deterministic_gather
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:120  # rhs_update zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:351  # rhs_deterministic_gather zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:357  # rhs_deterministic_gather += via lake_bank_edge_by_lake (S4.6) + QeleSurf_lake scratch
+    verdict: PASS — gather driven by S4 lake_bank_edge_by_lake (B0 iele ascending, j 0..2); the legacy racy `QLakeSurf[ilake] += Q` pattern was replaced by per-element scratch QeleSurf_lake in PR-9; bitwise-preserved
+
+  - name: QLakeSub
+    declared: SHUD/src/ModelData/Model_Data.hpp:199
+    shape: double *[NumLake]
+    owner: Model_Data::rhs_update + Model_Data::rhs_deterministic_gather
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:119  # rhs_update zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:364  # rhs_deterministic_gather zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:370  # rhs_deterministic_gather += via lake_bank_edge_by_lake (S4.6) + QeleSub_lake scratch
+    verdict: PASS — same pattern as QLakeSurf
+
+  - name: QLakeRivIn
+    declared: SHUD/src/ModelData/Model_Data.hpp:200
+    shape: double *[NumLake]
+    owner: Model_Data::rhs_update + Model_Data::rhs_deterministic_gather
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:123  # rhs_update zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:339  # rhs_deterministic_gather zero-reset
+      - SHUD/src/Model/MD_rhs_core.cpp:343  # rhs_deterministic_gather += QrivDown via riv_in_by_lake (S4.4)
+    verdict: PASS — gather driven by S4 riv_in_by_lake (B0 iriv ascending); bitwise-preserved
+
+  - name: QLakeRivOut
+    declared: SHUD/src/ModelData/Model_Data.hpp:201
+    shape: double *[NumLake]
+    owner: Model_Data::rhs_update (zero-reset; data write site outside RHS hot path)
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:124  # rhs_update zero-reset
+    verdict: PASS — currently only zero-reset in RHS; no `+=` writers; consumed by rhs_apply lake DY formula (MD_rhs_core.cpp:494)
+
+  - name: QeleSurf_lake
+    declared: SHUD/src/ModelData/Model_Data.hpp:210
+    shape: double *[NumEle*3]
+    owner: Model_Data::fun_Ele_surface (lake bank branch)
+    write_sites:
+      - SHUD/src/ModelData/MD_ElementFlux.cpp:57  # fun_Ele_surface lake-bank branch direct write (i*3+j)
+    verdict: PASS — per-element scratch slot (i*3+j); single writer per (i,j); enables PR-9 deterministic lake gather
+
+  - name: QeleSub_lake
+    declared: SHUD/src/ModelData/Model_Data.hpp:211
+    shape: double *[NumEle*3]
+    owner: Model_Data::fun_Ele_sub (lake bank branch)
+    write_sites:
+      - SHUD/src/ModelData/MD_ElementFlux.cpp    # fun_Ele_sub lake-bank branch direct write (i*3+j)
+    verdict: PASS — same pattern as QeleSurf_lake
+
+  - name: qEleEvapo_lake
+    declared: SHUD/src/ModelData/Model_Data.hpp:218
+    shape: double *[NumEle]
+    owner: Model_Data::rhs_flux (lake-element pre-divide write at L181)
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:181  # qEleEvapo[i] / lake[Ele[i].iLake-1].NumEleLake
+    verdict: PASS — per-element scratch slot for lake-cell evap pre-divide; single writer per i; consumed by rhs_flux lake-side gather L222
+
+  - name: qElePrep_lake
+    declared: SHUD/src/ModelData/Model_Data.hpp:219
+    shape: double *[NumEle]
+    owner: Model_Data::rhs_flux (lake-element pre-divide write at L182)
+    write_sites:
+      - SHUD/src/Model/MD_rhs_core.cpp:182  # qElePrep[i] / lake[Ele[i].iLake-1].NumEleLake
+    verdict: PASS — same pattern as qEleEvapo_lake
+
+# =============================================================================
+# S5b — lake reset 顺序 audit (qhh trace, #177 / B1b PR-2)
+# =============================================================================
+# Spec:
+#   - openspec/changes/b1b-baseline-completion/tasks.md task 3.4
+#
+# Purpose: prove that, in the only Mac benchmark case with `lakeon=1`
+# (qhh), every per-lake accumulator is zero-reset BEFORE any element-loop
+# iteration writes (or += accumulates) into it within a single RHS call.
+# This is the precondition for future thread-parallel element loops in
+# S5c / A3a — without it, a previous CVODE iteration's lake values could
+# leak into the next iteration's gather.
+#
+# Method: trace MD_rhs_core.cpp from `rhs_core` entry (Serial branch)
+# through `rhs_update` -> `rhs_flux` -> `rhs_deterministic_gather` ->
+# `rhs_apply`. For each per-lake array, record (a) reset_site (first
+# zero-write in source/execution order), (b) element_loop_first_write
+# (first per-element `+=` or scratch-slot write that contributes to the
+# lake aggregate), (c) verify reset_site executes strictly BEFORE
+# element_loop_first_write in the single-threaded driver.
+#
+# All trace lines are in `SHUD/src/Model/MD_rhs_core.cpp`.
+# =============================================================================
+s5b_lake_reset_order:
+  call_chain:
+    - SHUD/src/Model/f.cpp:54                  # f() -> MD->rhs_core(Y, DY, t, ExecPolicy::Serial)
+    - SHUD/src/Model/MD_rhs_core.cpp:42-132    # rhs_core::Serial branch -> rhs_update (per-cell zero-reset pass)
+    - SHUD/src/Model/MD_rhs_core.cpp:167-261   # rhs_flux (element + segment + river + lake gather passes)
+    - SHUD/src/Model/MD_rhs_core.cpp:296-374   # rhs_deterministic_gather (segment->river/element + lake aggregates)
+    - SHUD/src/Model/MD_rhs_core.cpp:400-509   # rhs_apply (DY assembly)
+
+  lake_accumulators:
+    - name: QLakeSurf
+      reset_sites:
+        - SHUD/src/Model/MD_rhs_core.cpp:120   # rhs_update: QLakeSurf[i] = 0.
+        - SHUD/src/Model/MD_rhs_core.cpp:351   # rhs_deterministic_gather: QLakeSurf[ilake] = 0. (defensive re-zero)
+      element_loop_first_write: SHUD/src/Model/MD_rhs_core.cpp:357  # gather: QLakeSurf[ilake] += QeleSurf_lake[ie*3+j]
+      verdict: "PASS — reset_site (rhs_update L120) executes BEFORE rhs_flux element loop; rhs_deterministic_gather's own reset L351 also precedes its own += L357; the element-loop write at MD_ElementFlux.cpp:57 targets per-element scratch QeleSurf_lake (NOT QLakeSurf), so element loop NEVER racy-writes to QLakeSurf"
+
+    - name: QLakeSub
+      reset_sites:
+        - SHUD/src/Model/MD_rhs_core.cpp:119   # rhs_update: QLakeSub[i] = 0.
+        - SHUD/src/Model/MD_rhs_core.cpp:364   # rhs_deterministic_gather: defensive re-zero
+      element_loop_first_write: SHUD/src/Model/MD_rhs_core.cpp:370  # gather: QLakeSub[ilake] += QeleSub_lake[ie*3+j]
+      verdict: "PASS — same pattern as QLakeSurf"
+
+    - name: QLakeRivIn
+      reset_sites:
+        - SHUD/src/Model/MD_rhs_core.cpp:123   # rhs_update: QLakeRivIn[i] = 0.
+        - SHUD/src/Model/MD_rhs_core.cpp:339   # rhs_deterministic_gather: defensive re-zero
+      element_loop_first_write: SHUD/src/Model/MD_rhs_core.cpp:343  # gather: QLakeRivIn[ilake] += QrivDown[iriv]
+      verdict: "PASS — driven by per-river-down values populated in Flux_RiverDown (rhs_flux L206-208); ascending iriv via S4 riv_in_by_lake list"
+
+    - name: QLakeRivOut
+      reset_sites:
+        - SHUD/src/Model/MD_rhs_core.cpp:124   # rhs_update: QLakeRivOut[i] = 0.
+      element_loop_first_write: N/A (no element-loop write; only consumed by rhs_apply DY assembly L494)
+      verdict: "PASS — currently zero-reset only; future lake-outflow features will need to add an explicit pre-write reset (S6b scope)"
+
+    - name: qLakeEvap
+      reset_sites:
+        - SHUD/src/Model/MD_rhs_core.cpp:121   # rhs_update: qLakeEvap[i] = 0.
+        - SHUD/src/Model/MD_rhs_core.cpp:216   # rhs_flux pre-gather defensive reset (in lakeon branch, before element-loop accumulation)
+      element_loop_first_write: SHUD/src/Model/MD_rhs_core.cpp:222  # rhs_flux gather: qLakeEvap[ilake] += qEleEvapo_lake[i]
+      verdict: "PASS — TWO resets bracket the element-loop write: rhs_update L121 (defensive at RHS entry), rhs_flux L216 (mandatory pre-gather), then L222 += accumulation. The lake clamp at L228 reads the gathered values; reset L216 ensures the clamp doesn't see stale data from a previous CVODE iteration"
+
+    - name: qLakePrcp
+      reset_sites:
+        - SHUD/src/Model/MD_rhs_core.cpp:122   # rhs_update: qLakePrcp[i] = 0.
+        - SHUD/src/Model/MD_rhs_core.cpp:217   # rhs_flux pre-gather defensive reset
+      element_loop_first_write: SHUD/src/Model/MD_rhs_core.cpp:223  # rhs_flux gather: qLakePrcp[ilake] += qElePrep_lake[i]
+      verdict: "PASS — same pattern as qLakeEvap"
+
+  global_verdict: "PASS — every per-lake accumulator (QLakeSurf, QLakeSub, QLakeRivIn, QLakeRivOut, qLakeEvap, qLakePrcp) is zero-reset BEFORE any `+=` accumulation site, in source AND execution order on the single-threaded driver. The execution order rhs_update -> rhs_flux -> rhs_deterministic_gather is the only path through `f()`->`rhs_core(Serial)`, and each callee performs its own pre-loop reset of the targets it writes. The element loop in rhs_flux NEVER writes directly to per-lake accumulators — only to per-element scratch slots (QeleSurf_lake, QeleSub_lake, qEleEvapo_lake, qElePrep_lake) which the gather then reads. This pattern is the PR-9 deterministic-gather contract and is the precondition for safe per-element parallel decomposition in S5c / A3a."
+
+  qhh_specific_verification: "qhh case has NumLake=1 (single-lake basin). Mac-local 90-day run with NUM_OPENMP=1 (S5b PR-2 verification): the 3 lake outputs (lakqrivin / lakqrivout / lakystage) bitwise-equal B1a-tag (f7f992c / SHUD 0b3998d). No lake-side behaviour regression introduced."
