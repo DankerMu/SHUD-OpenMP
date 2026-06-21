@@ -439,6 +439,13 @@ s5d2_riv_audit:
   # Section A — `_Element` small-array members (iupdGW / iupdSF audit)
   # Spec L1401: `Ele[].iupdGW[3]/iupdSF[3]` 等小数组 → 频繁并入 ElementHotData
   # --------------------------------------------------------------------------
+  scope_boundary: |
+    Other `_Element` `[3]` arrays (`nabr` / `edge` / `lakenabr` / `Dist2Edge`
+    / `Dist2Nabor` / `avgRough`) are already in ElementHotData per PR #178
+    `docs/s5d_hot_fields.yaml`; `node` / `nabrToMe` / `slope` are classified
+    init-only in the same manifest's deprecated_fields list. Remaining
+    unaudited `_Element` small arrays = {`iupdGW[3]`, `iupdSF[3]`} — this
+    audit covers exactly that set.
   element_small_arrays:
     - name: iupdGW
       declared: SHUD/src/classes/Element.hpp:94
@@ -458,6 +465,9 @@ s5d2_riv_audit:
         S5d 汇总 验收 (sizeof(ElementHotData) / sizeof(_Element) < 0.20).
         The audit decision matches design.md R2 mitigation #4 spirit
         (only fold-in what the hot path actually touches).
+      future_work: |
+        Deletion ADR candidate (post-B1b): 12 bytes / element savings; zero
+        behavioural change. Out of #180 scope (audit-only spec contract).
 
     - name: iupdSF
       declared: SHUD/src/classes/Element.hpp:95
@@ -469,6 +479,8 @@ s5d2_riv_audit:
         Same pattern as iupdGW. Active hits = 0; only two commented-out
         zero-init references in MD_rhs_core.cpp:83 and MD_update.cpp:91.
         Keep on AoS for the same byte-budget + audit-method reasons.
+      future_work: |
+        Same deletion ADR candidate as iupdGW.
 
   # --------------------------------------------------------------------------
   # Section B — `_River` / `river_para` member audit
@@ -481,7 +493,7 @@ s5d2_riv_audit:
     #     SHUD/src/classes/River.hpp
     # Returns ONE hit: line 39 `void InitValue(double *x);` — but this is
     # a FUNCTION PARAMETER, not a member field. So:
-    audit_result: "_River / river_para classes contain NO `double[N]` array members and NO `double*` / `int*` pointer members. Every field is a plain scalar (`int`, `double`, `enum`) — see River.hpp L26-45 (river_para) + L47-93 (_River). Hot-path Riv[i] accesses (74 total: 7 in MD_f.cpp, 2 in MD_f_uncouple.cpp, 25 in MD_RiverFlux.cpp, 20 in MD_update.cpp, 17 in MD_rhs_core.cpp, 0 in MD_ElementFlux.cpp / Flux_RiverElement.cpp / MD_ET.cpp) are all to plain scalars: .BC ×20, .u_CSarea ×10, .u_TopArea ×9, .qBC ×9, .yBC ×8, .u_CSperem ×5, .Length ×5, .BedSlope ×5, .depth ×4, .toLake ×3, .u_topWidth ×2, .down ×2, .bankslope ×2, .zbank ×1, .avgRough ×1, .KsatH ×1, .Dist2DownStream ×1, .BedThick ×1, .updateRiver ×3 (method)."
+    audit_result: "_River / river_para classes contain NO `double[N]` array members and NO `double*` / `int*` pointer members. Every field is a plain scalar (`int`, `double`, `enum`) — see River.hpp L26-45 (river_para) + L47-93 (_River). Hot-path Riv[i] line-hit count (71 lines total via grep -cE 'Riv\\[[^]]+\\]\\.' per TU: MD_f.cpp=7, MD_f_uncouple.cpp=2, MD_ElementFlux.cpp=0, MD_RiverFlux.cpp=25, MD_update.cpp=20, MD_rhs_core.cpp=17, Flux_RiverElement.cpp=0). Per-field occurrence count (92, field-occurrence count > line-hit count because some lines reference multiple fields): .BC ×20, .u_CSarea ×10, .u_TopArea ×9, .qBC ×9, .yBC ×8, .u_CSperem ×5, .Length ×5, .BedSlope ×5, .depth ×4, .toLake ×3, .u_topWidth ×2, .down ×2, .bankslope ×2, .zbank ×1, .avgRough ×1, .KsatH ×1, .Dist2DownStream ×1, .BedThick ×1, .updateRiver ×3 (method). All plain scalars — no SoA fold-in candidate."
     decision: no-RiverHotData-SoA-added
     rationale: |
       The spec scenario "Riv/RivSeg 内部小数组审计落地" (L45-47) gates SoA
