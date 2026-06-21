@@ -11,6 +11,7 @@
 
 > **v1.3 修订要点**（S0 完成后，按 S0.12 profile 实测数据与 profile_decision.md 签字结论回写）：
 > 6. **M6（§1.1.1 + §S0.2 + §S0.12 + §5 Opt-IO）**：S0 实测后 spec 与现实校齐——§1.1.1 拆 P7 strict Amdahl-bounded 中间目标 vs P9 production T 目标；§S0.12 profile gate 改为"先剔除 IO 主导 case 再按决策驱动 case 阈值判定"，跨平台 delta > 10pp 改为"不阻塞 + review note"，timer bucket 拆 `t_init`；§S0.2 manifest 加 `endpoint` 字段（含 `deferred-upstream`），90 天截断升为项目纪律；§5 Opt-IO 对 IO 主导 case（heihe）升级为硬性前置。
+> 7. **M7（§6 P1 入口前）**：B1a capstone PR-12 实测发现 90 天 cfg 截断（§S0.2 部署铁律）只动 `cfg.para END`、**不动** forcing CSV，SHUD 启动期仍把 1951-2024 全量 forcing 塞内存（heihe_x4 1693 站 × 21.6 万行 ≈ 13min I/O），bitwise 不受影响但 P1+ 任何 timing 测量都被 I/O 严重污染。新增 §6 P1 入口前置铁律：所有 P-strict / P-prod 部署必须用 trimmed forcing（窗口 = cfg [START, END] ± 2 天 buffer），否则 §1.1.1 加速比目标与 §S0.12 profile gate 全部不可信。
 
 > **v1.2 修订要点**（基于第二轮深度审查，吸收 M1–M5 五条结构性修订）：
 > 1. **M5（§2.2）**：A3 拆为 A3a/A3b/A3c，跨线程数 bitwise 从硬门控降为加分项
@@ -1550,6 +1551,59 @@ for (int i = 0; i < NumEle;   ++i) assert(Ele[i].id == i + 1);
 ## 6. 并行阶段（P1–P9）
 
 ![并行阶段逐步展开](figures/fig10_parallel_phases_detail.png)
+
+### P-strict / P-prod 启动前置铁律：forcing 时间窗 trim（M7 修订）
+
+> **定位**：90 天 cfg 截断（§S0.2 部署铁律）只改 `cfg.para END`，**不改** forcing CSV。SHUD 启动期仍把 1951-2024 全量 forcing 塞入内存，I/O 耗时与全量 model time 等价。B1a / B1b bitwise 验证不受影响（数值结果只依赖 `[START, END]` 窗口），但 **P1–P9 任何 wall-clock / timing 测量都被 forcing init I/O 严重污染**，§1.1.1 加速比目标与 §S0.12 profile gate 全部失真。
+
+**实测证据（B1a capstone PR-12 #156，服务器 cn08，SHUD `0b3998d`，NUM_OPENMP=1）**：
+
+| Case | NumEle | forcing 站数 | forcing init I/O | CVODE 90 天 solve | 总 wall |
+|---|---|---|---|---|---|
+| heihe | 6,335 | 16 | ~30s | ~470s | 500s |
+| heihe_x4 | 40,046 | 1,693 | ~780s（13 min）| ~510s（8.5 min）| 1290s |
+
+heihe_x4 上 forcing init 占 wall **60%**，CVODE 实测仅 40%。若不解决，OpenMP 8 核加速比测出来会被 I/O 大头拖回到 ≈1.5×，§1.1.1 决策驱动 case 的 T 目标完全不可信。
+
+**M7 强制做法（方案 A — 离线 trim）**：所有 P1+ benchmark 部署阶段必须先 trim forcing CSV 到 `[cfg.para START - 2 days, cfg.para END + 2 days]` 窗口（2 天 buffer 给 CVODE 边界插值留余），输出到 `SHUD/Basins/<case>/forcing.trimmed/` 平行目录，同时改 cfg.para `forcing_dir` 指针指向 trimmed 路径。
+
+| 项 | trim 前（B0 行为）| trim 后（P1+ 部署）|
+|---|---|---|
+| forcing 文件数 | 1693（heihe_x4）| 1693（不变）|
+| 每文件行数 | ~216,000（1951–2024，3h 步）| ~720（90 天 + 2 天 buffer × 8/天）|
+| heihe_x4 forcing init I/O | ~780s | < 5s |
+| heihe_x4 forcing 内存峰值 | ~19 GB | ~60 MB |
+| 窗内 bitwise vs B0-tag | 严格等价 | 严格等价（trim 仅删窗外行，窗内数值未动）|
+
+**工具实现**：`tools/forcing_trim/forcing_trim.sh <case> <start_day> <end_day>` —
+- 遍历 `SHUD/Basins/<case>/forcing/*.csv`
+- `awk` skip 时间戳在窗外的行（保留 2 天 buffer）
+- 输出 `SHUD/Basins/<case>/forcing.trimmed/<station>.csv`
+- 同步改 cfg.para `forcing_dir` 字段
+
+**验收（P1 启动前）**：
+- [ ] 工具实现 + 7 case 全部 trim 完成
+- [ ] trim 后 7 case 全部 bitwise vs B0-tag PASS（窗内数值无变化）
+- [ ] heihe_x4 forcing init wall < 10s（vs trim 前 780s，>75× 提速）
+- [ ] `t_forcing_io / t_total` < 5%（heihe_x4 90 天截断 + trimmed forcing）
+- [ ] CI matrix 增加 `forcing_trimmed=1` 轴，所有 P-strict / P-prod 验收一律启用
+- [ ] case manifest（§S0.2）`forcing_dir` 字段补 `trimmed_path` 子字段
+
+**适用范围**：
+
+| 场景 | trim 是否强制 |
+|---|---|
+| B1a / B1b bitwise 验收（A0–A2，§2.2）| 可选（trim 与全量数值等价；CI 默认 trimmed 求一致性）|
+| P-strict / P-prod timing 测量（§1.1.1）| **强制 trimmed** |
+| §S0.12 profile gate 复测 | **强制 trimmed**（否则 `t_RHS_total / t_total` 分母被 I/O 污染）|
+| P-strict / P-prod bitwise 验收（A3a/A3b）| **强制 trimmed**（保持 CI 单一数据路径）|
+| post-P9 final production / 对外发表水文结果 run | 解开 cfg END 截断 + 用全量 forcing（同 §S0.2 例外条款）|
+
+**与 §5 Opt-IO 的边界**：Opt-IO 是 `TimeSeriesData::read_csv()` refill 机制优化（cache hit/miss + 大块 buffer），目的是消除重复 I/O 开销。M7 forcing trim 是数据量截断，目的是把 wall-clock 中 forcing 部分降到可忽略。两者**正交**：M7 是 P1 启动前置铁律，Opt-IO 仍按 §5 原定位执行（IO 主导 case 硬性前置；trim 后 heihe 是否仍是 IO 主导需重测，但热路径的 read_csv refill 优化独立有效）。
+
+**与 §S0.2 90 天 cfg 截断的关系**：§S0.2 是 spec 层（manifest `forcing_duration_days` 保留 case 完整长度）+ 部署层（cfg.para END 改成 START + 90）。M7 在部署层再追加一步：trim forcing CSV 到同窗口。三层语义清晰：spec 完整 / cfg 90 天 / forcing CSV 90 天 + 2 天 buffer。
+
+---
 
 ### P1：并行 reset / state update / initialization
 
