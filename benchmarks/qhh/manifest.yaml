@@ -11,6 +11,14 @@
 project_name: "qhh"
 description: "NWM qhh basin with one lake; sole NumLake>0 case (covers lake vertical/horizontal/DY paths)"
 
+# --- OMP environment (S5d.4 #182; design D5 + master plan §S5d.4.3) ---
+# Required deployment-layer thread-binding defaults. Wired via tools/run_omp.sh
+# (the program does NOT override these env vars per design D5). CI schema gate:
+# tools/check_manifest/check_omp_env.py + .github/workflows/serial-baseline.yml.
+omp_env:
+  OMP_PROC_BIND: close
+  OMP_PLACES: cores
+
 # --- Basin scale ---
 NumEle: 4773
 NumRiv: 1633

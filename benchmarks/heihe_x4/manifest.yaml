@@ -19,6 +19,14 @@
 project_name: "heihe_x4"
 description: "B-Large heihe basin 4× refined via AutoSHUD pipeline (rSHUD v2.5.0); OpenMP scale-test target"
 
+# --- OMP environment (S5d.4 #182; design D5 + master plan §S5d.4.3) ---
+# Required deployment-layer thread-binding defaults. Wired via tools/run_omp.sh
+# (the program does NOT override these env vars per design D5). CI schema gate:
+# tools/check_manifest/check_omp_env.py + .github/workflows/serial-baseline.yml.
+omp_env:
+  OMP_PROC_BIND: close
+  OMP_PLACES: cores
+
 # --- Basin scale --- (from AutoSHUD output sp.mesh/sp.riv on server, 2026-06-17)
 NumEle: 40046
 NumRiv: 4257
