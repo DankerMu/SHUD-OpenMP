@@ -30,7 +30,7 @@ PR 编号 = B1b review-loop-log 序号（不同于 GitHub issue / PR number）�
 本 PR 是 **measurement + docs only**（不触 `SHUD/src`），覆盖 6 个 deliverable：
 
 1. **T8.1 sizeof emission + assertion** — `tools/check_sizeof/`
-2. **T8.2 cache miss perf stat** — server `perf stat` 失败 fallback wall-clock proxy（cluster `perf_event_paranoid=4`）+ Apple Silicon UMA wall-clock
+2. **T8.2 cache miss perf stat** — server HW counters BLOCKED by `perf_event_paranoid=4`（cluster-wide）+ Apple Silicon HW counters 未实测（xctrace 推迟到 S6c capstone 前）。wall-clock 仅作 RHS 端到端 sanity check,**NOT** a cache miss proxy（详 §T8.2 + F3 review-fix）
 3. **T8.3 NUMA accel measurement** — server cn07 双 socket Xeon shud_omp ON vs OFF 3 run 中位数比
 4. **T8.4 Apple Silicon UMA documentation** — N/A NUMA accel per spec L159-161
 5. **T8.5 ADR 0001 SoA hot fields** — `docs/adr/0001-soa-hot-fields.md`
@@ -72,7 +72,7 @@ Per-element SoA payload 拆解（macOS 实测，详 `tools/check_sizeof/check_si
 这是真实的物理上界——**不是 SoA 设计缺陷**:
 - Hot field 字节数已经客观接近 _Element 的一半,无法仅通过 SoA 抽取压缩
 - master plan L1432 "< 20%" 阈值假设的是 hot field 远小于 _Element fat-AoS,但实测 _Element 没有那么"fat"
-- 真正的 cache 收益验证由 Task 8.2 实测 cache miss reduction 提供（在 perf_event_paranoid 限制下,本 PR 只能给 wall-clock proxy）
+- 真正的 cache 收益验证由 Task 8.2 实测 cache miss reduction 提供;但 server `perf_event_paranoid=4` 限制下本 PR 内 **未实测** HW counter（escalation TBD，wall-clock 数字仅作 sanity check **不构成** cache miss criterion evidence）
 
 **对 #184 (S6b.1) 的影响**: 0。S5d.1-S5d.4 全部 sub-step 6 case 90 天 NUM_OPENMP=1 bitwise vs B1a-tag PASS（详 `SHUD/B1b_CHANGELOG.md`），S6b.1 启动条件 = "B1a 锁定 + S5* 完成 + bitwise neutrality 已验证" 已满足。Task 8.1 ratio gate 实测不达不影响 RHS 正确性,只影响 cache miss 收益预期。详 design R4 mitigation #2 精神（"任一机不达标记 IN-PROGRESS 不阻断 #184"），同样适用本 task。
 
@@ -94,7 +94,7 @@ Per-element SoA payload 拆解（macOS 实测，详 `tools/check_sizeof/check_si
 | 中位数 ratio B1b/B1a | computed from medians | **0.9980** (speedup 0.20%) |
 | B1b vs B1a heihe.rivqdown.dat SHA256 | bitwise sanity check | `55abad2809418ea8e994e75137988cd94ea302641cfdd23202c7ace50965260f` (both, PASS) |
 
-详 `/scratch/frd_muziyao/SHUD-OpenMP/.s5d-summary-runs/wall_8619.out`。Server `perf` HW counters blocked by `perf_event_paranoid=4` (cluster-wide, verified Slurm 8618 cn07);wall-clock proxy 给 0.2% speedup,落在 noise floor 内,signal 弱 — heihe (6335 elements) NUM_OPENMP=1 单线程 cache pressure 主要由 forcing I/O 决定（详 #174 t_forcing_io_s 数字），SoA 收益主要在 RHS hot loop,占 total wall 比例有限。Task 8.2 标 IN-PROGRESS 不阻 #184。
+详 `/scratch/frd_muziyao/SHUD-OpenMP/.s5d-summary-runs/wall_8619.out`。Server `perf` HW counters blocked by `perf_event_paranoid=4` (cluster-wide, verified Slurm 8618 cn07);wall-clock 数字仅作 RHS 端到端 sanity check,**不构成** spec L151-153 cache miss criterion evidence（详 F3 review-fix）。heihe (6335 elements) NUM_OPENMP=1 单线程 cache pressure 主要由 forcing I/O 决定（详 #174 t_forcing_io_s 数字）,SoA 收益主要在 RHS hot loop,占 total wall 比例有限。Task 8.2 标 **NOT MEASURED** (HW counters blocked + escalation TBD) 不阻 #184。
 
 #### Apple Silicon macOS（Apple M4 Pro, 1 socket UMA）
 
@@ -112,7 +112,7 @@ Per-element SoA payload 拆解（macOS 实测，详 `tools/check_sizeof/check_si
 
 详 `.s5d-summary-runs/mac_wallclock.log`。Apple Silicon UMA + 14 phys core + Apple M4 Pro。B1b 比 B1a 略快 1.81%(noise floor ~2-3%),方向与 cache miss ↓ 预期一致,但量值在 noise 范围 — 单线程 keliya (484 elements) 触发不到显著 cache pressure,信号弱属预期。spec L153 IN-PROGRESS 不阻 #184。
 
-**Apple Silicon perf 标 BONUS（不 gate）**: spec L153 "任一机不达标记 IN-PROGRESS 不阻断 #184"。Apple Silicon UMA + 无 perf 工具,本 task 直接标 N/A (wall-clock proxy only) 不算 fail。
+**Apple Silicon perf 标 BONUS（不 gate）**: spec L153 "任一机不达标记 IN-PROGRESS 不阻断 #184"。Apple Silicon HW counters via `xctrace record --template "Counters"` (master plan L859) 未实测,本 task 直接标 **NOT MEASURED** (HW counters 未尝试) 不算 fail。Wall-clock 数字 0.9819 仅作 sanity check,**不构成** cache miss evidence。
 
 ### T8.3 NUMA accel measurement — server cn07
 
@@ -164,7 +164,7 @@ Per-element SoA payload 拆解（macOS 实测，详 `tools/check_sizeof/check_si
 - Decision: SoA + AoS 双轨 (D2)
 - Consequences: + bitwise neutrality, + R 端协议不破, + DEBUG assertion 网, − 双写代价（sync_hot_dynamic）, − sizeof gate 未达 < 0.20
 - Triggers (何时启动 SoA 单轨化): (1) Task 8.2 cache miss ↓ ≥ 30% (2) Task 8.3 NUMA accel ≥ +15% (3) B1b 落地后 6 个月无 regression — 三者全满足才迁
-- References: master plan §4.22 + design D2 + spec + yaml + CI gate + tools/check_sizeof
+- References: master plan §4.22 + design D2 + spec + yaml + CI grep gate (`check_hot_fields.py` yaml↔layout↔RHS) + standalone sizeof tool (`tools/check_sizeof`, not yet CI-gated)
 
 ### T8.6 Glossary entries
 
@@ -197,7 +197,7 @@ $ grep -nE '^\*\*(ElementHotData\|RiverHotData\|nFCall\|OMP_CUTOFF)\*\*' openspe
 | ADR 0001 SoA hot fields 5 节内容 (T8.5) | **PASS** — `docs/adr/0001-soa-hot-fields.md` Status/Context/Decision/Consequences/Triggers 全 |
 | glossary.md 4 个新条目 grep-verifiable (T8.6) | **PASS** — 4/4 grep hit (ElementHotData/RiverHotData/nFCall/OMP_CUTOFF) |
 
-按 spec L153 + design R4 mitigation #2,**T8.1 + T8.2 + T8.3 IN-PROGRESS 不阻 #184 启动**。S5d 汇总验收 status = **2 PASS + 1 PASS(N/A) + 3 IN-PROGRESS**;全部 IN-PROGRESS items 都有具体 measurement evidence 与解释,非"未测"。
+按 spec L153 + design R4 mitigation #2,**T8.1 IN-PROGRESS + T8.2 NOT MEASURED + T8.3 N/A by construction — 全部不阻 #184 启动**。S5d 汇总验收 status = **2 PASS + 1 PASS(N/A) + 1 IN-PROGRESS + 1 NOT MEASURED + 1 N/A by construction**;每个 verdict 都有具体 measurement evidence 或 explicit 缺测 reason(blocked / unmeasurable),非泛指"未测"。
 
 ### Slurm 作业号汇总
 
@@ -205,9 +205,9 @@ $ grep -nE '^\*\*(ElementHotData\|RiverHotData\|nFCall\|OMP_CUTOFF)\*\*' openspe
 |---|---|---|---|---|---|
 | 8617 | (FAILED) perf stat HW counters attempt | cn07 | 00:00:01 | 1 | T8.2 — perf_event_paranoid=4 block,改 fallback |
 | 8618 | perf availability test on compute node | cn07 | 00:00:01 | 0 | 验证 perf 跨 login+compute node 一致受限 |
-| 8619 | wall-clock B1a vs B1b heihe 90d × 3 each | cn07 | 00:46:39 | 0 | T8.2 — fallback wall-clock proxy ratio 0.9980 |
+| 8619 | wall-clock B1a vs B1b heihe 90d × 3 each (sanity check, NOT cache miss proxy) | cn07 | 00:46:39 | 0 | T8.2 sanity check ratio 0.9980 (informational only) |
 | 8620 | (FAILED) sizeof tool, relative path | cn05 | 00:00:01 | 1 | path fix |
-| 8621 | Linux sizeof emission cn05 | cn05 | 00:00:01 | 0 | T8.1 Linux side 0.3721 / 0.4360 |
+| 8621 | Linux sizeof emission cn05（job exit 0; tool internal exit 1 = expected gate FAIL on (B) per IN-PROGRESS verdict） | cn05 | 00:00:01 | 0 | T8.1 Linux side 0.3721 / 0.4360 |
 | 8622 | NUMA accel ON vs OFF heihe NUM_OPENMP=8 × 3 each | cn07 | 00:47:05 | 0 | T8.3 ratio 1.0000 IN-PROGRESS |
 
 合计 cn07 wall ~1h34min + cn05 wall <1s。Slurm 三铁律全程遵守。

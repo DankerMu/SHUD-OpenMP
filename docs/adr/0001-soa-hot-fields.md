@@ -38,7 +38,7 @@ RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读
 - **R 端 rSHUD 协议不破**:init / IO 仍读 AoS,R 端 serializer 字段映射不需要任何修改。
 - **可演化**:若未来决定单 SoA 化,本 ADR Triggers 节给出明确触发条件,届时新增 ADR-NNNN 接力。
 - **DEBUG assertion 网**:漏字段时 DEBUG 构建立即 abort,而非 release 静默差异。
-- **机器可读 schema**:`docs/s5d_hot_fields.yaml` 是 source-of-truth;若 hot path 后续触发新字段,审计流程 = 改 yaml + 再跑 CI gate,新人也能上手。
+- **机器可读 schema**:`docs/s5d_hot_fields.yaml` 是 source-of-truth;若 hot path 后续触发新字段,审计流程 = 改 yaml + 再跑 CI grep gate (`check_hot_fields.py` yaml↔layout↔RHS 三方对齐),新人也能上手。**注**:`tools/check_sizeof` 标量 sizeof 报告 tool 目前是 standalone(local + ad-hoc sbatch),尚未 wire 进 CI workflow;若未来 sizeof gate (B) 阈值降到 PASS,可考虑加入 `serial-baseline.yml`。
 
 ### Negative
 
@@ -59,6 +59,8 @@ RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读
 1. **B1b 汇总 cache miss reduction 实测 ≥ 30%**(Task 8.2 spec L151-153):即"双轨已经把 cache 收益吃到位"。
 2. **双 socket NUMA accel ≥ +15% in B1b**(Task 8.3 spec L155-157):即 first-touch + SoA 在 P1+ 多线程场景被验证有效。
 3. **B1b 落地后 6 个月稳定无 regression**:即双轨期间 init / IO / calib 路径无 SoA 缺字段类 bug;CI grep gate 持续 0 命中。
+
+**注**:条件 1 与 2 当前 **不可在 B1b 基线下完成测量** — Trigger 1 因 cluster `perf_event_paranoid=4` blocks HW counters(待 admin escalation),Trigger 2 因 B1b RHS 仍 serial(待 P1+ A3a RHS parallel-for 落地)。Measurement window 在 P1+ A3a + cluster ops escalation 后开启,详 `docs/b1b_summary.md` S5d Residual 节。
 
 **额外触发条件**:rSHUD R 端 serializer 协议若有重大改版(rSHUD v3+),整套 AoS layout 都要 review,届时合并到 R 端协议改版 ADR 同时处理。
 
