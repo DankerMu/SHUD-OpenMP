@@ -133,3 +133,51 @@ xinanjiang_upstream 的 FAIL（19.7s 跑里 22.42% t_other）解读为**启动�
 | signed_via | claude-code-s0-13-issue-17 代 DankerMu（按 user 2026-06-17 grant 的 delegated 签字；按 Linus Torvalds persona 编排，遵循 /Users/danker/.claude/CLAUDE.md 的优先级栈） |
 | signed_off_decision | 走原方案 + 调高 large case 权重 + P8-precond 不前置 |
 | follow_up_issues | (a) P1-P3 strict 落地后 re-profile；(b) heihe forcing IO 优化延后到 P9+；(c) 把 t_init 从 t_other 里拆出去（profile timer）；(d) kashigeer 上游 X76-X80 forcing 缺口（issue #29 已开） |
+
+## Opt-IO 硬性前置判断（M7 trim 后重测）
+
+> 本章节由 PR-G #214 (`openspec/changes/p1-update-omp` task 2.3) 新增。
+> 对应 spec：`openspec/changes/p1-update-omp/specs/profile-retest-m7/spec.md` Requirement L19-L37 (Opt-IO 硬性前置判断更新)。
+> 与 master plan §5 L1533 "Opt-IO 硬性前置阈值 = heihe `t_forcing_io / t_total >= 50%`" 联动。
+
+### Trim 前（B0 baseline，参考）
+
+S0 phase 上 heihe 非 trimmed forcing 实测 `t_forcing_io / t_wall_total = 385.436 / 487.046 ≈ 79.1%`（见上文 §"决策类型" L24 "heihe 的 12.08% 是 forcing-IO 主导（t_forcing_io = 79.1%）"），**远超 §5 L1533 50% 触发门**，因此 master plan §5 把 Opt-IO 定为 heihe 硬性前置。
+
+### Trim 后（PR-G #214 本次实测）
+
+server cn03 Slurm 跑 `NUM_OPENMP=1` 90 天截断 trimmed forcing 三次（同 binary `396ad9fb…`，3-run rivqdown SHA byte-identical 且 ≡ B0/B1a/B1b-tag golden）：
+
+| Case | jobid | Elapsed | t_forcing_io mean | t_total mean | **ratio mean** | rivqdown SHA (3-run identical) | vs golden |
+|---|---|---|---|---|---|---|---|
+| heihe | 8742 | 00:07:29 | 2.836 s | 149.33 s | **1.90%** | `55abad28…` | ≡ B0/B1a/B1b-tag |
+| heihe_x4 | 8743 | 01:09:06 | 2.667 s | 1382.0 s | **0.19%** | `f90601ef…` | ≡ B0/B1a/B1b-tag |
+
+证据文件：
+- `benchmarks/heihe/profile_B0.target.trimmed.yaml`（与既有 `profile_B0.target.yaml` 并存 per spec L59-L66）
+- `benchmarks/heihe_x4/profile_B0.target.trimmed.yaml`
+- server raw：`/scratch/frd_muziyao/SHUD-OpenMP/.s214-runs/prof_{heihe_8742,heihe_x4_8743}_summary.txt`（含 7-bucket × 3-run cvode_stats + per-run SHA）
+
+### 决策 = (a) Opt-IO 退回可选
+
+按 spec L23：
+
+> **(a) 退回可选**：trim 后 heihe `t_forcing_io / t_total < 50%` → Opt-IO 回到 §5 原 "B1b 锁定后任意时间执行" 可选定位；本 change 不阻塞 P1；下游 P-strict 全部完成后再评估
+
+实测 ratio：
+
+- heihe = **1.90% << 50% 触发门**，**亦远低于 5% 严格门**（PR-B task 1.8 单 run 已验 `< 5%`，本 PR-G 三 run 复证；与 design.md L19 "M7 trim 后 forcing 占比 79% → ~13%" 预测的趋势一致，且实际比预测更乐观）
+- heihe_x4 = **0.19% << 50% 触发门**（large case forcing IO 摊薄到几乎不可见，更证明 trim 后 Opt-IO 失去 large-case 杠杆）
+
+**结论**：Opt-IO 不再是 §1.1.1 验收 heihe 的硬性前置；回到 master plan §5 原 "B1b 锁定后任意时间执行" 可选定位。本 change `p1-update-omp` 不阻塞 P1；下游 P-strict（P1–P7）全部完成后再评估 Opt-IO 是否必要（届时若 RHS 并行已榨出主要余量，forcing IO 剩余 1.9% / 0.19% 已无 ROI）。
+
+| 字段 | 值 |
+|---|---|
+| signer | DankerMu（项目所有者；GitHub：@DankerMu；email：qingdanker@gmail.com） |
+| signed_at | 2026-06-22 |
+| signed_against_commit | outer `d34e455` (main HEAD at PR-G branch point; PR-B merged) + SHUD submodule `71b3a1ae` (openmp-baseline B1b-tag-aligned pin) |
+| signed_via | claude-code-pr-g-issue-214 代 DankerMu（沿用 S0.12 delegated sign-off 模式，按 Linus Torvalds persona 编排，遵循 /Users/danker/.claude/CLAUDE.md 的优先级栈） |
+| signed_off_decision | (a) Opt-IO 退回可选 — 本 change p1-update-omp 不阻塞 P1；P-strict 全部完成后再评估 |
+| basis | heihe 1.90% / heihe_x4 0.19% << 50% 触发门 << 5% 严格门；3-run rivqdown SHA identical 且 ≡ B0/B1a/B1b-tag golden（trim 后 bitwise correctness 自证） |
+| evidence | benchmarks/{heihe,heihe_x4}/profile_B0.target.trimmed.yaml + server jobid 8742/8743 (cn03) + spec profile-retest-m7 Requirement L19-L37 |
+| follow_up_issues | 无新增；M7 trim 后 forcing IO 不再是头部瓶颈，Opt-IO 长期挂在 status_matrix "PENDING (可选)" 即可 |

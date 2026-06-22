@@ -1,0 +1,103 @@
+# benchmarks/heihe_x4/profile_B0.target.trimmed.yaml
+# PR-G #214 / p1-update-omp task 2.2 — target-platform profile on M7 trimmed forcing.
+# Generated on the Linux server endpoint (Slurm compute node, NUM_OPENMP=1, B0 binary).
+# Parallel to (does NOT replace) profile_B0.target.yaml; required by
+# openspec/changes/p1-update-omp/specs/profile-retest-m7/spec.md Requirement L59-L66.
+
+target_platform:
+  os: Linux 6.8.0-90-generic x86_64
+  cpu: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz; 2 sockets x 20 cores (40 logical, 1 thread/core)
+  numa: 2 nodes (node0 cpus 0-19, node1 cpus 20-39); ~96 GB per node
+  compiler: gcc 13.3.0 (Ubuntu 13.3.0-6ubuntu2~24.04.1)
+  flags: -O2 -g -ffp-contract=off -fno-fast-math -std=c++14 (serial B0; no -fopenmp)
+  slurm_node: cn03
+  slurm_jobid: 8743
+  slurm_elapsed: 01:09:06
+  binary_sha256: 396ad9fb1efbd03336417a499a4a09432dd686631584501d2d9a811aaa609628
+generated_by: claude-code-pr-g-issue-214
+generated_on: 2026-06-22
+commit_hash:
+  outer: d34e4554-pr-b-merged  # main HEAD at PR-G branch point
+  shud: 71b3a1ae  # SHUD openmp-baseline B1b-tag-aligned pin
+
+meta:
+  trimmed: true
+  cfg_window_days: 90
+  forcing_dir: SHUD/Basins/heihe_x4/forcing.trimmed
+  endpoint: server
+  num_openmp: 1
+  three_run_identical: true
+  rivqdown_sha256: f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524
+  rivqdown_sha256_vs_golden:
+    B0_tag: f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524
+    B1a_tag: f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524
+    B1b_tag: f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524
+    match: true
+
+# 7-bucket profile per profile-retest-m7 spec L9; mirrors profile_B0.target.yaml schema
+# (t_RHS_kernel / t_RHS_total / t_CVODE_internal / t_forcing_io / t_ET / t_output / t_other).
+# Values are mean across 3 runs (RUN=1/2/3 on jobid 8743). Units: seconds.
+# t_CVODE_internal and t_other are DERIVED:
+#   t_CVODE_internal = t_total - t_RHS_total - t_forcing_io - t_ET - t_output
+#   t_other          = 0 (fully attributed; t_CVODE_internal absorbs residuals)
+buckets:
+  t_RHS_kernel: 886.353587347      # = t_rhs_total mean (only one total emitted)
+  t_RHS_total: 886.353587347       # = mean(849.153456957, 922.835893004, 887.071412079)
+  t_CVODE_internal: 49.298745653   # derived: t_total - t_RHS_total - t_forcing_io - t_ET
+  t_forcing_io: 2.667333333        # = mean(3.047, 2.460, 2.495)
+  t_ET: 442.715975439              # = mean(424.484966810, 457.397498336, 446.265461170)
+  t_output: 0.030861426            # copied from profile_B0.target.yaml (output bucket not re-measured trimmed; dominated by NumElement not forcing)
+  t_other: 0.0
+
+extras:
+  t_wall_total: 1382.0           # = mean(1340, 1421, 1385)
+  t_forcing_io_pct_of_total: 0.193  # 2.667 / 1382 * 100
+  t_RHS_total_pct_of_total: 64.13
+  cvode_hlast: 20                  # 3-run identical
+  cvode_qlast: 1                   # 3-run identical
+  # Raw per-run measurements (jobid 8743, cn03, NUM_OPENMP=1):
+  runs:
+    - run_id: 1
+      wall_clock_sec: 1340
+      t_forcing_io_s: 3.047
+      t_rhs_total_ns: 849153456957
+      t_rhs_update_ns: 86762934231
+      t_rhs_ET_ns: 424484966810
+      t_rhs_lateral_ns: 149118827340
+      t_rhs_segment_ns: 29281751505
+      t_rhs_river_ns: 5870101782
+      t_rhs_gather_ns: 14249381504
+      t_rhs_applyDY_ns: 139385493785
+      rivqdown_sha256: f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524
+    - run_id: 2
+      wall_clock_sec: 1421
+      t_forcing_io_s: 2.460
+      t_rhs_total_ns: 922835893004
+      t_rhs_update_ns: 94622972886
+      t_rhs_ET_ns: 457397498336
+      t_rhs_lateral_ns: 173932999083
+      t_rhs_segment_ns: 30638924159
+      t_rhs_river_ns: 5957773019
+      t_rhs_gather_ns: 18822780301
+      t_rhs_applyDY_ns: 141462945220
+      rivqdown_sha256: f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524
+    - run_id: 3
+      wall_clock_sec: 1385
+      t_forcing_io_s: 2.495
+      t_rhs_total_ns: 887071412079
+      t_rhs_update_ns: 90323400640
+      t_rhs_ET_ns: 446265461170
+      t_rhs_lateral_ns: 154981094553
+      t_rhs_segment_ns: 29697136862
+      t_rhs_river_ns: 6059375061
+      t_rhs_gather_ns: 14878690712
+      t_rhs_applyDY_ns: 144866253081
+      rivqdown_sha256: f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524
+
+cvode_stats:
+  ratio_nfeLS_over_nfe: 0.0       # serial B0 default
+
+decision_hooks:
+  # For docs/profile_decision.md Opt-IO section + profile-retest-m7 spec L21-L37 decision gate.
+  opt_io_50pct_trigger: false   # 0.19% << 50%; (a) 退回可选
+  opt_io_5pct_strict_gate: false  # 0.19% << 5%; even strict reading does NOT trigger

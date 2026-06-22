@@ -10,7 +10,7 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-22（B1b PI sign-off + D9 fast-path triggered + B1-tag 创建：PR-16 #207 #188 + #189 + PROMOTE PR #190 + PR-18 #209 (#205 SoA/AoS sync drift fix, post-B1b cleanup) + PR-19 #210 (#185 PI E2 sign-off, D9 fast-path triggered, `B1-tag` annotated tag created aliasing main HEAD)。S5+S6b 全部完成；4-case Mac canonical SHA ≡ B0 `repeatability.txt sha256_run1`；heihe / heihe_x4 直接服务器 Slurm 8662-8667 bitwise PASS @ cn03；aggregate = **PASS UNCONDITIONAL ship**（#185 RESOLVED via E2 sign-off / #205 RESOLVED post-tag / #186 retroactively consistent / D9 fast-path TRIGGERED `B1-tag` 创建 / C8 forward-compat UNUSED for this ship）；详 [`docs/b1b_summary.md`](b1b_summary.md)）_
+> _最近一次更新：2026-06-22（B1b PI sign-off + D9 fast-path triggered + B1-tag 创建 + P1 Phase A/B 起步：PR-16 #207 #188 + #189 + PROMOTE PR #190 + PR-18 #209 (#205 SoA/AoS sync drift fix, post-B1b cleanup) + PR-19 #210 (#185 PI E2 sign-off, D9 fast-path triggered, `B1-tag` annotated tag created aliasing main HEAD) + PR-G #214 (`p1-update-omp` profile-retest-m7：server cn03 Slurm 8742/8743 trimmed 3-run identical → Opt-IO 决策 (a) 退回可选; heihe 1.90% / heihe_x4 0.19% << 50% 触发门)。S5+S6b 全部完成；4-case Mac canonical SHA ≡ B0 `repeatability.txt sha256_run1`；heihe / heihe_x4 直接服务器 Slurm 8662-8667 bitwise PASS @ cn03；aggregate = **PASS UNCONDITIONAL ship**（#185 RESOLVED via E2 sign-off / #205 RESOLVED post-tag / #186 retroactively consistent / D9 fast-path TRIGGERED `B1-tag` 创建 / C8 forward-compat UNUSED for this ship）；详 [`docs/b1b_summary.md`](b1b_summary.md) + [`docs/profile_decision.md`](profile_decision.md) §"Opt-IO 硬性前置判断（M7 trim 后重测）"_
 
 ## 矩阵
 
@@ -19,7 +19,7 @@
 | **B0**    | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
 | **B1a**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
 | **B1b**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS (UNCONDITIONAL ship; `B1-tag` 已发布 aliasing main HEAD) |
-| **Opt-IO**| PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
+| **Opt-IO**| PENDING (可选) | PENDING (可选) | PENDING (可选) | PENDING (可选) | PENDING (可选) | PENDING (可选; M7 trim 后 heihe 退回可选 per PR-G #214; 1.90% << 50%) | PENDING (可选; M7 trim 后 heihe_x4 0.19% << 50% per PR-G #214) | PENDING (可选) |
 | **P1**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P2a**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P2b**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
@@ -106,6 +106,19 @@ Aggregate gate（PR-16 #207 capstone + #189 tag + 本 PROMOTE PR 验收）：
   - #205 `rhs_flux` lake pass-1 SoA/AoS sync drift — **RESOLVED (post-B1b cleanup before P1)** via SHUD `de75743`/`9a376f7` + PR-18 #209；4-case Mac 2-run canonical SHA bitwise vs B1b-tag baseline；NOT retroactively part of B1b per D11；P-strict pre-req gap 已闭；同时 strengthens #185 E2 verdict（audit §A.4/§B.4 strict-reading concern 由 SoA-sync 修复而消解）
   - D9 fast-path trigger #2 — **TRIGGERED in PR-19 #210**：`B1-tag` annotated tag 创建 aliasing main HEAD（含 #205 cleanup + PI E2 sign-off）；`B1a-tag` (`f7f992c…`) + `B1b-tag` (`18a0c908…`) 保留 immutable per D11 history；下游 P1+ SHOULD use `B1-tag`
   - C8 forward-compat — **UNUSED for this ship**（PI 签 E2 不签 E1，B1c-tag stacking 不触发）；仍是 codebase convention 留给未来 P-strict 阶段可能的 overrule。
+
+## Opt-IO 行证据
+
+> 2026-06-22 由 PR-G #214（`openspec/changes/p1-update-omp` task 2.4）按 `profile-retest-m7` spec L40-L50 同步：trim 后 heihe `t_forcing_io / t_total = 1.90%`、heihe_x4 `= 0.19%`，均 << 50% 触发门、亦 << 5% 严格门。Opt-IO 从 master plan §5 L1533 "heihe 硬性前置" 改判 (a) **退回可选**；详 [`docs/profile_decision.md`](profile_decision.md) §"Opt-IO 硬性前置判断（M7 trim 后重测）"。
+
+| Case | 单元格 | 证据 |
+|---|---|---|
+| heihe | PENDING (可选) | server cn03 Slurm jobid `8742`（Elapsed 00:07:29，NUM_OPENMP=1，binary `396ad9fb…`），3-run rivqdown SHA byte-identical `55abad28…` ≡ B0/B1a/B1b-tag golden；`benchmarks/heihe/profile_B0.target.trimmed.yaml` `t_forcing_io_pct_of_total = 1.90%`；判 (a) 退回可选 per PR-G #214 |
+| heihe_x4 | PENDING (可选) | server cn03 Slurm jobid `8743`（Elapsed 01:09:06，NUM_OPENMP=1，binary `396ad9fb…`），3-run rivqdown SHA byte-identical `f90601ef…` ≡ B0/B1a/B1b-tag golden；`benchmarks/heihe_x4/profile_B0.target.trimmed.yaml` `t_forcing_io_pct_of_total = 0.193%`；判 (a) 退回可选 per PR-G #214 |
+| keliya / xinanjiang_upstream / qinyijiang / qhh | PENDING (可选) | 非 IO 主导 case，未重测，沿 master plan §5 原 "B1b 锁定后任意时间执行" 可选定位；与本判 (a) 一致 |
+| kashigeer | PENDING (可选) | deferred-upstream（forcing 缺口）；Opt-IO 评估与 forcing 数据补齐绑定，不在本 PR-G 范围 |
+
+Aggregate Opt-IO 列 = **PENDING (可选)**（无 case 阻塞 P1+；本 change `p1-update-omp` 不消费 Opt-IO；P-strict 全部完成后再评估）。
 
 ## A0 验收 checklist
 
