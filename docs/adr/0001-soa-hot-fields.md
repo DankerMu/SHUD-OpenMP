@@ -8,7 +8,7 @@
 
 ## Context
 
-`SHUD/src/classes/Element.hpp` 中的 `_Element` 是一个多继承 fat-AoS 容器(继承 `Triangle` / `Soil_Layer` / `Geol_Layer` / `Landcover` / `AttriuteIndex` 五层),`sizeof(_Element) = 688 bytes` (Apple clang 17 / Linux GCC 11,实测见 `tools/check_sizeof`)。Master plan §4.22.1 给出 600-1000 字节估算,实测 688 B 落在估算下沿。
+`SHUD/src/classes/Element.hpp` 中的 `_Element` 是一个多继承 fat-AoS 容器(继承 `Triangle` / `Soil_Layer` / `Geol_Layer` / `Landcover` / `AttriuteIndex` 五层),`sizeof(_Element) = 688 bytes` (Apple clang 17 macOS / Linux GCC 13.3 Ubuntu 24.04 on cn05,实测见 `tools/check_sizeof`,跨平台一致)。Master plan §4.22.1 给出 600-1000 字节估算,实测 688 B 落在估算下沿。
 
 RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读取的字段集是 30-40 个标量(`grep -nE 'Ele\[.*\]\.<field>'` 审计结果 = 32 个,见 `docs/s5d_hot_fields.yaml`)。这些字段的物理 footprint 约 300 B / element(2 个 int[3] + 7 个 int 标量 + 4 个 double[3] + 19 个 double 标量,详细见 ADR 末附录或 `tools/check_sizeof/check_sizeof.cpp` 内 `N_INT3` / `N_INT1` / `N_DOUBLE3` / `N_DOUBLE1` 常量)。
 
@@ -49,8 +49,8 @@ RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读
 
 ### Risks
 
-- **R1**:trailing-page first-touch 覆盖不全(详 `SHUD/B1b_CHANGELOG.md` S5d.3 Gap Sweep N2)。`Ele[].index` first-touch 只摸到 `_Element` 头 4 字节,后续多 page 范围仍归属主线程。NUMA-locality 优化部分覆盖。延后到 A3a / 多线程基线时再补。
-- **R2**:Linux ABI / Apple clang ABI 在 `Soil_Layer` / `Landcover` 之类继承层 padding 上略有不同,`sizeof(_Element)` 可能跨平台差几字节;实测 macOS Apple clang 17 = 688 B,Linux GCC 11 = ?(P1+ 服务器实测会重新 emit)。如果跨平台数字差异 > 5%,本 ADR + #183 b1b_summary.md 须更新。
+- **R1**:trailing-page first-touch 覆盖不全(详 `SHUD/B1b_CHANGELOG.md` L1078 — S5d.3 完成后 Phase 7 Gap Sweep 中 N2 残留项)。`Ele[].index` first-touch 只摸到 `_Element` 头 4 字节,后续多 page 范围仍归属主线程。NUMA-locality 优化部分覆盖。延后到 A3a / 多线程基线时再补。
+- **R2**:Linux ABI / Apple clang ABI 在 `Soil_Layer` / `Landcover` 之类继承层 padding 上理论上可能差几字节;**实测结果跨平台一致** macOS Apple clang 17 = 688 B,Linux GCC 13.3 (Ubuntu 24.04 on cn05) = 688 B 实测一致 (Slurm 8621)。如果未来 ABI / 编译器变更导致跨平台数字差异 > 5%,本 ADR + #183 b1b_summary.md 须更新。
 
 ## Triggers — 何时启动 SoA 单轨化(本 ADR 失效条件)
 

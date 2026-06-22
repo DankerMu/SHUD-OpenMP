@@ -1,20 +1,24 @@
 // tools/check_sizeof/check_sizeof.cpp - S5d 汇总验收 (#183) Task 8.1
 //
-// Two ratio interpretations are emitted; the gate (exit code 0/1) is on
-// (A), the spec-literal one. (B) is shown for transparency and informs
-// the downstream Task 8.2 cache-miss perf-stat reduction discussion.
+// Two ratio interpretations are emitted; the GATE (exit code 0/1) is on
+// (B), the per-element cache-meaningful metric specified by master plan
+// §S5d L1432 (spec L145 self-declares as "可校验形式 of master plan
+// §S5d L1432"). (A) remains emitted for diagnostic transparency only.
 //
-//   (A) spec L148-149 LITERAL:
+//   (A) DIAGNOSTIC — pointer-container struct size (NOT the gate metric):
 //         sizeof(ElementHotData) / sizeof(_Element)
-//       Here ElementHotData is a POINTER container (N pointer fields,
-//       each sizeof(void*)). Independent of NumEle. This is the spec
-//       scenario wording verbatim.
+//       ElementHotData is a POINTER container (N pointer fields, each
+//       sizeof(void*)). The numerator is a fixed 32 × 8 = 256 B on any
+//       64-bit ABI, independent of NumEle. As NumEle → ∞ this ratio
+//       goes to 0 — dimensionally meaningless as a cache-footprint
+//       proxy. Kept emitted for review continuity; review-fix F1
+//       (PR #201) moved the gate off this metric.
 //
-//   (B) master plan section S5d L1432 cache-meaningful semantics:
+//   (B) GATE METRIC — master plan §S5d L1432 + spec L148-149:
 //         sum_over_hot_fields(sizeof(type) * size_per_ele) / sizeof(_Element)
 //       i.e. per-element SoA byte footprint vs per-element AoS footprint.
-//       This is the cache-meaningful number that drives the section 4.22.5
-//       cache miss reduction estimate. Tools/perf_stat ratio in Task 8.2
+//       This is the cache-meaningful number that drives §4.22.5 cache
+//       miss reduction estimate. Tools/perf_stat ratio in Task 8.2
 //       measures the actual cache effect downstream.
 //
 // Field-type / size_per_ele schema is fixed by docs/s5d_hot_fields.yaml
@@ -71,9 +75,9 @@ int main(void) {
     const std::size_t soa_struct      = sizeof(ElementHotData);  /* pointer container */
     const std::size_t aos_per_ele     = sizeof(_Element);        /* one AoS element */
     const double ratio_literal        = static_cast<double>(soa_struct)
-                                      / static_cast<double>(aos_per_ele);  /* (A) */
+                                      / static_cast<double>(aos_per_ele);  /* (A) diagnostic */
     const double ratio_real           = static_cast<double>(per_ele_total)
-                                      / static_cast<double>(aos_per_ele);  /* (B) */
+                                      / static_cast<double>(aos_per_ele);  /* (B) GATE */
     const double threshold            = 0.20;  /* spec L149 + master plan L1432 */
 
     std::printf("=== S5d 汇总验收 sizeof emission (Task 8.1) ===\n");
@@ -89,32 +93,35 @@ int main(void) {
     std::printf("sizeof(_Element)          = %zu bytes  (fat-AoS, master plan §4.22.1)\n",
                 aos_per_ele);
     std::printf("\n");
-    std::printf("Ratio (A) literal spec L148-149:\n");
+    std::printf("Ratio (A) DIAGNOSTIC — pointer-container struct size (NOT the gate metric):\n");
     std::printf("  sizeof(ElementHotData) / sizeof(_Element) = %zu / %zu = %.4f\n",
                 soa_struct, aos_per_ele, ratio_literal);
-    std::printf("  threshold = %.4f  -> %s (literal pointer-container interpretation)\n",
-                threshold, ratio_literal < threshold ? "PASS" : "FAIL");
-    std::printf("Ratio (B) master plan §S5d L1432 cache-meaningful per-element:\n");
+    std::printf("  (numerator = %d × sizeof(void*) = %zu B, fixed on any 64-bit ABI;\n",
+                N_FIELDS, soa_struct);
+    std::printf("   independent of NumEle — dimensionally meaningless for cache footprint)\n");
+    std::printf("Ratio (B) GATE METRIC — master plan §S5d L1432 + spec L148-149:\n");
     std::printf("  per_ele_soa_bytes / sizeof(_Element) = %zu / %zu = %.4f\n",
                 per_ele_total, aos_per_ele, ratio_real);
-    std::printf("  threshold = %.4f  -> %s\n",
+    std::printf("  threshold = %.4f  -> %s (per-element SoA cache footprint)\n",
                 threshold, ratio_real < threshold ? "PASS" : "FAIL");
     std::printf("\n");
 
-    /* Gate on (A) — the literal spec scenario wording. (B) is documented
-     * for the per-element cache footprint discussion but does not gate
-     * exit code; the cache-miss perf stat (Task 8.2) measures the actual
-     * effect downstream so we do not double-gate on (B) here.
+    /* Gate on (B) — the per-element cache-meaningful metric from
+     * master plan §S5d L1432. Review-fix F1 (PR #201) moved the gate
+     * here from (A) which was dimensionally meaningless. (A) stays
+     * emitted for diagnostic transparency.
      */
-    if (ratio_literal < threshold) {
-        std::printf("VERDICT: PASS gate on (A) (%.4f < %.4f)\n",
-                    ratio_literal, threshold);
-        std::printf("NOTE: (B) ratio %.4f informs cache-miss perf-stat (Task 8.2);\n",
-                    ratio_real);
+    if (ratio_real < threshold) {
+        std::printf("VERDICT: PASS gate on (B) (%.4f < %.4f)\n",
+                    ratio_real, threshold);
+        std::printf("NOTE: (A) diagnostic ratio %.4f shown for transparency only.\n",
+                    ratio_literal);
         std::printf("      see docs/b1b_summary.md S5d section for full discussion.\n");
         return 0;
     }
-    std::printf("VERDICT: FAIL gate on (A) (%.4f >= %.4f)\n",
-                ratio_literal, threshold);
+    std::printf("VERDICT: FAIL gate on (B) (%.4f >= %.4f)\n",
+                ratio_real, threshold);
+    std::printf("NOTE: (A) diagnostic ratio %.4f shown for transparency only.\n",
+                ratio_literal);
     return 1;
 }

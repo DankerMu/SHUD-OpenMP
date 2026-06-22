@@ -70,7 +70,7 @@ RHS 占总 wall-clock 比例 `f` 的强制 profile gate；`f` 决定 P1–P9 优
 
 **OMP_CUTOFF**:
 小流域阈值（编译期/运行期可配，默认 1024）；`NumEle < OMP_CUTOFF` 时 RHS 强制走 serial（P1+ RHS 内并行启用后）。理由：小流域线程启动开销 > 并行收益；keliya (NumEle=484) / xinanjiang_upstream (NumEle=801) 等小 case 不进 RHS parallel for。落地于 P1+ ExecPolicy 调度；B1b 阶段（serial-only）不触发。
-_Avoid_: 把 OMP_CUTOFF 当作绝对阈值（与硬件 cache 大小 + thread spawn latency 相关，可在 manifest 端 per-case 覆盖）
+_Avoid_: 把 OMP_CUTOFF 当作绝对阈值（与硬件 cache 大小 + thread spawn latency 相关，可通过 `-DSHUD_OMP_CUTOFF=N` 编译期 或 `SHUD_OMP_CUTOFF=N` 运行期环境变量 覆盖 — master plan L1933；尚未在 SHUD/src 落地，P1+ ExecPolicy 引入时实施）
 
 **目标部署平台**:
 加速比 go/no-go 的唯一验收平台（单插槽 8 物理核 x86_64 Linux + `-O2 -ffp-contract=off -fopenmp` + 绑核选项）。
