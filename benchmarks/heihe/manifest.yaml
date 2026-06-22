@@ -30,7 +30,9 @@ NumY: 21357            # = 3*6335 + 2352 + 0
 
 # --- Input ---
 input_dir: "SHUD/Basins/heihe/input/heihe/"       # local placeholder path; server resolves under data root
-forcing_dir: "<server-data-root>/heihe/forcing/"   # placeholder; real path lives only on server (see CLAUDE.md)
+forcing_dir:                                       # M7 schema (PR-A #212): mapping; trim runs server-side in PR-B.
+  original_path: "<server-data-root>/heihe/forcing/"   # placeholder; real path lives only on server (see CLAUDE.md)
+  trimmed_path: "<server-data-root>/heihe/forcing.trimmed/"  # PR-B will generate via tools/forcing_trim/forcing_trim.sh on cn0X
 forcing_duration_days: 14610                       # ~40 years NWM coverage; refined after server-side fixup (§S0.8)
 has_cryosphere: true                              # Qilian glacier + snowmelt dominated
 has_lake: false

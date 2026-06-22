@@ -27,7 +27,9 @@ NumY: 15953            # = 3*4773 + 1633 + 1
 
 # --- Input ---
 input_dir: "SHUD/Basins/qhh/input/qhh/"
-forcing_dir: "SHUD/Basins/qhh/forcing/"
+forcing_dir:                                      # M7 schema (PR-A #212): mapping of original + trimmed.
+  original_path: "SHUD/Basins/qhh/forcing/"
+  trimmed_path: "SHUD/Basins/qhh/forcing.trimmed/"
 forcing_duration_days: 2557                       # END - START = 10958 - 8401 (epoch 1979-01-01)
 has_cryosphere: false                             # CRYOSPHERE=0 in cfg.para
 has_lake: true                                    # qhh.lake.{sp,ic,bathy} present, 1 lake
