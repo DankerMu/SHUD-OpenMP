@@ -258,7 +258,7 @@ $ grep -nE '^\*\*(ElementHotData\|RiverHotData\|nFCall\|OMP_CUTOFF)\*\*' openspe
 
 SHA256 是 manifest enabled output files + `cvode_stats.txt` 串联起来的 hash manifest 整体 hash（计算方式同 `tools/archive_b0_output.sh`）。每 case 三轮 hash byte-identical 即 PASS。
 
-**Bonus bitwise vs B0-tag**: qhh 的 canonical summary SHA `3a86e24c…` 与 B0-tag golden（`benchmarks/qhh/B0_output/qhh.sha256` 等价聚合）完全一致；其它 case 单文件 SHA 亦与 `benchmarks/<case>/B0_output/<file>.sha256` byte-identical（详 `docs/B0_vs_B1b_water_balance_report.md`），证实 D9 zero-impact 快速路径触发条件 1 满足。
+**Bonus bitwise vs B0-tag**: 全部 4 Mac case 的 canonical summary SHA 与 `benchmarks/<case>/B0_output/repeatability.txt` 内 sha256_run1（B0-tag golden 3-run identity SHA）完全一致——验证：keliya `a27e3fb5…` ≡ B0；xinanjiang_upstream `fe6dd4ed…` ≡ B0；qinyijiang `383e4099…` ≡ B0；qhh `3a86e24c…` ≡ B0。单文件层面 `benchmarks/<case>/B0_output/<file>` 与 B1b run-3 输出 `shasum -a 256` byte-identical（详 §"Per-file SHA verification vs B0 archive" 表 + `docs/B0_vs_B1b_water_balance_report.md`），证实 B1b 与 B0 严格 bitwise identical（D9 fast-path trigger #1 satisfied；trigger #2 PI sign-off 仍 BLOCKED — 见下文 CONDITIONAL ship 节）。
 
 Host: Apple M4 Pro macOS Darwin 24.6.0; Apple clang 17; `CXX_BASE_FLAGS=-O2 -g -ffp-contract=off -fno-fast-math -std=c++14`。
 

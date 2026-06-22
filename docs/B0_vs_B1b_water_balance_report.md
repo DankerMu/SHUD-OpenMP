@@ -4,7 +4,9 @@
 >
 > **Method**: B1b 候选 commit `069971b` / SHUD `71b3a1a` 上 6 case 90-day NUM_OPENMP=1 single-thread runs，与 `benchmarks/<case>/B0_output/` 中已归档 B0 输出做 SHA256 比对。所有 manifest 内 enabled output channel + cvode_stats.txt 全部 bitwise identical 时，水量平衡的所有组成（输入降水累计 / 输出径流累计 / 储水变化）都byte-identical，闭合误差差异 = 0（远低于 0.1% 相对容差）。
 >
-> **Rationale**: D9 zero-impact 快速路径 — S6b.1 / S6b.2 / S6b.3 全部 zero-impact verdict（详 `SHUD/B1b_CHANGELOG.md`）下，B1b 与 B0 在所有 case 上**严格 bitwise identical**。水量平衡的每一个组成（输入 P / 输出 Q / 储水 S）均通过 enabled output channels 暴露，bitwise identical 即闭合误差完全相等。
+> **Rationale**: S6b 三子任务全部 source-neutral——S6b.1 (#184) AccTemperature guard zero-impact verdict、S6b.3 (#187) S2 audit zero-impact verdict、S6b.2 (#186) SKIP path implementation（无 `SHUD/src/` 改动；见 `SHUD/B1b_CHANGELOG.md` S6b.2 row "SKIP, source byte-identical to B1a"）。叠加 S5a–S5d 全为 audit-only / SoA refactor 但 byte-output 不变（详 `B1b_CHANGELOG.md` 每行 verification 段），B1b 与 B0 在所有 case 上**严格 bitwise identical**。水量平衡的每一个组成（输入 P / 输出 Q / 储水 S）均通过 enabled output channels 暴露，bitwise identical 即闭合误差完全相等。
+>
+> **注**: 此 zero-impact 推论与 `openspec/changes/b1b-baseline-completion/design.md` §D9 "B1b → B1-tag fast-path" 是**两件事**。D9 fast-path 需 PI sign-off + #185 verdict（详 `docs/b1b_summary.md` §"S6c-12a B1b CONDITIONAL ship status" 第 4 条 "D9 fast-path trigger #2 — BLOCKED on PI sign-off"），本 report 仅声明 closure-error=0 的 bitwise 推断，不主张 D9 trigger 已满足。
 
 ## 方法学说明
 
@@ -55,10 +57,10 @@
 
 | Case | manifest 内 file | B0 archive 来源 | B1b run-3 SHA256 (Slurm job) | bitwise match | closure_error delta |
 |---|---|---|---|---|---|
-| **heihe** | manifest enabled set | `B0-tag` server archive (see `docs/b1a_summary.md` PR-12 verification §) | jobid `<see-T2>` | YES (per PR-12 B1a precedent + B1a → B1b zero-impact D9) | 0 (exact) |
-| **heihe_x4** | manifest enabled set | `B0-tag` server archive | jobid `<see-T2>` | YES | 0 (exact) |
+| **heihe** | manifest enabled set | `benchmarks/heihe/B0_output/heihe.rivqdown.dat` Mac-side committed B0 archive (`55abad28…`) | jobid 8662/8663/8664 (cn03) → 3-run SHA byte-identical（详 `docs/b1b_summary.md` T2 表）| YES (Mac-side B0 archive sha256 ≡ server T2 SHA) | 0 (exact) |
+| **heihe_x4** | manifest enabled set | `benchmarks/heihe_x4/B0_output/heihe_x4.rivqdown.dat` Mac-side committed B0 archive (`f90601ef…`) | jobid 8665/8666/8667 (cn03) | YES | 0 (exact) |
 
-heihe / heihe_x4 server-only：local Mac 无 B0_output 副本（forcing 12G+ 不下载）。verification chain: B0 → B1a (PR-12 cn08 Slurm 8537/8538 bitwise) → B1b (S6b zero-impact 全链路 per `B1b_CHANGELOG.md`) → 本 T2 server Slurm 三次自洽 reaffirms。
+**修订**: heihe / heihe_x4 B0 archive 实际**已存在于本地 Mac**（`benchmarks/heihe/B0_output/` + `benchmarks/heihe_x4/B0_output/`，含 `<case>.rivqdown.dat` / `<case>.eleygw.dat` (x4) / `cvode_stats.txt` + `repeatability.txt`；forcing CMFD 12G+ 不本地化但 B0 输出归档已本地化）。server T2 Slurm 8662-8667 跑出的 SHA 与本地 Mac-side B0 archive SHA byte-identical 验证，与 PR-12 cn08 Slurm 8537/8538 + B0-tag golden 链路一致。
 
 **Verdict 2-case Server**: 同 Mac，closure_error delta = 0 bit-by-bit。PASS @ 0.1% relative tolerance.
 
