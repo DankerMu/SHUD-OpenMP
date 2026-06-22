@@ -26,7 +26,13 @@ input_dir: "SHUD/Basins/xinanjiang_upstream/input/xinanjiang/"
 forcing_dir:                                      # M7 schema (PR-A #212): mapping of original + trimmed.
   original_path: "SHUD/Basins/xinanjiang_upstream/forcing/"
   trimmed_path: "SHUD/Basins/xinanjiang_upstream/forcing.trimmed/"
-forcing_duration_days: 4747                       # END - START = 4747 - 0 (epoch 1958-01-01)
+forcing_duration_days: 4747                       # spec-layer full length; trimmed_path window = M7 部署层 90d (see cfg_para_start/end)
+# --- 90-day window deployment marker (M7 PR-B #213) ---
+# cfg_para_{start,end} = cfg.para integer day-index after 90-day truncation.
+# Forced exact-match against tools/forcing_trim/forcing_trim.sh resolved
+# [start_day, end_day] per m7-forcing-trim spec L71-L74.
+cfg_para_start: 0
+cfg_para_end:   90
 has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para (mountain headwater)
 has_lake: false
 has_BC_SS: false

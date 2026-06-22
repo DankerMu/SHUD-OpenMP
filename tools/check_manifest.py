@@ -391,6 +391,56 @@ def _check_forcing_dir(result: ValidationResult, payload: dict[str, Any]) -> Non
     )
 
 
+def _check_cfg_para_window(result: ValidationResult, payload: dict[str, Any]) -> None:
+    """Validate cfg_para_start/end day-index window per m7-forcing-trim spec L71-L74.
+
+    Required exact-match fields against the case's cfg.para after the 90-day
+    deployment-layer truncation (CLAUDE.md "所有 case ≤90 天截断" rule). PR-B
+    merge gate: missing field = FAIL, mismatched window = FAIL. kashigeer
+    deferred-upstream allows both null (same pattern as forcing_dir.trimmed_path
+    null).
+    """
+    has_start = "cfg_para_start" in payload
+    has_end = "cfg_para_end" in payload
+    if not has_start or not has_end:
+        result.errors.append(
+            "cfg_para_start / cfg_para_end: required (spec L74; null allowed "
+            "for deferred-upstream)"
+        )
+        return
+
+    start = payload["cfg_para_start"]
+    end = payload["cfg_para_end"]
+
+    # kashigeer / deferred-upstream pattern: both fields null.
+    if start is None and end is None:
+        return
+    if start is None or end is None:
+        result.errors.append(
+            f"cfg_para_start / cfg_para_end: must both be int or both null; "
+            f"got start={start!r}, end={end!r}"
+        )
+        return
+
+    # YAML booleans are bool (subclass of int) — reject explicitly.
+    if not isinstance(start, int) or isinstance(start, bool):
+        result.errors.append(
+            f"cfg_para_start: expected int, got {type(start).__name__}"
+        )
+        return
+    if not isinstance(end, int) or isinstance(end, bool):
+        result.errors.append(
+            f"cfg_para_end: expected int, got {type(end).__name__}"
+        )
+        return
+
+    if end - start != 90:
+        result.errors.append(
+            f"cfg_para_end - cfg_para_start = {end - start}, expected 90 "
+            f"(M7 deployment-layer 90d truncation per CLAUDE.md)"
+        )
+
+
 def _check_extensions(result: ValidationResult, payload: dict[str, Any]) -> None:
     """Validate endpoint / derived_from / refine_factor."""
     for fname, accepted in EXTENSION_FIELDS.items():
@@ -458,6 +508,9 @@ def validate_manifest(manifest_path: Path, case: str) -> ValidationResult:
 
     # forcing_dir (union str | dict per m7-forcing-trim).
     _check_forcing_dir(result, payload)
+
+    # cfg_para_start / cfg_para_end window (m7-forcing-trim spec L71-L74).
+    _check_cfg_para_window(result, payload)
 
     # Project extensions.
     _check_extensions(result, payload)

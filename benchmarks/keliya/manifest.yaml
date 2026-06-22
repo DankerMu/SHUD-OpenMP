@@ -27,7 +27,13 @@ input_dir: "SHUD/Basins/keliya/input/keliya/"   # local path; server path resolv
 forcing_dir:                                      # M7 schema (PR-A #212): mapping of original + trimmed.
   original_path: "SHUD/Basins/keliya/forcing/"    # full CMFD record; tsd.forc line 2 rewritten per-host by tools/fix_case_paths
   trimmed_path: "SHUD/Basins/keliya/forcing.trimmed/"  # M7 time-window-trimmed forcing (tools/forcing_trim)
-forcing_duration_days: 1460                       # END - START = 13513 - 12053 (epoch 1951-01-01)
+forcing_duration_days: 1460                       # spec-layer full length; trimmed_path window = M7 部署层 90d (see cfg_para_start/end)
+# --- 90-day window deployment marker (M7 PR-B #213) ---
+# cfg_para_{start,end} = cfg.para integer day-index after 90-day truncation.
+# Forced exact-match against tools/forcing_trim/forcing_trim.sh resolved
+# [start_day, end_day] per m7-forcing-trim spec L71-L74.
+cfg_para_start: 12053
+cfg_para_end:   12143
 has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para; Tarim glacier/snow melt
 has_lake: false
 has_BC_SS: false                                  # no ELEBC*/RivBC*/LakeBC* files
