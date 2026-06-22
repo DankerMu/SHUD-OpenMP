@@ -104,7 +104,7 @@ B1b-tag 锁定后 SHALL 在两个 jsonl 各追加 1 行：(a) `docs/review-loop-
 
 #### Scenario: review-loop-log 新增 B1b 行
 - **WHEN** B1b-tag 锁定后 `tail -1 docs/review-loop-log.jsonl`
-- **THEN** 行 JSON 含 `b1b_capstone_commit` / `verdicts.confirmed` / `verdicts.refuted` / `verdicts.plausible` / `verdict: clean`
+- **THEN** 行 JSON 含 `capstone_commit` / `verdicts.confirmed` / `verdicts.refuted` / `verdicts.plausible` / `verdict: clean`
 
 #### Scenario: stage-pipeline-log 新增 B1b 行
 - **WHEN** B1b-tag 锁定后 `tail -1 docs/stage-pipeline-log.jsonl`

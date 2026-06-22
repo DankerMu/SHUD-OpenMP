@@ -157,6 +157,8 @@ Per-file SHA cross-check vs `benchmarks/<case>/B0_output/<file>`: **13 files byt
 - **D9 fast-path trigger #2** (S2.17 审查为 'no change' 跳过 fix) — **BLOCKED on PI sign-off**。S6c proceed with separate `B1a-tag` and `B1b-tag` per design D11（D9 fast-path 未满足 → 不 merge `B1-tag`）。
 - **C8 forward-compat（master plan "永不 break userspace"）**: any later PI `S2.17: formula needs fix` directive on #185 stacks as a follow-up `B1c-tag` without force-updating B1b-tag（D11 lock honoured）。
 
+> **immutable-tag-vs-docs 已知 minor 漂移**：`B1b-tag` 注解消息（#189 push 完已 immutable per D11）列出 4 项 caveat（`#185` / `#205` / `#186` / `C8`），**D9 fast-path BLOCKED 仅记录在本文 + `docs/status_matrix.md` + `docs/build_manifest.md` 三处**。这是 D11 一次锁死契约的直接后果：annotated tag message 创建于 #189 完成时刻；D9 fast-path 的明确语义化只有在 #190 PROMOTE 时（本 PR）才在三个 doc surface 上对齐补齐。下游下游用户应以三 doc surface 为权威，tag message 作为 commit-pinned snapshot。
+
 ## 验证 B1b-tag
 
 ```
