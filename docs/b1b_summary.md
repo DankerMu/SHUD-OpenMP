@@ -237,7 +237,7 @@ $ grep -nE '^\*\*(ElementHotData\|RiverHotData\|nFCall\|OMP_CUTOFF)\*\*' openspe
 | keliya | keliya | START=12053 END=12143 | 26 | 26 | 27 | `a27e3fb51eb72e1955ff2f429889d009f20803a6e1135bfde866fe4706549e3d` | **PASS** |
 | xinanjiang_upstream | xinanjiang | START=0 END=90 | 4 | 5 | 4 | `fe6dd4edc94c9581f382d1c732c28c7cc56dda857793b70ed8b989fea1fef394` | **PASS** |
 | qinyijiang | nanlin | START=366 END=456 | 245 | 244 | 239 | `383e4099d6f71acfa31b8006fab946cf05c255c6dedae7de24273f90b322b174` | **PASS** |
-| qhh (lake) | qhh | START=8401 END=8491 | 90 | 85 | 87 | `c76dae187f382cd796cd05c9cacce6ecce5a299aff2ec9fbe64022e920b609cd` | **PASS** |
+| qhh (lake) | qhh | START=8401 END=8491 | 89 | 89 | 88 | `3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e` | **PASS** |
 
 **Per-file SHA verification vs B0 archive**：
 
@@ -253,12 +253,12 @@ $ grep -nE '^\*\*(ElementHotData\|RiverHotData\|nFCall\|OMP_CUTOFF)\*\*' openspe
 | qhh (lake) | `qhh.rivqdown.dat` | `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce` | `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce` | **YES** |
 | qhh (lake) | `qhh.lakqrivin.dat` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | **YES** |
 | qhh (lake) | `qhh.lakqrivout.dat` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | **YES** |
-| qhh (lake) | `qhh.lakystage.dat` | `4fcebe3ad8b3d7a51633a766dd9b139b9ad86853aafeb87cb572d2752e0ca250` | `4fcebe3ad8b3d7a51633a766dd9b139b9ad86853aafeb87cb572d2752e0ca250` | **YES** (manual verify; script parser missed inline `# comment` on manifest line — file SHA itself verified separately) |
+| qhh (lake) | `qhh.lakystage.dat` | `4fcebe3ad8b3d7a51633a766dd9b139b9ad86853aafeb87cb572d2752e0ca250` | `4fcebe3ad8b3d7a51633a766dd9b139b9ad86853aafeb87cb572d2752e0ca250` | **YES** (verified via `tools/b1b_3run_noarchive.sh qhh 3` rerun with fixed cwd; canonical summary SHA = 3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e covers all 5 enabled files inc. lakystage) |
 | qhh (lake) | `cvode_stats.txt` | `91df2bcf9b4aa48cbafa50dfde15983a0f7b797083f82e3416454494a8a957f9` | `91df2bcf9b4aa48cbafa50dfde15983a0f7b797083f82e3416454494a8a957f9` | **YES** |
 
 SHA256 是 manifest enabled output files + `cvode_stats.txt` 串联起来的 hash manifest 整体 hash（计算方式同 `tools/archive_b0_output.sh`）。每 case 三轮 hash byte-identical 即 PASS。
 
-**Bonus bitwise vs B0-tag**: 三轮 SHA 与 `benchmarks/<case>/B0_output/<file>.sha256` 也 byte-identical（详 `docs/B0_vs_B1b_water_balance_report.md`），证实 D9 zero-impact 快速路径触发条件 1 满足。
+**Bonus bitwise vs B0-tag**: qhh 的 canonical summary SHA `3a86e24c…` 与 B0-tag golden（`benchmarks/qhh/B0_output/qhh.sha256` 等价聚合）完全一致；其它 case 单文件 SHA 亦与 `benchmarks/<case>/B0_output/<file>.sha256` byte-identical（详 `docs/B0_vs_B1b_water_balance_report.md`），证实 D9 zero-impact 快速路径触发条件 1 满足。
 
 Host: Apple M4 Pro macOS Darwin 24.6.0; Apple clang 17; `CXX_BASE_FLAGS=-O2 -g -ffp-contract=off -fno-fast-math -std=c++14`。
 
@@ -302,6 +302,8 @@ Submit script: `/scratch/frd_muziyao/SHUD-OpenMP/.b1b-server-runs/b1b_server_run
 | 7 | **水量守恒不恶化对比 B0** (L1517) | `docs/B0_vs_B1b_water_balance_report.md` (本 PR 落地)：6 case 闭合误差 delta = 0 (B0 → B1b bitwise identical，自动满足 0.1% 容差) | **PASS** |
 
 **Summary**: 6 PASS + 1 PENDING (#189 范围)。Item 1 PENDING 不阻 evidence 收尾，B1b-tag 实际锁定动作在 #189 完成后本 PR 不需要回填——#190 会做 status_matrix.md 总入账。
+
+> **P1 启动门控（per spec b1b-capstone L62-65 "任一不 PASS SHALL 阻断 P1 启动"）**: 在 #189 + #190 落地之前，**P1 启动 BLOCKED** 因 item 1 未 PASS。本 PR 不解锁 P1，仅落 evidence 6/7；#190 PROMOTE 后 item 1 retroactively PASS 才视为 7/7 全 PASS → P1 解锁。下游消费 `b1b_summary.md` 的代码 / 文档 / 流程 SHALL NOT 视本 PR merge 即 P1-ready。
 
 ### fast-math grep 详细记录（spec L67-L69 Scenario "fast-math 编译 flag 已禁"）
 
@@ -364,3 +366,17 @@ Cancelled 6 旧 jobids (8654-8659): 旧版 dependency 漏写导致 6 jobs 并发
 - `docs/build_manifest.yaml` 加 `B1b-tag` 节（#190）
 
 **Slurm 三铁律 satisfied**: 全 6 jobs sbatch FROM /scratch + `--output/--error` 在 `/scratch/.b1b-server-runs/` + binary 在 `/scratch/SHUD/shud` + script `/scratch/.b1b-server-runs/b1b_server_run.sbatch`。
+
+> **cn03 节点说明**: issue #188 + CLAUDE.md 列出 `cn05-06,09,14-19,23-24` 作为 CPU 分区 dual-socket Xeon idle node 的 *示例集*；spec b1b-capstone L11 写 "或任一 CPU 分区双 socket Xeon idle node" 表明示例 list 非穷尽。本 PR 实际使用 cn03（`scontrol show node cn03` 显示 `Sockets=2 CoresPerSocket=20 CPUTot=40 RealMemory=170000`，硬件等价于 cn05-cn24）。cn03 在 8662-8667 提交时为 `mixed` 状态（CPUAlloc=1/40，他人 1-core 占用），但 NUM_OPENMP=1 bitwise 验证对 co-tenancy 不敏感（每 run 单线程进程独占 1 core，无 thread-thread interference）。ExitCode 0:0 + 3-run SHA byte-identical 提供 PASS 的强 evidence。
+
+### S6c-12a B1b CONDITIONAL ship status (cross-ref `SHUD/B1b_CHANGELOG.md` S6b.2)
+
+本 PR evidence 全部 PASS（item 1 PENDING 仅因 #189 范围切分），但 **B1b ship 整体仍是 CONDITIONAL**：
+
+- **#185 (S2.17 PI lake formula review) — OPEN**: PR #204 evidence pack 提交后无 SHUD-upstream PI Lele Shu sign-off。spec.md L23 + design.md Open Q1 reserve E1/E2 verdict for PI; this PR's 3-run reproducibility + water-balance evidence is **insufficient** to claim a signed E2.
+- **#186 (S6b.2 SKIP path) — CLOSED via PR #206**: SKIP path implemented per master plan §S6b L1497 FORECAST + C8 forward-compatibility, **NOT a signed-off E2**.
+- **#205 (SoA/AoS sync drift in `rhs_flux` lake pass-1) — OPEN**: P-strict pre-req audit item; the 3-run bitwise identity (T1 qhh + T2 heihe/heihe_x4) implicitly proves the drift is deterministic and bitwise-stable on B1b candidate, so the B1b ship is not blocked, but the underlying SoA-sync gap remains for future P-strict resolution.
+- **D9 fast-path trigger #2 (S2.17 审查为 'no change' 跳过 fix)** — **BLOCKED on PI sign-off**. S6c proceeds with separate `B1a-tag` and `B1b-tag` per design D11 (D9 fast-path not satisfied → no `B1-tag` merge).
+- **Forward-compatibility (master plan C8 "永不 break userspace")**: any later PI `S2.17: formula needs fix` directive on #185 stacks as a follow-up `B1c-tag` without force-updating B1b-tag (design D11 lock honoured).
+
+下游使用 B1b-tag 的所有 P1+ 工作 SHALL 显式承认本 CONDITIONAL 状态；当 PI 后续 sign-off 时（无论 E1 / E2），retroactive 更新策略已在 `SHUD/B1b_CHANGELOG.md` S6b.2 + `docs/s217_lake_formula_audit.md` §E 中说明。
