@@ -126,8 +126,8 @@
   - CONDITIONAL ship 标记 5 项（详 `docs/b1b_summary.md` §"B1b CONDITIONAL ship status"）：
     - `#185` (S2.17 PI 审查) — PI sign-off **OPEN**
     - `#186` (S6b.2) — CLOSED via PR #206 **SKIP path**（NOT signed-off E2）
-    - `#205` (rhs_flux SoA/AoS sync drift) — **OPEN**，P-strict pre-req
-    - D9 fast-path trigger #2 — **BLOCKED** on PI sign-off → separate `B1a-tag` and `B1b-tag` per D11
+    - `#205` (rhs_flux SoA/AoS sync drift) — **RESOLVED (post-B1b cleanup before P1)** via SHUD `de75743` (fix) + `9a376f7` (CHANGELOG) on `openmp-baseline` + 外层 PR-18 #209 (pointer bump `71b3a1a` → `9a376f7` + docs sync)；4-case Mac 2-run canonical SHA bitwise vs B1b-tag baseline；NOT retroactively part of B1b per D11；P-strict pre-req gap closed
+    - D9 fast-path trigger #2 — **BLOCKED** on #185 PI sign-off → separate `B1a-tag` and `B1b-tag` per D11
     - C8 forward-compat — 后续 PI directive 可作为 `B1c-tag` stacking，不 force-update B1b-tag
 
 ## B1b-tag 应用状态

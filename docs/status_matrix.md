@@ -10,7 +10,7 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-22（B1b capstone / PR-16 #207 #188 S6c-12a + #189 S6c-12b B1b-tag `18a0c908` 创建 + branch lock + 本 PROMOTE PR #190：S5+S6b 全部完成；4-case Mac canonical SHA ≡ B0 `repeatability.txt sha256_run1`；heihe / heihe_x4 直接服务器 Slurm 8662-8667 bitwise PASS @ cn03；aggregate = PASS CONDITIONAL ship（#185 PI sign-off OPEN / #205 P-strict pre-req OPEN / D9 fast-path BLOCKED / C8 B1c-tag stacking forward-compat）；详 [`docs/b1b_summary.md`](b1b_summary.md)）_
+> _最近一次更新：2026-06-22（B1b capstone PROMOTE 完成 + #205 post-B1b cleanup 入主：PR-16 #207 #188 S6c-12a + #189 S6c-12b B1b-tag `18a0c908` 创建 + branch lock + PROMOTE PR #190 + PR-18 #209 S6b.4 #205 SoA/AoS sync drift fix in `rhs_flux` lake pass-1 (post-B1b cleanup before P1)。S5+S6b 全部完成；4-case Mac canonical SHA ≡ B0 `repeatability.txt sha256_run1`；heihe / heihe_x4 直接服务器 Slurm 8662-8667 bitwise PASS @ cn03；aggregate = PASS CONDITIONAL ship（#185 PI sign-off OPEN / #205 RESOLVED post-tag / D9 fast-path BLOCKED on #185 / C8 B1c-tag stacking forward-compat）；详 [`docs/b1b_summary.md`](b1b_summary.md)）_
 
 ## 矩阵
 
@@ -103,8 +103,8 @@ Aggregate gate（PR-16 #207 capstone + #189 tag + 本 PROMOTE PR 验收）：
 - CONDITIONAL ship caveats（详 `docs/b1b_summary.md` §"B1b CONDITIONAL ship status" + `SHUD/B1b_CHANGELOG.md` S6b.2 row）：
   - #185 S2.17 lake formula PI 审查 — PI sign-off **OPEN**
   - #186 S6b.2 — CLOSED via PR #206 **SKIP path**（NOT signed-off E2）
-  - #205 `rhs_flux` lake pass-1 SoA/AoS sync drift — **OPEN**，P-strict pre-req
-  - D9 fast-path trigger #2 — **BLOCKED** on PI sign-off → 保持 separate `B1a-tag` and `B1b-tag` per D11
+  - #205 `rhs_flux` lake pass-1 SoA/AoS sync drift — **RESOLVED (post-B1b cleanup before P1)** via SHUD `de75743`/`9a376f7` + PR-18 #209；4-case Mac 2-run canonical SHA bitwise vs B1b-tag baseline；NOT retroactively part of B1b per D11，但 P-strict pre-req gap 已闭
+  - D9 fast-path trigger #2 — **BLOCKED** on #185 PI sign-off → 保持 separate `B1a-tag` and `B1b-tag` per D11
   - C8 forward-compat — 后续 PI directives 可作为 `B1c-tag` stacking，不 force-update B1b-tag。
 
 ## A0 验收 checklist
@@ -139,7 +139,7 @@ Aggregate gate（PR-16 #207 capstone + #189 tag + 本 PROMOTE PR 验收）：
 
 - **B0** 行在 B0-tag 时刻冻结，成为 B1a 回归比对的参照。
 - **B1a** 必须与 B0 同机同 case bitwise 一致。S0–S4 全部完成（PR-12 #156 capstone 2026-06-21）；本矩阵 B1a 行 Mac 本地 4-case + qhh 3 lake outputs 已 PASS；heihe / heihe_x4 直接服务器 Slurm 8537 / 8538 (cn08) bitwise PASS；aggregate = PASS。kashigeer 沿 B0 deferred-upstream 排除。
-- **B1b** 必须与 B0/B1a 同机同 case bitwise 一致。S5 + S6b + S6c 全部完成（PR-16 #207 capstone + #189 B1b-tag + 本 #190 PR PROMOTE 2026-06-22）；本矩阵 B1b 行 Mac 本地 4-case + 服务器 heihe / heihe_x4 (cn03) 全部 bitwise PASS；aggregate = PASS **CONDITIONAL ship**（#185 / #205 / D9 BLOCKED / C8 B1c forward-compat）。kashigeer 沿用 N/A。
+- **B1b** 必须与 B0/B1a 同机同 case bitwise 一致。S5 + S6b + S6c 全部完成（PR-16 #207 capstone + #189 B1b-tag + #190 PR PROMOTE 2026-06-22 + PR-18 #209 #205 post-B1b cleanup）；本矩阵 B1b 行 Mac 本地 4-case + 服务器 heihe / heihe_x4 (cn03) 全部 bitwise PASS；aggregate = PASS **CONDITIONAL ship**（#185 PI sign-off OPEN / #205 RESOLVED post-tag / D9 BLOCKED on #185 / C8 B1c forward-compat）。kashigeer 沿用 N/A。
 - **Opt-IO** 是 master plan §3.5 的 forcing I/O 并行化。落地时机由 `docs/profile_decision.md:bring-forward-IO` 评估，可能早于或晚于首个 OpenMP P1。
 - **P1-P9** 各行按 master plan §3 各阶段填。
 

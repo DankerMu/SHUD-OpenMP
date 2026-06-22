@@ -153,7 +153,7 @@ Per-file SHA cross-check vs `benchmarks/<case>/B0_output/<file>`: **13 files byt
 
 - **#185 (S2.17 lake formula PI 审查) — OPEN**: PR #204 evidence pack 投出后无 SHUD-upstream PI Lele Shu sign-off。spec.md L23 + design.md Open Q1 reserve E1/E2 verdict for PI；本 B1b 的 3-run + water-balance evidence **insufficient** to claim a signed E2.
 - **#186 (S6b.2) — CLOSED via PR #206 SKIP**: master plan §S6b L1497 FORECAST + C8 forward-compatibility，**NOT a signed E2**。
-- **#205 (SoA/AoS sync drift in `rhs_flux` lake pass-1) — OPEN**: P-strict pre-req audit；3-run bitwise 自洽证 drift deterministic、bitwise-stable，本 B1b ship 不阻，但 underlying SoA-sync gap 留给 P-strict 解决。
+- **#205 (SoA/AoS sync drift in `rhs_flux` lake pass-1) — RESOLVED (post-B1b cleanup before P1)**: SHUD commit `de75743` (fix) + `9a376f7` (CHANGELOG row) on `openmp-baseline`；外层 PR-18 #209 (pointer bump `71b3a1a` → `9a376f7` + docs sync) merge 进 `main`；4-case Mac (keliya / xinanjiang_upstream / qinyijiang / qhh) 2-run canonical SHA ≡ B1b-tag baseline byte-identical (bitwise-neutral on B1b benchmarks)；P-strict pre-req cleared。NOT retroactively part of B1b per D11（B1b-tag annotated message 列出 caveat 时 P-strict pre-req OPEN，tag-immutable；P-strict 启用前 SoA-sync gap 已闭。详 `SHUD/B1b_CHANGELOG.md` §"S6b.4 — rhs_flux lake pass-1 SoA/AoS sync drift fix"）。
 - **D9 fast-path trigger #2** (S2.17 审查为 'no change' 跳过 fix) — **BLOCKED on PI sign-off**。S6c proceed with separate `B1a-tag` and `B1b-tag` per design D11（D9 fast-path 未满足 → 不 merge `B1-tag`）。
 - **C8 forward-compat（master plan "永不 break userspace"）**: any later PI `S2.17: formula needs fix` directive on #185 stacks as a follow-up `B1c-tag` without force-updating B1b-tag（D11 lock honoured）。
 
