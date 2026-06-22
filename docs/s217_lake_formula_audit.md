@@ -2,13 +2,16 @@
 
 **Audit issue**: [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185)
 **Blocks**: [#186](https://github.com/DankerMu/SHUD-OpenMP/issues/186) (S6b.2 conditional fix)
-**Audit date**: 2026-06-21
-**Auditor**: Phase-1 technical-reviewer delegate (no external PI present in session)
-**Signoff mechanism**: per design.md Open Q1 alternate path — technical-reviewer delegate verdict, pending external PI confirmation
-**Master plan refs**: §S2.17 (L1179–L1198), §4.18 (L523–L541)
+**Audit date**: 2026-06-22 (rev. after PR #204 Phase-4 review V1/V2/V3)
+**Auditor**: Phase-1 audit author + evidence packager (NOT a PI delegate). External SHUD-upstream PI sign-off remains required per `spec.md` L23.
+**Signoff status**: **NO VERDICT ISSUED IN THIS PR.** This document is an **evidence pack** for the PI / PI delegate to consult; sign-off (E1 / E2) is per spec L23 the PI's prerogative on issue #185. design.md Open Q1 (governance of PI delegate qualification) is still open; this PR does NOT invoke an "alternate signoff mechanism" (no such mechanism is normatively defined).
+**Default-skip path**: Per master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改"), absent a PI `S2.17: formula needs fix` directive on #185 before S6c (#188-#190) capstone, **B1b ships with the current formula unchanged**. This is the de-facto safe default — NOT a signed-off E2.
+**Master plan refs**: §S2.17 (L1179–L1198), §4.18 (L523–L541), §S6b L1480–L1503
 **OpenSpec refs**: `specs/s6b-bugfix-application/spec.md` Requirement S6b.2 + 2 Scenarios; design.md D8 / D9 / Open Q1
 
-> NOTE on line drift: master plan §4.18 cites "`MD_ElementFlux.cpp` L100–L156" and "`Kmean` 在 L117". The live file after S5d.1 (#178) SoA rewrite + S5d.2-5a (#179) jagged flatten rewrites is now 192 lines; `fun_Ele_sub()` body spans L126–L191 and the `Kmean` line is at **L147**. This audit cites the live tree (SHUD `openmp-baseline @ a85bf63`).
+> NOTE on line drift: master plan §4.18 cites "`MD_ElementFlux.cpp` L100–L156" and "`Kmean` 在 L117". The live file after S5d.1 (#178) SoA rewrite + S5d.2-5a (#179) jagged flatten rewrites is **191 lines**; `fun_Ele_sub()` body spans L126–L191 and the `Kmean` line is at **L147**. This audit cites the live tree (SHUD `openmp-baseline @ a85bf63`).
+>
+> NOTE on paths: master plan §4.18 uses the shorthand `MD_ElementFlux.cpp`; the actual SHUD-relative path after S5d.1 file reorganization is `SHUD/src/ModelData/MD_ElementFlux.cpp`. This audit uses the full path consistently.
 
 ---
 
@@ -85,6 +88,22 @@ Where `effKH(...)` (`Equations.cpp:116–134`) returns a depth-weighted blend of
 
 **Key observation**: lake elements inherit the underlying **soil column's** `KsatH` (and ignore `macKsatH` / macropore stratification because the lake column itself is open water above the lake bed). This is the lake-bed sediment's hydraulic conductivity, NOT the lake water column's conductivity (open water has effectively infinite K).
 
+### A.4 Active-runtime SoA mirror state (post-Phase-4 V1 verifier finding)
+
+**Critical caveat surfaced by PR #204 Phase-4 verifier V1** (`ae481398012ebb496` — CONFIRMED): the `u_effKH = KsatH` value that `updateLakeElement()` writes lives **only in the AoS `Ele[i].u_effKH`**. The runtime SoA mirror `hot.u_effKH[i]` that `fun_Ele_sub` actually reads at L147 is **not refreshed** in the active code path. Sequence per CVODE step:
+
+1. `SHUD/src/Model/shud.cpp:177-178` `MD->updateforcing(t)` runs FIRST.
+2. `SHUD/src/ModelData/MD_ET.cpp:34-42` `updateforcing()` loops `for(i=0; i<NumEle; i++)` (no `iLake` filter) and calls `Ele[i].updateElement(uYsf[i], uYus[i], uYgw[i]); sync_hot_dynamic(i);`
+3. `SHUD/src/classes/Element.cpp:257-258` `updateElement()` writes `u_effKH = effKH(Ygw, AquiferDepth, macD, macKsatH, geo_vAreaF, KsatH)` — the depth-weighted macropore-aware blend — to AoS for ALL elements **including lake elements**.
+4. `SHUD/src/ModelData/Model_Data.hpp:287` `sync_hot_dynamic(i)` writes that blend into `hot.u_effKH[i]`.
+5. Later, `SHUD/src/Model/MD_rhs_core.cpp:194-207` `rhs_flux` pass-1 lake branch calls `Ele[i].updateLakeElement()` which writes `u_effKH = KsatH` to AoS — but **DOES NOT call `sync_hot_dynamic(i)`**.
+6. Compare `SHUD/src/ModelData/MD_f.cpp:25-28` (dead-code `f_loop`): `Ele[i].updateLakeElement(); sync_hot_dynamic(i); fun_Ele_lakeVertical(i, t);` — DOES sync.
+7. `fun_Ele_sub` at `MD_ElementFlux.cpp:147` reads `hot.u_effKH[inabr]` (lake neighbor) and sees the **stale general-element blend** from step 3, not `KsatH`.
+
+**Implication for this audit**: the "lake-bed K = KsatH" framing in §A.3 + §B.4 (in earlier drafts of this doc) describes the AoS state, NOT the runtime state that `fun_Ele_sub` consumes. The §B.4 physical-soundness argument was load-bearing on a stale assumption. **§B.4 has been rewritten** below to acknowledge this. **A new follow-up issue [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205)** tracks the SoA/AoS drift (the missing `sync_hot_dynamic` after `updateLakeElement` in `rhs_flux`) as a P-strict / P-prod pre-req audit item — out of scope for #185 / B1b ship.
+
+The drift is **bitwise-stable and deterministic** (B0 and B1a both PASS bitwise on lake cases), so B1b's bitwise contract is unaffected. The semantic interpretation of `Kmean` in the lake branch shifts however: lake-side K is the **general-element depth-weighted blend** evaluated AT a lake element's state (`Ygw = yLakeStg + lake.zmin - z_bottom`, etc.), not the lake-bed `KsatH`.
+
 ---
 
 ## §B. Physics interpretation
@@ -130,19 +149,25 @@ The in-code comment at L146 / L168 (verbatim, both branches): `/* It should be w
 
 When the bank soil class differs from the lake-bed soil class, harmonic mean would be more accurate. However, SHUD's mesh-classification convention (rSHUD master + this repo's NWM cases) assigns the lake-bed element the same `iSoil` / `iGeol` as the neighbouring bank elements unless the user manually overrides — i.e. the typical real-world configuration **collapses to K1 ≈ K2**, where arithmetic and harmonic are numerically indistinguishable.
 
-### B.4 `Ele[inabr].u_effKH` on a lake element — meaningful?
+### B.4 `Ele[inabr].u_effKH` on a lake element — actual runtime semantics
 
-This is the master plan §4.18 explicit concern. Reading `updateLakeElement()` (§A.3 above):
+This is the master plan §4.18 explicit concern. **The §A.3 reading of `updateLakeElement()` describes the AoS state; the SoA mirror `hot.u_effKH[inabr]` that `fun_Ele_sub` actually reads is set by the OUTER `updateforcing` general-element loop, NOT by the lake specialization** (per §A.4 above + verifier V1 evidence). The active-runtime behavior is:
 
-- `u_effKH = KsatH` — yes, it has a **definite** physical value (the lake-bed sediment / aquifer base K_sat,H from the geol-layer table)
-- It is NOT a degenerate `0` or `NaN`; it is NOT an uninitialized read
-- It does NOT use the `effKH(Ygw, ...)` macropore-aware blend, because a lake element has no aquifer-depth state (`u_deficit = 0`, `u_satn = 1`)
+- `hot.u_effKH[lake_element]` = `effKH(Ygw_at_lake, AquiferDepth_at_lake, macD, macKsatH, geo_vAreaF, KsatH)` as evaluated by `updateforcing` over **all** elements — i.e. a depth-weighted macropore-blend computed against the lake-element's *aquifer* state, not against its "open-water + lake-bed" state
+- It is NOT degenerate `0` or `NaN` and it is NOT an uninitialized read — it IS the same blended quantity used everywhere else in SHUD
+- It is NOT `KsatH` directly (despite `updateLakeElement` writing `KsatH` to AoS, the SoA mirror is not re-synced)
 
-So `Kmean = 0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` evaluates to:
-- bank-side: depth-weighted blend of soil matrix `KsatH` + macropore `macKsatH` (per `effKH` formula)
-- lake-side: pure `KsatH` from the lake-bed soil class
+So `Kmean = 0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` actually evaluates to:
+- bank-side (i): depth-weighted blend of soil matrix `KsatH` + macropore `macKsatH` (per `effKH` formula) evaluated against bank aquifer state
+- lake-side (inabr): SAME `effKH(...)` blend evaluated against the lake element's aquifer state (where lake `Ygw` typically equals `yLakeStg + lake.zmin - z_bottom`)
 
-Both terms are **dimensionally consistent** (m/min, per SHUD convention), **non-negative**, **non-NaN**, and represent **lake-bed sediment K_sat,H** on the lake side — which is the right quantity per the standard Lake-Package physics in §B.2.
+**Is this still defensible?** Two readings are possible:
+
+1. **Generously**: treating the lake element as "an aquifer column whose phreatic surface happens to be at lake stage" is a perfectly valid effective-medium abstraction. The depth-weighted blend in fact captures the macropore stratification of the lake-bed sediment column, which the bare `KsatH` would NOT capture. Under this reading the SoA-drift is unintentional but the resulting code is BETTER than the §A.3-intended behavior — both arguments are series-blended consistently.
+
+2. **Strictly**: the master plan §4.18 R-2 concern stands — `u_effKH` on a lake element is the effective-K of an *aquifer at that location*, which is not strictly the *lake-bed* K. The arithmetic mean across "bank aquifer K" and "lake-element aquifer K" is dimensionally consistent but its physical mapping to a textbook lake-bed seepage face is a stretch.
+
+Both readings agree on one thing: **the live formula is bitwise-stable, deterministic, and consistent with the non-lake GW lateral form** (per §C below). The reading is a quality-of-physics question that warrants PI judgment — it does NOT resolve to "obviously wrong" or "obviously right" from the code alone. The §S6b L1497 "可能审查后不需要改" framing remains accurate.
 
 ### B.5 What WOULD be a defensible "fix" if one were warranted?
 
@@ -260,61 +285,67 @@ This is a HIGH-cost change for a numerical refinement that, under the standard S
 
 ---
 
-## §E. Recommendation — technical-reviewer delegate signoff
+## §E. Audit conclusion (evidence pack — NO VERDICT ISSUED)
 
-### Verdict: **E2 — `S2.17: formula correct, no change`**
+### Status: **EVIDENCE PACK COMPLETE — VERDICT PENDING PI / PI delegate SIGN-OFF ON ISSUE #185**
 
-PENDING external SHUD-upstream PI (Lele Shu) confirmation. Per design.md Open Q1 alternate signoff mechanism, this technical-reviewer delegate verdict allows B1b to ship with the current formula; the verdict is revisitable at the P-strict / P-prod transition if PI overrules.
+This document does NOT issue an E1 or E2 verdict per spec.md L23 (which reserves that prerogative for the SHUD upstream PI or a designated PI delegate). The Phase-1 audit author is the audit/evidence-pack author, **not** a PI delegate. design.md Open Q1 (qualification criteria for "PI delegate") remains open; this PR does not close it.
 
-### Rationale
+### B1b ship status absent PI sign-off
 
-1. **Physics is standard**. The lake branch correctly implements lake-stage-as-aquifer-BC Darcy flux at the lake-bed seepage face, matching MODFLOW LAK7 (Merritt & Konikow 2000), ParFlow Lake, and PIHM 2.x conventions. The `dh`, `grad`, `Ymean`, `A` terms are all dimensionally correct and signed correctly (§B.1, §B.2).
+Per master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改"), the de-facto safe default when no PI directive is received before S6c (#188-#190) capstone is to **ship B1b with the current formula unchanged** (no code patch to `MD_ElementFlux.cpp:147`). This is structurally equivalent to spec.md L29-31 Scenario "审查结论已签字跳过修改" except the activation lacks a PI signature. Treat the B1b ship as **conditional** — if PI later overrules to E1 (formula needs fix), the master plan C8 forward-compatibility convention applies: a follow-up `B1c-tag` could stack the fix on top of B1b without force-updating B1b-tag.
 
-2. **`Ele[inabr].u_effKH` on a lake element has a definite physical value**. `updateLakeElement()` sets `u_effKH = KsatH` from the soil-layer table for the lake-bed element; this is the lake-bed sediment K, exactly the quantity needed at this interface (§A.3, §B.4). The master plan §4.18 concern of "unassigned / meaningless lake-side K" does **not hold** against the live code — it WAS a valid concern in earlier serial-OMP-divergent codebase, but the lake-element initialization path has been kept consistent through the S2 capstone reduction to a single coupled RHS.
+### D9 fast-path eligibility
 
-3. **Averaging-formula consistency**. The same `0.5 * (u_effKH[i] + u_effKH[inabr])` arithmetic mean is used **without divergence** in the non-lake GW lateral branch one-and-only file lines below (L169) (§C). If this averaging choice were "wrong", the entire SHUD GW lateral flux model would be wrong — yet the model has been validated against measured streamflow on 7+ cases by Shu et al. (B0 published-baseline contract). Lake-specific divergence is NOT required; the only intended divergence (lake-stage substitution and gather slot routing) is correctly implemented.
+design.md D9 trigger #2 requires `S6b.2 = "审查为'无修改'" 跳过 fix` with a signed conclusion. **This trigger is NOT satisfied by an unsigned evidence pack.** D9 fast-path (B1a / B1b merge into `B1-tag`) therefore remains **gated** until PI sign-off arrives. S6c (#188-#190) can proceed with separate B1a-tag and B1b-tag per design D11.
 
-4. **Out-of-bounds risk already mitigated**. The `assert(inabr >= 0)` at L137 (added pre-audit, present in live code) closes the §4.18 R-1 defensive-assert recommendation. The data-flow analysis (`MD_Lake.cpp:133–144` `lakenabr[j]` set only when `inabr >= 0 && Ele[inabr].iLake > 0`) is now both **implicitly guaranteed** by upstream invariant AND **explicitly asserted** at the consumption site.
+### Evidence summary supporting the eventual PI judgment
 
-5. **Cost/benefit unfavourable**. A code-change S6b.2 (any of the §B.5 alternatives) WOULD break B1a-tag bitwise on `qhh / heihe / heihe_x4` (§D.3) and require an A4 `residual_deferred` classification with new diff reports + likely re-baselined goldens — for a change whose magnitude (< 10% on lake flux in typical configurations) is bounded by the within-parameter alternatives and whose physical-improvement claim is contestable without a paired field-measurement campaign.
+The pack collects the following arguments which the PI may weigh:
 
-6. **D9 fast-path trigger #2 alignment** (design.md L132–134). Verdict E2 satisfies "S2.17 审查为 'no change'" — combined with S6b.1 zero-impact (already PASS) and S6b.3 zero-impact (already PASS), this verdict, **once confirmed by the external PI**, would unlock the B1a/B1b merge into a single `B1-tag`.
+1. **Physics is standard at the macroscopic level**. The lake branch correctly implements lake-stage-as-aquifer-BC Darcy flux at the lake-bed seepage face, matching MODFLOW LAK7 (Merritt & Konikow 2000), ParFlow Lake, and PIHM 2.x conventions on the `dh`, `grad`, `Ymean`, `A` terms (§B.1, §B.2).
 
-### Conditional E1 (NOT exercised; documented for completeness)
+2. **`Ele[inabr].u_effKH` on a lake element is non-degenerate but has a runtime-semantic subtlety**. The AoS `updateLakeElement()` sets `u_effKH = KsatH` (the lake-bed sediment K), but the runtime SoA mirror is set by the OUTER `updateforcing` general-element loop to the depth-weighted `effKH(...)` blend evaluated against the lake-element's aquifer state. This is a SoA/AoS drift (per §A.4 above + issue [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205)). Two interpretations are defensible (§B.4 generous vs strict reading); PI judgment requested.
 
-Had the audit concluded E1, the recommended fix would have been:
-- **Modified formula**: leave L147 unchanged (arithmetic mean is consistent and physically defensible at order-of-magnitude)
-- **Add explicit lake-bed K input** (new `lake.sp` column or per-element `K_lakebed`)
-- **Physical basis**: Merritt & Konikow (2000) MODFLOW LAK7; Hunt et al. (2003) lake-bed leakance parametrization
-- **Affected cases**: qhh + heihe + heihe_x4
-- **Bitwise impact**: WILL break B1a-tag on all three; residual_deferred to A4; new diff_report
-- **Out of scope for B1b** — would be a P-strict / P-prod feature ticket
+3. **Averaging-formula consistency**. The same `0.5 * (u_effKH[i] + u_effKH[inabr])` arithmetic mean is used **without divergence** in the non-lake GW lateral branch immediately below (L169) (§C). Whatever the merits of arithmetic vs harmonic, the lake-branch choice is consistent with the rest of SHUD's GW lateral pattern. The model has been validated against measured streamflow on 7+ cases by Shu et al. (B0 published-baseline contract) using this averaging form.
 
-The verdict is E2 because no evidence in the live code supports any of the §B.5 alternatives over the current form under SHUD's standard mesh-classification convention.
+4. **Out-of-bounds risk already mitigated**. The `assert(inabr >= 0)` at L137 (added pre-audit, present in live code) closes the §4.18 R-1 defensive-assert recommendation.
 
-### External PI question (cc-able when channel established)
+5. **Cost of any code-change `S6b.2` is high**. A modified formula would break B1a-tag bitwise on `qhh / heihe / heihe_x4` (§D.3), require an A4 `residual_deferred` classification, new diff reports, likely re-baselined goldens — for a change whose magnitude (< 10% on lake flux in typical configurations per §D.2) is bounded.
 
-If the external PI wishes to overrule this delegate verdict, the specific question is:
+6. **The SoA/AoS drift** (issue #205) is the more important finding from this audit and is out-of-scope for #185 / #186. It applies to both the bank- and lake-aquifer aspects of `fun_Ele_sub` lake branch and is best addressed in P-strict (P1-P7) pre-req audit, not in B1b ship.
+
+### External PI question
+
+If the PI is available, the specific question is:
 
 > Should the lake-edge GW lateral flux in `fun_Ele_sub()` use:
->   (a) the current arithmetic mean `0.5*(K_bank + K_lakebed)` (delegate verdict E2),
->   (b) a harmonic mean `2 K_bank K_lakebed / (K_bank + K_lakebed)` to match series-resistor interface physics,
->   (c) a new explicit `K_lakebed` parameter independent of the bank-soil class, or
+>
+>   (a) the current arithmetic mean `0.5*(K_bank_blend + K_lake_blend)` — accepting the SoA-drift-induced "K_lake = aquifer-blend at lake state" semantics (this audit recommendation: defensible but PI judgment needed),
+>
+>   (b) a harmonic mean `2 K_bank K_lake / (K_bank + K_lake)` to match series-resistor interface physics,
+>
+>   (c) a new explicit `K_lakebed` parameter independent of the bank-soil class (new input parameter, breaks rSHUD schema),
+>
 >   (d) bank-only `K_bank` ignoring the lake side?
 >
-> Current call-graph evidence + master plan §4.18 R-2/R-3 + non-lake-branch consistency (this audit §C) point to (a). PI sign-off as (a) finalizes E2; sign-off as (b)–(d) triggers E1 path with downstream re-baselining cost.
+> Current call-graph evidence (§A.4) + master plan §4.18 R-2/R-3 + non-lake-branch consistency (§C) point to (a). Sign-off as (a) finalizes the spec L29-31 "no change" Scenario; sign-off as (b)–(d) triggers spec L25-27 "needs fix" Scenario with downstream re-baselining cost.
+>
+> Separately: issue #205 documents a SoA/AoS sync drift in the lake pass-1 (`rhs_flux` missing `sync_hot_dynamic` after `updateLakeElement`). PI may want to comment on whether the SoA-drift should be treated as an "intentional generalization" (lake elements use the same general-element aquifer-K blend everywhere) or as a "missed sync" bug (lake elements should re-sync to `KsatH` per `updateLakeElement` intent).
 
 ---
 
 ## Appendix — audit completeness checklist
 
-| Acceptance criterion | Verdict |
+| Acceptance criterion | Status |
 |---|---|
 | §A live formula citation present with file:line | PASS (`MD_ElementFlux.cpp:147` cited; L100–L156 master-plan range updated to live L126–L191) |
+| §A.4 active-runtime SoA state acknowledged | PASS (post-rev. — SoA drift surfaced + #205 follow-up tracked) |
 | §B Darcy physics + lake-stage BC + Kmean averaging discussion | PASS |
+| §B.4 active-runtime semantics (vs §A.3 AoS-intent) | PASS (rewritten to reflect SoA mirror state; both readings presented) |
 | §C non-lake branch byte-for-byte comparison | PASS (L160–L170 quoted; only intended divergence enumerated) |
 | §D affected cases (qhh, heihe, heihe_x4) + magnitude + bitwise impact | PASS |
-| §E exactly one of {E1, E2} | PASS — **E2 (no change)** |
-| Cite design.md D9 fast-path trigger #2 if E2 | PASS (§E.6) |
-| Cite design.md Open Q1 alternate signoff if no external PI | PASS (header + §E intro) |
-| Out-of-scope items explicit | PASS (no #186 fix code; no benchmark runs of "if-we-changed-the-formula"; #185 left OPEN per orchestrator note) |
+| §E verdict | **EVIDENCE PACK ONLY — no verdict issued. PI sign-off pending on issue #185.** |
+| design.md D9 fast-path trigger #2 status | BLOCKED on PI sign-off (no self-application) |
+| design.md Open Q1 (PI delegate qualification) | Still OPEN — this PR does not invoke an "alternate signoff" |
+| Out-of-scope items explicit | PASS (no #186 fix code; no benchmark runs of "if-we-changed-the-formula"; #185 OPEN; SoA drift tracked in #205) |
