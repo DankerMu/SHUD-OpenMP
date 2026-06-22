@@ -10,7 +10,7 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-21（B1a capstone / PR-12 #156：S0–S4 全部完成；4-case + qhh 3 lake outputs Mac 本地 bitwise vs B0-tag PASS；7 grep gate 0 hits；heihe / heihe_x4 直接服务器 Slurm 8537 / 8538 bitwise PASS @ cn08；aggregate = PASS；follow-up issue #171 已 close）_
+> _最近一次更新：2026-06-22（B1b capstone / PR-16 #207 #188 S6c-12a + #189 S6c-12b B1b-tag `18a0c908` 创建 + branch lock + 本 PROMOTE PR #190：S5+S6b 全部完成；4-case Mac canonical SHA ≡ B0 `repeatability.txt sha256_run1`；heihe / heihe_x4 直接服务器 Slurm 8662-8667 bitwise PASS @ cn03；aggregate = PASS CONDITIONAL ship（#185 PI sign-off OPEN / #205 P-strict pre-req OPEN / D9 fast-path BLOCKED / C8 B1c-tag stacking forward-compat）；详 [`docs/b1b_summary.md`](b1b_summary.md)）_
 
 ## 矩阵
 
@@ -18,7 +18,7 @@
 |-----------|--------|---------------------|------------|----------------------|---------|---------------|---------------|-----------|
 | **B0**    | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
 | **B1a**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
-| **B1b**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
+| **B1b**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS (CONDITIONAL ship) |
 | **Opt-IO**| PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P1**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P2a**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
@@ -80,6 +80,33 @@ Aggregate gate（PR-12 capstone 验收）：
 - CI workflow `serial-baseline.yml` 已升级到 B1a 定版 final state：1-axis matrix (case only) + S2 capstone grep gate + PassValue 0-hit gate + topology_manifest 模式校验 + adjacency fallback 单测 + snapshot 90d HARD-fail gate + CVODE 15-key SHA256 diff
 - Server heihe / heihe_x4 90 天截断 Slurm bitwise validation：PR-12 直接通过免密 SSH 在 `210.77.77.22:32099 cn08` 上 Slurm 8537 (heihe) + 8538 (heihe_x4) 跑出 bitwise PASS（详见 B1a 行 evidence 段；issue #171 同步关闭）
 
+## B1b 行证据
+
+> **2026-06-22 capstone（PR-16 #207 #188 + #189 + 本 #190 PR）**：B1b 整体 = master plan §3 "S5 + S6b + S6c 全部完成"。S5a/S5b/S5c/S5d/S6b 全部完成（PR-1 #191 through PR-16 #207 已 merge 进 `baseline/B1b`；#189 创建 `B1b-tag = 18a0c908…` annotated tag + push origin + branch protection `lock_branch=true`；详见 [`docs/b1b_summary.md`](b1b_summary.md) 时间线）。下表 evidence 来自 PR-16 #207 capstone 时刻（SHUD `71b3a1ae` 在 `openmp-baseline`），4-case Mac 本地 + 2-case 服务器 Slurm 8662-8667 (cn03) 全部 bitwise vs B0-tag PASS；4 Mac canonical summary SHA ≡ B0 `repeatability.txt sha256_run1`；aggregate = **PASS (CONDITIONAL ship)** —— #185 S2.17 PI sign-off OPEN / #205 SoA/AoS sync drift P-strict pre-req OPEN / D9 fast-path BLOCKED / C8 forward-compat 允许 B1c-tag stacking。
+
+| Case | 单元格 | 证据（S5 + S6b + S6c-12a complete） |
+|---|---|---|
+| keliya | PASS | T1 Mac 4-case 3-run canonical summary SHA `a27e3fb51eb72e1955ff2f429889d009f20803a6e1135bfde866fe4706549e3d` ≡ `benchmarks/keliya/B0_output/repeatability.txt sha256_run1` |
+| xinanjiang_upstream | PASS | T1 Mac canonical SHA `fe6dd4edc94c9581f382d1c732c28c7cc56dda857793b70ed8b989fea1fef394` ≡ B0 |
+| qinyijiang | PASS | T1 Mac canonical SHA `383e4099d6f71acfa31b8006fab946cf05c255c6dedae7de24273f90b322b174` ≡ B0 |
+| kashigeer | N/A (deferred-upstream) | 同 B0/B1a：上游 X76 forcing 段缺失，CI matrix 排除，B1b 沿用 N/A |
+| qhh | PASS | T1 Mac canonical SHA `3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e`（覆盖 rivqdown + lakystage + lakqrivin + lakqrivout + cvode_stats）≡ B0 |
+| heihe | PASS @ server | T2 cn03 Slurm 8662/8663/8664（PR-16 capstone）wall 480/479/480s，summary SHA `675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67` 3-run identical；rivqdown SHA ≡ PR-12 B1a-tag golden `55abad28…`（亦在 #177 server re-run 复证：8678 wall 479s 同 SHA） |
+| heihe_x4 | PASS @ server | T2 cn03 Slurm 8665/8666/8667 wall 1196/1192/1191s，summary SHA `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` 3-run identical；rivqdown SHA ≡ B0-tag/B1a-tag golden `f90601ef…`（亦在 #177 8679 wall 1192s 复证） |
+
+Aggregate gate（PR-16 #207 capstone + #189 tag + 本 PROMOTE PR 验收）：
+
+- 4-case Mac canonical summary SHA + 2-case Server canonical summary SHA 全部 byte-identical 3-run；4 Mac SHA ≡ B0 `repeatability.txt sha256_run1`；2 Server rivqdown.dat ≡ B0/B1a-tag golden。
+- 水量平衡（`docs/B0_vs_B1b_water_balance_report.md`）closure-error delta = 0 bit-by-bit on 6/6 cases（远低于 0.1% 相对容差）。
+- SHUD 在 `openmp-baseline` 分支 commit `71b3a1ae`（S5a → S6b 全 5-step push workflow 严格遵守，`SHUD/B1b_CHANGELOG.md` 12 sections evidence trail 完整）。
+- `B1b-tag` annotated tag = `96e224da…`（指向 commit `18a0c908…`，含 SHUD pin `71b3a1ae`）；`baseline/B1b` 分支 protection `lock_branch=true` + `enforce_admins=true` + `allow_force_pushes=false` + `allow_deletions=false`（D11 一次锁死 enforced）。
+- CONDITIONAL ship caveats（详 `docs/b1b_summary.md` §"B1b CONDITIONAL ship status" + `SHUD/B1b_CHANGELOG.md` S6b.2 row）：
+  - #185 S2.17 lake formula PI 审查 — PI sign-off **OPEN**
+  - #186 S6b.2 — CLOSED via PR #206 **SKIP path**（NOT signed-off E2）
+  - #205 `rhs_flux` lake pass-1 SoA/AoS sync drift — **OPEN**，P-strict pre-req
+  - D9 fast-path trigger #2 — **BLOCKED** on PI sign-off → 保持 separate `B1a-tag` and `B1b-tag` per D11
+  - C8 forward-compat — 后续 PI directives 可作为 `B1c-tag` stacking，不 force-update B1b-tag。
+
 ## A0 验收 checklist
 
 对应 `status-matrix` spec L47 + master plan §S0 A0 验收门。各项映射到 S0 PR 的交付物，当前状态：
@@ -112,6 +139,7 @@ Aggregate gate（PR-12 capstone 验收）：
 
 - **B0** 行在 B0-tag 时刻冻结，成为 B1a 回归比对的参照。
 - **B1a** 必须与 B0 同机同 case bitwise 一致。S0–S4 全部完成（PR-12 #156 capstone 2026-06-21）；本矩阵 B1a 行 Mac 本地 4-case + qhh 3 lake outputs 已 PASS；heihe / heihe_x4 直接服务器 Slurm 8537 / 8538 (cn08) bitwise PASS；aggregate = PASS。kashigeer 沿 B0 deferred-upstream 排除。
+- **B1b** 必须与 B0/B1a 同机同 case bitwise 一致。S5 + S6b + S6c 全部完成（PR-16 #207 capstone + #189 B1b-tag + 本 #190 PR PROMOTE 2026-06-22）；本矩阵 B1b 行 Mac 本地 4-case + 服务器 heihe / heihe_x4 (cn03) 全部 bitwise PASS；aggregate = PASS **CONDITIONAL ship**（#185 / #205 / D9 BLOCKED / C8 B1c forward-compat）。kashigeer 沿用 N/A。
 - **Opt-IO** 是 master plan §3.5 的 forcing I/O 并行化。落地时机由 `docs/profile_decision.md:bring-forward-IO` 评估，可能早于或晚于首个 OpenMP P1。
 - **P1-P9** 各行按 master plan §3 各阶段填。
 

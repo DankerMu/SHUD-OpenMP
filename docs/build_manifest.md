@@ -107,6 +107,47 @@
 - `git show B1a-tag --stat -- SHUD` → SHUD pin 显示 `58327c5`
 - `git ls-remote --tags origin | grep B1a-tag` → 远端 tag 存在
 
+## B1b-tag（S5 + S6b + S6c-12 / Epic #172）
+
+`B1b-tag` annotated git tag pin 住了 S5a/S5b/S5c-A/S5c-B/S5c-C/S5d.1/S5d.2-5a/S5d.2-5b/S5d.3/S5d.4/S5d-summary + S6b.1/S6b.2/S6b.3 + S2.17 audit + S6c-12a B1b 3-run capstone 全部完成的 `(outer, SHUD submodule)` commit。B1c+ 起回归比对 baseline 切到 `B1b-tag`（B0-tag / B1a-tag 仍可比对，但 B1b-tag 是 P-strict 阶段更精确的零参考点）。
+
+> **节有效性说明**：下面的命令（`git rev-parse B1b-tag`、`git show B1b-tag --stat -- SHUD`）只有在项目所有者 `git tag -a B1b-tag <merge-commit-sha>` + `git push origin B1b-tag` 之后才能成功；这一动作发生在 #189 中（2026-06-22）。在那之前 `B1b-tag` 不存在。
+> 实时状态见下面的 `## B1b-tag 应用状态`。
+
+> **D11 强制**：B1b-tag 一次锁死，**禁止 force-update**（与 B1a-tag force-update 历史不同）。任何后续 retroactive 更新（如 #185 PI sign-off）走 forward-compat **B1c-tag stacking** 路径（master plan C8）。
+
+- **外层 repo tag**：`B1b-tag` 在 `baseline/B1b` 分支上、PR-16 #207 squash-merge + #188 post-merge log append (commit `18a0c908`) 上打。
+- **B1b-tag 时刻的 SHUD submodule pin**：`71b3a1ae4ef82e165134a18469c7d0a79284b67f`（外层 tag commit 抓住的 submodule pointer，`SHUD/B1b_CHANGELOG.md` 12 sections evidence trail 完整）。
+- **D11 / D12 收尾约束**：
+  - 4-case Mac canonical summary SHA ≡ `benchmarks/<case>/B0_output/repeatability.txt sha256_run1`（keliya / xinanjiang_upstream / qinyijiang / qhh）
+  - 2-case Server (cn03) Slurm 8662-8667 rivqdown ≡ B0/B1a-tag golden（heihe `55abad28…` / heihe_x4 `f90601ef…`）
+  - `B1b_CHANGELOG.md` 12 sections（S5a / S5b / S5c-B / S5c-C / S5d.1 / S5d.2-5a / S5d.2-5b / S5d.3 / S5d.4 / S6b.1 / S6b.2 / S6b.3）+ openmp-baseline push 5-step workflow 严格遵守
+  - `baseline/B1b` 分支 protection `lock_branch=true` + `enforce_admins=true` + `allow_force_pushes=false` + `allow_deletions=false` enforced
+  - CONDITIONAL ship 标记 5 项（详 `docs/b1b_summary.md` §"B1b CONDITIONAL ship status"）：
+    - `#185` (S2.17 PI 审查) — PI sign-off **OPEN**
+    - `#186` (S6b.2) — CLOSED via PR #206 **SKIP path**（NOT signed-off E2）
+    - `#205` (rhs_flux SoA/AoS sync drift) — **OPEN**，P-strict pre-req
+    - D9 fast-path trigger #2 — **BLOCKED** on PI sign-off → separate `B1a-tag` and `B1b-tag` per D11
+    - C8 forward-compat — 后续 PI directive 可作为 `B1c-tag` stacking，不 force-update B1b-tag
+
+## B1b-tag 应用状态
+
+| 字段 | 值 |
+|---|---|
+| `B1b-tag-applied` | `true` |
+| `B1b-tag-date` | `2026-06-22` |
+| `B1b-tag-object-sha` | `96e224daad8cb9c93f855851724f8d45468391c2`（annotated） |
+| `B1b-tag-commit-sha` | `18a0c9085f494d1cf228c7be4adf27d9132d05dd`（PR-16 #207 squash-merge + #188 post-merge log append on `baseline/B1b`） |
+| `B1b-tag-SHUD-pin` | `71b3a1ae4ef82e165134a18469c7d0a79284b67f` |
+| `B1b-conditional-ship` | `yes`（详 `docs/b1b_summary.md` §"B1b CONDITIONAL ship status"） |
+
+`B1b-tag` push 后命令全部成功（已 2026-06-22 验证）：
+- `git rev-parse B1b-tag` → `96e224da…`
+- `git rev-parse B1b-tag^{}` → `18a0c908…`
+- `git show B1b-tag --stat -- SHUD` → SHUD pin 显示 `71b3a1ae`
+- `git ls-remote --tags origin | grep B1b-tag` → 远端 tag 存在
+- `gh api repos/DankerMu/SHUD-OpenMP/branches/baseline/B1b/protection` → `lock_branch=true`
+
 ## S1-pre snapshot golden re-archival
 
 为支持 S1（B1a refactor-equivalent serial reference），在 pre-S1a 重新归档 12 张 after-PassValue snapshot golden（4 case × 3 t_values）。
