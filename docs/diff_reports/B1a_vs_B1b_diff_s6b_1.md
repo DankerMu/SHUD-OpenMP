@@ -35,19 +35,22 @@ the observed numerical sequence on all benchmark cases.
 
 | Case | CRYOSPHERE | Reach `MD_ET.cpp:155-156` ? | Bitwise vs B1a-tag | NaN in output | Note |
 |---|---|---|---|---|---|
-| keliya | 1 | YES (first 1440 min) | PASS (90d, see below) | 0 (9/9 binaries) | cryosphere=1 + 90d truncation; AccTemperature path exercised |
-| xinanjiang_upstream | 1 | YES (first 1440 min) | PASS (90d) | not separately scanned | bitwise PASS implies numerical sequence identical to B1a-tag |
-| qinyijiang | 1 | YES (first 1440 min) | PASS (90d) | not separately scanned | same |
-| qhh | 0 | NO (cryosphere branch off) | PASS (90d, 4/4 files) | not applicable | AccTemperature code path entirely bypassed |
+| keliya (Mac) | 1 | YES (first 1440 min) | PASS (90d, see below) | 0 (9/9 binaries via `.s6b-1-runs/scan_nan.sh`) | cryosphere=1 + 90d truncation; AccTemperature path exercised; Mac 1-day NaN-elim auxiliary witness |
+| xinanjiang_upstream (Mac) | 1 | YES (first 1440 min) | PASS (90d) | not separately scanned | bitwise PASS implies numerical sequence identical to B1a-tag |
+| qinyijiang (Mac) | 1 | YES (first 1440 min) | PASS (90d) | not separately scanned | same |
+| qhh (Mac) | 0 | NO (cryosphere branch off) | PASS (90d, 4/4 files) | not applicable | AccTemperature code path entirely bypassed |
+| heihe (server) | 1 | YES (first 1440 min) | not separately re-run (deferred to S6c capstone per design.md D9 trigger #1) | 0 (7/7 binaries via `.s6b-1-runs/scan_nan.sh`) | primary witness per issue #184 "Runs On"; Slurm 三铁律 job 8627 cn07 ExitCode 0:0 elapsed 06:04 |
 
 ## Unaffected cases
 
 `kashigeer` is N/A per master plan §4.22 (Mac-side mesh tooling out of
-scope; goldens only archived for the 5 lake/topology cases). `heihe` /
-`heihe_x4` live on server (CLAUDE.md "双端实验环境"); deferred to
-server-side validation in a later evidence pass if needed for S6c.
-Both are `CRYOSPHERE=1` per `cfg.para` audit; the same first-push
-guarantee applies, so zero-impact is expected to hold.
+scope; goldens only archived for the 5 lake/topology cases).
+`heihe_x4` lives on server (CLAUDE.md "双端实验环境"); the bitwise
+re-run is deferred to S6c capstone validation. `heihe` itself is
+covered in the table above as the server-primary NaN-elimination
+witness (Slurm 三铁律 job 8627). Both are `CRYOSPHERE=1` per
+`cfg.para` audit; the same first-push guarantee applies, so
+zero-impact is expected to hold.
 
 ## Variance description (numerical)
 
@@ -94,11 +97,24 @@ is the most physically conservative startup assumption.
 NUM_OPENMP=1 bitwise SHA256 vs B1a-tag (8/8 PASS).** See
 `SHUD/B1b_CHANGELOG.md` row "S6b.1" for the full SHA table.
 
-Cryosphere first-1440-min NaN elimination evidence (keliya,
-CRYOSPHERE=1, 1-day truncation): 0 NaN / 0 Inf across all 9 produced
-output binaries (`keliya.rivqdown.dat`, `keliya.elevnetprcp.dat`,
-`keliya.elevprcp.dat`, `DY.dat`, `Debug_Table_Element.csv`,
-`Debug_Table_River.csv`, `keliya.flood.csv`, `keliya.time.csv`,
-`keliya.SHUD`). 0 NaN / 0 Inf hits in stdout + stderr grep
-(`/Users/danker/Desktop/Hydro-SHUD/openMP/.s6b-1-runs/keliya_1day_stdout.log`,
-`/Users/danker/Desktop/Hydro-SHUD/openMP/.s6b-1-runs/keliya_1day_stderr.log`).
+Cryosphere first-1440-min NaN elimination evidence (reproducible via
+`.s6b-1-runs/scan_nan.sh` / `scan_nan.py`):
+
+- **Server heihe (primary, `CRYOSPHERE=1`, 1-day truncation)**: 0 NaN
+  / 0 Inf across 7 produced output binaries (`DY.dat`,
+  `Debug_Table_Element.csv`, `Debug_Table_River.csv`, `heihe.SHUD`,
+  `heihe.flood.csv`, `heihe.rivqdown.dat`, `heihe.time.csv`). 0 NaN
+  / 0 Inf hits in Slurm stdout + stderr grep. Slurm 三铁律 job
+  `8627`, partition `CPU`, node `cn07`, state `COMPLETED`,
+  ExitCode `0:0`, elapsed `00:06:04`. Logs:
+  `.s6b-1-runs/server/heihe_1day_8627.{out,err,_scan.log}`,
+  `.s6b-1-runs/server/run_heihe_s6b1.sbatch`.
+- **Mac keliya (auxiliary, `CRYOSPHERE=1`, 1-day truncation)**: 0 NaN
+  / 0 Inf across 9 produced output binaries (`keliya.rivqdown.dat`,
+  `keliya.elevnetprcp.dat`, `keliya.elevprcp.dat`, `DY.dat`,
+  `Debug_Table_Element.csv`, `Debug_Table_River.csv`,
+  `keliya.flood.csv`, `keliya.time.csv`, `keliya.SHUD`). 0 NaN / 0
+  Inf hits in stdout + stderr grep
+  (`.s6b-1-runs/keliya_1day_stdout.log`,
+  `.s6b-1-runs/keliya_1day_stderr.log`,
+  `.s6b-1-runs/keliya_1day_scan.log`).
