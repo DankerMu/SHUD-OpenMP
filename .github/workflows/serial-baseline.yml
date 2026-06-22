@@ -153,6 +153,33 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
+  # Job 1b — tools-tests: lightweight schema + unit-test gate
+  # Wires `tools/check_manifest.py --all` (7-case manifest schema gate,
+  # including the forcing_dir mapping schema) and
+  # `tools/check_manifest_tests/test_forcing_dir.py` (union str|dict +
+  # null/malformed fixtures) into CI. Independent of matrix, runs in seconds,
+  # closes the F-C-1 regression-protection gap surfaced in PR #227 review
+  # (the schema validator and its fixture tests were not previously executed
+  # on every PR; only 4 check_*sub-script gates were).
+  # ---------------------------------------------------------------------------
+  tools-tests:
+    name: tools-tests (manifest schema + forcing_dir union tests)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+      - name: check_manifest --all (7 case schema gate, including forcing_dir mapping)
+        run: uv run tools/check_manifest.py --all
+      - name: test_forcing_dir (union str|dict + null/malformed fixtures)
+        run: uv run tools/check_manifest_tests/test_forcing_dir.py
+
+  # ---------------------------------------------------------------------------
   # Job 2 — build-and-compare: matrix consumer
   # ---------------------------------------------------------------------------
   build-and-compare:
