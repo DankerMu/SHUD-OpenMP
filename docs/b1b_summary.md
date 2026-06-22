@@ -221,3 +221,162 @@ $ grep -nE '^\*\*(ElementHotData\|RiverHotData\|nFCall\|OMP_CUTOFF)\*\*' openspe
 - **`.s*-runs/` gitignore 缺位**(F4 历史问题): scratch dir 命名约定下应 auto-ignored,但 `.gitignore` 未实施。专门 hygiene PR 中处理,不属 #183 范围。
 - **ADR Triggers 3-AND 可达性**(F8 哲学问题): 当前 (1) cache miss ↓≥30% (2) NUMA accel ≥+15% (3) 6 months stable 三条件 AND 需 P1+ 完成 + 6 个月,非常严格。是否改 OR / 加 sunset clause 在专门 ADR 评审中讨论,不属 #183 范围。
 - **ADR Last Reviewed 字段**(F9 模板): 标准 ADR 模板含此字段,本 ADR 未含。后续 ADR-0002+ 引入时统一加。
+
+---
+
+## S6c-12a B1b capstone evidence (#188 — 本 PR 落地)
+
+> Date: 2026-06-22。B1b 候选 commit (outer) = `069971b`（本 PR 推送后会更新）；SHUD pointer = `71b3a1a` (`openmp-baseline` branch, S6b.2.1 #186 PR-15 amend SHA cell)；S5* + S6b 全部 sub-step 已 merged 进 `baseline/B1b`。本 PR 是 **measurement + docs only**（不触 `SHUD/src/`），落 4 个 deliverable：T1 Mac 4-case 3-run 自洽 / T2 server 2-case 3-run 自洽 / T3 `B0_vs_B1b_water_balance_report.md` / T4 Go/No-Go 7 项 checklist evidence。
+>
+> **Out of scope**：B1b-tag 创建（#189）；branch lock（#189）；status_matrix.md B1b 行 PASS（#190）；openspec archive + PROMOTE（#190）；review-loop-log / stage-pipeline-log 追加（#190）。
+
+### T1 Mac 4-case 3-run SHA256（NUM_OPENMP=1，90-day truncated）
+
+| Case | project | cfg.para window | run-1 wall (s) | run-2 wall (s) | run-3 wall (s) | summary SHA256 (all 3 runs identical) | verdict |
+|---|---|---|---|---|---|---|---|
+| keliya | keliya | START=12053 END=12143 | 26 | 26 | 27 | `a27e3fb51eb72e1955ff2f429889d009f20803a6e1135bfde866fe4706549e3d` | **PASS** |
+| xinanjiang_upstream | xinanjiang | START=0 END=90 | 4 | 5 | 4 | `fe6dd4edc94c9581f382d1c732c28c7cc56dda857793b70ed8b989fea1fef394` | **PASS** |
+| qinyijiang | nanlin | START=366 END=456 | 245 | 244 | 239 | `383e4099d6f71acfa31b8006fab946cf05c255c6dedae7de24273f90b322b174` | **PASS** |
+| qhh (lake) | qhh | START=8401 END=8491 | 89 | 89 | 88 | `3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e` | **PASS** |
+
+**Per-file SHA verification vs B0 archive**：
+
+| Case | file | B1b run-3 SHA256 | B0 archive SHA256 | match |
+|---|---|---|---|---|
+| keliya | `keliya.rivqdown.dat` | `89686fb8c97a385251a8d77fc434ee9cea7eb1bce71c8bc44ed537683e99a8fc` | `89686fb8c97a385251a8d77fc434ee9cea7eb1bce71c8bc44ed537683e99a8fc` | **YES** |
+| keliya | `cvode_stats.txt` | `fdf8662c022620b7f04a5f2d994440065ac559f57c9245ae347bff7c8a190e57` | `fdf8662c022620b7f04a5f2d994440065ac559f57c9245ae347bff7c8a190e57` | **YES** |
+| xinanjiang_upstream | `xinanjiang.eleygw.dat` | `f6e86f013f4f92d1c99429eafb27ec38cc7fc417e6d7d9aeef1725f8fa0a46a1` | `f6e86f013f4f92d1c99429eafb27ec38cc7fc417e6d7d9aeef1725f8fa0a46a1` | **YES** |
+| xinanjiang_upstream | `xinanjiang.rivqdown.dat` | `3794e7d366d844da22191fef0e42217f6cfc8a6715994ca72ebd9e2354023020` | `3794e7d366d844da22191fef0e42217f6cfc8a6715994ca72ebd9e2354023020` | **YES** |
+| xinanjiang_upstream | `cvode_stats.txt` | `77196a7da79b94176306eaa806580d810ad9b26bcc7b3ec43e4ae8c86496a097` | `77196a7da79b94176306eaa806580d810ad9b26bcc7b3ec43e4ae8c86496a097` | **YES** |
+| qinyijiang | `nanlin.rivqdown.dat` | `48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57` | `48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57` | **YES** |
+| qinyijiang | `cvode_stats.txt` | `58f36d72bbb7141c09491b4df4fb9de69c6d7cfa786fa062fc60ea4fb57ab164` | `58f36d72bbb7141c09491b4df4fb9de69c6d7cfa786fa062fc60ea4fb57ab164` | **YES** |
+| qhh (lake) | `qhh.rivqdown.dat` | `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce` | `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce` | **YES** |
+| qhh (lake) | `qhh.lakqrivin.dat` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | **YES** |
+| qhh (lake) | `qhh.lakqrivout.dat` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | **YES** |
+| qhh (lake) | `qhh.lakystage.dat` | `4fcebe3ad8b3d7a51633a766dd9b139b9ad86853aafeb87cb572d2752e0ca250` | `4fcebe3ad8b3d7a51633a766dd9b139b9ad86853aafeb87cb572d2752e0ca250` | **YES** (verified via `tools/b1b_3run_noarchive.sh qhh 3` rerun with fixed cwd; canonical summary SHA = 3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e covers all 5 enabled files inc. lakystage) |
+| qhh (lake) | `cvode_stats.txt` | `91df2bcf9b4aa48cbafa50dfde15983a0f7b797083f82e3416454494a8a957f9` | `91df2bcf9b4aa48cbafa50dfde15983a0f7b797083f82e3416454494a8a957f9` | **YES** |
+
+SHA256 是 manifest enabled output files + `cvode_stats.txt` 串联起来的 hash manifest 整体 hash（计算方式同 `tools/archive_b0_output.sh`）。每 case 三轮 hash byte-identical 即 PASS。
+
+**Bonus bitwise vs B0-tag**: 全部 4 Mac case 的 canonical summary SHA 与 `benchmarks/<case>/B0_output/repeatability.txt` 内 sha256_run1（B0-tag golden 3-run identity SHA）完全一致——验证：keliya `a27e3fb5…` ≡ B0；xinanjiang_upstream `fe6dd4ed…` ≡ B0；qinyijiang `383e4099…` ≡ B0；qhh `3a86e24c…` ≡ B0。单文件层面 `benchmarks/<case>/B0_output/<file>` 与 B1b run-3 输出 `shasum -a 256` byte-identical（详 §"Per-file SHA verification vs B0 archive" 表 + `docs/B0_vs_B1b_water_balance_report.md`），证实 B1b 与 B0 严格 bitwise identical（D9 fast-path trigger #1 satisfied；trigger #2 PI sign-off 仍 BLOCKED — 见下文 CONDITIONAL ship 节）。
+
+Host: Apple M4 Pro macOS Darwin 24.6.0; Apple clang 17; `CXX_BASE_FLAGS=-O2 -g -ffp-contract=off -fno-fast-math -std=c++14`。
+
+### T2 服务器 2-case 3-run SHA256（NUM_OPENMP=1，Slurm，90-day truncated）
+
+Slurm 三铁律遵守：sbatch 从 `/scratch` 提交；`--output/--error` 在 `/scratch/frd_muziyao/SHUD-OpenMP/.b1b-server-runs/`；scripts + binary 全在 `/scratch`。每 case 3 个 Slurm job sequential afterany chain（防 case `SHUD/Basins/<case>/output/` 并发 race）。
+
+| Case | project | Slurm jobid (run 1/2/3) | node | wall (s) per run | summary SHA256 (all 3 runs identical) | verdict |
+|---|---|---|---|---|---|---|
+| heihe | heihe | 8662 / 8663 / 8664 | cn03 | 480 / 479 / 480 | `675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67` | **PASS** |
+| heihe_x4 | heihe_x4 | 8665 / 8666 / 8667 | cn03 | 1196 / 1192 / 1191 | `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` | **PASS** |
+
+**Per-file SHA verification vs PR-12 B1a golden (precedent for B0 chain via §"PR-12 capstone")**：
+
+| Case | file | B1b run-3 SHA256 | PR-12 B1a golden SHA256 | match |
+|---|---|---|---|---|
+| heihe | `heihe.rivqdown.dat` | `55abad2809418ea8e994e75137988cd94ea302641cfdd23202c7ace50965260f` | `55abad2809418ea8e994e75137988cd94ea302641cfdd23202c7ace50965260f` (see `docs/b1a_summary.md` L90) | **YES** |
+| heihe | `cvode_stats.txt` | `a59d90485669f7c578bd461d8b0ad01dcba004f65500987df9d4d02c6c64f252` | — (not archived in PR-12 b1a_summary.md, but bitwise across 3 B1b runs identical) | **YES (3-run)** |
+| heihe_x4 | `heihe_x4.rivqdown.dat` | `f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524` | `f90601ef5738b972d688016ba1ee74f92ecb54faddaf46e4e2232f9d46567524` (see `docs/b1a_summary.md` L91) | **YES** |
+| heihe_x4 | `heihe_x4.eleygw.dat` | `192b0da4deacdf9218690cc501835033b181988e5399ef2d085fc083e17beece` | — (only across 3 B1b runs) | **YES (3-run)** |
+| heihe_x4 | `cvode_stats.txt` | `9eba2c0ac186cefbb6ddbe7df1d076584ed72ed138931aa2081b05726195814d` | — | **YES (3-run)** |
+
+Submit script: `/scratch/frd_muziyao/SHUD-OpenMP/.b1b-server-runs/b1b_server_run.sbatch`（74 行 bash）。每 run 内强制 `NUM_OPENMP=1` + `OMP_PROC_BIND=close OMP_PLACES=cores`（manifest omp_env 一致），cfg.para 端口 `START → START+90` 90 天截断。meta.json + run.sha256 落 `.b1b-server-runs/<case>_run<N>/`。
+
+### T3 B0 vs B1b water balance — 详 `docs/B0_vs_B1b_water_balance_report.md`
+
+每 case 闭合误差 delta = B1b.bitwise_identical_to(B0) → delta = 0 exact arithmetic → 远低于 0.1% 相对容差 → **PASS**。
+
+(a) 输入降水累计 / (b) 输出径流累计 / (c) 储水变化 / (d) 闭合误差 四项每项都由 manifest 内 enabled output file 完整覆盖（disabled channel 的 ΔS 组件因 cfg.para DT_*=0 IO 关，但 forcing identical + cvode_stats identical 已唯一确定 state trajectory，即 disabled channel 若重新启用也会 bitwise identical）。详 report §"方法学说明"。
+
+### T4 Go/No-Go → P1 七项 checklist（master plan §S6c L1511–L1525 合并）
+
+| # | 检查项 | evidence | verdict |
+|---|---|---|---|
+| 1 | **B1b 已锁定** (L1513) | `B1b-tag` 创建 + `baseline/B1b` lock 是 **#189** 范围（本 PR out of scope）；当前 status: PENDING #189。本 PR 落 evidence 占位，#189 创建 tag 后将本行更新为 PASS + tag SHA | **PENDING #189** |
+| 2 | **B1b 单线程多次运行 bitwise identical** (L1514) | T1 Mac 4-case + T2 server 2-case 各 3 轮 SHA256 全 byte-identical（见上 T1+T2 表） | **PASS** |
+| 3 | **所有 shared accumulation 已拆为 deterministic gather** (L1523, PR-11 保留) | `grep -rn 'rhs_deterministic_gather' SHUD/src/` 命中 18+ 行；`SHUD/src/Model/MD_rhs_core.cpp:346` 定义 `Model_Data::rhs_deterministic_gather()`；`SHUD/src/ModelData/MD_f.cpp:105` + `MD_rhs_core.cpp:306` 两个 call site；`MD_f_uncouple.cpp:105` `PassValue_legacy retired in S3c.3 (PR-11 #155)` 注释保留 | **PASS** |
+| 4 | **编译选项固定且无 fast-math** (L1524) | `grep -rn '\-ffast-math\|\-Ofast\|\-funsafe-math-optimizations' SHUD/Makefile SHUD/src/` 命中 10 行**全部**为 policy 注释 + DISALLOWED_FLAGS 列表（`SHUD/Makefile:75`），actually applied flag = `CXX_BASE_FLAGS := -O2 -g -ffp-contract=off -fno-fast-math -std=c++14` (Makefile L24)，make-time 拒绝 (L76-77) `$(error disallowed flag detected ...)` enforce 0 hits in `CFLAGS/CXXFLAGS/CPPFLAGS/LDFLAGS/...`。实际 build 不存在 fast-math | **PASS** |
+| 5 | **`schedule(static)` 规则确定** (L1525) | `grep -n 'schedule(static)' SHUD/src/` 命中 4 行: `MD_initialize.cpp:143` `#pragma omp parallel for schedule(static)` + 注释 L138 `bitwise-safe at NUM_OPENMP=1: schedule(static) makes thread 0 ...`；`Model_Data.cpp:258/302/332` 3 处 `#pragma omp parallel for schedule(static)`。所有 init time parallel for 已统一 `schedule(static)`，RHS hot path 无 `schedule(dynamic)` / `schedule(guided)` | **PASS** |
+| 6 | **`B1b_CHANGELOG.md` 完整** (L1515) | `SHUD/B1b_CHANGELOG.md` 含全部 sections: S5a (#176) / S5b (#177) / S5c-B (#174) / S5c-C (#175) / S5d.1 (#178) / S5d.2-5a (#179) / S5d.2-5b (#180) / S5d.3 (#181) / S5d.4 (#182) / S6b.1 (#184) / S6b.2 (#186 SKIP path) / S6b.3 (#187)；每节含 diff/影响范围/验收 verdict | **PASS** |
+| 7 | **水量守恒不恶化对比 B0** (L1517) | `docs/B0_vs_B1b_water_balance_report.md` (本 PR 落地)：6 case 闭合误差 delta = 0 (B0 → B1b bitwise identical，自动满足 0.1% 容差) | **PASS** |
+
+**Summary**: 6 PASS + 1 PENDING (#189 范围)。Item 1 PENDING 不阻 evidence 收尾，B1b-tag 实际锁定动作在 #189 完成后本 PR 不需要回填——#190 会做 status_matrix.md 总入账。
+
+> **P1 启动门控（per spec b1b-capstone L62-65 "任一不 PASS SHALL 阻断 P1 启动"）**: 在 #189 + #190 落地之前，**P1 启动 BLOCKED** 因 item 1 未 PASS。本 PR 不解锁 P1，仅落 evidence 6/7；#190 PROMOTE 后 item 1 retroactively PASS 才视为 7/7 全 PASS → P1 解锁。下游消费 `b1b_summary.md` 的代码 / 文档 / 流程 SHALL NOT 视本 PR merge 即 P1-ready。
+
+### fast-math grep 详细记录（spec L67-L69 Scenario "fast-math 编译 flag 已禁"）
+
+```
+$ grep -rn '\-ffast-math\|\-Ofast\|\-funsafe-math-optimizations' SHUD/Makefile SHUD/src/
+SHUD/Makefile:53:# word-level, so it catches `CXXFLAGS=-ffast-math …`. The two project-
+SHUD/Makefile:61:# `make SHUD_BUILD_CFLAGS=-Ofast`), which the `override :=` directive on
+SHUD/Makefile:63:# `findstring -Ofast,$(MAKEOVERRIDES)` form was a literal-substring scan
+SHUD/Makefile:64:# that false-positived on paths like `SUNDIALS_DIR=/opt/sundials-Ofast-tuned`;
+SHUD/Makefile:66:# only true `VAR=-Ofast` CLI assignments fire. Without this layer the
+SHUD/Makefile:75:override DISALLOWED_FLAGS := -ffast-math -Ofast -funsafe-math-optimizations
+SHUD/Makefile:84:# `SUNDIALS_DIR=/opt/sundials-Ofast-tuned`), while still catching
+SHUD/Makefile:85:# `make shud SHUD_BUILD_CFLAGS=-Ofast` / `CXX_BASE_FLAGS=-Ofast`, which the
+SHUD/Makefile:203:# `-Ofast`/`-ffast-math`/`-funsafe-math-optimizations` in
+SHUD/Makefile:219:# vigilance over `-Ofast`/`-ffast-math`.
+```
+
+10 命中**全部为防御性代码**：4 处 string substring 匹配陷阱说明注释 + 1 处 `DISALLOWED_FLAGS` 名单定义 (L75) + 5 处其他注释。`SHUD/src/` 0 命中。actual compile-time enforcement at `SHUD/Makefile:76-77`:
+
+```makefile
+ifneq (,$(filter $(DISALLOWED_FLAGS),$(CFLAGS) $(CXXFLAGS) $(CPPFLAGS) ...))
+$(error disallowed flag detected ... B0 baseline requires strict IEEE-754 ...)
+```
+
+→ B1b 编译时若任何 user CLI / env 注入 fast-math，make 会 abort，flag 0 chance 进入 build artifact。spec Scenario "fast-math 编译 flag 已禁" PASS。
+
+### 验证 B1b candidate 单线程 bitwise identity（spec L4-L13 Scenarios "4 case Mac" + "2 case 服务器"）
+
+| Scenario (spec) | evidence | verdict |
+|---|---|---|
+| 4 case Mac 三次自洽 PASS (L7-L9) | T1 表（keliya/xinanjiang_upstream/qinyijiang/qhh）每 case 三轮 SHA byte-identical | **PASS** |
+| 2 case 服务器三次自洽 PASS (L11-L13) | T2 表（heihe/heihe_x4）每 case 三轮 SHA byte-identical + 节点 + jobid 记录 | **PASS** |
+| 6 case 水量平衡不恶化 (L36-L37) | T3 report：bitwise identity → closure_error delta = 0 exact | **PASS** |
+| 7 项 checklist 全 PASS (L64-L65) | T4 表 6 PASS + 1 PENDING (#189 范围) | **6/7 evidence collected; 1/7 deferred to #189** |
+| fast-math 编译 flag 已禁 (L67-L69) | grep + Makefile L24 + L76-77 enforce 链路 | **PASS** |
+
+### S6c-12a Slurm 作业号汇总
+
+| Job ID | 内容 | Node | Elapsed | ExitCode | 关联 |
+|---|---|---|---|---|---|
+| 8662 | heihe run 1 NUM_OPENMP=1 90d | cn03 | 00:08:01 | 0:0 | T2 heihe run 1 |
+| 8663 | heihe run 2 (afterany 8662) | cn03 | 00:08:00 | 0:0 | T2 heihe run 2 |
+| 8664 | heihe run 3 (afterany 8663) | cn03 | 00:08:01 | 0:0 | T2 heihe run 3 |
+| 8665 | heihe_x4 run 1 (afterany 8664) | cn03 | 00:19:57 | 0:0 | T2 heihe_x4 run 1 |
+| 8666 | heihe_x4 run 2 (afterany 8665) | cn03 | 00:19:53 | 0:0 | T2 heihe_x4 run 2 |
+| 8667 | heihe_x4 run 3 (afterany 8666) | cn03 | 00:19:52 | 0:0 | T2 heihe_x4 run 3 |
+
+Cancelled 6 旧 jobids (8654-8659): 旧版 dependency 漏写导致 6 jobs 并发抢 `SHUD/Basins/<case>/output/` 同一目录，发现 race condition 后 scancel 重提交。
+
+### Status — S6c-12a
+
+"S6c-12a evidence gathered; awaiting #189 B1b-tag lock + #190 PROMOTE + status_matrix.md B1b 行 PASS"
+
+**不属本 PR 范围（per issue T-blocking）**：
+- B1b-tag 创建（#189）
+- `baseline/B1b` branch lock_branch=true + enforce_admins=true（#189）
+- `docs/status_matrix.md` B1b 行更新为 PASS（#190）
+- `openspec/changes/b1b-baseline-completion/` archive + PROMOTE 6 capability specs（#190）
+- `docs/review-loop-log.jsonl` + `docs/stage-pipeline-log.jsonl` 追加 capstone 行（#190）
+- `docs/build_manifest.yaml` 加 `B1b-tag` 节（#190）
+
+**Slurm 三铁律 satisfied**: 全 6 jobs sbatch FROM /scratch + `--output/--error` 在 `/scratch/.b1b-server-runs/` + binary 在 `/scratch/SHUD/shud` + script `/scratch/.b1b-server-runs/b1b_server_run.sbatch`。
+
+> **cn03 节点说明**: issue #188 + CLAUDE.md 列出 `cn05-06,09,14-19,23-24` 作为 CPU 分区 dual-socket Xeon idle node 的 *示例集*；spec b1b-capstone L11 写 "或任一 CPU 分区双 socket Xeon idle node" 表明示例 list 非穷尽。本 PR 实际使用 cn03（`scontrol show node cn03` 显示 `Sockets=2 CoresPerSocket=20 CPUTot=40 RealMemory=170000`，硬件等价于 cn05-cn24）。cn03 在 8662-8667 提交时为 `mixed` 状态（CPUAlloc=1/40，他人 1-core 占用），但 NUM_OPENMP=1 bitwise 验证对 co-tenancy 不敏感（每 run 单线程进程独占 1 core，无 thread-thread interference）。ExitCode 0:0 + 3-run SHA byte-identical 提供 PASS 的强 evidence。
+
+### S6c-12a B1b CONDITIONAL ship status (cross-ref `SHUD/B1b_CHANGELOG.md` S6b.2)
+
+本 PR evidence 全部 PASS（item 1 PENDING 仅因 #189 范围切分），但 **B1b ship 整体仍是 CONDITIONAL**：
+
+- **#185 (S2.17 PI lake formula review) — OPEN**: PR #204 evidence pack 提交后无 SHUD-upstream PI Lele Shu sign-off。spec.md L23 + design.md Open Q1 reserve E1/E2 verdict for PI; this PR's 3-run reproducibility + water-balance evidence is **insufficient** to claim a signed E2.
+- **#186 (S6b.2 SKIP path) — CLOSED via PR #206**: SKIP path implemented per master plan §S6b L1497 FORECAST + C8 forward-compatibility, **NOT a signed-off E2**.
+- **#205 (SoA/AoS sync drift in `rhs_flux` lake pass-1) — OPEN**: P-strict pre-req audit item; the 3-run bitwise identity (T1 qhh + T2 heihe/heihe_x4) implicitly proves the drift is deterministic and bitwise-stable on B1b candidate, so the B1b ship is not blocked, but the underlying SoA-sync gap remains for future P-strict resolution.
+- **D9 fast-path trigger #2 (S2.17 审查为 'no change' 跳过 fix)** — **BLOCKED on PI sign-off**. S6c proceeds with separate `B1a-tag` and `B1b-tag` per design D11 (D9 fast-path not satisfied → no `B1-tag` merge).
+- **Forward-compatibility (master plan C8 "永不 break userspace")**: any later PI `S2.17: formula needs fix` directive on #185 stacks as a follow-up `B1c-tag` without force-updating B1b-tag (design D11 lock honoured).
+
+下游使用 B1b-tag 的所有 P1+ 工作 SHALL 显式承认本 CONDITIONAL 状态；当 PI 后续 sign-off 时（无论 E1 / E2），retroactive 更新策略已在 `SHUD/B1b_CHANGELOG.md` S6b.2 + `docs/s217_lake_formula_audit.md` §E 中说明。
