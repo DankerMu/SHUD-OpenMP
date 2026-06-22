@@ -1,4 +1,14 @@
-## ADDED Requirements
+## Purpose
+
+规约 S5d 数据布局（ElementHotData SoA + 平 3 行主序 + jagged flatten + parallel first-touch + NUMA env discipline）。
+
+## Conventions
+
+- 章节顺序锚定 Purpose / Conventions / Requirements。
+- Requirement 标题严格匹配 B1a-precedent 模板（### Requirement: …），Scenario 用 #### Scenario: 标识。
+- 本 spec 由 openspec/changes/b1b-baseline-completion/specs/<capability>/spec.md PROMOTE 而来（#190 S6c-12c capstone 2026-06-22），原始 change spec 的 "## ADDED Requirements" 头部已替换为 system-spec 等价的 Purpose+Conventions+Requirements 三段结构。
+
+## Requirements
 
 ### Requirement: ElementHotData SoA 容器抽取 RHS hot 字段
 

@@ -1,4 +1,14 @@
-## ADDED Requirements
+## Purpose
+
+规约 S5b RHS scratch arrays 所有权归并 + lake reset 顺序前置 + RHS print 重组（audit + 序结构）。
+
+## Conventions
+
+- 章节顺序锚定 Purpose / Conventions / Requirements。
+- Requirement 标题严格匹配 B1a-precedent 模板（### Requirement: …），Scenario 用 #### Scenario: 标识。
+- 本 spec 由 openspec/changes/b1b-baseline-completion/specs/<capability>/spec.md PROMOTE 而来（#190 S6c-12c capstone 2026-06-22），原始 change spec 的 "## ADDED Requirements" 头部已替换为 system-spec 等价的 Purpose+Conventions+Requirements 三段结构。
+
+## Requirements
 
 ### Requirement: scratch 数组必须每元素只有唯一 owner 写入
 

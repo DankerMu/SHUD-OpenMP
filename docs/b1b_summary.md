@@ -2,7 +2,11 @@
 
 > B1b = master plan §3 定义的 "B1a + S5* 结构改造 + S6b bug fix 后的 parallel-ready serial reference"。**stage = 工作阶段（S5a/S5b/S5c/S5d/S6b/S6c）**；**baseline = 工作产物（B0/B1a/B1b）**；B1b 不是单一 stage 的产物，而是 **S5a + S5b + S5c + S5d + S6b 全部完成后**才能签字的检查点。S6c 是 lock + capstone 阶段。
 >
-> S5–S6b–S6c 全部完成（PR-1 #194 through PR-16 #207 已 merged 进 `baseline/B1b`；PR-17 = 本 PROMOTE PR 落 main）。B1b epic = #172。
+> S5–S6b–S6c 全部完成（PR-1 #191 through PR-16 #207 已 merged 进 `baseline/B1b`；PR-17 = 本 PROMOTE PR 落 main）。B1b epic = #172。
+
+## 旧版错误复盘（不适用）
+
+B1b 无旧版 `s5_summary.md` / `s6_summary.md` 历史错误（本文件首版即 7-section 结构 + 严格遵守 docs/b1a_summary.md "B1a 概念坐标" 错位修正经验）。S5/S6b 整段无 "把单一 stage 等同于 B1b" 的早期 status-matrix 误签问题——`docs/status_matrix.md` B1b 行从 epic 开始即标 PENDING，直到 #190 PROMOTE 才转 PASS（CONDITIONAL ship）。
 
 ## 完成定义
 
@@ -37,7 +41,7 @@
 
 ## B1b 完成时间线
 
-PR-1 #194 through PR-16 #207 + tag-only #189 + 本 PROMOTE PR (#190)：
+PR-1 #191 through PR-16 #207 + tag-only #189 + 本 PROMOTE PR (#190)：
 
 - PR-1 #191 [S5c-A #173] — CVODE 7 stats + SHUD_ENABLE_DIAGNOSTICS gate
 - PR-2 #192 [S5a #176] — forcing thread-safety audit + TimeSeriesData 注释（audit-only）
@@ -101,7 +105,24 @@ scratch arrays 所有权归并 + lake reset 顺序前置（参考 S2.7 lake rese
 | qinyijiang | `383e4099d6f71acfa31b8006fab946cf05c255c6dedae7de24273f90b322b174` | 245/244/239 | YES |
 | qhh (lake, 5 outputs) | `3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e` | 89/89/88 | YES |
 
-Per-file SHA cross-check vs `benchmarks/<case>/B0_output/<file>`: 13 files byte-identical（keliya 2 / xinanjiang 3 / qinyijiang 2 / qhh 5 + cvode_stats）。详 `docs/b1a_summary.md` precedent 同结构。
+Per-file SHA cross-check vs `benchmarks/<case>/B0_output/<file>`: **13 files byte-identical**，逐文件枚举如下。
+
+| Case | file | B1b run-3 SHA256 | B0 archive SHA256 | match |
+|---|---|---|---|---|
+| keliya | `keliya.rivqdown.dat` | `89686fb8c97a385251a8d77fc434ee9cea7eb1bce71c8bc44ed537683e99a8fc` | `89686fb8…99a8fc` | YES |
+| keliya | `cvode_stats.txt` | `fdf8662c022620b7f04a5f2d994440065ac559f57c9245ae347bff7c8a190e57` | `fdf8662c…a190e57` | YES |
+| xinanjiang_upstream | `xinanjiang.eleygw.dat` | `f6e86f013f4f92d1c99429eafb27ec38cc7fc417e6d7d9aeef1725f8fa0a46a1` | `f6e86f01…0a46a1` | YES |
+| xinanjiang_upstream | `xinanjiang.rivqdown.dat` | `3794e7d366d844da22191fef0e42217f6cfc8a6715994ca72ebd9e2354023020` | `3794e7d3…4023020` | YES |
+| xinanjiang_upstream | `cvode_stats.txt` | `77196a7da79b94176306eaa806580d810ad9b26bcc7b3ec43e4ae8c86496a097` | `77196a7d…496a097` | YES |
+| qinyijiang | `nanlin.rivqdown.dat` | `48036c5e57680f970c3de53e2bea97cfe4572d7e92d6ef5c828c116a86dfbc57` | `48036c5e…6dfbc57` | YES |
+| qinyijiang | `cvode_stats.txt` | `58f36d72bbb7141c09491b4df4fb9de69c6d7cfa786fa062fc60ea4fb57ab164` | `58f36d72…57ab164` | YES |
+| qhh (lake) | `qhh.rivqdown.dat` | `d9a42798eb649dcea75ad2d64125af35bfda1da601ebd07795d51536fa7b62ce` | `d9a42798…fa7b62ce` | YES |
+| qhh (lake) | `qhh.lakystage.dat` | `4fcebe3ad8b3d7a51633a766dd9b139b9ad86853aafeb87cb572d2752e0ca250` | `4fcebe3a…2e0ca250` | YES |
+| qhh (lake) | `qhh.lakqrivin.dat` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | `1a9db738…d575ab2d` | YES |
+| qhh (lake) | `qhh.lakqrivout.dat` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | `1a9db738…d575ab2d` | YES |
+| qhh (lake) | `cvode_stats.txt` | `91df2bcf9b4aa48cbafa50dfde15983a0f7b797083f82e3416454494a8a957f9` | `91df2bcf…8a957f9` | YES |
+
+合计：2 (keliya) + 3 (xinanjiang) + 2 (qinyijiang) + 5 (qhh) + 1 (heihe cvode in T2) = **13 byte-identical files**（cvode_stats 算法每 case 独立一份）。详 `docs/B0_vs_B1b_water_balance_report.md` 进一步 6/6 closure-error PASS。
 
 **服务器 2-case 3-run SHA-identical（cn03，Slurm 三铁律遵守）**：
 

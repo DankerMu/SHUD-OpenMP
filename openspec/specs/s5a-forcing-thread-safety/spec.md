@@ -1,4 +1,14 @@
-## ADDED Requirements
+## Purpose
+
+规约 S5a forcing-pipeline 线程安全 audit 与文档落地（audit-only，不触 SHUD/src 数值代码）。
+
+## Conventions
+
+- 章节顺序锚定 Purpose / Conventions / Requirements。
+- Requirement 标题严格匹配 B1a-precedent 模板（### Requirement: …），Scenario 用 #### Scenario: 标识。
+- 本 spec 由 openspec/changes/b1b-baseline-completion/specs/<capability>/spec.md PROMOTE 而来（#190 S6c-12c capstone 2026-06-22），原始 change spec 的 "## ADDED Requirements" 头部已替换为 system-spec 等价的 Purpose+Conventions+Requirements 三段结构。
+
+## Requirements
 
 ### Requirement: movePointer 必须在 RHS 并行区外串行调用
 

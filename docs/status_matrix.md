@@ -82,7 +82,7 @@ Aggregate gate（PR-12 capstone 验收）：
 
 ## B1b 行证据
 
-> **2026-06-22 capstone（PR-16 #207 #188 + #189 + 本 #190 PR）**：B1b 整体 = master plan §3 "S5 + S6b + S6c 全部完成"。S5a/S5b/S5c/S5d/S6b 全部完成（PR-1 #194 through PR-16 #207 已 merge 进 `baseline/B1b`；#189 创建 `B1b-tag = 18a0c908…` annotated tag + push origin + branch protection `lock_branch=true`；详见 [`docs/b1b_summary.md`](b1b_summary.md) 时间线）。下表 evidence 来自 PR-16 #207 capstone 时刻（SHUD `71b3a1ae` 在 `openmp-baseline`），4-case Mac 本地 + 2-case 服务器 Slurm 8662-8667 (cn03) 全部 bitwise vs B0-tag PASS；4 Mac canonical summary SHA ≡ B0 `repeatability.txt sha256_run1`；aggregate = **PASS (CONDITIONAL ship)** —— #185 S2.17 PI sign-off OPEN / #205 SoA/AoS sync drift P-strict pre-req OPEN / D9 fast-path BLOCKED / C8 forward-compat 允许 B1c-tag stacking。
+> **2026-06-22 capstone（PR-16 #207 #188 + #189 + 本 #190 PR）**：B1b 整体 = master plan §3 "S5 + S6b + S6c 全部完成"。S5a/S5b/S5c/S5d/S6b 全部完成（PR-1 #191 through PR-16 #207 已 merge 进 `baseline/B1b`；#189 创建 `B1b-tag = 18a0c908…` annotated tag + push origin + branch protection `lock_branch=true`；详见 [`docs/b1b_summary.md`](b1b_summary.md) 时间线）。下表 evidence 来自 PR-16 #207 capstone 时刻（SHUD `71b3a1ae` 在 `openmp-baseline`），4-case Mac 本地 + 2-case 服务器 Slurm 8662-8667 (cn03) 全部 bitwise vs B0-tag PASS；4 Mac canonical summary SHA ≡ B0 `repeatability.txt sha256_run1`；aggregate = **PASS (CONDITIONAL ship)** —— #185 S2.17 PI sign-off OPEN / #205 SoA/AoS sync drift P-strict pre-req OPEN / D9 fast-path BLOCKED / C8 forward-compat 允许 B1c-tag stacking。
 
 | Case | 单元格 | 证据（S5 + S6b + S6c-12a complete） |
 |---|---|---|
@@ -102,10 +102,10 @@ Aggregate gate（PR-16 #207 capstone + #189 tag + 本 PROMOTE PR 验收）：
 - `B1b-tag` annotated tag = `96e224da…`（指向 commit `18a0c908…`，含 SHUD pin `71b3a1ae`）；`baseline/B1b` 分支 protection `lock_branch=true` + `enforce_admins=true` + `allow_force_pushes=false` + `allow_deletions=false`（D11 一次锁死 enforced）。
 - CONDITIONAL ship caveats（详 `docs/b1b_summary.md` §"B1b CONDITIONAL ship status" + `SHUD/B1b_CHANGELOG.md` S6b.2 row）：
   - #185 S2.17 lake formula PI 审查 — PI sign-off **OPEN**
-  - #205 `rhs_flux` lake pass-1 SoA/AoS sync drift — P-strict pre-req **OPEN**
-  - #186 S6b.2 — CLOSED via SKIP（非 signed-off E2）
+  - #186 S6b.2 — CLOSED via PR #206 **SKIP path**（NOT signed-off E2）
+  - #205 `rhs_flux` lake pass-1 SoA/AoS sync drift — **OPEN**，P-strict pre-req
   - D9 fast-path trigger #2 — **BLOCKED** on PI sign-off → 保持 separate `B1a-tag` and `B1b-tag` per D11
-  - C8 forward-compat — 后续 PI directives 可作为 B1c-tag stacking，不 force-update B1b-tag。
+  - C8 forward-compat — 后续 PI directives 可作为 `B1c-tag` stacking，不 force-update B1b-tag。
 
 ## A0 验收 checklist
 

@@ -1,4 +1,14 @@
-## ADDED Requirements
+## Purpose
+
+规约 S6b bug fix application（AccTemperature guard + lake formula SKIP path + S2 follow-up audit）+ diff_reports/ 一文一案契约。
+
+## Conventions
+
+- 章节顺序锚定 Purpose / Conventions / Requirements。
+- Requirement 标题严格匹配 B1a-precedent 模板（### Requirement: …），Scenario 用 #### Scenario: 标识。
+- 本 spec 由 openspec/changes/b1b-baseline-completion/specs/<capability>/spec.md PROMOTE 而来（#190 S6c-12c capstone 2026-06-22），原始 change spec 的 "## ADDED Requirements" 头部已替换为 system-spec 等价的 Purpose+Conventions+Requirements 三段结构。
+
+## Requirements
 
 ### Requirement: S6b.1 AccTemperature 除零 guard
 
