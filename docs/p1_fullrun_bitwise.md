@@ -169,3 +169,143 @@ Driver script + per-case archive logs preserved under
 - gate: A1 refactor equivalence (serial `shud` vs B1b) — 4/4 case
   canonical summary SHA bitwise PASS, 4/4 case 3-run self-determinism
   PASS = **8/8 PASS**.
+
+---
+
+## Server section (heihe + heihe_x4) — PR-J #221
+
+### Scope (spec L136-L142; tasks 5.5-5.6)
+
+Per `openspec/changes/p1-update-omp/tasks.md` L57-L58 (server full-run
+bitwise vs B1b @ NUM_OPENMP=1):
+
+> 5.5 server cn0X 跑 `tools/archive_b0_output.sh heihe 3` + canonical
+>     summary SHA ≡ B1b golden
+> 5.6 server cn0X 跑 `tools/archive_b0_output.sh heihe_x4 3` + canonical
+>     summary SHA ≡ B1b golden
+
+Precision level: **A1 (refactor equivalence)** per master plan §2.2 —
+serial `shud` on server GCC strict-FP toolchain must reproduce the
+B1b `sha256_run1` bitwise on **2 server case** (heihe NumEle=6335 +
+heihe_x4 ~25k via rSHUD v2.5 4× mesh refine). Same algorithm + same
+script as Mac PR-I (`tools/archive_b0_output.sh`), exercising the
+3-pragma stack at NUM_OPENMP=1 where pragmas are no-op (serial build
+has `-fopenmp` NOT linked — see triple-grep gate below).
+
+This section completes the §1.1.1 server-side acceptance leg of P1:
+Mac PR-I covered the 4 dev-only case for refactor equivalence; PR-J
+covers the 2 production-scale case for **server-platform A1
+verification**.
+
+### Slurm three-iron-rule compliance
+
+Per `CLAUDE.md` server policy:
+
+1. ✓ `sbatch` submitted from `/scratch/frd_muziyao/SHUD-OpenMP/.s221-runs/`
+   (not `/users/$USER` — policy block)
+2. ✓ `#SBATCH --output / --error` paths under `/scratch` shared FS
+   (not compute node `/tmp` — would be lost on job end, manifest as
+   ExitCode 127)
+3. ✓ Script + binary references (`tools/archive_b0_output.sh`,
+   `SHUD/shud`) live in `/scratch`, not `/tmp`
+
+Scratch tree: `/scratch/frd_muziyao/SHUD-OpenMP/.s221-runs/` (dot-
+prefixed → auto-gitignored). Local mirror of stdout + new/golden
+`repeatability.txt` under `.s2-103/pr-j/`.
+
+### 2-case × 2-gate matrix
+
+| case | NumEle | new canonical sha256_run1 | golden sha256_run1 | G1 self-det | G2 vs B1b | jobid | Elapsed | node |
+|---|---:|---|---|---|---|---|---|---|
+| heihe | 6335 | `675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67` | `675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67` | PASS | PASS | 8794 | 00:27:18 | cn03 |
+| heihe_x4 | ~25000 | `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` | `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` | PASS | PASS | 8795 | 01:08:45 | cn03 |
+
+**Aggregate: G1 self-determinism 2/2 PASS · G2 vs B1b 2/2 PASS = 4/4 PASS.**
+
+Both cases archived 3 identical SHAs across runs (G1) and matched the
+B1b-tag-era golden `sha256_run1` bitwise (G2) — same hash field as
+recorded at original archive in `benchmarks/<case>/B0_output/repeatability.txt`.
+
+### Per-case 3-run walls (90d × NUM_OPENMP=1, serial shud on cn03)
+
+| case | run1 (s) | run2 (s) | run3 (s) | mean (s) |
+|---|---:|---:|---:|---:|
+| heihe | 545 | 534 | 537 | 539 |
+| heihe_x4 | 1367 | 1366 | 1370 | 1368 |
+
+cn03 vs original B1b archive host (Linux 6.8.0-90 / 6.8.0-49) — same
+kernel family, walls within ~5% of golden-era 522/505/528s (heihe)
+and 1216/1211/1214s (heihe_x4). Wall delta is unrelated to numerical
+output (bitwise PASS already covers numerical equivalence).
+
+### Server compile — strict FP triple-grep gate
+
+`make clean && make shud` on server (`/scratch/frd_muziyao/SHUD-OpenMP/SHUD`),
+log captured at `.s221-runs/make_shud_server.log`:
+
+| flag | grep -c | required | verdict |
+|---|---:|---:|---|
+| `-fopenmp` | 0 | 0 (serial build, no OMP runtime) | PASS |
+| `-ffp-contract=off` | 2 | ≥ 1 (disable FMA contraction) | PASS |
+| `-fno-fast-math` | 2 | ≥ 1 (disable relaxed FP) | PASS |
+
+Compile cmd (sample): `g++ -O2 -g -ffp-contract=off -fno-fast-math
+-std=c++14 …` — identical FP-determinism flag set as Mac toolchain;
+GCC vs clang produce different binary SHA (`3e9e5629…` server vs
+`00ea9d80…` original B1b archive) but **output is bitwise identical**
+because both compilers honor the same strict-FP envelope at NUM_OPENMP=1.
+
+### Cross-link — three independent server evidence streams
+
+1. **PR-B #213 trim bitwise vs B0-tag** (single-`rivqdown.dat` SHA;
+   different hash layer than canonical summary):
+   - heihe: `55abad28…`
+   - heihe_x4: `f90601ef…`
+2. **PR-J #221 full-run canonical summary SHA bitwise vs B1b** (this section):
+   - heihe: `675c927c…b95ba8a67`
+   - heihe_x4: `3fbcbd5c…fea646c06`
+3. **CI `serial-baseline / build-and-compare(keliya)`** consistently GREEN
+   on PR-D / PR-E / PR-F / PR-H / PR-I merges.
+
+PR-B exercises per-file numerical fidelity at single output channel;
+PR-J exercises the full archive's canonical summary (hash of hash-file)
+covering all produced channels + `cvode_stats.txt`. Different hash
+algorithms, same A1 baseline preservation conclusion. trim cfg.para 90d
+window did not perturb numerical output → bitwise stable across PR-A/B
+forcing trim plumbing + PR-D/E/F 3-pragma stack.
+
+### Reproduce
+
+```bash
+# On server, from /scratch (Slurm three-iron-rule):
+ssh -p 32099 frd_muziyao@210.77.77.22
+cd /scratch/frd_muziyao/SHUD-OpenMP
+git fetch origin && git checkout main && git pull --recurse-submodules origin main
+# Verify pin: main HEAD ≡ fac3da0 + SHUD ≡ 07c677f
+cd .s221-runs
+sbatch run_heihe.sbatch       # jobid 8794
+sbatch run_heihe_x4.sbatch    # jobid 8795
+# After completion: each sbatch backups B0_output/repeatability.txt,
+# runs archive_b0_output.sh <case> 3, validates new sha256_run1 == golden
+# sha256_run1 + 3-run identical, then restores golden (keeps git tracked
+# file clean). New-run repeatability saved to .s221-runs/<case>_new_repeatability.txt.
+```
+
+sbatch scripts + Slurm logs + new/golden `repeatability.txt` preserved
+under `.s221-runs/` on server and mirrored to `.s2-103/pr-j/` locally
+(both gitignored scratch trees).
+
+### Signing — server section
+
+- signed_at: 2026-06-22
+- signer: DankerMu
+- signed_against_outer_commit: `fac3da0` (main HEAD at PR-J start;
+  PR-I capstone `docs(p1): review-loop-log — #220 PR-I capstone (Mac 4-case full-run 8/8 PASS)`)
+- signed_against_SHUD_commit: `07c677f` (P1 3-pragma stack;
+  PR-F `[#218 PR-F] MD_update.cpp lake loop #pragma omp parallel for`)
+- server binary: `SHUD/shud` (serial, no `-fopenmp`),
+  `sha256 = 3e9e56295528b0399aff928d1b44d708da87b37777ea81e0de216a3d12a975f3`
+  on cn03 (Linux 6.8.0-90-generic x86_64, GCC strict FP)
+- gate: A1 refactor equivalence (server serial `shud` vs B1b) — 2/2 case
+  canonical summary SHA bitwise PASS, 2/2 case 3-run self-determinism
+  PASS = **4/4 PASS**.
