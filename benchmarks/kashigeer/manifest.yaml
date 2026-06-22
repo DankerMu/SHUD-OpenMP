@@ -29,7 +29,14 @@ input_dir: "SHUD/Basins/kashigeer/input/ksge/"
 forcing_dir:                                      # M7 schema (PR-A #212): mapping; kashigeer trimmed_path null (deferred-upstream).
   original_path: "SHUD/Basins/kashigeer/forcing/"
   trimmed_path: null                              # deferred-upstream (S0-13 amendment: X76 forcing band missing both endpoints; no trim until upstream fixed)
-forcing_duration_days: 2191                       # END - START = 22279 - 20088 (epoch 1951-01-01)
+forcing_duration_days: 2191                       # spec-layer full length; trimmed_path window = null (deferred-upstream — see cfg_para_start/end)
+# --- 90-day window deployment marker (M7 PR-B #213) ---
+# cfg_para_{start,end} = cfg.para integer day-index after 90-day truncation.
+# Forced exact-match against tools/forcing_trim/forcing_trim.sh resolved
+# [start_day, end_day] per m7-forcing-trim spec L71-L74. Both null pending
+# upstream forcing band fix (S0-13 amendment: X76 missing both endpoints).
+cfg_para_start: null  # deferred-upstream
+cfg_para_end:   null  # deferred-upstream
 has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para; Tarim glacier basin
 has_lake: false
 has_BC_SS: false
