@@ -123,12 +123,12 @@
   - 2-case Server (cn03) Slurm 8662-8667 rivqdown ≡ B0/B1a-tag golden（heihe `55abad28…` / heihe_x4 `f90601ef…`）
   - `B1b_CHANGELOG.md` 12 sections（S5a / S5b / S5c-B / S5c-C / S5d.1 / S5d.2-5a / S5d.2-5b / S5d.3 / S5d.4 / S6b.1 / S6b.2 / S6b.3）+ openmp-baseline push 5-step workflow 严格遵守
   - `baseline/B1b` 分支 protection `lock_branch=true` + `enforce_admins=true` + `allow_force_pushes=false` + `allow_deletions=false` enforced
-  - CONDITIONAL ship 标记 5 项（详 `docs/b1b_summary.md` §"B1b CONDITIONAL ship status"）：
-    - `#185` (S2.17 PI 审查) — PI sign-off **OPEN**
-    - `#186` (S6b.2) — CLOSED via PR #206 **SKIP path**（NOT signed-off E2）
-    - `#205` (rhs_flux SoA/AoS sync drift) — **RESOLVED (post-B1b cleanup before P1)** via SHUD `de75743` (fix) + `9a376f7` (CHANGELOG) on `openmp-baseline` + 外层 PR-18 #209 (pointer bump `71b3a1a` → `9a376f7` + docs sync)；4-case Mac 2-run canonical SHA bitwise vs B1b-tag baseline；NOT retroactively part of B1b per D11；P-strict pre-req gap closed
-    - D9 fast-path trigger #2 — **BLOCKED** on #185 PI sign-off → separate `B1a-tag` and `B1b-tag` per D11
-    - C8 forward-compat — 后续 PI directive 可作为 `B1c-tag` stacking，不 force-update B1b-tag
+  - ship 状态 = **UNCONDITIONAL** (PR-19 #210 PI E2 sign-off + #205 cleared)，原 CONDITIONAL caveat 5 项处置（详 `docs/b1b_summary.md` §"B1b ship status" + `docs/s217_lake_formula_audit.md` §E）：
+    - `#185` (S2.17 PI 审查) — **RESOLVED (E2 signed)** via PR-19 #210（DankerMu 作为 `SHUD-System/SHUD` upstream-org owner 签 E2 "formula correct, no change"；design.md Open Q1 同时关闭：PI delegate = upstream-org owner / three-surface sign-off pattern = issue comment + audit doc §E + SHUD CHANGELOG）
+    - `#186` (S6b.2) — **CLOSED-via-PI-E2**：原 SKIP path 在 #185 E2 sign-off 后从 "FORECAST per C8" 升级为 "consistent with signed PI E2 directive"
+    - `#205` (rhs_flux SoA/AoS sync drift) — **RESOLVED (post-B1b cleanup before P1)** via SHUD `de75743` (fix) + `9a376f7` (CHANGELOG) on `openmp-baseline` + 外层 PR-18 #209 (pointer bump `71b3a1a` → `9a376f7` + docs sync)；4-case Mac 2-run canonical SHA bitwise vs B1b-tag baseline；NOT retroactively part of B1b per D11；P-strict pre-req gap closed；同时 strengthens #185 E2 verdict（audit §A.4/§B.4 strict-reading concern 消解）
+    - D9 fast-path trigger #2 — **TRIGGERED in PR-19 #210**：`B1-tag` annotated tag 创建 aliasing main HEAD（含 #205 cleanup + PI E2 sign-off）；`B1a-tag` (`f7f992c…`) + `B1b-tag` (`18a0c908…`) 保留 immutable per D11 history 不 force-update；下游 P1+ SHOULD use `B1-tag`
+    - C8 forward-compat — **UNUSED for this ship**（PI 签 E2 不签 E1，B1c-tag stacking 不触发）；仍是 codebase convention 留给未来可能的 P-strict overrule
 
 ## B1b-tag 应用状态
 
