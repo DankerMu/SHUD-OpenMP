@@ -147,17 +147,17 @@ Per-file SHA cross-check vs `benchmarks/<case>/B0_output/<file>`: **13 files byt
 
 7/7 PASS @ PROMOTE 时点。
 
-## B1b CONDITIONAL ship status
+## B1b ship status — CONDITIONAL → UNCONDITIONAL (PR-19 #210 PI E2 sign-off + #205 cleared)
 
-本 B1b 整体仍为 CONDITIONAL ship，下游消费 B1b-tag 的 P1+ 工作 SHALL 显式承认以下 caveats（详 `SHUD/B1b_CHANGELOG.md` S6b.2 + `docs/s217_lake_formula_audit.md` §E）：
+本 B1b 整体从 CONDITIONAL ship 升级为 **UNCONDITIONAL ship**（PR-19 #210 merge 后生效）。caveat 清单与处置（详 `SHUD/B1b_CHANGELOG.md` S6b.2/S6b.4/S6b.5 + `docs/s217_lake_formula_audit.md` §E）：
 
-- **#185 (S2.17 lake formula PI 审查) — OPEN**: PR #204 evidence pack 投出后无 SHUD-upstream PI Lele Shu sign-off。spec.md L23 + design.md Open Q1 reserve E1/E2 verdict for PI；本 B1b 的 3-run + water-balance evidence **insufficient** to claim a signed E2.
-- **#186 (S6b.2) — CLOSED via PR #206 SKIP**: master plan §S6b L1497 FORECAST + C8 forward-compatibility，**NOT a signed E2**。
-- **#205 (SoA/AoS sync drift in `rhs_flux` lake pass-1) — RESOLVED (post-B1b cleanup before P1)**: SHUD commit `de75743` (fix) + `9a376f7` (CHANGELOG row) on `openmp-baseline`；外层 PR-18 #209 (pointer bump `71b3a1a` → `9a376f7` + docs sync) merge 进 `main`；4-case Mac (keliya / xinanjiang_upstream / qinyijiang / qhh) 2-run canonical SHA ≡ B1b-tag baseline byte-identical (bitwise-neutral on B1b benchmarks)；P-strict pre-req cleared。NOT retroactively part of B1b per D11（B1b-tag annotated message 列出 caveat 时 P-strict pre-req OPEN，tag-immutable；P-strict 启用前 SoA-sync gap 已闭。详 `SHUD/B1b_CHANGELOG.md` §"S6b.4 — rhs_flux lake pass-1 SoA/AoS sync drift fix"）。
-- **D9 fast-path trigger #2** (S2.17 审查为 'no change' 跳过 fix) — **BLOCKED on PI sign-off**。S6c proceed with separate `B1a-tag` and `B1b-tag` per design D11（D9 fast-path 未满足 → 不 merge `B1-tag`）。
-- **C8 forward-compat（master plan "永不 break userspace"）**: any later PI `S2.17: formula needs fix` directive on #185 stacks as a follow-up `B1c-tag` without force-updating B1b-tag（D11 lock honoured）。
+- **#185 (S2.17 lake formula PI 审查) — RESOLVED (E2 signed)**: DankerMu 作为 `SHUD-System/SHUD` upstream organization owner 在 PR-19 #210 中签 E2 "formula correct, no change"。design.md Open Q1 同步关闭（PI delegate qualification = upstream-org ownership；three-surface sign-off pattern = issue comment + audit doc §E + SHUD CHANGELOG addendum row）。详 `docs/s217_lake_formula_audit.md` §E.1 verdict statement + §E.2 Open Q1 resolution。
+- **#186 (S6b.2) — CLOSED-via-PI-E2 (retroactively consistent)**: PR-15 #206 的 SKIP path 在 #185 E2 sign-off 后从 "FORECAST per C8 forward-compat" 升级为 "consistent with signed PI E2 directive"。等价于 spec.md L29-31 Scenario "审查结论已签字跳过修改" 的事后满足。
+- **#205 (SoA/AoS sync drift in `rhs_flux` lake pass-1) — RESOLVED (post-B1b cleanup before P1)**: SHUD commit `de75743` (fix) + `9a376f7` (CHANGELOG row) on `openmp-baseline`；外层 PR-18 #209 (pointer bump `71b3a1a` → `9a376f7` + docs sync) merge 进 `main`；4-case Mac (keliya / xinanjiang_upstream / qinyijiang / qhh) 2-run canonical SHA ≡ B1b-tag baseline byte-identical (bitwise-neutral on B1b benchmarks)；P-strict pre-req cleared。此 fix 同时 strengthens 了 #185 E2 verdict —— audit doc §A.4/§B.4 strict-reading concern 由 SoA-sync 修复而消解（lake-side `u_effKH` 现 SoA/AoS-coherent reflect `KsatH` per `updateLakeElement` intent）。NOT retroactively part of B1b per D11（B1b-tag annotated message 创建于 #189 immutable 时刻；本 §"B1b ship status" 节为 post-tag doc surface 权威）。
+- **D9 fast-path trigger #2** (S2.17 审查为 'no change' 跳过 fix) — **TRIGGERED (this PR PR-19 #210)**。在 #205 RESOLVED + #185 E2 sign-off 后双门均通：`B1-tag` annotated tag 创建 aliasing `main` HEAD（含 #205 cleanup + PI E2 sign-off）；`B1a-tag` (`f7f992c…`) 与 `B1b-tag` (`18a0c908…`) 保留 immutable per D11 history 不 force-update；下游 P1+ 工作 SHOULD use `B1-tag` 作为 canonical "B1 baseline" reference。
+- **C8 forward-compat（master plan "永不 break userspace"）— UNUSED FOR THIS SHIP**: PI 签 E2 不签 E1，B1c-tag stacking 不触发。C8 仍是 codebase convention，未来若 P-strict 阶段任何 finding overrule E2 verdict，可走 B1c-tag stacking 继续 honoured D11。
 
-> **immutable-tag-vs-docs 已知 minor 漂移**：`B1b-tag` 注解消息（#189 push 完已 immutable per D11）列出 4 项 caveat（`#185` / `#205` / `#186` / `C8`），**D9 fast-path BLOCKED 仅记录在本文 + `docs/status_matrix.md` + `docs/build_manifest.md` 三处**。这是 D11 一次锁死契约的直接后果：annotated tag message 创建于 #189 完成时刻；D9 fast-path 的明确语义化只有在 #190 PROMOTE 时（本 PR）才在三个 doc surface 上对齐补齐。下游下游用户应以三 doc surface 为权威，tag message 作为 commit-pinned snapshot。
+> **immutable-tag-vs-docs 已知 minor 漂移（历史保留）**：`B1b-tag` 注解消息（#189 push 完已 immutable per D11）创建时刻列出 4 项 caveat（`#185` / `#205` / `#186` / `C8`）当时全部 OPEN/CONDITIONAL；本 §"B1b ship status" 节（post-tag doc surface） 反映 PR-19 #210 sign-off 后的 RESOLVED/UNCONDITIONAL 状态。三 doc surface（本文 + `docs/status_matrix.md` + `docs/build_manifest.md`）作为权威，tag message 为 commit-pinned snapshot；`B1-tag` annotated tag (新增本 PR) 为 "post-cleanup signed-off" canonical pointer，下游 P1+ 优先 use `B1-tag`。
 
 ## 验证 B1b-tag
 

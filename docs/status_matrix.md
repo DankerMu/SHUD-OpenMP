@@ -10,7 +10,7 @@
 
 更新走 PR；CI 通过 PR 评论形式提议变更（`status-matrix` spec L19，不自动 push）。本矩阵文件是**唯一权威**，各阶段文档和 PR 摘要引用它，不反向。
 
-> _最近一次更新：2026-06-22（B1b capstone PROMOTE 完成 + #205 post-B1b cleanup 入主：PR-16 #207 #188 S6c-12a + #189 S6c-12b B1b-tag `18a0c908` 创建 + branch lock + PROMOTE PR #190 + PR-18 #209 S6b.4 #205 SoA/AoS sync drift fix in `rhs_flux` lake pass-1 (post-B1b cleanup before P1)。S5+S6b 全部完成；4-case Mac canonical SHA ≡ B0 `repeatability.txt sha256_run1`；heihe / heihe_x4 直接服务器 Slurm 8662-8667 bitwise PASS @ cn03；aggregate = PASS CONDITIONAL ship（#185 PI sign-off OPEN / #205 RESOLVED post-tag / D9 fast-path BLOCKED on #185 / C8 B1c-tag stacking forward-compat）；详 [`docs/b1b_summary.md`](b1b_summary.md)）_
+> _最近一次更新：2026-06-22（B1b PI sign-off + D9 fast-path triggered + B1-tag 创建：PR-16 #207 #188 + #189 + PROMOTE PR #190 + PR-18 #209 (#205 SoA/AoS sync drift fix, post-B1b cleanup) + PR-19 #210 (#185 PI E2 sign-off, D9 fast-path triggered, `B1-tag` annotated tag created aliasing main HEAD)。S5+S6b 全部完成；4-case Mac canonical SHA ≡ B0 `repeatability.txt sha256_run1`；heihe / heihe_x4 直接服务器 Slurm 8662-8667 bitwise PASS @ cn03；aggregate = **PASS UNCONDITIONAL ship**（#185 RESOLVED via E2 sign-off / #205 RESOLVED post-tag / #186 retroactively consistent / D9 fast-path TRIGGERED `B1-tag` 创建 / C8 forward-compat UNUSED for this ship）；详 [`docs/b1b_summary.md`](b1b_summary.md)）_
 
 ## 矩阵
 
@@ -18,7 +18,7 @@
 |-----------|--------|---------------------|------------|----------------------|---------|---------------|---------------|-----------|
 | **B0**    | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
 | **B1a**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS      |
-| **B1b**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS (CONDITIONAL ship) |
+| **B1b**   | PASS   | PASS                | PASS       | N/A (deferred-upstream) | PASS    | PASS @ server | PASS @ server | PASS (UNCONDITIONAL ship; `B1-tag` 已发布 aliasing main HEAD) |
 | **Opt-IO**| PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P1**    | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
 | **P2a**   | PENDING| PENDING             | PENDING    | PENDING   | PENDING | PENDING       | PENDING       | PENDING   |
@@ -100,12 +100,12 @@ Aggregate gate（PR-16 #207 capstone + #189 tag + 本 PROMOTE PR 验收）：
 - 水量平衡（`docs/B0_vs_B1b_water_balance_report.md`）closure-error delta = 0 bit-by-bit on 6/6 cases（远低于 0.1% 相对容差）。
 - SHUD 在 `openmp-baseline` 分支 commit `71b3a1ae`（S5a → S6b 全 5-step push workflow 严格遵守，`SHUD/B1b_CHANGELOG.md` 12 sections evidence trail 完整）。
 - `B1b-tag` annotated tag = `96e224da…`（指向 commit `18a0c908…`，含 SHUD pin `71b3a1ae`）；`baseline/B1b` 分支 protection `lock_branch=true` + `enforce_admins=true` + `allow_force_pushes=false` + `allow_deletions=false`（D11 一次锁死 enforced）。
-- CONDITIONAL ship caveats（详 `docs/b1b_summary.md` §"B1b CONDITIONAL ship status" + `SHUD/B1b_CHANGELOG.md` S6b.2 row）：
-  - #185 S2.17 lake formula PI 审查 — PI sign-off **OPEN**
-  - #186 S6b.2 — CLOSED via PR #206 **SKIP path**（NOT signed-off E2）
-  - #205 `rhs_flux` lake pass-1 SoA/AoS sync drift — **RESOLVED (post-B1b cleanup before P1)** via SHUD `de75743`/`9a376f7` + PR-18 #209；4-case Mac 2-run canonical SHA bitwise vs B1b-tag baseline；NOT retroactively part of B1b per D11，但 P-strict pre-req gap 已闭
-  - D9 fast-path trigger #2 — **BLOCKED** on #185 PI sign-off → 保持 separate `B1a-tag` and `B1b-tag` per D11
-  - C8 forward-compat — 后续 PI directives 可作为 `B1c-tag` stacking，不 force-update B1b-tag。
+- ship caveats — 全部 RESOLVED 通过 PR-19 #210 升级为 **UNCONDITIONAL ship**（详 `docs/b1b_summary.md` §"B1b ship status" + `SHUD/B1b_CHANGELOG.md` S6b.2/S6b.4/S6b.5 + `docs/s217_lake_formula_audit.md` §E）：
+  - #185 S2.17 lake formula PI 审查 — **RESOLVED (E2 signed)** via PR-19 #210（DankerMu 作为 SHUD-System/SHUD upstream-org owner 签 E2 "formula correct, no change"；design.md Open Q1 同时关闭：PI delegate = upstream-org owner / three-surface sign-off pattern）
+  - #186 S6b.2 — **CLOSED-via-PI-E2**：原 SKIP path 在 #185 E2 sign-off 后从 "FORECAST per C8" 升级为 "consistent with signed PI E2 directive"
+  - #205 `rhs_flux` lake pass-1 SoA/AoS sync drift — **RESOLVED (post-B1b cleanup before P1)** via SHUD `de75743`/`9a376f7` + PR-18 #209；4-case Mac 2-run canonical SHA bitwise vs B1b-tag baseline；NOT retroactively part of B1b per D11；P-strict pre-req gap 已闭；同时 strengthens #185 E2 verdict（audit §A.4/§B.4 strict-reading concern 由 SoA-sync 修复而消解）
+  - D9 fast-path trigger #2 — **TRIGGERED in PR-19 #210**：`B1-tag` annotated tag 创建 aliasing main HEAD（含 #205 cleanup + PI E2 sign-off）；`B1a-tag` (`f7f992c…`) + `B1b-tag` (`18a0c908…`) 保留 immutable per D11 history；下游 P1+ SHOULD use `B1-tag`
+  - C8 forward-compat — **UNUSED for this ship**（PI 签 E2 不签 E1，B1c-tag stacking 不触发）；仍是 codebase convention 留给未来 P-strict 阶段可能的 overrule。
 
 ## A0 验收 checklist
 
@@ -139,7 +139,7 @@ Aggregate gate（PR-16 #207 capstone + #189 tag + 本 PROMOTE PR 验收）：
 
 - **B0** 行在 B0-tag 时刻冻结，成为 B1a 回归比对的参照。
 - **B1a** 必须与 B0 同机同 case bitwise 一致。S0–S4 全部完成（PR-12 #156 capstone 2026-06-21）；本矩阵 B1a 行 Mac 本地 4-case + qhh 3 lake outputs 已 PASS；heihe / heihe_x4 直接服务器 Slurm 8537 / 8538 (cn08) bitwise PASS；aggregate = PASS。kashigeer 沿 B0 deferred-upstream 排除。
-- **B1b** 必须与 B0/B1a 同机同 case bitwise 一致。S5 + S6b + S6c 全部完成（PR-16 #207 capstone + #189 B1b-tag + #190 PR PROMOTE 2026-06-22 + PR-18 #209 #205 post-B1b cleanup）；本矩阵 B1b 行 Mac 本地 4-case + 服务器 heihe / heihe_x4 (cn03) 全部 bitwise PASS；aggregate = PASS **CONDITIONAL ship**（#185 PI sign-off OPEN / #205 RESOLVED post-tag / D9 BLOCKED on #185 / C8 B1c forward-compat）。kashigeer 沿用 N/A。
+- **B1b** 必须与 B0/B1a 同机同 case bitwise 一致。S5 + S6b + S6c 全部完成（PR-16 #207 capstone + #189 B1b-tag + #190 PR PROMOTE 2026-06-22 + PR-18 #209 #205 post-B1b cleanup + PR-19 #210 #185 PI E2 sign-off + D9 fast-path triggered → `B1-tag`）；本矩阵 B1b 行 Mac 本地 4-case + 服务器 heihe / heihe_x4 (cn03) 全部 bitwise PASS；aggregate = PASS **UNCONDITIONAL ship**（#185 RESOLVED via E2 / #205 RESOLVED post-tag / #186 retroactively consistent / D9 TRIGGERED `B1-tag` 已发布 / C8 forward-compat UNUSED for this ship）。kashigeer 沿用 N/A。下游 P1+ 优先 use `B1-tag`；`B1a-tag` + `B1b-tag` 保留 immutable per D11 historical reference。
 - **Opt-IO** 是 master plan §3.5 的 forcing I/O 并行化。落地时机由 `docs/profile_decision.md:bring-forward-IO` 评估，可能早于或晚于首个 OpenMP P1。
 - **P1-P9** 各行按 master plan §3 各阶段填。
 

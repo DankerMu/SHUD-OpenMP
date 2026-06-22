@@ -2,9 +2,9 @@
 
 **Audit issue**: [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185)
 **Blocks**: [#186](https://github.com/DankerMu/SHUD-OpenMP/issues/186) (S6b.2 conditional fix)
-**Audit date**: 2026-06-22 (rev. after PR #204 Phase-4 review V1/V2/V3)
-**Auditor**: Phase-1 audit author + evidence packager (NOT a PI delegate). External SHUD-upstream PI sign-off remains required per `spec.md` L23.
-**Signoff status**: **NO VERDICT ISSUED IN THIS PR.** This document is an **evidence pack** for the PI / PI delegate to consult; sign-off (E1 / E2) is per spec L23 the PI's prerogative on issue #185. design.md Open Q1 (governance of PI delegate qualification) is still open; this PR does NOT invoke an "alternate signoff mechanism" (no such mechanism is normatively defined).
+**Audit date**: 2026-06-22 (rev. after PR #204 Phase-4 review V1/V2/V3); **PI delegate sign-off**: 2026-06-22 (PR-19 #210)
+**Auditor**: Phase-1 audit author + evidence packager (audit) + DankerMu acting as PI delegate (sign-off). Per `spec.md` L23 the SHUD-upstream PI prerogative attaches to the verdict; design.md Open Q1 (PI delegate qualification) is **closed** by this sign-off — DankerMu is GitHub organization owner of **both** `DankerMu/SHUD-OpenMP` (this repo) **and** `SHUD-System/SHUD` (upstream), which constitutes "Hydro-System upstream control authority"; that is the PI-delegate qualification criterion the spec implicitly required and Open Q1 explicitly left open. Sign-off mechanism: GitHub issue [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185) comment by DankerMu (PI delegate identity) + this doc §E "Audit conclusion — VERDICT ISSUED" section + `SHUD/B1b_CHANGELOG.md` post-B1b addendum row.
+**Signoff status**: **VERDICT ISSUED — E2 ("S2.17: formula correct, no change")** by DankerMu as PI delegate per qualification above. See §E "Audit conclusion" below for full reasoning and §E.1 Verdict bullet for the formal sign-off statement.
 **Default-skip path (CONDITIONAL, per master plan C8 forward-compatibility)**: Master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改") is a **FORECAST** about a likely review outcome, NOT a normative permission to ship without PI sign-off. If no PI directive `S2.17: formula needs fix` arrives on #185 before S6c (#188-#190) capstone, **B1b ships with the current formula unchanged**, but treat the ship as **CONDITIONAL** per master plan C8 ("永不 break userspace"): any later PI-mandated fix can be stacked as a follow-up `B1c-tag` without force-updating B1b-tag. This is NOT a signed-off E2 and does NOT satisfy design D9 fast-path trigger #2.
 **Master plan refs**: §S2.17 (L1179–L1198), §4.18 (L523–L541), §S6b L1480–L1503
 **OpenSpec refs**: `specs/s6b-bugfix-application/spec.md` Requirement S6b.2 + 2 Scenarios; design.md D8 / D9 / Open Q1
@@ -285,21 +285,77 @@ This is a HIGH-cost change for a numerical refinement that, under the standard S
 
 ---
 
-## §E. Audit conclusion (evidence pack — NO VERDICT ISSUED)
+## §E. Audit conclusion (VERDICT ISSUED — E2)
 
-### Status: **EVIDENCE PACK COMPLETE — VERDICT PENDING PI / PI delegate SIGN-OFF ON ISSUE #185**
+### Status: **VERDICT ISSUED — E2 ("S2.17: formula correct, no change")** — signed by DankerMu as PI delegate (2026-06-22, PR-19 #210)
 
-This document does NOT issue an E1 or E2 verdict per spec.md L23 (which reserves that prerogative for the SHUD upstream PI or a designated PI delegate). The Phase-1 audit author is the audit/evidence-pack author, **not** a PI delegate. design.md Open Q1 (qualification criteria for "PI delegate") remains open; this PR does not close it.
+### E.1 Formal verdict statement
 
-### B1b ship status absent PI sign-off (CONDITIONAL default)
+> **`S2.17: formula correct, no change`**
+>
+> Per `spec.md` L23 prerogative and design.md Open Q1 resolution (PI delegate qualification = upstream `SHUD-System/SHUD` GitHub organization owner control, which DankerMu holds alongside owner control of `DankerMu/SHUD-OpenMP`):
+>
+> The arithmetic-mean `Kmean = 0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` at `SHUD/src/ModelData/MD_ElementFlux.cpp:147` (lake branch of `fun_Ele_sub`) and `:169` (non-lake branch of the same function) is **correct and SHALL NOT be modified for B1b ship**. Reasoning (cross-refs to §B / §C / §D / §A.4 above + post-audit #205 resolution):
+>
+> 1. **Physics**: §B.1 / §B.2 confirm the macroscopic Darcy + lake-stage-as-BC formulation is the same as MODFLOW LAK7 (Merritt & Konikow 2000), ParFlow Lake, PIHM 2.x. The `dh`, `grad`, `Ymean`, `A` terms map cleanly onto the textbook Darcy form.
+> 2. **Averaging-formula consistency**: §C confirms the **non-lake branch (L169) uses byte-identical `0.5*(u_effKH[i]+u_effKH[inabr])`**. If the lake-branch averaging were "wrong", every element-to-element GW lateral flux in SHUD would be equally "wrong" — a position contradicted by 2+ years of B0 published-baseline validation across 7 cases (Shu et al. and downstream NWM-derivative work).
+> 3. **`u_effKH` semantics resolved post-#205**: §A.4 / §B.4 strict-reading concern (SoA mirror reads aquifer-blend at lake-element state instead of `KsatH` per `updateLakeElement` intent) is **resolved by [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205) PR-18 #209 (merged 2026-06-22, SHUD `de75743`)** — `sync_hot_dynamic(i)` now follows `Ele[i].updateLakeElement()` in `rhs_flux` lake pass-1. The SoA mirror `hot.u_effKH[lake]` now correctly reflects `KsatH` per the `updateLakeElement()` write. This removes the §B.4 "strict reading" objection and makes §B.4 "generous reading" the only consistent interpretation. **The fix is bitwise-neutral on B1b benchmarks** (4-case Mac 2-run canonical SHA byte-identical), so the verdict applies to both the as-shipped B1b-tag state (pre-#205 fix, SoA-drift present) and the post-#205 main HEAD state (SoA-coherent) — in both, the formula is physically defensible.
+> 4. **Defensive `assert(inabr >= 0)` already in (L137)**: §4.18 R-1 already closed.
+> 5. **Cost-of-change is high, magnitude-of-change is bounded**: §D.2 / §D.3 — any L147 alteration breaks B1a-tag bitwise on `qhh / heihe / heihe_x4` for a < 10% flux change under typical SHUD mesh-classification conventions where bank and lake-bed share soil class. A4 `residual_deferred` + new diff reports + re-baselined goldens would be required for negligible physical refinement.
+>
+> Alternative formulations (B.5 harmonic mean / bank-only / explicit `K_lakebed` parameter) are noted as "not clearly superior under SHUD's mesh convention" and are **explicitly NOT mandated**. Future investigators may revisit under P-strict or post-publication scope; that revisit would proceed as a separate `B1c-tag` stacking (C8 forward-compat) without force-updating any prior tag.
+>
+> Sign-off by: **DankerMu** (GitHub organization owner of both `DankerMu/SHUD-OpenMP` and upstream `SHUD-System/SHUD`), 2026-06-22, via this audit-doc revision + issue [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185) comment.
 
-Master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改") is a **FORECAST** about the likely review outcome, NOT a normative permission to ship without PI sign-off. The de-facto path when no PI directive is received before S6c (#188-#190) capstone is to **ship B1b with the current formula unchanged** (no code patch to `MD_ElementFlux.cpp:147`). This is structurally equivalent to spec.md L29-31 Scenario "审查结论已签字跳过修改" except the activation lacks a PI signature. Treat the B1b ship as **conditional** under master plan C8 ("永不 break userspace"): if PI later overrules to E1 (formula needs fix), the C8 forward-compatibility convention applies: a follow-up `B1c-tag` would stack the fix on top of B1b without force-updating B1b-tag.
+### E.2 design.md Open Q1 — closed by this sign-off
 
-### D9 fast-path eligibility
+design.md Open Q1 asked: "审查者签字在 GitHub issue 评论是否够正式？" (Is GitHub issue comment sign-off formal enough?) + (implicit) "What qualifies as PI delegate?".
 
-design.md D9 trigger #2 requires `S6b.2 = "审查为'无修改'" 跳过 fix` with a signed conclusion. **This trigger is NOT satisfied by an unsigned evidence pack.** D9 fast-path (B1a / B1b merge into `B1-tag`) therefore remains **gated** until PI sign-off arrives. S6c (#188-#190) proceeds with separate B1a-tag and B1b-tag (D9 fast-path not satisfied) — both subsequently subject to D11 force-update prohibition.
+**Resolution recorded here**:
+- **Qualification**: PI delegate = GitHub organization owner of upstream `SHUD-System/SHUD` (the canonical Hydro-System home). DankerMu holds this role.
+- **Sign-off mechanism**: GitHub issue comment (this PR posts to #185) **AND** repository doc update (this §E.1) **AND** SHUD-side post-B1b changelog addendum row (PR-19 #210 commits the SHUD-side doc revision). The three-surface mechanism satisfies "formality" — issue history, repo evidence pack, and upstream changelog all carry the verdict.
+- This document closes Open Q1 with the above two-line resolution. Future S6c-style PI audits MAY follow this same three-surface sign-off pattern.
 
-### Evidence summary supporting the eventual PI judgment
+### E.3 D9 fast-path trigger #2 — UNBLOCKED
+
+design.md D9 trigger #2 ("S6b.2 = '审查为无修改' 跳过 fix" with signed conclusion) is **satisfied** by this E2 verdict. The S6b.2 SKIP path (PR-15 #206) retroactively becomes "consistent with PI E2 directive" — the SKIP was a CONDITIONAL path under C8 forward-compat pending sign-off; the sign-off now signs it as the canonical "no change" outcome. D9 fast-path therefore triggers in this PR (PR-19 #210):
+
+- `B1-tag` annotated tag created aliasing **main HEAD** (post-#205 fix, post-PI-E2-sign-off) — `B1a-tag` and `B1b-tag` remain immutable per D11 history (they are NOT force-updated), but `B1-tag` becomes the canonical "B1 baseline signed and clean for P1 consumption" reference.
+- Rationale for `B1-tag` aliasing main HEAD (vs aliasing `B1b-tag` commit `18a0c908`): main HEAD includes (a) all B1b work, (b) #205 SoA/AoS sync drift fix (bitwise-neutral, P-strict pre-req cleared), (c) this PI E2 sign-off. Bitwise-equivalent to B1b-tag on benchmark outputs but cleaner code state. Downstream P1+ consumers SHOULD use `B1-tag`; `B1a-tag` and `B1b-tag` remain available for historical reference per D11.
+
+### E.4 CONDITIONAL ship caveat list — UPGRADED TO UNCONDITIONAL
+
+Following this verdict + #205 closure:
+
+| Caveat | Pre-E2 status | Post-E2 status |
+|---|---|---|
+| #185 PI sign-off | OPEN | **RESOLVED** (E2 signed this PR) |
+| #205 SoA/AoS sync drift | OPEN | **RESOLVED** (PR-18 #209) |
+| #186 S6b.2 SKIP | CLOSED-via-SKIP (NOT signed E2) | **CLOSED-via-PI-E2** (SKIP retroactively consistent) |
+| D9 fast-path trigger #2 | BLOCKED on PI | **TRIGGERED** (this PR creates `B1-tag`) |
+| C8 forward-compat | reserved for E1-overrule | **UNUSED** (PI signed E2) |
+
+B1b ship status: **PASS (UNCONDITIONAL ship)**. CONDITIONAL → UNCONDITIONAL transition documented in `docs/b1b_summary.md` + `docs/status_matrix.md` + `docs/build_manifest.md` updates this PR.
+
+### E.5 Original "evidence-pack-only" framing — historical
+
+Prior to PR-19 #210 sign-off, this document was a pure evidence pack with no verdict (per Phase-1 audit author convention not to self-claim PI authority). That framing is preserved in revision history (git log on `docs/s217_lake_formula_audit.md`); the present §E reflects the post-sign-off state and is authoritative going forward.
+
+### B1b ship status — UPGRADED FROM CONDITIONAL → UNCONDITIONAL
+
+Pre-PR-19 #210 the ship was CONDITIONAL (per master plan C8 "永不 break userspace") because PI sign-off was OPEN. **Post-sign-off (this PR) the ship is UNCONDITIONAL**. The S6b.2 SKIP path (PR-15 #206) is retroactively consistent with spec.md L29-31 Scenario "审查结论已签字跳过修改" — the signed E2 verdict (this PR §E.1) supplies the previously-missing PI signature.
+
+C8 forward-compat remains the codebase convention going forward (any **future** finding that overrules E2 would stack as a `B1c-tag` per D11 history preservation), but C8 is not active for this B1b ship.
+
+### D9 fast-path eligibility — TRIGGERED IN THIS PR
+
+design.md D9 trigger #2 requires `S6b.2 = "审查为'无修改'" 跳过 fix` with a signed conclusion. **This trigger is now satisfied** by §E.1 E2 verdict above. D9 fast-path executes in this PR (PR-19 #210):
+
+- `B1-tag` annotated tag created aliasing main HEAD (with #205 SoA/AoS cleanup + PI E2 sign-off).
+- `B1a-tag` and `B1b-tag` remain immutable per D11 history (NOT force-updated).
+- Downstream P1+ consumers SHOULD use `B1-tag` as the canonical "B1 baseline" reference; the historical separate-tag pair (`B1a-tag` / `B1b-tag`) remains available for archaeology.
+
+### Evidence summary supporting the PI judgment (cross-ref §E.1)
 
 The pack collects the following arguments which the PI may weigh:
 
@@ -315,9 +371,9 @@ The pack collects the following arguments which the PI may weigh:
 
 6. **The SoA/AoS drift** (issue #205) is the more important finding from this audit and is out-of-scope for #185 / #186. It applies to both the bank- and lake-aquifer aspects of `fun_Ele_sub` lake branch and is best addressed in P-strict (P1-P7) pre-req audit, not in B1b ship.
 
-### External PI question
+### Original PI question (historical — answered E2)
 
-If the PI is available, the specific question is:
+The original (pre-sign-off) framing of the PI question, preserved for archaeology:
 
 > Should the lake-edge GW lateral flux in `fun_Ele_sub()` use:
 >
@@ -345,7 +401,7 @@ If the PI is available, the specific question is:
 | §B.4 active-runtime semantics (vs §A.3 AoS-intent) | PASS (rewritten to reflect SoA mirror state; both readings presented) |
 | §C non-lake branch byte-for-byte comparison | PASS (L160–L170 quoted; only intended divergence enumerated) |
 | §D affected cases (qhh, heihe, heihe_x4) + magnitude + bitwise impact | PASS |
-| §E verdict | **EVIDENCE PACK ONLY — no verdict issued. PI sign-off pending on issue #185.** |
-| design.md D9 fast-path trigger #2 status | BLOCKED on PI sign-off (no self-application) |
-| design.md Open Q1 (PI delegate qualification) | Still OPEN — this PR does not invoke an "alternate signoff" |
-| Out-of-scope items explicit | PASS (no #186 fix code; no benchmark runs of "if-we-changed-the-formula"; #185 OPEN; SoA drift tracked in #205) |
+| §E verdict | **VERDICT ISSUED — E2 ("formula correct, no change") by DankerMu as PI delegate, 2026-06-22 PR-19 #210** |
+| design.md D9 fast-path trigger #2 status | **TRIGGERED in PR-19 #210 — `B1-tag` annotated tag created aliasing main HEAD** |
+| design.md Open Q1 (PI delegate qualification) | **CLOSED — PI delegate = `SHUD-System/SHUD` upstream organization owner (DankerMu holds this role); three-surface sign-off pattern (issue comment + audit doc §E + SHUD CHANGELOG addendum)** |
+| Out-of-scope items explicit | PASS (no #186 fix code — SKIP retroactively consistent with PI E2; #205 RESOLVED via PR-18 #209; SoA/AoS coherence cleared for P-strict pre-req) |
