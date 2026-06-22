@@ -74,6 +74,20 @@ The commented-out `max(0.0, Y[iGW])` lines are preserved as historical
 artefact so future readers can trace why direct-alias was adopted; the
 active code is the form that #159 advocated.
 
+### D. Out-of-scope live `max(0.0, Y[i])` site noted for forward defense
+
+PR #203 review MN1 surfaced one LIVE site at
+`SHUD/src/ModelData/MD_update.cpp:22` inside `Model_Data::f_updatei`
+case 3 (`iBC == 0` branch) that still uses
+`uYgw[i] = max(0.0, Y[i]);`. The callback `f_gw` registered to
+`CVode(mem3, ...)` at `shud.cpp:336,389` is reachable ONLY in uncoupled
+groundwater-only mode (`-DSHUD_uncouple` build + CLI `-g`). This site
+is **out of #159's scope** (issue explicitly names the dormant `_omp`
+variant in `MD_f_omp.cpp` only) and is **not exercised by any B1b
+benchmark case** (the coupled 90-day runs never invoke `-g`). Future
+audits touching uncoupled mode should evaluate alignment with
+`f_update` / `rhs_update`. Recorded here so the residual is visible.
+
 ## D9 fast-path contribution
 
 Per design.md D9 trigger #3 ("S6b.3 全部候选评估结论为 zero-impact"),

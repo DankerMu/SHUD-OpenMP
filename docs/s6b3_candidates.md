@@ -140,6 +140,23 @@ discovered via audit (this document). Both documents pre-budget the
    comment so future readers can trace the lineage; the active code
    is the direct-alias form that #159 advocated.
 
+#### Out-of-scope live `max(0.0, Y[i])` site (forward defense)
+
+PR #203 review MN1 (`af5eb35f22058f59e`) noted one LIVE site at
+`SHUD/src/ModelData/MD_update.cpp:22` inside `Model_Data::f_updatei`
+case 3 (`iBC == 0` branch) still uses `uYgw[i] = max(0.0, Y[i]);`.
+This callback is `f_gw` registered to `CVode(mem3, ...)` at
+`SHUD/src/Model/shud.cpp:336,389`, reachable ONLY when SHUD is built
+with `-DSHUD_uncouple` and run with CLI `-g` (uncoupled GW-only mode).
+
+This site is **OUT OF #159's scope** — #159 names the dormant `_omp`
+variant `MD_f_omp.cpp::f_update_omp`, not the uncoupled-mode
+`f_updatei`. The asymmetry pattern survives here because uncoupled
+mode is not on the B1b coupled-RHS code path (B1b 90-day baseline + 7
+benchmark cases all run coupled, never `-g`). Future work touching
+uncoupled mode should evaluate alignment with `f_update` /
+`rhs_update`; recording here so the next audit catches it.
+
 #### Disposition per spec.md L37 clause (d)
 
 Spec L37 mandates "若评估结论为'非 bug' 或'延后到 P1+ 处理'，仍 SHALL
