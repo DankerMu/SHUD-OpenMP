@@ -5,7 +5,7 @@
 **Audit date**: 2026-06-22 (rev. after PR #204 Phase-4 review V1/V2/V3)
 **Auditor**: Phase-1 audit author + evidence packager (NOT a PI delegate). External SHUD-upstream PI sign-off remains required per `spec.md` L23.
 **Signoff status**: **NO VERDICT ISSUED IN THIS PR.** This document is an **evidence pack** for the PI / PI delegate to consult; sign-off (E1 / E2) is per spec L23 the PI's prerogative on issue #185. design.md Open Q1 (governance of PI delegate qualification) is still open; this PR does NOT invoke an "alternate signoff mechanism" (no such mechanism is normatively defined).
-**Default-skip path**: Per master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改"), absent a PI `S2.17: formula needs fix` directive on #185 before S6c (#188-#190) capstone, **B1b ships with the current formula unchanged**. This is the de-facto safe default — NOT a signed-off E2.
+**Default-skip path (CONDITIONAL, per master plan C8 forward-compatibility)**: Master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改") is a **FORECAST** about a likely review outcome, NOT a normative permission to ship without PI sign-off. If no PI directive `S2.17: formula needs fix` arrives on #185 before S6c (#188-#190) capstone, **B1b ships with the current formula unchanged**, but treat the ship as **CONDITIONAL** per master plan C8 ("永不 break userspace"): any later PI-mandated fix can be stacked as a follow-up `B1c-tag` without force-updating B1b-tag. This is NOT a signed-off E2 and does NOT satisfy design D9 fast-path trigger #2.
 **Master plan refs**: §S2.17 (L1179–L1198), §4.18 (L523–L541), §S6b L1480–L1503
 **OpenSpec refs**: `specs/s6b-bugfix-application/spec.md` Requirement S6b.2 + 2 Scenarios; design.md D8 / D9 / Open Q1
 
@@ -98,7 +98,7 @@ Where `effKH(...)` (`Equations.cpp:116–134`) returns a depth-weighted blend of
 4. `SHUD/src/ModelData/Model_Data.hpp:287` `sync_hot_dynamic(i)` writes that blend into `hot.u_effKH[i]`.
 5. Later, `SHUD/src/Model/MD_rhs_core.cpp:194-207` `rhs_flux` pass-1 lake branch calls `Ele[i].updateLakeElement()` which writes `u_effKH = KsatH` to AoS — but **DOES NOT call `sync_hot_dynamic(i)`**.
 6. Compare `SHUD/src/ModelData/MD_f.cpp:25-28` (dead-code `f_loop`): `Ele[i].updateLakeElement(); sync_hot_dynamic(i); fun_Ele_lakeVertical(i, t);` — DOES sync.
-7. `fun_Ele_sub` at `MD_ElementFlux.cpp:147` reads `hot.u_effKH[inabr]` (lake neighbor) and sees the **stale general-element blend** from step 3, not `KsatH`.
+7. `fun_Ele_sub` at `MD_ElementFlux.cpp:147` reads `hot.u_effKH[inabr]` (lake neighbor) and sees the **general-element depth-weighted blend** computed during step 3 against the lake element's own per-element CVODE `Y[iGW]` state — physically the lake-bed aquifer column groundwater level (`Macros.hpp:46` `#define iGW i + 2 * NumEle`). This is **distinct from** the lake stage `Y[iLAKE]` (`Macros.hpp` `#define iLAKE i + 3 * NumEle + NumRiv`); the two are coupled through the lake-bed seepage flux but are **independent CVODE state variables**. The reading is NOT `KsatH`.
 
 **Implication for this audit**: the "lake-bed K = KsatH" framing in §A.3 + §B.4 (in earlier drafts of this doc) describes the AoS state, NOT the runtime state that `fun_Ele_sub` consumes. The §B.4 physical-soundness argument was load-bearing on a stale assumption. **§B.4 has been rewritten** below to acknowledge this. **A new follow-up issue [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205)** tracks the SoA/AoS drift (the missing `sync_hot_dynamic` after `updateLakeElement` in `rhs_flux`) as a P-strict / P-prod pre-req audit item — out of scope for #185 / B1b ship.
 
@@ -159,7 +159,7 @@ This is the master plan §4.18 explicit concern. **The §A.3 reading of `updateL
 
 So `Kmean = 0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` actually evaluates to:
 - bank-side (i): depth-weighted blend of soil matrix `KsatH` + macropore `macKsatH` (per `effKH` formula) evaluated against bank aquifer state
-- lake-side (inabr): SAME `effKH(...)` blend evaluated against the lake element's aquifer state (where lake `Ygw` typically equals `yLakeStg + lake.zmin - z_bottom`)
+- lake-side (inabr): SAME `effKH(...)` blend evaluated against the lake element's **independent** per-element CVODE `Y[iGW]` state — physically the lake-bed aquifer column groundwater level, which is a separate state variable from the lake stage `Y[iLAKE]` (the two are coupled through the lake-bed seepage flux but are not algebraically related at any single substep)
 
 **Is this still defensible?** Two readings are possible:
 
@@ -291,13 +291,13 @@ This is a HIGH-cost change for a numerical refinement that, under the standard S
 
 This document does NOT issue an E1 or E2 verdict per spec.md L23 (which reserves that prerogative for the SHUD upstream PI or a designated PI delegate). The Phase-1 audit author is the audit/evidence-pack author, **not** a PI delegate. design.md Open Q1 (qualification criteria for "PI delegate") remains open; this PR does not close it.
 
-### B1b ship status absent PI sign-off
+### B1b ship status absent PI sign-off (CONDITIONAL default)
 
-Per master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改"), the de-facto safe default when no PI directive is received before S6c (#188-#190) capstone is to **ship B1b with the current formula unchanged** (no code patch to `MD_ElementFlux.cpp:147`). This is structurally equivalent to spec.md L29-31 Scenario "审查结论已签字跳过修改" except the activation lacks a PI signature. Treat the B1b ship as **conditional** — if PI later overrules to E1 (formula needs fix), the master plan C8 forward-compatibility convention applies: a follow-up `B1c-tag` could stack the fix on top of B1b without force-updating B1b-tag.
+Master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改") is a **FORECAST** about the likely review outcome, NOT a normative permission to ship without PI sign-off. The de-facto path when no PI directive is received before S6c (#188-#190) capstone is to **ship B1b with the current formula unchanged** (no code patch to `MD_ElementFlux.cpp:147`). This is structurally equivalent to spec.md L29-31 Scenario "审查结论已签字跳过修改" except the activation lacks a PI signature. Treat the B1b ship as **conditional** under master plan C8 ("永不 break userspace"): if PI later overrules to E1 (formula needs fix), the C8 forward-compatibility convention applies: a follow-up `B1c-tag` would stack the fix on top of B1b without force-updating B1b-tag.
 
 ### D9 fast-path eligibility
 
-design.md D9 trigger #2 requires `S6b.2 = "审查为'无修改'" 跳过 fix` with a signed conclusion. **This trigger is NOT satisfied by an unsigned evidence pack.** D9 fast-path (B1a / B1b merge into `B1-tag`) therefore remains **gated** until PI sign-off arrives. S6c (#188-#190) can proceed with separate B1a-tag and B1b-tag per design D11.
+design.md D9 trigger #2 requires `S6b.2 = "审查为'无修改'" 跳过 fix` with a signed conclusion. **This trigger is NOT satisfied by an unsigned evidence pack.** D9 fast-path (B1a / B1b merge into `B1-tag`) therefore remains **gated** until PI sign-off arrives. S6c (#188-#190) proceeds with separate B1a-tag and B1b-tag (D9 fast-path not satisfied) — both subsequently subject to D11 force-update prohibition.
 
 ### Evidence summary supporting the eventual PI judgment
 
