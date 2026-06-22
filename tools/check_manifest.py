@@ -61,7 +61,9 @@ REQUIRED_SCALAR_FIELDS: dict[str, tuple[type, ...]] = {
     "NumLake": (int,),
     "NumY": (int,),
     "input_dir": (str,),
-    "forcing_dir": (str,),
+    # forcing_dir handled separately by _check_forcing_dir (union str | dict;
+    # see m7-forcing-trim spec Requirement "case manifest forcing_dir schema
+    # BREAKING 升级").
     "forcing_duration_days": (int,),
     "has_cryosphere": (bool,),
     "has_lake": (bool,),
@@ -335,6 +337,60 @@ def _check_numy_formula(result: ValidationResult, payload: dict[str, Any]) -> No
             )
 
 
+def _check_forcing_dir(result: ValidationResult, payload: dict[str, Any]) -> None:
+    """Validate forcing_dir union (str | dict).
+
+    Schema BREAKING per m7-forcing-trim spec Requirement
+    "case manifest forcing_dir schema BREAKING 升级":
+
+    - legacy `str` form is still accepted (graceful transition; spec
+      Scenario "legacy str 仍兼容 (过渡期)").
+    - new `dict` form requires `original_path: str`. `trimmed_path` is
+      optional and may be `str` or `None` (kashigeer N/A allowed; spec
+      Scenario "kashigeer trimmed null PASS").
+    - malformed dict (missing `original_path`) MUST raise validation error
+      (spec Scenario "malformed dict 拒绝").
+    """
+    if "forcing_dir" not in payload:
+        result.errors.append("forcing_dir: missing required field")
+        return
+
+    value = payload["forcing_dir"]
+
+    if isinstance(value, str):
+        # Legacy scalar string — accept during transition.
+        return
+
+    if isinstance(value, dict):
+        # New mapping form: validate sub-schema.
+        if "original_path" not in value:
+            result.errors.append(
+                "forcing_dir.original_path: missing required field "
+                "(new mapping schema requires original_path)"
+            )
+        else:
+            op = value["original_path"]
+            if not isinstance(op, str):
+                result.errors.append(
+                    "forcing_dir.original_path: expected str, "
+                    f"got {type(op).__name__}"
+                )
+
+        # trimmed_path is optional and may be str or None.
+        if "trimmed_path" in value:
+            tp = value["trimmed_path"]
+            if tp is not None and not isinstance(tp, str):
+                result.errors.append(
+                    "forcing_dir.trimmed_path: expected str or null, "
+                    f"got {type(tp).__name__}"
+                )
+        return
+
+    result.errors.append(
+        f"forcing_dir: expected str or mapping, got {type(value).__name__}"
+    )
+
+
 def _check_extensions(result: ValidationResult, payload: dict[str, Any]) -> None:
     """Validate endpoint / derived_from / refine_factor."""
     for fname, accepted in EXTENSION_FIELDS.items():
@@ -399,6 +455,9 @@ def validate_manifest(manifest_path: Path, case: str) -> ValidationResult:
     # Cross-field invariants.
     _check_lake_consistency(result, payload)
     _check_numy_formula(result, payload)
+
+    # forcing_dir (union str | dict per m7-forcing-trim).
+    _check_forcing_dir(result, payload)
 
     # Project extensions.
     _check_extensions(result, payload)

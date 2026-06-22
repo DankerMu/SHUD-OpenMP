@@ -26,7 +26,9 @@ NumY: 12068            # = 3*3204 + 2456 + 0
 
 # --- Input ---
 input_dir: "SHUD/Basins/kashigeer/input/ksge/"
-forcing_dir: "SHUD/Basins/kashigeer/forcing/"
+forcing_dir:                                      # M7 schema (PR-A #212): mapping; kashigeer trimmed_path null (deferred-upstream).
+  original_path: "SHUD/Basins/kashigeer/forcing/"
+  trimmed_path: null                              # deferred-upstream (S0-13 amendment: X76 forcing band missing both endpoints; no trim until upstream fixed)
 forcing_duration_days: 2191                       # END - START = 22279 - 20088 (epoch 1951-01-01)
 has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para; Tarim glacier basin
 has_lake: false

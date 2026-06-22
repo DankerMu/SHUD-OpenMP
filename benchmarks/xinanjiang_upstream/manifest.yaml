@@ -23,7 +23,9 @@ NumY: 2619             # = 3*801 + 216 + 0
 
 # --- Input ---
 input_dir: "SHUD/Basins/xinanjiang_upstream/input/xinanjiang/"
-forcing_dir: "SHUD/Basins/xinanjiang_upstream/forcing/"
+forcing_dir:                                      # M7 schema (PR-A #212): mapping of original + trimmed.
+  original_path: "SHUD/Basins/xinanjiang_upstream/forcing/"
+  trimmed_path: "SHUD/Basins/xinanjiang_upstream/forcing.trimmed/"
 forcing_duration_days: 4747                       # END - START = 4747 - 0 (epoch 1958-01-01)
 has_cryosphere: true                              # CRYOSPHERE=1 in cfg.para (mountain headwater)
 has_lake: false

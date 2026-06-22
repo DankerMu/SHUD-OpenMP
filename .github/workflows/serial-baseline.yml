@@ -153,6 +153,33 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
+  # Job 1b — tools-tests: lightweight schema + unit-test gate
+  # Wires `tools/check_manifest.py --all` (7-case manifest schema gate,
+  # including the forcing_dir mapping schema) and
+  # `tools/check_manifest_tests/test_forcing_dir.py` (union str|dict +
+  # null/malformed fixtures) into CI. Independent of matrix, runs in seconds,
+  # closes the F-C-1 regression-protection gap surfaced in PR #227 review
+  # (the schema validator and its fixture tests were not previously executed
+  # on every PR; only 4 check_*sub-script gates were).
+  # ---------------------------------------------------------------------------
+  tools-tests:
+    name: tools-tests (manifest schema + forcing_dir union tests)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+      - name: check_manifest --all (7 case schema gate, including forcing_dir mapping)
+        run: uv run tools/check_manifest.py --all
+      - name: test_forcing_dir (union str|dict + null/malformed fixtures)
+        run: uv run tools/check_manifest_tests/test_forcing_dir.py
+
+  # ---------------------------------------------------------------------------
   # Job 2 — build-and-compare: matrix consumer
   # ---------------------------------------------------------------------------
   build-and-compare:
@@ -177,7 +204,15 @@ jobs:
       # Continue other matrix entries even if one fails so a single broken
       # case does not mask other regressions.
       fail-fast: false
-      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      # M7 forcing-trimmed axis (PR-A #212; m7-forcing-trim spec Requirement
+      # "CI matrix forcing_trimmed=1 轴新增 + forcing_present 条件 SKIP").
+      # Only value `1` is provisioned (no `0` to avoid doubling CI time);
+      # the axis exists so downstream PRs can find `matrix.forcing_trimmed`
+      # in job context. The "Verify trimmed forcing path" step below uses
+      # this value implicitly (always enabled when forcing is present).
+      matrix:
+        forcing_trimmed: [1]
+        case: ${{ fromJson(needs.setup.outputs.matrix).case }}
 
     steps:
       # -----------------------------------------------------------------------
@@ -797,6 +832,74 @@ jobs:
             exit 1
           fi
           echo "90-day truncation applied: START=$start, END=$new_end (delta=90) for ${{ matrix.case }}"
+
+      # -----------------------------------------------------------------------
+      # Step 9b — verify trimmed forcing path (M7, PR-A #212)
+      # -----------------------------------------------------------------------
+      # Per m7-forcing-trim spec Requirement "CI matrix forcing_trimmed=1 轴
+      # 新增 + forcing_present 条件 SKIP" (Scenario "cfg pointer verify step
+      # 存在"). The schema gate requires manifest `forcing_dir.trimmed_path`
+      # to be a non-empty string (kashigeer's `null` is excluded — it is not
+      # in the CI matrix per setup `Notice excluded cases`). When the
+      # case forcing data is actually deployed on the runner (rare; most CI
+      # has forcing_present=false), an additional tsd.forc-line-2 sanity
+      # check is performed too.
+      #
+      # Spec L175 references a `cfg.para` `forcing_dir` line; that line does
+      # NOT exist in any real cfg.para. The canonical forcing-dir pointer
+      # lives at line 2 of `<case>.tsd.forc`. Workflow reads tsd.forc line 2
+      # accordingly; PR-N capstone is expected to patch the spec text.
+      - name: Verify trimmed forcing path (M7, PR-A #212)
+        if: steps.skip_check.outputs.skipped != 'true' && steps.data_probe.outputs.data_available == 'true'
+        run: |
+          manifest="benchmarks/${{ matrix.case }}/manifest.yaml"
+          if [[ ! -f "$manifest" ]]; then
+            echo "::error title=Manifest missing::$manifest not found"
+            exit 1
+          fi
+          # awk-only YAML extract: locate the `forcing_dir:` mapping then
+          # pick up the `trimmed_path:` line that follows (within the same
+          # indented block). Quotes are stripped. yq is intentionally NOT
+          # required so the verify step has zero extra deps.
+          trimmed_path=$(awk '
+            /^forcing_dir:/ { in_fd = 1; next }
+            in_fd && /^[A-Za-z_][A-Za-z0-9_]*:/ { in_fd = 0 }
+            in_fd && /^[[:space:]]+trimmed_path:[[:space:]]*/ {
+              # strip leading "  trimmed_path: " and surrounding quotes
+              line = $0
+              sub(/^[[:space:]]+trimmed_path:[[:space:]]*/, "", line)
+              sub(/[[:space:]]*(#.*)?$/, "", line)
+              gsub(/^"|"$/, "", line)
+              print line
+              exit
+            }
+          ' "$manifest")
+          if [[ -z "$trimmed_path" ]]; then
+            echo "::error file=$manifest::manifest forcing_dir.trimmed_path missing or empty (m7-forcing-trim BREAKING schema; PR-A #212)"
+            exit 1
+          fi
+          if [[ "$trimmed_path" == "null" ]]; then
+            echo "::error file=$manifest::manifest forcing_dir.trimmed_path=null is invalid for in-matrix case ${{ matrix.case }} (only kashigeer/deferred-upstream is allowed null, and it is excluded from CI matrix)"
+            exit 1
+          fi
+          echo "Manifest forcing_dir.trimmed_path = $trimmed_path"
+          # Sanity-cross-check tsd.forc line 2 if a trimmed forcing dir was
+          # actually deployed on the runner (PR-A is mac-only; CI runners
+          # typically don't ship trimmed/. So this is a best-effort gate.)
+          trim_abs="SHUD/Basins/${{ matrix.case }}/forcing.trimmed"
+          tsd_forc="SHUD/Basins/${{ matrix.case }}/input/${{ matrix.case }}/${{ matrix.case }}.tsd.forc"
+          if [[ -d "$trim_abs" && -f "$tsd_forc" ]]; then
+            tsd_line2="$(awk 'NR==2 {print; exit}' "$tsd_forc")"
+            # tsd.forc line 2 is the absolute path of the *active* forcing
+            # dir. We require it to point at forcing.trimmed/ when both are
+            # present. Otherwise emit ::notice (forcing.trimmed not active).
+            case "$tsd_line2" in
+              */forcing.trimmed) echo "tsd.forc line 2 points at forcing.trimmed/ as expected" ;;
+              *) echo "::notice title=tsd.forc points at non-trimmed forcing::line 2 = $tsd_line2 (manifest trimmed_path=$trimmed_path); CI does not auto-switch tsd.forc to trimmed/ in PR-A" ;;
+            esac
+          else
+            echo "::notice title=trimmed forcing data not deployed::No SHUD/Basins/${{ matrix.case }}/forcing.trimmed on this runner; manifest schema gate PASS but runtime sanity check SKIPPED (forcing_present=true but trimmed asset not shipped to CI)"
+          fi
 
       # -----------------------------------------------------------------------
       # Step 10a — run default + compare to B0 golden (case-parameterized)
