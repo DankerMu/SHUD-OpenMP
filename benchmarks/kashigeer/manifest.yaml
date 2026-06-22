@@ -7,6 +7,17 @@
 project_name: "ksge"                              # SHUD project name (input subdir)
 description: "NWM kashigeer (ksge project) basin; river/PassValue topology stress test (NumRiv/NumEle=0.77)"
 
+# --- OMP environment (S5d.4 #182; design D5 + master plan §S5d.4.3) ---
+# Required deployment-layer thread-binding defaults. Wired via tools/run_omp.sh
+# (the program does NOT override these env vars per design D5). CI schema gate:
+# tools/check_manifest/check_omp_env.py + .github/workflows/serial-baseline.yml.
+# (kashigeer endpoint=deferred-upstream per S0-13, see B0_output/DEFERRED.txt;
+# manifest still ships canonical omp_env defaults so the CI schema gate stays
+# uniform across the registry.)
+omp_env:
+  OMP_PROC_BIND: close
+  OMP_PLACES: cores
+
 # --- Basin scale ---
 NumEle: 3204
 NumRiv: 2456

@@ -1,0 +1,61 @@
+# canonical_15_keys.yaml — single source of truth for SHUD's CVODE 15-key
+# invariance gate. Consumed by:
+#   - tools/cvode_stats_diff/cvode_stats_diff.sh (existing; embeds list inline,
+#     kept synchronized with this file)
+#   - tools/cvode_stats_diff/test_15key_excludes_nfcall.py (S5c-C unit test)
+#   - .github/workflows/serial-baseline.yml (CI nFCall-exclusion gate)
+#
+# nFCall is EXPLICITLY EXCLUDED per spec s5c-solver-diagnostics Requirement
+# "nFCall 与 CVODE 15-key nfe 严格分离" + design D10 (F19 round-2). The
+# `excluded_keys` block below is part of the schema contract — adding nFCall
+# (or nFCall1..5) to canonical_15_keys MUST fail the unit test.
+canonical_15_keys:
+  - nfe
+  - nfeLS
+  - nni
+  - nli
+  - nsetups
+  - netf
+  - nst
+  - npe
+  - nps
+  - ncfn
+  - ncfl
+  - lenrw
+  - leniw
+  - lenrwLS
+  - leniwLS
+
+excluded_keys:
+  - nFCall      # SHUD RHS kernel entry counter; ships via nfcall.txt
+  - nFCall1     # alt counter for f_surf
+  - nFCall2     # alt counter for f_unsat
+  - nFCall3     # alt counter for f_gw
+  - nFCall4     # alt counter for f_river
+  - nFCall5     # alt counter for f_lake
+
+# Diagnostic-only keys (emitted under -DSHUD_ENABLE_DIAGNOSTICS only; NOT
+# part of 15-key gate; do NOT trigger UNKNOWN-key errors in cvode_stats_diff.sh
+# because the diff only runs on the default OFF build). Listed here for
+# documentation completeness; cross-checked by test_15key_excludes_nfcall.py
+# to assert they are NOT in canonical_15_keys.
+diagnostic_keys:
+  - hlast
+  - qlast
+  - t_rhs_update
+  - t_rhs_ET
+  - t_rhs_lateral
+  - t_rhs_segment
+  - t_rhs_river
+  - t_rhs_gather
+  - t_rhs_applyDY
+  - t_rhs_total
+  - pct_rhs_update
+  - pct_rhs_ET
+  - pct_rhs_lateral
+  - pct_rhs_segment
+  - pct_rhs_river
+  - pct_rhs_gather
+  - pct_rhs_applyDY
+  - t_forcing_io_ns
+  - t_forcing_io_s
