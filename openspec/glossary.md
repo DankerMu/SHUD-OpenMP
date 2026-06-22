@@ -69,7 +69,8 @@ units in the last place，浮点最小可分辨差；跨线程差异以 ULP 为�
 RHS 占总 wall-clock 比例 `f` 的强制 profile gate；`f` 决定 P1–P9 优先级与 Amdahl 加速比上限。
 
 **OMP_CUTOFF**:
-小流域阈值（编译期/运行期可配，默认 1024）；`NumEle < OMP_CUTOFF` 时 RHS 强制走 serial。
+小流域阈值（编译期/运行期可配，默认 1024）；`NumEle < OMP_CUTOFF` 时 RHS 强制走 serial（P1+ RHS 内并行启用后）。理由：小流域线程启动开销 > 并行收益；keliya (NumEle=484) / xinanjiang_upstream (NumEle=801) 等小 case 不进 RHS parallel for。落地于 P1+ ExecPolicy 调度；B1b 阶段（serial-only）不触发。
+_Avoid_: 把 OMP_CUTOFF 当作绝对阈值（与硬件 cache 大小 + thread spawn latency 相关，可通过 `-DSHUD_OMP_CUTOFF=N` 编译期 或 `SHUD_OMP_CUTOFF=N` 运行期环境变量 覆盖 — master plan L1933；尚未在 SHUD/src 落地，P1+ ExecPolicy 引入时实施）
 
 **目标部署平台**:
 加速比 go/no-go 的唯一验收平台（单插槽 8 物理核 x86_64 Linux + `-O2 -ffp-contract=off -fopenmp` + 绑核选项）。
@@ -96,6 +97,10 @@ _Avoid_: 误称 dense solver
 
 **nfe / nfeLS**:
 RHS 调用计数。nfe = 积分器自身调用数；nfeLS = Krylov 线性求解引发的 RHS 调用数。
+
+**nFCall**:
+SHUD 内部 RHS kernel 入口自增计数（`Model_Data::nFCall`，`Model_Data.hpp` L58；S5c-C #175 落地）。语义与 CVODE `CVodeGetNumRhsEvals` 的 `nfe` **严格分离**（design D10）：`nfe` = CVODE 主动调用 RHS 次数（进 15-key invariance gate）；`nFCall` = SHUD f.cpp:61 `MD->nFCall++` kernel 入口计数（不进 15-key gate，仅作 §C8 RHS 调用归一指标独立追踪）。`nFCall != nfe` 时 `B1b_CHANGELOG.md` 必须含一行解释（CVODE 内部 Jacobian DQ / step retry 触发额外 internal RHS 调用），**无数值上限阈值**（free-running counter，差异本身不阻 CI）。
+_Avoid_: 把 nFCall 和 nfe 当同一指标；把 nFCall 写入 15-key snapshot
 
 **预条件器 (preconditioner)**:
 降低 Krylov 迭代数（nfeLS）的算子；P8-precond 为 P8 第一优先。
@@ -133,7 +138,11 @@ RHS 调用计数。nfe = 积分器自身调用数；nfeLS = Krylov 线性求解�
 数据布局。热字段从 fat-AoS `_Element` 抽成 SoA 以降 cache miss、提升 prefetch 命中。
 
 **ElementHotData**:
-RHS 热路径只读字段的 SoA 容器（S5d）。
+RHS 热路径只读字段的 SoA 容器，S5d.1 引入，位于 `SHUD/src/ModelData/MD_layout.hpp`。包含 32 个 hot 字段（geometry 6 [Triangle] + topology 7 [AttriuteIndex] + _Element direct 14 + Geol_Layer 1 [Sy] + Landcover 4），覆盖 `MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp` 三个 RHS TU 全部 `Ele[<expr>].<field>` 访问点。字段集 source-of-truth = `docs/s5d_hot_fields.yaml`；与 `_Element` AoS 双轨保留（详 ADR-0001）；`Model_Data::sync_hot_dynamic(i)` inline 同步 4 个动态字段。
+_Avoid_: 直接 `Ele[i].nabr` 访问；hot path 必须 `hot.nabr_flat[3*i+j]`
+
+**RiverHotData**:
+若 river / segment 热字段进 SoA 抽取，则使用此名命名 SoA 容器。**当前状态**：S5d.2-5b (#180) audit 结论 = 不存在 `double[N]` / `double*` member field（`_River` / `RiverSegement` 全是 plain scalar），SoA fold-in trigger 未触发，**不实现** RiverHotData 容器。未来若 `Riv[i]` / `RivSeg[i]` 内部增加数组字段且被 RHS hot path 高频访问，需重新评估并在新 ADR 中记录。详 `docs/topology_manifest.yaml` `s5d2_riv_audit` 节 + `SHUD/B1b_CHANGELOG.md` S5d.2-5b 段。
 
 **first-touch / NUMA**:
 Linux 内存页归属策略；主线程串行初始化会让数据页落单 node，多插槽时跨 NUMA 访问变慢；S5d 做 parallel first-touch。
