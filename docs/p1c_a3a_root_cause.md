@@ -12,28 +12,117 @@ P1c.0 实验诊断 (前置 SHALL, per design D9)。本文档在 PR-A 阶段建�
 - **P1 epic 实测 (PR-K2 #223 / 2026-06-22)**: heihe `nst` 跨 N ∈ {1,2,4,8} = **6773 / 6773 / 6585 / 6684**，N≥4 漂移；heihe_x4 `nst` = 6571 / 6571 / 6570 / 6572 (微漂)。
 - **疑似机理 (Stage 1 hypothesis, per proposal.md L3)**: P1 阶段已并行的 owner-local writer 路径 (Model_Data.cpp / MD_update.cpp 中的 `#pragma omp parallel for`) 在 N>2 下产生 first-touch / NUMA-affinity 异序写入 ULP 噪声 → 下游 `rhs_deterministic_gather()` 8 reduction 站点忠实累加噪声 → CVODE 自适应步长重选 → `nst` 跨 N 漂移。
 
-## Kahan 候选路径
+## Kahan 候选路径 (held-in-reserve, §4.7 条件触发)
 
-如 fixed-shape pairwise 改造 (§2.x) 完成后 server PR-K2 首跑仍 FAIL (A3a non-bitwise 或 nst 跨 N 非全等)，将触发条件 Kahan / Neumaier 兜底，per spec L107-L114 `Kahan 补偿求和兜底` Requirement + design D2 决策第二阶段。
+PR-G (#250) 产 `docs/p1c_kahan_patch.diff` 作为 held-in-reserve patch.
+**NOT applied** in PR-G; conditional application only on §4.7 trigger
+(server PR-K2 first run FAIL). Per spec L107-L128 `Kahan 补偿求和兜底
+(条件触发, server PR-K2 首跑 FAIL)` Requirement + design D2 + D4 + R2.
 
-Patch 设计草稿 (§3.1 任务): 8 个 owner accumulation 位上叠加 Neumaier 修正:
+### (a) 算法 — Neumaier 1974 (Kahan-Babuška variant)
+
+经典 Kahan 算法:
 
 ```cpp
-// per-acc-target compensated sum (Neumaier variant of Kahan):
-double sum = 0.0;
-double c   = 0.0;
-for (int iseg : seg_by_riv[ir]) {
-    double y = QsegSurf[iseg] - c;
-    double t = sum + y;
-    c = (std::fabs(sum) >= std::fabs(y)) ? ((sum - t) + y) : ((y - t) + sum);
-    sum = t;
-}
-QrivSurf[ir] = sum;  // or += sum if accumulator pre-zero already done
+y = x - c;
+t = sum + y;
+c = (t - sum) - y;
+sum = t;
 ```
 
-触发条件: server PR-K2 首跑 FAIL (per spec §"仅在必要时引入 Kahan" Scenario)。
-**禁止**以 Mac local §2.5 16-cell snapshot 结果作为触发依据 (per design D7,
-Mac snapshot 已知 pass-while-server-fails)。
+Neumaier 改进: 处理 |sum| < |x| 时的 sign-bit asymmetry —
+
+```cpp
+t = sum + x;
+c += (std::fabs(sum) >= std::fabs(x)) ? (sum - t) + x : (x - t) + sum;
+sum = t;
+// final return: sum + c
+```
+
+Neumaier 在 ULP-level 浮点累加意义上是 backward-stable
+(compensation 始终捕获 next-bit-below 的 round-off). 选 Neumaier 而非
+经典 Kahan 的理由: 站点 5/6/7 (Qe2r_Surf, Qe2r_Sub, QrivUp) 的 sigma
+经 `-fixed_leftfold_sum_indexed(...)` 一次性 negate, 但中间过程在 call-
+site chaining 仍可 sign-mixed; 经典 Kahan 在 sign-mixing 序列上
+vulnerable, Neumaier 显式分支处理 |sum|<|x| 情况。
+
+参考: SUNDIALS user guide §3.1.1 "deterministic dot-product" +
+Neumaier 1974 ZAMM Vol 54.
+
+### (b) 8 站点 × 10 anchor 叠加位置 (helper-level injection)
+
+| 站点 | 写目标 | 当前 helper (post-PR-E) | Kahan 注入后 helper |
+|---|---|---|---|
+| 1 (L278) | qLakeEvap | fixed_pairwise_sum_indexed (PR-B) | fixed_pairwise_sum_indexed + Neumaier-compensated tree join |
+| 2 (L279) | qLakePrcp | fixed_pairwise_sum_indexed (PR-B) | same |
+| 3 (L374) | QrivSurf | fixed_leftfold_sum_indexed (PR-C) | fixed_leftfold_sum_indexed_kahan (Neumaier loop) |
+| 4 (L375) | QrivSub | fixed_leftfold_sum_indexed (PR-C) | same |
+| 5 (L382) | Qe2r_Surf | -fixed_leftfold_sum_indexed (PR-C) | -fixed_leftfold_sum_indexed_kahan |
+| 6 (L383) | Qe2r_Sub | -fixed_leftfold_sum_indexed (PR-C) | same |
+| 7 (L392) | QrivUp | -fixed_leftfold_sum_indexed (PR-D) | -fixed_leftfold_sum_indexed_kahan |
+| 8a (L406) | QLakeRivIn | fixed_leftfold_sum_indexed (PR-E) | fixed_leftfold_sum_indexed_kahan |
+| 8b (L420) | QLakeSurf | fixed_leftfold_sum_pair_indexed (PR-E) | fixed_leftfold_sum_pair_indexed_kahan |
+| 8c (L433) | QLakeSub | fixed_leftfold_sum_pair_indexed (PR-E) | same |
+
+实际 patch (`docs/p1c_kahan_patch.diff`) 在 4 个 helper def
+(`fixed_pairwise_sum_range`, `fixed_leftfold_sum_indexed`,
+`fixed_leftfold_sum_pair_indexed` × 2 use-sites) 内修改累加循环, 即 cover
+所有 10 个 call sites — helper-wrap 结构允许 patch 不需逐 anchor 重写
+call site, 比 inline-per-site 改造少 6 处 diff hunk。
+
+### (c) 触发条件 / 非触发条件
+
+**SHALL 触发** (§4.7 server PR-K2 首跑 FAIL):
+
+- §4.4 A3a bitwise FAIL: heihe 4 N OR heihe_x4 4 N 任一 N pair 出现 byte
+  diff.
+- OR §4.5 nst across N FAIL: heihe nst 跨 N ∈ {1,2,4,8} 不全相等 (P1
+  实测 6585/6684 漂移仍在则触发).
+- OR §4.5 nst across N: heihe_x4 残留 `|Δ_nst|>2` (`≤2` 走 SPGMR-noise
+  ladder per §4.5.x, 不直接触 Kahan).
+- OR reverse-compat FAIL: heihe / heihe_x4 N=1 与 P1-update-omp-tag 不
+  字面相等.
+
+**SHALL NOT 触发** (per design D7):
+
+- Mac local §2.5 16-cell scan 任一 FAIL (Mac pass-while-server-fails
+  已知模式, Mac M4 Pro 4P+10E 异构核心 + libomp 弱绑定 per master plan
+  §7.2 RISK-26 即便有 server NUMA-affinity 噪声 mechanism 在场也不会在
+  Mac local snapshot 层面显现, 见 PR-F `docs/p1c_perf_baseline.md` §1).
+- 单 PR (B / C / D / E) 增量 keliya bitwise vs B0 FAIL (这是 PR 自身
+  gate, 应在 PR 级 fix, 不上升到 Kahan).
+
+### (d) Wall-clock 影响估算 (per design R2)
+
+- Neumaier 每 `+=` 增 1 magnitude-compare + 3 FP op (vs 1 op naive `+=`).
+- 10 anchor × heihe-scale fanin (NumRiv × avg fanin + NumLake × avg
+  lake-ele) per RHS call, overhead ratio < 5%.
+- 经验估算: heihe ~6800 RHS calls × overhead ratio ≈ 1-3% total wall
+  微降 (CVODE step memory-bound dominates).
+- 若实测 wall 增 > 5%, 标 perf-regression-investigation, 入本文档跟踪
+  条目, 但不阻 Kahan-injected 路径 A3a success gate; perf rollback 走独
+  立 PR (不复用 PR-K2 二跑).
+
+### (e) 条件应用流程 (§4.7 触发后, PR-K2 二跑)
+
+```bash
+# Server cn0X, /scratch/frd_muziyao/SHUD-OpenMP/
+cd SHUD && git apply ../docs/p1c_kahan_patch.diff
+git commit -m "P1c §4.7 conditional Kahan injection (Neumaier 1974) — PR-K2 二跑"
+git push origin openmp-baseline
+# 外层 pointer bump
+cd .. && git add SHUD
+git commit -m "SHUD pointer bump: Kahan-injected (§4.7 PR-K2 二跑)"
+# Slurm 三铁律 sbatch from /scratch
+sbatch /scratch/frd_muziyao/SHUD-OpenMP/.<stage>-runs/p1c_pr_k2_run2.sbatch
+```
+
+Per CLAUDE.md "SHUD submodule 工作流 (强制)" + "Slurm 三铁律".
+
+Patch source pin: SHUD@de9545d (post-PR-E HEAD on `openmp-baseline`,
+= 外层 `baseline/P1c` HEAD `afffcb2` SHUD pointer). 若 SHUD upstream
+HEAD 漂移, patch 再生于 `git apply` 失败前 SHALL 重新 rebase 到当前
+HEAD (helper def 行号偏移; algorithm 内容不变).
 
 ---
 
