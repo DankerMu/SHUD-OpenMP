@@ -1,5 +1,7 @@
 # S6b.3 Candidate Audit — S2 Follow-up Bug Roster
 
+> **Status (as of 2026-06-22)**: **完结历史文档**. S6b.3 audit closed at the date below; all downstream D9 fast-path gating has resolved — see §"Closing note" 末尾 update for current state. 仅留作 B1b epoch 历史证据。
+
 | Field | Value |
 |---|---|
 | Audit date | 2026-06-21 |
@@ -9,6 +11,7 @@
 | SHUD HEAD at audit | `bd7714a` on `openmp-baseline` |
 | Candidate count | **1** (issue #159 only) |
 | Empty-fallback line required | NO (count > 0 — spec L47–L49 Scenario applies to 0-candidate case) |
+| Final disposition status | **CLOSED** — D9 fast-path chain resolved (B1b lock + B1-tag fast-path #2 trigger via PR-19 #210) |
 
 ## Audit method
 
@@ -192,3 +195,11 @@ contributes a "non-bug auto-resolved" verdict toward the D9 trigger
 chain. Combined with S6b.1 zero-impact (PR-12 #184/#202 verified) and
 S6b.2 status (#186 — to be determined by PI review #185), the D9
 fast-path eligibility hinges only on S6b.2's outcome.
+
+### 2026-06-22 update — D9 fast-path chain RESOLVED
+
+- **#185 PI review CLOSED** — PR-19 #210 capstone delivered S2.17 lake formula PI E2 sign-off (`docs/s217_lake_formula_audit.md` §E final verdict) + B1-tag annotated tag created aliasing main HEAD at fast-path trigger #2.
+- **#186 RESOLVED** — see PR-19 #210 / s217 audit §E disposition.
+- **D9 fast-path triggers #1/#2/#3 全部 resolved**: B1b-tag (PR-16 #207) + B1-tag (PR-19 #210) + this S6b.3 audit (PR merge time) 全部 successful。
+- **S6b.3 itself**: candidate #159 verdict NOT-A-BUG auto-resolved + #159 closed on PR-12 #156 merge time per closing convention.
+- **本 audit doc**: historical record. 本 doc 之后任何 S2 follow-up / S6b 类 bug 不再走 this roster — 直接走 P2+ issue 与 spec。
