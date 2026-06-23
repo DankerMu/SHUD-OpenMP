@@ -21,6 +21,10 @@ openspec/changes/
 .p1d-runs/
 .p1d-pr-*-runs/
 
+# P1c stale scratch (kept gitignored after P1c epic close)
+.p1c-pr-f-runs/
+.workplans/pr-*/
+
 # Per-PR review snapshots (local notes, not part of evidence chain)
 docs/review/
 
