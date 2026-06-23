@@ -22,6 +22,3 @@ docs/review/
 
 # Python cache
 **/__pycache__/
-
-# Agent runtime projection (sibling of .claude/, local-only)
-.agents/
