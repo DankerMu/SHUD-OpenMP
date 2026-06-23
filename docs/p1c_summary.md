@@ -56,17 +56,17 @@ P1c 为 new epic stage (sub-epic of master plan §3 P1c bucket), 不涉及旧版
 |---|---|---|
 | 2026-06-22 | PR-A merged: P1c.0 diagnostic + dump + grep | #257 / closes #244 |
 | 2026-06-22 | PR-B merged: L278-279 lake pairwise | #258 / closes #245 |
-| 2026-06-22 | PR-C merged: L374-375/L382-383 leftfold | #260 / closes #246 |
-| 2026-06-22 | PR-D merged: L392 QrivUp leftfold neg | #261 / closes #247 |
-| 2026-06-22 | PR-E merged: L406/L420/L433 lake leftfold + pair | #262 / closes #248 |
-| 2026-06-22 | PR-F merged: Mac 16-cell scan + 3 grep + coverage | merge / closes #249 |
-| 2026-06-22 | PR-G merged: Kahan held-in-reserve patch | #263 / closes #250 |
-| 2026-06-22 | PR-H merged: Server PR-K2 首跑 → §4.7 trigger FIRED | #264 / closes #251 |
-| 2026-06-22 | PR-I merged: §4.7 Kahan injection + carve-out | #265 / closes #252 |
-| 2026-06-22 | PR-J merged: reverse-compat documented | #266 / closes #253 |
-| 2026-06-22 | PR-K merged: 本 PR capstone | / closes #254 |
-| 2026-06-22 (next) | PR-L: P1c-tag annotate + lock | / closes #255 |
-| 2026-06-22 (next) | PR-M: PROMOTE 2 specs + archive + jsonl | / closes #256 + Epic #243 close |
+| 2026-06-23 | PR-C merged: L374-375/L382-383 leftfold | #259 / closes #246 |
+| 2026-06-23 | PR-D merged: L392 QrivUp leftfold neg | #260 / closes #247 |
+| 2026-06-23 | PR-E merged: L406/L420/L433 lake leftfold + pair | #261 / closes #248 |
+| 2026-06-23 | PR-F merged: Mac 16-cell scan + 3 grep + coverage | #262 / closes #249 |
+| 2026-06-23 | PR-G merged: Kahan held-in-reserve patch | #263 / closes #250 |
+| 2026-06-23 | PR-H merged: Server PR-K2 首跑 → §4.7 trigger FIRED | #264 / closes #251 |
+| 2026-06-23 | PR-I merged: §4.7 Kahan injection + carve-out | #265 / closes #252 |
+| 2026-06-23 | PR-J merged: reverse-compat documented | #266 / closes #253 |
+| 2026-06-23 | PR-K merged: 本 PR capstone | #267 / closes #254 |
+| 2026-06-23 (next) | PR-L: P1c-tag annotate + lock | / closes #255 |
+| 2026-06-23 (next) | PR-M: PROMOTE 2 specs + archive + jsonl | / closes #256 + Epic #243 close |
 
 13 sub-issues + 1 epic = 14 issues 在单日 epic-burst 完成 (含 8-cell server Slurm × 2 跑 = 40 min compute + R-review + 13 squash merges)。
 
@@ -173,6 +173,23 @@ per post-PR-E SHUD@de9545d 行号 (current SHUD@3a0004c 行号略变, helper 名
 ### §6.7 Mac reframing (RISK-26 NUMA 二次观察)
 
 PR-F Mac 16-cell (M4 Pro 4P+10E + libomp 弱绑定) + Server PR-H/PR-I (Intel/AMD 多核同质) 均显 **同** N=1≡N=2 ≠ N=4 ≠ N=8 pattern → Mac 不再是 D7 "pass-while-server-fails" 非典型 case, 而是 server pattern 的 early signal (RISK-26 NUMA / cache locality 共享敏感性)。D7 SHOULD/SHALL trigger 不对称仍保留 (Mac informational only, server PR-K2 是 SHALL gate)。
+
+### §6.8 Mac N=1 SHALL Scenario (spec L154-157) — DEFERRED
+
+spec `p1c-deterministic-reduction` L154-157 定义 SHALL Scenario "Mac N=1 反向兼容: 4 Mac case 与 P1-update-omp-tag Mac canonical SHA bitwise"。本 PR 调查发现:
+- PR-F 已采集 4 Mac case × NUM_OPENMP=1 rivqdown.dat SHA at SHUD@de9545d (pre-Kahan):
+  - keliya N=1 = `b23e15b9...` (per `docs/p1c_perf_baseline.md` §1.3 L40)
+  - xinanjiang_upstream N=1 = `90eeb9c6...` (L44)
+  - qinyijiang N=1 = `0f8c3fec...` (L48)
+  - qhh N=1 = `8a6d9b2c...` (L52)
+- P1-update-omp-tag Mac canonical **rivqdown.dat** SHA 未直接 archived 在 P1 era docs (`docs/p1_summary.md` §"§4 Mac canonical SHA" 表 + `docs/p1_fullrun_bitwise.md` §3 表均报告的是 archive_b0_output.sh **summary SHA**, 非单文件 rivqdown.dat SHA — file artifact 不同)。
+- 已知架构等式 (server PR-J §2 实证): 8-site helper-wrap 在 NUM_OPENMP=1 (serial) bitwise-equivalent (P1 era rivqdown SHA == P1c pre-Kahan rivqdown SHA at server)。**理论上** Mac 同样应满足此等式, 但缺乏 P1 era Mac N=1 rivqdown.dat SHA 直接 reference, 不能字面验证。
+- **决定**: 将 spec L154-157 Mac SHALL Scenario 标 DEFERRED, 推 P9 stage 同时:
+  1. 在 P9 stage 重 P1-update-omp-tag binary 回 Mac 跑 NUM_OPENMP=1 → 4 case rivqdown.dat SHA, archive 进 `docs/p1_perf_baseline.md` 或 `docs/p9_*.md`;
+  2. P9 NUMA 治理后, 用 P1c Kahan binary OR pre-Kahan binary 跑同 4 case → 与 step (1) 比对;
+  3. 若 pre-Kahan PASS (期望, 同 server PR-J §2): 证 Mac architecture 同 server bit-equivalent at serial; spec L154-157 Scenario 闭。
+
+P1c epic 阶段不阻塞 — Mac N=1 reverse-compat 不是 capstone 二跑 SHALL gate (per design D7 Mac informational only + server PR-K2 唯一 SHALL gate)。Status matrix P1c 行 Mac 列标 "PARTIAL @ Mac (pre-Kahan only)" — pre-Kahan N=1 数据存档 (per PR-F + 本节 SHA citation), Kahan-injected 未跑 Mac 16-cell (R4 PR-I capstone 二跑 server-only)。
 
 ## §7 P1c-tag 验证命令
 
