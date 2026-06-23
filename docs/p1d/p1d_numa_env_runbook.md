@@ -40,7 +40,7 @@ Slurm 三铁律对齐（per `CLAUDE.md` §"Slurm 三铁律"）：① 从 `/scrat
 
 ### §1.2 三行 NUMA env（spec grep gate = 3）
 
-模板在 `srun shud_omp <case>` 前置标准化三行（per spec Scenario "server sbatch template 含 NUMA env"）：
+模板在 `numactl --interleave=all shud_omp <case>` 这一步前置标准化三行（单-task sbatch step，binary 直跑、`numactl` 直接 wrap，**不**经 `srun` 包裹 —— 与 P1c era 模板一致；per spec Scenario "server sbatch template 含 NUMA env"）：
 
 ```bash
 export OMP_PROC_BIND=close      # 线程贴近放置，触发 NUMA first-touch 有意义
@@ -50,7 +50,7 @@ numactl --interleave=all <binary>   # primary：跨 NUMA node round-robin 内存
 
 模板同时把 `env | grep ^OMP_` + `numactl --hardware` echo 进 job log（per spec Scenario "AND sbatch log 应含 numactl --hardware 输出"），使每跑的实测拓扑可追溯。
 
-### §1.3 实测 cn0X NUMA 拓扑
+### §1.3 实测 cn03 NUMA 拓扑（cn0X CPU 分区代表节点）
 
 PR-B 在 cn03（CPU 分区，cpus-per-task=8）经 `numactl --hardware` 实测（per design R2 实测落地）：
 
@@ -89,7 +89,7 @@ Mac 数字仅 dev-reference（per `CLAUDE.md` §1.1.1：量化目标只在服务
 **决策（recorded）**：**interleave=all 保持 primary**。
 
 依据（per spec Scenario "env 不可用时的 fallback（build 冲突触发）" + design OQ2）：
-- PR-B 在 cn0X 实测：`numactl --interleave=all` 与 SHUD `make shud_omp`（SHUD pin `3a0004c`）**无 build / run 冲突**（无 wrapper 报错 / 链接失败）。
+- PR-B 在 cn03 实测：`numactl --interleave=all` 与 SHUD `make shud_omp`（SHUD pin `3a0004c`）**无 build / run 冲突**（无 wrapper 报错 / 链接失败）。
 - fallback path 已 **验证可用**：keliya N=4 fallback 跑通，wall=80s，与 `shud_omp` 无冲突 → fallback 随时可切，但当前无触发条件。
 - 因此 spec Scenario 的 fallback 触发条件（interleave 与 build 冲突）**未命中**，interleave=all 维持 default。
 
