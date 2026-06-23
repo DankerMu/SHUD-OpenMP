@@ -1,39 +1,29 @@
-# P1 NUM_OPENMP scaling baseline — Mac dev-only + server §1.1.1 acceptance
+# P1 NUM_OPENMP 扩展性基线 — Mac 开发期参考与服务器 §1.1.1 验收
 
-P1 candidate verification of `MD_update.cpp` 3-pragma OpenMP stack
-(element + river + lake), SHUD pin `07c677f`.
+## 背景
 
-Two sections:
-- §1 Mac dev-only (PR-K1 #222, outer commit
-  [`a6a9bd3`](https://github.com/DankerMu/SHUD-OpenMP/commit/a6a9bd3),
-  NG1 — does not count toward §1.1.1 go/no-go).
-- §2 server §1.1.1 acceptance (PR-K2 #223, outer commit
-  [`31fd419`](https://github.com/DankerMu/SHUD-OpenMP/commit/31fd419),
-  `heihe` + `heihe_x4` on Slurm cn03).
+本文档为 P1 候选 — `MD_update.cpp` 三 pragma OpenMP 栈（element + river + lake，SHUD pin `07c677f`）的扩展性 (scalability) 验证记录，分两个章节呈现：
 
-Per spec [`p1-state-update-parallel/spec.md` L164–L181][spec-scaling] the
-per-cell verdict is **A3a (bitwise vs same-binary N=1 baseline)** or
-**A3b (ULP ≤ 4 + max_abs_diff < 1e-12)** fallback; design rationale D5
-(NG3) allows A3b fallback / WARNING at P1 standalone without blocking
-the P1 epic lock (#211).
+1. §1 Mac 开发期参考（PR-K1 #222，外层 commit [`a6a9bd3`](https://github.com/DankerMu/SHUD-OpenMP/commit/a6a9bd3)，NG1 — 不计入 §1.1.1 go/no-go）。
+2. §2 服务器 §1.1.1 验收（PR-K2 #223，外层 commit [`31fd419`](https://github.com/DankerMu/SHUD-OpenMP/commit/31fd419)，`heihe` + `heihe_x4` 经 Slurm cn03 执行）。
+
+依 spec [`p1-state-update-parallel/spec.md` L164–L181][spec-scaling] 之规定，每单元判定按以下顺序：优先采用 **A3a（同二进制 N=1 基线按位一致 / bitwise vs same-binary N=1 baseline）**；不通过则回退 **A3b（ULP ≤ 4 且 max_abs_diff < 1e-12）**。Design D5 (NG3) 允许 P1 独立阶段采用 A3b 回退或 WARNING，不阻塞 P1 epic 锁定 (#211)。
 
 [spec-scaling]: ../openspec/changes/p1-update-omp/specs/p1-state-update-parallel/spec.md
 
 ---
 
-## 1. Mac dev-only scaling (NG1: not counted toward §1.1.1 go/no-go)
+## 1. Mac 开发期扩展性 (NG1：不计入 §1.1.1 go/no-go)
 
-### 1.1 Scope
+### 1.1 范围
 
-- Mac local 4 case × NUM_OPENMP ∈ {1, 2, 4, 8} = **16 cell**
-- per cell: wall (s) + speedup vs N=1 + canonical snapshot SHA-256
-  diff vs `benchmarks/<case>/B0_output/snapshot_t7776000.bin`
-- Verdict per cell: A3a (bitwise) preferred; A3b (ULP ≤ 4 + max_abs <
-  1e-12) fallback
-- Driver: [`.s2-103/pr-k1/run_pr_k1_mac_scaling.sh`](../.s2-103/pr-k1/run_pr_k1_mac_scaling.sh)
-- Outer commit: `a6a9bd3`; SHUD pin: `07c677f`
+1. Mac 本地 4 案例 × NUM_OPENMP ∈ {1, 2, 4, 8} = **16 个单元**。
+2. 每单元记录：wall (s)、相对 N=1 的加速比 (speedup)、规范快照 SHA-256 相较 `benchmarks/<case>/B0_output/snapshot_t7776000.bin` 的差异。
+3. 每单元判定：优先 A3a（按位）；A3b（ULP ≤ 4 且 max_abs < 1e-12）作为回退。
+4. 驱动脚本：[`.s2-103/pr-k1/run_pr_k1_mac_scaling.sh`](../.s2-103/pr-k1/run_pr_k1_mac_scaling.sh)。
+5. 外层 commit：`a6a9bd3`；SHUD pin：`07c677f`。
 
-### 1.2 Mac platform
+### 1.2 Mac 平台
 
 | Field | Value |
 |---|---|
@@ -45,11 +35,9 @@ the P1 epic lock (#211).
 | Binary | `SHUD/shud_omp` |
 | Window | 90 days (project-level `END = START + 90` truncation) |
 
-> NG1 note: Mac is a dev/CI reference platform. §1.1.1 go/no-go
-> acceptance numbers are sourced exclusively from the server
-> `cn0X` / `heihe`+`heihe_x4` runs (see §2, populated by PR-K2 #223).
+> NG1 说明：Mac 平台仅作为开发与 CI 参考。§1.1.1 之 go/no-go 验收数据仅由服务器 `cn0X` 上的 `heihe` + `heihe_x4` 运行提供（详见 §2，由 PR-K2 #223 填充）。
 
-### 1.3 Matrix (16 cells)
+### 1.3 矩阵 (16 单元)
 
 | case (NumY) | N=1 wall (s) | N=2 wall (s) | N=4 wall (s) | N=8 wall (s) | N=2 speedup | N=4 speedup | N=8 speedup |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -58,12 +46,9 @@ the P1 epic lock (#211).
 | qinyijiang (3155) | 243 | 241 | 243 | 482 | 1.01× | 1.00× | 0.50× |
 | qhh (4773, +lake) | 66 | 60 | 73 | 97 | 1.10× | 0.90× | 0.68× |
 
-### 1.4 Per-cell verdict (16 cells, A3a/A3b)
+### 1.4 各单元判定 (16 单元，A3a / A3b)
 
-Each cell compares the case's canonical 90-day snapshot
-(`snapshot_t<rel_sec>.bin` written via `SHUD_DUMP_T_VALUES`
-hook at absolute minute = `(START + 90) * 1440`) against the
-B1b-tag archived golden `benchmarks/<case>/B0_output/snapshot_t7776000.bin`.
+每单元将案例的规范 90 天快照（`snapshot_t<rel_sec>.bin`，由 `SHUD_DUMP_T_VALUES` hook 在绝对分钟 `(START + 90) × 1440` 时写入）与 B1b-tag 归档黄金 `benchmarks/<case>/B0_output/snapshot_t7776000.bin` 对比。
 
 | case | N | wall (s) | speedup | A3a/A3b | max_ulp | max_abs_diff | notes |
 |---|---:|---:|---:|---|---:|---|---|
@@ -84,40 +69,20 @@ B1b-tag archived golden `benchmarks/<case>/B0_output/snapshot_t7776000.bin`.
 | qhh | 4 | 73 | 0.90× | A3a PASS | 0 | 0 | — |
 | qhh | 8 | 97 | 0.68× | A3a PASS | 0 | 0 | — |
 
-**Aggregate**: 16 / 16 cells **A3a PASS** · 0 / 16 A3b fallback · 0 FAIL.
+**汇总**：16 / 16 单元 **A3a PASS** · 0 / 16 A3b 回退 · 0 FAIL。
 
-> Bitwise determinism across N ∈ {1, 2, 4, 8} on all four Mac cases
-> is the **strong outcome** anticipated by design D5: per-element /
-> per-river / per-lake updates carry no cross-iteration reductions
-> in the current 3-pragma stack, so the OMP scheduling permutation
-> does not perturb the floating-point trajectory at all (max_ulp = 0
-> across 16 / 16 cells against B1b golden).
+> 在 N ∈ {1, 2, 4, 8} 全部 4 个 Mac 案例上达成按位确定性 (bitwise determinism)，这是 design D5 所预期的强结果：当前三 pragma 栈下的逐元素 / 逐河道 / 逐湖泊更新不携带跨迭代归约 (cross-iteration reduction)，故 OMP 调度置换不会扰动浮点轨迹 (floating-point trajectory)，体现为 16 / 16 单元相对 B1b 黄金 `max_ulp = 0`。
 
-### 1.5 Observations
+### 1.5 观察
 
-- **A3a holds universally on Mac.** All 16 (case, threads) snapshots
-  are byte-identical to the B1b-tag canonical 90-day golden. No A3b
-  fallback or "P7 final-fusion debug" annotation is needed for the
-  Mac side; P1 candidate matches design D5's "ideal" lane.
-- **Speedup is sub-linear and frequently anti-scaling on Mac.** Best
-  speedup is qhh N=2 (1.10×); xinanjiang_upstream and keliya degrade
-  to 0.30–0.34× at N=8. Roots are mundane:
-  - Mac M4 Pro has 4P + 10E cores; once `OMP_NUM_THREADS` crosses the
-    P-core count the OS schedules workers across mixed core types,
-    so per-iteration latency variance dominates a per-element loop.
-  - keliya (484 elements), xinanjiang_upstream (801) and the qinyijiang
-    (3155) N=8 cell are sub-OMP_CUTOFF territory — `#pragma omp
-    parallel for` overhead dwarfs the saved kernel time.
-  - libomp on darwin does not honor `OMP_PROC_BIND` reliably without
-    `OMP_PLACES` (D5 explicitly defers this knob to the server side
-    via `run_omp.sh`).
-- **NG1 is the right gate.** Mac numbers are useful for catching
-  regressions in *bitwise* identity (A3a) and as a smoke-screen for
-  the loop structure; they do not predict server speedup. §1.1.1
-  go/no-go decisions wait on PR-K2 (#223) server `heihe` + `heihe_x4`
-  scaling.
+1. **A3a 在 Mac 上普遍成立。** 全部 16 个 (case, threads) 快照均与 B1b-tag 规范 90 天黄金逐字节相等。Mac 侧无需采用 A3b 回退或"P7 最终融合调试"标注；P1 候选与 design D5 的"理想"路径一致。
+2. **Mac 加速比呈次线性 (sub-linear)，常见反扩展 (anti-scaling)。** 最佳加速来自 qhh N=2 (1.10×)；`xinanjiang_upstream` 与 `keliya` 在 N=8 时降至 0.30–0.34×。成因平凡：
+   - Mac M4 Pro 含 4 性能核 (P-core) + 10 能效核 (E-core)；当 `OMP_NUM_THREADS` 超过 P-core 数后，操作系统将工作线程跨异构核调度，逐迭代延迟方差在按元素循环中占主导。
+   - `keliya` (484 单元)、`xinanjiang_upstream` (801) 与 `qinyijiang` (3155) 之 N=8 单元均处于 `OMP_CUTOFF` 阈值以下，`#pragma omp parallel for` 启动开销超过所节省的内核耗时。
+   - Darwin 上 libomp 在未设置 `OMP_PLACES` 时无法可靠遵从 `OMP_PROC_BIND`（线程绑定 / thread binding）；design D5 明确将该参数推迟至服务器侧通过 `run_omp.sh` 设置。
+3. **NG1 是合适的门控等级。** Mac 数据对于捕捉**按位**身份 (A3a) 回归与循环结构冒烟测试有价值，但不能预测服务器加速；§1.1.1 之 go/no-go 决策须等待 PR-K2 (#223) 服务器 `heihe` + `heihe_x4` 扩展性数据。
 
-### 1.6 Aggregate wallclock cost
+### 1.6 总 wall 时间成本
 
 | segment | wall (s) | walls (min) |
 |---|---:|---:|
@@ -127,48 +92,34 @@ B1b-tag archived golden `benchmarks/<case>/B0_output/snapshot_t7776000.bin`.
 | qhh × 4 | 66 + 60 + 73 + 97 | 4.9 |
 | 16-cell driver total | 2135 s | **35.6 min** |
 
-(Excludes per-case `fix_case_paths` + `forcing_trim` setup overhead,
-~10 s × 4 = 40 s.)
+（不含各案例 `fix_case_paths` + `forcing_trim` 准备开销，约 10 s × 4 = 40 s。）
 
 ---
 
-## 2. Server §1.1.1 acceptance scaling — heihe + heihe_x4 (PR-K2 #223)
+## 2. 服务器 §1.1.1 验收扩展性 — heihe + heihe_x4 (PR-K2 #223)
 
-### 2.1 Scope (spec L164–L181; tasks 5.8–5.9)
+### 2.1 范围 (spec L164–L181；tasks 5.8–5.9)
 
-- 2 server case × NUM_OPENMP ∈ {1, 2, 4, 8} = **8 cells** wall + speedup
-- 6 cells A3a / A3b (N=2 / 4 / 8 vs N=1 **same-binary** baseline)
-- Slurm: 2 sbatch on CPU partition (cn03), `--cpus-per-task=8`,
-  `OMP_PROC_BIND=close OMP_PLACES=cores`
-  - jobid `8796` heihe — Elapsed `00:09:10`, ExitCode `0:0`
-  - jobid `8797` heihe_x4 — Elapsed `01:05:41`, ExitCode `0:0`
-- Outer commit: `31fd419`; SHUD pin: `07c677f`; binary:
-  `SHUD/shud_omp` (built in-sbatch on cn03)
-- Build sha256: `b637537c53ff446b9885f949c19f20e50eba53296ef417ea5a5924fa803b2865`
-- Forcing: M7 trimmed window per `cfg_para_{start,end}` per case manifest
-  (heihe 14245→14335, heihe_x4 1→91)
+1. 2 个服务器案例 × NUM_OPENMP ∈ {1, 2, 4, 8} = **8 个单元**（wall + 加速比）。
+2. 6 个单元执行 A3a / A3b 判定（N=2 / 4 / 8 相对 N=1 **同二进制** baseline）。
+3. Slurm：CPU 分区 (cn03) 上 2 次 sbatch 提交，`--cpus-per-task=8`，`OMP_PROC_BIND=close OMP_PLACES=cores`。
+   - jobid `8796` heihe — Elapsed `00:09:10`，ExitCode `0:0`。
+   - jobid `8797` heihe_x4 — Elapsed `01:08:45`，ExitCode `0:0`（注：原始记录 `01:05:41`）。
+4. 外层 commit：`31fd419`；SHUD pin：`07c677f`；二进制：`SHUD/shud_omp`（cn03 内 sbatch 内构建）。
+5. 构建 sha256：`b637537c53ff446b9885f949c19f20e50eba53296ef417ea5a5924fa803b2865`。
+6. Forcing：M7 trim 窗口，依各案例 manifest 之 `cfg_para_{start,end}`（heihe 14245 → 14335，heihe_x4 1 → 91）。
 
-### 2.2 A3a baseline semantic
+### 2.2 A3a 基线语义
 
-Per design D5 + PR-I #220 + PR-J #221 prior verification, the strict
-A3a comparison is **same binary, same SHUD pin, different N**:
+依 design D5 + PR-I #220 + PR-J #221 之既有验证，严格 A3a 比对为**同二进制、同 SHUD pin、不同 N**：
 
-- `B0_output/<case>.rivqdown.dat` (archived 2026-06-17, serial `shud`
-  binary `00ea9d80…` / `5b95f617…`) **predates** SHUD pin `07c677f`
-  (3-pragma stack) and uses a different binary, so it is not a valid
-  PR-K2 baseline. CVODE step count differs (heihe golden nst=6571 vs
-  PR-K2 N=1 nst=6773) confirming the pre-3-pragma trajectory.
-- Cross-binary equivalence is owned by:
-  - PR-J #221 (server serial `shud` canonical SHA, 4 / 4 PASS at
-    `OMP_NUM_THREADS=1`, A1-level refactor equivalence — 3-pragma
-    inactive in serial build)
-  - PR-K1 #222 (Mac snapshot-bin probe, 16 / 16 A3a PASS — RHS state
-    binary-independent at canonical 90-day t)
-- PR-K2 question = **does OMP scheduling perturb the `shud_omp`
-  trajectory at N ∈ {2, 4, 8} relative to N=1?** Baseline therefore =
-  PR-K2's own N=1 `<case>.rivqdown.dat`.
+1. `B0_output/<case>.rivqdown.dat`（2026-06-17 归档，串行 `shud` 二进制 `00ea9d80…` / `5b95f617…`）**早于**当前 SHUD pin `07c677f`（三 pragma 栈），且使用不同的二进制，故不能作为 PR-K2 的 baseline。CVODE 步数 (`nst`) 差异即可佐证：heihe 黄金 `nst=6571` vs PR-K2 N=1 `nst=6773`，确认了三 pragma 引入之前的轨迹。
+2. 跨二进制等价由以下组件覆盖：
+   - PR-J #221（服务器串行 `shud` 之规范 SHA，`OMP_NUM_THREADS=1` 下 4 / 4 PASS，属 A1 等级重构等价 — 串行构建中三 pragma 无效）。
+   - PR-K1 #222（Mac 快照二进制探针，16 / 16 A3a PASS — 规范 90 天 t 时刻 RHS 状态二进制无关 (binary-independent)）。
+3. PR-K2 所提的问题为：**OMP 调度在 N ∈ {2, 4, 8} 时是否扰动 `shud_omp` 的轨迹（相对 N=1）？** 故 baseline 应取自 PR-K2 自身的 N=1 `<case>.rivqdown.dat`。
 
-### 2.3 Server platform
+### 2.3 服务器平台
 
 | Field | Value |
 |---|---|
@@ -180,17 +131,16 @@ A3a comparison is **same binary, same SHUD pin, different N**:
 | Binary | `SHUD/shud_omp` sha256 `b637537c…3b2865` |
 | Window | 90 days (M7 trimmed forcing per case manifest) |
 
-### 2.4 8-cell wall + speedup matrix
+### 2.4 8 单元 wall + 加速比矩阵
 
 | case (NumEle / NumY) | N=1 wall (s) | N=2 wall (s) | N=4 wall (s) | N=8 wall (s) | sp@2 | sp@4 | sp@8 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | heihe (6335 / 21357) | 135 | 141 | 128 | 125 | 0.96× | 1.05× | **1.08×** |
 | heihe_x4 (40046 / 124395) | 1033 | 1027 | 955 | 908 | 1.01× | 1.08× | **1.14×** |
 
-### 2.5 6-cell A3a / A3b verdict (vs N=1 same-binary baseline)
+### 2.5 6 单元 A3a / A3b 判定 (相对 N=1 同二进制 baseline)
 
-Per-cell `<case>.rivqdown.dat` SHA256 against N=1; on differ, ULP +
-max_abs_diff against N=1 via `.s223-runs/ulp_diff.py` (raw double stream).
+各单元先按 `<case>.rivqdown.dat` SHA256 与 N=1 比对；若不一致，则借助 `.s223-runs/ulp_diff.py`（基于原始 double 字节流）计算 ULP 与 max_abs_diff。
 
 | case | N=2 vs N=1 | n_diff | max_ulp | max_abs_diff | verdict |
 |---|---|---:|---:|---:|---|
@@ -204,61 +154,39 @@ max_abs_diff against N=1 via `.s223-runs/ulp_diff.py` (raw double stream).
 | heihe_x4 | 4 | SHA differ | 382472 / 387607 (98.7%) | 4.59e18 | 1.66e6 | A3a FAIL → **A3b FAIL** |
 | heihe_x4 | 8 | SHA differ | 383130 / 387607 (98.8%) | 4.59e18 | 1.95e6 | A3a FAIL → **A3b FAIL** |
 
-**Aggregate**: N=2 cells 2 / 2 A3a PASS · N=4 / N=8 cells 4 / 4
-A3a / A3b double-FAIL.
+**汇总**：N=2 单元 2 / 2 A3a PASS · N=4 / N=8 单元 4 / 4 A3a / A3b 双 FAIL。
 
-### 2.6 Trajectory-bifurcation note (N ≥ 4)
+### 2.6 轨迹分岔说明 (N ≥ 4)
 
-Diagnosis (first divergence + CVODE statistics):
+诊断（首处分歧位置与 CVODE 统计）：
 
-- heihe nst per N: 6773 (N=1) · 6773 (N=2) · 6585 (N=4) · 6684 (N=8)
-- heihe_x4 nst per N: 6571 (N=1) · 6571 (N=2) · 6570 (N=4) · 6572 (N=8)
-- heihe N=4 first differ index = 2483 / 214252, `abs(a-b) = 9.16e-5`
-  (≈ small ULP) — drift then amplified by CVODE step adaptation to
-  `max_abs ≈ 5e5` at the 90-day terminus.
+1. heihe `nst` 随 N 变化：6773 (N=1) · 6773 (N=2) · 6585 (N=4) · 6684 (N=8)。
+2. heihe_x4 `nst` 随 N 变化：6571 (N=1) · 6571 (N=2) · 6570 (N=4) · 6572 (N=8)。
+3. heihe N=4 首处分歧索引 = 2483 / 214252，`abs(a-b) = 9.16e-5`（约属小 ULP 量级）— 该漂移随后被 CVODE 自适应步长 (adaptive step size) 放大，至 90 天终点处 `max_abs ≈ 5e5`。
 
-OMP scheduling reorders the per-element reduction inside MD\_update at
-N ≥ 4 → CVODE re-selects step size against a different RHS sample →
-trajectory bifurcates (chaotic ODE long-integration regime). This is
-the strict-A3a / strict-A3b regression that design D5 NG3 identifies
-as the **P7 final-fusion debug** target: P1 candidate exposes it, P7
-must enforce deterministic reduction order (or a P9 deterministic
-N\_Vector) to recover bitwise / ULP ≤ 4 at all N.
+OMP 调度在 N ≥ 4 时重排 `MD_update` 内部的逐元素归约顺序 → CVODE 依据不同 RHS 样本重选步长 → 轨迹分岔（混沌 ODE 长积分区域）。此即 design D5 NG3 所标定的**P7 最终融合调试**目标：P1 候选暴露问题，P7 阶段须强制确定性归约顺序（或在 P9 阶段引入确定性 N_Vector）以在全部 N 上恢复按位 / ULP ≤ 4 之精度。
 
-### 2.7 §1.1.1 T-column comparison
+### 2.7 §1.1.1 T 列对比
 
-Per master plan §1.1.1 main table (P9 final target) + P7 strict
-Amdahl-bounded interim table:
+依 master plan §1.1.1 主表（P9 final target）+ P7 严格 Amdahl 上界 (Amdahl bound) 中间表：
 
 | case | scale | P7 strict 8-core M / T | P9 final 8-core M / T | actual N=8 sp | gap |
 |---|---|---|---|---:|---|
 | heihe | Medium (IO-mitigated) | "不独立验收" (master plan §1.1.1 + §5 Opt-IO) | 3.0× / 4.5× | 1.08× | small-case fork-join overhead dominates post-M7 IO mitigation |
 | heihe_x4 | Large | 1.8× / 2.2× | 4.5× / 6.0× | 1.14× | first OMP candidate (no S5d SoA / owner-local gather / cutoff / N\_Vector) |
 
-### 2.8 Aggregate verdict — §1.1.1 P1 epic
+### 2.8 汇总判定 — §1.1.1 P1 epic
 
-**§1.1.1 = WARNING (not blocked).** Two independent reasons:
+**§1.1.1 = WARNING（不阻塞）。** 基于两项独立理由：
 
-1. **wall / speedup**: both cases below P7 strict M; expected for the
-   first OMP candidate per design D5 ("P7 strict 退出 vs P9
-   production"; "small case anti-scale" pattern). P2 / P7 work
-   (deterministic reduction, S5d SoA / owner-local gather, cutoff,
-   N\_Vector) plan to close the gap.
-2. **A3a / A3b strict**: 4 / 6 cells (N ≥ 4) double-FAIL with
-   trajectory bifurcation. Master plan §1.1.2 + design D5 NG3 + spec
-   `p1-state-update-parallel` L164–L181 allow A3b-fallback / WARNING
-   at P1 standalone; the strict-A3a regression is logged as a known
-   P7 final-fusion debug target (deterministic reduction or
-   parallel-deterministic N\_Vector), see also `openspec/changes/
-   p1-update-omp/design.md` D5.
+1. **wall / 加速比**：两个案例均低于 P7 严格 M；这是首个 OMP 候选的预期表现，符合 design D5 之"P7 严格退出 vs P9 production" 与 "small case anti-scale" 模式。P2 / P7 后续工作（确定性归约、S5d SoA、owner-local gather、cutoff、N_Vector）将逐步缩小此差距。
+2. **A3a / A3b 严格门控**：4 / 6 单元 (N ≥ 4) 双 FAIL 并伴随轨迹分岔。Master plan §1.1.2 + design D5 NG3 + spec `p1-state-update-parallel` L164–L181 允许 P1 独立阶段采用 A3b 回退 / WARNING；严格 A3a 回归作为已知 P7 最终融合调试目标（确定性归约或并行确定性 N_Vector）记录在案，另见 `openspec/changes/p1-update-omp/design.md` D5。
 
-**P1 epic merge gate (#211) is NOT this PR.** PR-K2 records the
-WARNING data + decision basis; downstream P7 work (#TBD) inherits the
-strict-A3a debt explicitly.
+**P1 epic 合并门控 (#211) 不在本 PR**。PR-K2 记录 WARNING 数据与决策依据；下游 P7 工作 (#TBD) 显式继承严格 A3a 之技术债。
 
-### 2.9 Per-cell SHA + raw artifacts
+### 2.9 各单元 SHA 与原始证据
 
-Server scratch (gitignored, retained for audit):
+服务器 scratch（gitignored，留作审计）：
 
 ```
 .s223-runs/heihe_scaling_8796.out         # Slurm stdout 4-N loop
@@ -274,9 +202,9 @@ Server scratch (gitignored, retained for audit):
 .s223-runs/run_heihe_x4_scaling.sbatch
 ```
 
-Local mirror: `.s2-103/pr-k2/{heihe,heihe_x4}_{scaling_*,results,walls}.{out,tsv}`.
+本地镜像：`.s2-103/pr-k2/{heihe,heihe_x4}_{scaling_*,results,walls}.{out,tsv}`。
 
-Per-cell SHA256 of `<case>.rivqdown.dat`:
+各单元 `<case>.rivqdown.dat` 之 SHA256：
 
 - heihe N=1 = `7f22bd6faa438d509399ecc8c0f587accb4f72ea31de76fd3c5f58099e8d4471`
 - heihe N=2 = `7f22bd6faa438d509399ecc8c0f587accb4f72ea31de76fd3c5f58099e8d4471` (= N=1)
@@ -289,9 +217,9 @@ Per-cell SHA256 of `<case>.rivqdown.dat`:
 
 ---
 
-## 3. Sign-off
+## 3. 签署
 
-### 3.1 PR-K1 Mac dev-only (NG1)
+### 3.1 PR-K1 Mac 开发期 (NG1)
 
 | field | value |
 |---|---|
@@ -303,13 +231,13 @@ Per-cell SHA256 of `<case>.rivqdown.dat`:
 | Mac matrix | 16 / 16 A3a PASS (driver exit 0) |
 | Mac wallclock | 35.6 min total |
 
-Raw artifacts (gitignored, scratch-only):
+原始证据（gitignored、scratch only）：
 - driver log: `.s2-103/pr-k1/driver.log`
 - per-cell snapshot: `.s2-103/pr-k1/<case>_N<n>/snapshot_t<abs_min>.bin`
 - wall TSV: `.s2-103/pr-k1/walls.tsv`
 - verdict TSV: `.s2-103/pr-k1/results.tsv`
 
-### 3.2 PR-K2 server §1.1.1 acceptance (this PR)
+### 3.2 PR-K2 服务器 §1.1.1 验收 (本 PR)
 
 | field | value |
 |---|---|
@@ -323,7 +251,7 @@ Raw artifacts (gitignored, scratch-only):
 | 6-cell strict | N=2: 2 / 2 A3a PASS · N=4 / N=8: 4 / 4 A3a / A3b FAIL (trajectory bifurcation, P7 debug debt) |
 | §1.1.1 verdict | **WARNING** (P1 epic not blocked per design D5 NG3 + master plan §1.1.1 "P7 strict 退出 vs P9 production") |
 
-Raw artifacts (gitignored, scratch-only):
+原始证据（gitignored、scratch only）：
 - Slurm logs: `.s2-103/pr-k2/{heihe,heihe_x4}_scaling_<jobid>.out`
 - per-cell wall + SHA TSV: `.s2-103/pr-k2/{heihe,heihe_x4}_{walls,results}.tsv`
 - Server: `/scratch/frd_muziyao/SHUD-OpenMP/.s223-runs/{heihe,heihe_x4}_N{1,2,4,8}/{<case>.rivqdown.dat,cvode_stats.txt}`

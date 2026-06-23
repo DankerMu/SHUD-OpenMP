@@ -1,23 +1,25 @@
-# S2.17 lake formula audit — `MD_ElementFlux.cpp` `fun_Ele_sub()` lake 分支
+# S2.17 湖泊公式审计 — `MD_ElementFlux.cpp` `fun_Ele_sub()` 湖泊分支
 
-**Audit issue**: [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185)
-**Blocks**: [#186](https://github.com/DankerMu/SHUD-OpenMP/issues/186) (S6b.2 conditional fix)
-**Audit date**: 2026-06-22 (rev. after PR #204 Phase-4 review V1/V2/V3); **PI delegate sign-off**: 2026-06-22 (PR-19 #210)
-**Auditor**: Phase-1 audit author + evidence packager (audit) + DankerMu acting as PI delegate (sign-off). Per `spec.md` L23 the SHUD-upstream PI prerogative attaches to the verdict; design.md Open Q1 (PI delegate qualification) is **closed** by this sign-off — DankerMu is GitHub organization owner of **both** `DankerMu/SHUD-OpenMP` (this repo) **and** `SHUD-System/SHUD` (upstream), which constitutes "Hydro-System upstream control authority"; that is the PI-delegate qualification criterion the spec implicitly required and Open Q1 explicitly left open. Sign-off mechanism: GitHub issue [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185) comment by DankerMu (PI delegate identity) + this doc §E "Audit conclusion — VERDICT ISSUED" section + `SHUD/B1b_CHANGELOG.md` post-B1b addendum row.
-**Signoff status**: **VERDICT ISSUED — E2 ("S2.17: formula correct, no change")** by DankerMu as PI delegate per qualification above. See §E "Audit conclusion" below for full reasoning and §E.1 Verdict bullet for the formal sign-off statement.
-**Default-skip path (CONDITIONAL, per master plan C8 forward-compatibility)**: Master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改") is a **FORECAST** about a likely review outcome, NOT a normative permission to ship without PI sign-off. If no PI directive `S2.17: formula needs fix` arrives on #185 before S6c (#188-#190) capstone, **B1b ships with the current formula unchanged**, but treat the ship as **CONDITIONAL** per master plan C8 ("永不 break userspace"): any later PI-mandated fix can be stacked as a follow-up `B1c-tag` without force-updating B1b-tag. This is NOT a signed-off E2 and does NOT satisfy design D9 fast-path trigger #2.
-**Master plan refs**: §S2.17 (L1179–L1198), §4.18 (L523–L541), §S6b L1480–L1503
-**OpenSpec refs**: `specs/s6b-bugfix-application/spec.md` Requirement S6b.2 + 2 Scenarios; design.md D8 / D9 / Open Q1
+## 元信息
 
-> NOTE on line drift: master plan §4.18 cites "`MD_ElementFlux.cpp` L100–L156" and "`Kmean` 在 L117". The live file after S5d.1 (#178) SoA rewrite + S5d.2-5a (#179) jagged flatten rewrites is **191 lines**; `fun_Ele_sub()` body spans L126–L191 and the `Kmean` line is at **L147**. This audit cites the live tree (SHUD `openmp-baseline @ a85bf63`).
+- **审计 issue (audit issue)**: [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185)
+- **阻塞项 (blocks)**: [#186](https://github.com/DankerMu/SHUD-OpenMP/issues/186) (S6b.2 条件性修复)
+- **审计日期 (audit date)**: 2026-06-22 (PR #204 Phase-4 评审 V1/V2/V3 后修订); **PI 代理签字 (PI delegate sign-off)**: 2026-06-22 (PR-19 #210)
+- **审计人 (auditor)**: Phase-1 审计起草人 + 证据打包人 (audit) + DankerMu 担任 PI 代理 (sign-off)。按 `spec.md` L23 规定, SHUD 上游 PI 特权 (prerogative) 附着于最终判定; design.md Open Q1 (PI 代理资格) 由本次签字**关闭** — DankerMu 同时为本仓库 `DankerMu/SHUD-OpenMP` 与上游 `SHUD-System/SHUD` 的 GitHub 组织所有者 (organization owner), 这构成 spec 隐式要求且 Open Q1 显式留待确认的 "Hydro-System 上游控制权 (upstream control authority)", 即 PI 代理资格判定标准。签字机制 (sign-off mechanism): GitHub issue [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185) 由 DankerMu (PI 代理身份) 发表评论 + 本文档 §E "审计结论 — VERDICT ISSUED" 章节 + `SHUD/B1b_CHANGELOG.md` 后 B1b 增补行三处共同构成。
+- **签字状态 (signoff status)**: **VERDICT ISSUED — E2 ("S2.17: formula correct, no change")**, 由 DankerMu 按上述资格作为 PI 代理签发。完整论证见下文 §E "审计结论", 正式签字陈述见 §E.1 verdict 条目。
+- **默认跳过路径 (default-skip path, CONDITIONAL, 依据 master plan C8 前向兼容约束)**: master plan §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改") 是关于可能审查结果的**预测 (FORECAST)**, 而**非**允许在缺 PI 签字情况下发布的规范性许可。若在 S6c (#188-#190) capstone 之前未收到 PI 关于 `S2.17: formula needs fix` 的指令, **B1b 将以现行公式不变发布**, 但发布按 master plan C8 ("永不 break userspace") 视作**条件性 (CONDITIONAL)** — 任何后续 PI 强制要求的修复均可作为新 `B1c-tag` 增量叠加, 不强制更新 B1b-tag。此路径**并非**已签字的 E2, 也**不**满足 design D9 fast-path 触发条件 #2。
+- **Master plan 引用**: §S2.17 (L1179–L1198), §4.18 (L523–L541), §S6b L1480–L1503
+- **OpenSpec 引用**: `specs/s6b-bugfix-application/spec.md` 需求 S6b.2 + 2 个 Scenario; design.md D8 / D9 / Open Q1
+
+> **行号漂移说明 (line drift)**: master plan §4.18 引用 "`MD_ElementFlux.cpp` L100–L156" 以及 "`Kmean` 在 L117"。经 S5d.1 (#178) SoA 重写与 S5d.2-5a (#179) jagged flatten 重写之后, 当前文件共 **191 行**; `fun_Ele_sub()` 函数体覆盖 L126–L191, `Kmean` 所在行为 **L147**。本审计以当前活跃源码树为准 (SHUD `openmp-baseline @ a85bf63`)。
 >
-> NOTE on paths: master plan §4.18 uses the shorthand `MD_ElementFlux.cpp`; the actual SHUD-relative path after S5d.1 file reorganization is `SHUD/src/ModelData/MD_ElementFlux.cpp`. This audit uses the full path consistently.
+> **路径说明 (paths)**: master plan §4.18 使用简写 `MD_ElementFlux.cpp`; S5d.1 文件重组后实际 SHUD-相对路径为 `SHUD/src/ModelData/MD_ElementFlux.cpp`。本审计始终使用完整路径。
 
 ---
 
-## §A. Formula citation (live SHUD `openmp-baseline @ a85bf63`)
+## §A. 公式引用 (来自当前 SHUD `openmp-baseline @ a85bf63`)
 
-### A.1 The lake-branch GW lateral-flux formula (`fun_Ele_sub`)
+### A.1 湖泊分支地下水侧渗通量公式 (`fun_Ele_sub`)
 
 `SHUD/src/ModelData/MD_ElementFlux.cpp` L133–L155:
 
@@ -47,23 +49,23 @@ for (j = 0; j < 3; j++) {
     }
 ```
 
-### A.2 Term-by-term decomposition
+### A.2 逐项分解
 
-| Term | Code expression | Physical interpretation |
+| 项 (term) | 代码表达式 | 物理含义 |
 |---|---|---|
-| **dh** (head diff) | `(uYgw[i] + z_bottom[i]) - (yLakeStg[ilake] + lake[ilake].bathymetry.yi[0])` | aquifer hydraulic head (water-table elev. = `uYgw[i] + z_bottom[i]`) **minus** lake stage absolute elev. (`yLakeStg[ilake] + lake.zmin`, where `bathymetry.yi[0] == lake.zmin` per `MD_Lake.cpp:162`) |
-| **clamps** | `if(dh > 0 && uYgw[i] <= 0.02)` zero-out; symmetric for lake side | "depression" cutoff: when one side is essentially empty (< 2 cm) the flux is forced to 0 |
-| **Ymean** (saturated-thickness average) | `avgY_gw(z_bottom[i], uYgw[i], lake.zmin, yLakeStg[ilake], 0.002)` | returns `0.5*(max(0,y1)+max(0,y2))` per `Equations.cpp:52–70` — arithmetic mean of clamped saturated thicknesses (lake side: stored water column) |
-| **grad** (head gradient) | `dh / Dist2Nabor[3*i+j]` | head-difference divided by element-centroid → lake-element-centroid distance (`Dist2Nabor` per Triangle topology, `Element.hpp`) |
-| **Kmean** (effective hydraulic conductivity) | **`0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])`** | arithmetic mean of (1) bank element's depth-weighted effective horizontal K and (2) the lake element's effective horizontal K |
-| **A** (cross-section area) | `Ymean * edge[3*i+j]` | saturated thickness × shared-edge length |
-| **Q** | `Kmean * grad * Ymean * edge` | signed flux from bank `i` to lake `ilake`; positive = aquifer → lake |
+| **dh** (水头差 / head diff) | `(uYgw[i] + z_bottom[i]) - (yLakeStg[ilake] + lake[ilake].bathymetry.yi[0])` | 含水层水力水头 (地下水位绝对高程 = `uYgw[i] + z_bottom[i]`) **减去** 湖泊水位绝对高程 (`yLakeStg + lake.zmin`, 其中 `bathymetry.yi[0] == lake.zmin`, 见 `MD_Lake.cpp:162`) |
+| **clamps** (截断) | `if(dh > 0 && uYgw[i] <= 0.02)` 置零; 湖侧对称处理 | "凹陷 (depression)" 截断: 任一侧水深小于 2 cm 时, 通量强制置零 |
+| **Ymean** (饱和厚度均值 / saturated-thickness average) | `avgY_gw(z_bottom[i], uYgw[i], lake.zmin, yLakeStg[ilake], 0.002)` | 返回 `0.5*(max(0,y1)+max(0,y2))`, 见 `Equations.cpp:52–70`; 即截断后饱和厚度的算术平均 (湖侧为蓄水柱厚度) |
+| **grad** (水头梯度 / head gradient) | `dh / Dist2Nabor[3*i+j]` | 水头差除以元胞质心到湖泊元胞质心的距离 (`Dist2Nabor` 由 Triangle 拓扑给出, 见 `Element.hpp`) |
+| **Kmean** (有效水力传导率 / effective hydraulic conductivity) | **`0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])`** | 算术平均, 其中 (1) 岸边元胞的深度加权有效水平 K, (2) 湖泊元胞的有效水平 K |
+| **A** (过流面积 / cross-section area) | `Ymean * edge[3*i+j]` | 饱和厚度乘以共享边长 |
+| **Q** | `Kmean * grad * Ymean * edge` | 由岸边元胞 `i` 流向湖泊 `ilake` 的有符号通量; 正值表示含水层 → 湖泊 |
 
-This is **Darcy's law in finite-volume form** `Q = -K · ∇H · A` with sign convention "positive when bank head > lake head" (dh as defined → positive Q when flux moves from aquifer to lake; the minus sign of textbook Darcy is absorbed by the dh = bank − lake ordering).
+上述形式即 Darcy 定律 (Darcy's law) 在有限体积下的离散形式 `Q = -K · ∇H · A`, 符号约定为 "岸侧水头高于湖侧时为正"。`dh = 岸 − 湖` 的定序使得水自含水层流入湖泊时 Q 取正; 教科书 Darcy 公式中的负号被此定序所吸收。
 
-### A.3 Lake-element `u_effKH` provenance (critical for §B)
+### A.3 湖泊元胞 `u_effKH` 来源 (§B 论证的关键)
 
-`SHUD/src/classes/Element.cpp:246–256` `_Element::updateLakeElement()`:
+`SHUD/src/classes/Element.cpp:246–256` 中 `_Element::updateLakeElement()`:
 
 ```cpp
 void _Element::updateLakeElement(){
@@ -78,114 +80,114 @@ void _Element::updateLakeElement(){
 }
 ```
 
-Called from `MD_rhs_core.cpp` lake-element branch every RHS step. Compare against the non-lake form in `_Element::updateElement()` (L257–294):
+此函数由 `MD_rhs_core.cpp` 在湖泊元胞分支于每个 RHS 时间步调用。与之对应的非湖泊形式见 `_Element::updateElement()` (L257–294):
 
 ```cpp
 u_effKH = effKH(Ygw, AquiferDepth, macD, macKsatH, geo_vAreaF, KsatH);
 ```
 
-Where `effKH(...)` (`Equations.cpp:116–134`) returns a depth-weighted blend of `KsatH` (matrix), `macKsatH` (macropore) over the saturated thickness in the aquifer, clamped via the macropore depth `macD`.
+其中 `effKH(...)` (`Equations.cpp:116–134`) 按含水层饱和厚度对 `KsatH` (土壤基质) 与 `macKsatH` (大孔隙) 进行深度加权混合, 并按大孔隙深度 `macD` 截断。
 
-**Key observation**: lake elements inherit the underlying **soil column's** `KsatH` (and ignore `macKsatH` / macropore stratification because the lake column itself is open water above the lake bed). This is the lake-bed sediment's hydraulic conductivity, NOT the lake water column's conductivity (open water has effectively infinite K).
+**关键观察**: 湖泊元胞继承下方**土壤柱**的 `KsatH`, 并忽略 `macKsatH` / 大孔隙分层 (因湖体本身为湖床之上的开放水体)。此 K 表征湖床沉积物 (lake-bed sediment) 的水力传导率, **而非**湖水柱本身的传导率 (开放水体的有效 K 实际上可视为无穷大)。
 
-### A.4 Active-runtime SoA mirror state (post-Phase-4 V1 verifier finding)
+### A.4 活跃运行时 SoA 镜像状态 (Phase-4 V1 verifier 发现)
 
-**Critical caveat surfaced by PR #204 Phase-4 verifier V1** (`ae481398012ebb496` — CONFIRMED): the `u_effKH = KsatH` value that `updateLakeElement()` writes lives **only in the AoS `Ele[i].u_effKH`**. The runtime SoA mirror `hot.u_effKH[i]` that `fun_Ele_sub` actually reads at L147 is **not refreshed** in the active code path. Sequence per CVODE step:
+**PR #204 Phase-4 verifier V1 浮现的关键限定 (`ae481398012ebb496` — CONFIRMED)**: `updateLakeElement()` 所写入的 `u_effKH = KsatH` 值仅存在于 AoS `Ele[i].u_effKH`。`fun_Ele_sub` 在 L147 实际读取的运行时 SoA 镜像 `hot.u_effKH[i]` 在活跃代码路径上**并未刷新 (not refreshed)**。CVODE 单步执行序列如下:
 
-1. `SHUD/src/Model/shud.cpp:177-178` `MD->updateforcing(t)` runs FIRST.
-2. `SHUD/src/ModelData/MD_ET.cpp:34-42` `updateforcing()` loops `for(i=0; i<NumEle; i++)` (no `iLake` filter) and calls `Ele[i].updateElement(uYsf[i], uYus[i], uYgw[i]); sync_hot_dynamic(i);`
-3. `SHUD/src/classes/Element.cpp:257-258` `updateElement()` writes `u_effKH = effKH(Ygw, AquiferDepth, macD, macKsatH, geo_vAreaF, KsatH)` — the depth-weighted macropore-aware blend — to AoS for ALL elements **including lake elements**.
-4. `SHUD/src/ModelData/Model_Data.hpp:287` `sync_hot_dynamic(i)` writes that blend into `hot.u_effKH[i]`.
-5. Later, `SHUD/src/Model/MD_rhs_core.cpp:194-207` `rhs_flux` pass-1 lake branch calls `Ele[i].updateLakeElement()` which writes `u_effKH = KsatH` to AoS — but **DOES NOT call `sync_hot_dynamic(i)`**.
-6. Compare `SHUD/src/ModelData/MD_f.cpp:25-28` (dead-code `f_loop`): `Ele[i].updateLakeElement(); sync_hot_dynamic(i); fun_Ele_lakeVertical(i, t);` — DOES sync.
-7. `fun_Ele_sub` at `MD_ElementFlux.cpp:147` reads `hot.u_effKH[inabr]` (lake neighbor) and sees the **general-element depth-weighted blend** computed during step 3 against the lake element's own per-element CVODE `Y[iGW]` state — physically the lake-bed aquifer column groundwater level (`Macros.hpp:46` `#define iGW i + 2 * NumEle`). This is **distinct from** the lake stage `Y[iLAKE]` (`Macros.hpp` `#define iLAKE i + 3 * NumEle + NumRiv`); the two are coupled through the lake-bed seepage flux but are **independent CVODE state variables**. The reading is NOT `KsatH`.
+1. `SHUD/src/Model/shud.cpp:177-178` 首先执行 `MD->updateforcing(t)`。
+2. `SHUD/src/ModelData/MD_ET.cpp:34-42` 中 `updateforcing()` 以 `for(i=0; i<NumEle; i++)` 形式 (**未**做 `iLake` 过滤) 调用 `Ele[i].updateElement(uYsf[i], uYus[i], uYgw[i]); sync_hot_dynamic(i);`。
+3. `SHUD/src/classes/Element.cpp:257-258` 中 `updateElement()` 对所有元胞 (**包括湖泊元胞**) 写入 `u_effKH = effKH(Ygw, AquiferDepth, macD, macKsatH, geo_vAreaF, KsatH)` (深度加权且包含大孔隙) 到 AoS。
+4. `SHUD/src/ModelData/Model_Data.hpp:287` 中 `sync_hot_dynamic(i)` 将该混合值写入 `hot.u_effKH[i]`。
+5. 随后 `SHUD/src/Model/MD_rhs_core.cpp:194-207` 中 `rhs_flux` 第 1 趟湖泊分支调用 `Ele[i].updateLakeElement()`, 向 AoS 写入 `u_effKH = KsatH`, 但**未调用 `sync_hot_dynamic(i)`**。
+6. 对照 `SHUD/src/ModelData/MD_f.cpp:25-28` (死代码 `f_loop`): `Ele[i].updateLakeElement(); sync_hot_dynamic(i); fun_Ele_lakeVertical(i, t);` — 此处**确实**做了同步。
+7. `fun_Ele_sub` 在 `MD_ElementFlux.cpp:147` 读取 `hot.u_effKH[inabr]` (湖泊邻居) 时, 读取到的是步骤 3 中针对该湖泊元胞自身 CVODE 状态 `Y[iGW]` 所求得的**通用元胞深度加权混合值** (`Macros.hpp:46` `#define iGW i + 2 * NumEle`, 物理上为湖床下含水层柱的地下水位)。该量与湖泊水位 `Y[iLAKE]` (`Macros.hpp` `#define iLAKE i + 3 * NumEle + NumRiv`) **不同**; 二者通过湖床渗漏 (seepage) 通量耦合, 但**互为独立的 CVODE 状态变量**。该读取结果**并非** `KsatH`。
 
-**Implication for this audit**: the "lake-bed K = KsatH" framing in §A.3 + §B.4 (in earlier drafts of this doc) describes the AoS state, NOT the runtime state that `fun_Ele_sub` consumes. The §B.4 physical-soundness argument was load-bearing on a stale assumption. **§B.4 has been rewritten** below to acknowledge this. **A new follow-up issue [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205)** tracks the SoA/AoS drift (the missing `sync_hot_dynamic` after `updateLakeElement` in `rhs_flux`) as a P-strict / P-prod pre-req audit item — out of scope for #185 / B1b ship.
+**对本审计的含义**: §A.3 与 §B.4 早期草稿中 "湖床 K = `KsatH`" 的表述描述的是 AoS 状态, 而非 `fun_Ele_sub` 真实消费的运行时状态。§B.4 的物理合理性论证此前承载了一个过时假设。**§B.4 已据此重写**。**新建跟踪 issue [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205)** 用于记录此 SoA/AoS 漂移 (即 `rhs_flux` 中 `updateLakeElement` 之后缺失的 `sync_hot_dynamic`), 作为 P-strict / P-prod 阶段前置审计项 — 不属于 #185 / B1b ship 范围。
 
-The drift is **bitwise-stable and deterministic** (B0 and B1a both PASS bitwise on lake cases), so B1b's bitwise contract is unaffected. The semantic interpretation of `Kmean` in the lake branch shifts however: lake-side K is the **general-element depth-weighted blend** evaluated AT a lake element's state (`Ygw = yLakeStg + lake.zmin - z_bottom`, etc.), not the lake-bed `KsatH`.
+该漂移**按位稳定且确定** (B0 与 B1a 均在湖泊案例上通过 bitwise 验证), 因此 B1b 的 bitwise 合约不受影响。然而 `Kmean` 在湖泊分支中的语义解释发生了偏移: 湖侧 K 实质是**针对湖泊元胞自身状态求得的通用元胞深度加权混合值** (`Ygw = yLakeStg + lake.zmin - z_bottom` 等), 并非湖床的 `KsatH`。
 
 ---
 
-## §B. Physics interpretation
+## §B. 物理解释
 
-### B.1 Standard Darcy form on the edge
+### B.1 标准 Darcy 形式在边上的展开
 
-Textbook 1-D Darcy lateral flux across a face of length `B` connecting two volumes with hydraulic heads `H_i` and `H_j`:
+教科书一维 Darcy 在两个具水头 `H_i` 与 `H_j` 体积之间, 沿长度为 `B` 的面上的侧渗通量为:
 
 ```
 Q = - K_eff · (H_j - H_i) / d · A
 ```
 
-where `K_eff` represents the effective conductivity along the flow path, `d` is centroid-to-centroid distance, `A = Ymean · B` is the cross-section area.
+其中 `K_eff` 为沿流路的有效传导率, `d` 为质心间距, `A = Ymean · B` 为过流面积。
 
-The SHUD code maps cleanly onto this with `K_eff = Kmean`, `H_i = uYgw[i] + z_bottom[i]`, `H_j = yLakeStg[ilake] + lake.zmin`, `d = Dist2Nabor`, `A = Ymean · edge`. Sign convention is "+ when flux into the lake".
+SHUD 的代码与此式整齐对应: `K_eff = Kmean`, `H_i = uYgw[i] + z_bottom[i]`, `H_j = yLakeStg[ilake] + lake.zmin`, `d = Dist2Nabor`, `A = Ymean · edge`; 符号约定为 "水流入湖时取正"。
 
-### B.2 Lake-stage as substitute for GW head — is this physically defensible?
+### B.2 以湖泊水位替代地下水水头 — 是否物理上可立?
 
-The standard MODFLOW Lake Package (LAK7, Merritt & Konikow 2000), ParFlow Lake module, and PIHM 2.x all use the **lake stage** (not a "lake water-table") as the boundary-condition head on the lake side when computing aquifer ↔ lake exchange. This is correct because:
+标准的 MODFLOW Lake Package (LAK7, Merritt & Konikow 2000)、ParFlow Lake 模块以及 PIHM 2.x, 在计算含水层 ↔ 湖泊交换时, 均采用**湖泊水位 (lake stage)** (而非 "湖泊水位面") 作为湖侧的边界条件 (boundary condition / BC) 水头。理由如下:
 
-- The lake water column is at uniform stage `yLakeStg + zmin` (hydrostatic equilibrium across the open-water domain over the RHS timestep)
-- The aquifer-to-lake interface is the **lake-bed seepage face**: water moves through saturated lake-bed sediment between the aquifer pore space and the open-water column
-- The driving gradient is `(H_aquifer - H_lake_stage) / L_bed`, where `L_bed` is the lateral travel distance through the bed sediment
+- 湖水柱在 RHS 时间步上处于均一水位 `yLakeStg + zmin` (开放水域内静力平衡 / hydrostatic equilibrium);
+- 含水层与湖泊的界面为**湖床渗透面 (lake-bed seepage face)**, 水通过饱和的湖床沉积物在含水层孔隙与开放水柱间运移;
+- 驱动梯度为 `(H_aquifer - H_lake_stage) / L_bed`, 其中 `L_bed` 为穿越湖床沉积物的侧向运移距离。
 
-SHUD's `dh = (uYgw + z_bottom_bank) - (yLakeStg + lake.zmin)` correctly captures this. **PASS** — physically standard.
+SHUD 中 `dh = (uYgw + z_bottom_bank) - (yLakeStg + lake.zmin)` 正确捕捉了上述图景。**PASS** — 物理上为标准做法。
 
-### B.3 Kmean averaging — arithmetic vs harmonic for series-resistor interface
+### B.3 Kmean 平均 — 串联界面应取算术均值还是调和均值
 
-The literature standard for the **interface conductivity** between two cells of differing K is the **harmonic mean** (treating the two cells as resistors in series):
+对于两个 K 不同元胞间的**界面传导率 (interface conductivity)**, 文献标准是**调和均值 (harmonic mean)** (将两元胞视为串联电阻 / series resistor):
 
 ```
 K_harm = 2 K1 K2 / (K1 + K2)        (equal distances)
        = (K1 K2)(d1 + d2) / (d1 K2 + d2 K1)   (general weighted)
 ```
 
-— this is what MODFLOW BCF/LPF block-centered and ParFlow use; it is what `Equations.hpp:45` `meanHarmonic` already implements in this very codebase (used by `fun_recharge` for the unsat→GW vertical recharge interface).
+— 此为 MODFLOW BCF/LPF block-centered 与 ParFlow 所用形式; 本代码库 `Equations.hpp:45` 中 `meanHarmonic` 即此实现 (`fun_recharge` 中非饱和 → 地下水竖向再补给界面使用)。
 
-SHUD's current form for the **lake-edge** GW flux is the **arithmetic mean** `0.5 * (K1 + K2)`. The same arithmetic mean is also used for the **non-lake** GW flux at L169 (see §C). So the question becomes: is the lake branch's choice of arithmetic mean **(a) inconsistent with the non-lake branch** or **(b) consistent but suboptimal**?
+SHUD 当前湖边地下水通量取**算术均值 (arithmetic mean)** `0.5 * (K1 + K2)`。L169 的非湖泊地下水通量同样采用算术均值 (见 §C)。因此问题归结为: 湖泊分支选取算术均值是 **(a) 与非湖泊分支不一致**, 还是 **(b) 一致但次优**?
 
-The in-code comment at L146 / L168 (verbatim, both branches): `/* It should be weighted average. However, there is an ambiguity about distance used */` — this is the upstream author (Lele Shu)'s acknowledgment that harmonic is "ideal" but the centroid-to-centroid distance split `(d1, d2)` is ambiguous for the SHUD unstructured Delaunay mesh (where the edge does not necessarily intersect the centroid line at its midpoint).
+L146 / L168 处原作者 (Lele Shu) 留有逐字相同的注释: `/* It should be weighted average. However, there is an ambiguity about distance used */` — 即调和均值在原理上更"理想", 但 SHUD 非结构化 Delaunay 网格上质心-质心距离 `(d1, d2)` 的拆分存在歧义 (边不必恰在质心连线中点穿过)。
 
-**For a uniform-K aquifer** (the typical case), arithmetic mean ≡ harmonic mean (identity). The difference matters only when K1 and K2 differ by orders of magnitude. For SHUD's lake-bank interface, K1 = bank soil column's depth-weighted effKH and K2 = lake-bed sediment's (= soil-layer) `KsatH`. These are **drawn from the same soil-layer / geol-layer attribute tables** when the lake sits on the same soil class as the surrounding bank; in calibration practice this is the dominant case.
+**当含水层 K 均匀时**, 算术均值与调和均值代数等价 (恒等)。两者差异仅在 K1 与 K2 相差数量级时才显著。对 SHUD 湖岸界面: K1 为岸边元胞土壤柱的深度加权 effKH, K2 为湖床沉积物 (即土壤层) 的 `KsatH`。当湖泊与周边岸边元胞分属同一土壤类时, **二者取自相同的土壤层 / 地质层属性表**; 这是校正实践中的主导情形。
 
-When the bank soil class differs from the lake-bed soil class, harmonic mean would be more accurate. However, SHUD's mesh-classification convention (rSHUD master + this repo's NWM cases) assigns the lake-bed element the same `iSoil` / `iGeol` as the neighbouring bank elements unless the user manually overrides — i.e. the typical real-world configuration **collapses to K1 ≈ K2**, where arithmetic and harmonic are numerically indistinguishable.
+当岸边土壤类与湖床土壤类不同时, 调和均值更精确。然而 SHUD 网格分类约定 (rSHUD master 与本仓库 NWM 案例) 在用户不手动覆盖时, 默认将湖床元胞的 `iSoil` / `iGeol` 设为与相邻岸边元胞相同 — 即典型实际配置塌缩到 K1 ≈ K2, 算术与调和均值在数值上不可区分。
 
-### B.4 `Ele[inabr].u_effKH` on a lake element — actual runtime semantics
+### B.4 湖泊元胞上的 `Ele[inabr].u_effKH` — 真实运行时语义
 
-This is the master plan §4.18 explicit concern. **The §A.3 reading of `updateLakeElement()` describes the AoS state; the SoA mirror `hot.u_effKH[inabr]` that `fun_Ele_sub` actually reads is set by the OUTER `updateforcing` general-element loop, NOT by the lake specialization** (per §A.4 above + verifier V1 evidence). The active-runtime behavior is:
+此即 master plan §4.18 所关切之处。**§A.3 关于 `updateLakeElement()` 的描述实为 AoS 状态; `fun_Ele_sub` 实际读取的 SoA 镜像 `hot.u_effKH[inabr]` 由外层 `updateforcing` 通用元胞循环写入, 并非由湖泊特化函数所写** (依据 §A.4 与 verifier V1 证据)。活跃运行时行为为:
 
-- `hot.u_effKH[lake_element]` = `effKH(Ygw_at_lake, AquiferDepth_at_lake, macD, macKsatH, geo_vAreaF, KsatH)` as evaluated by `updateforcing` over **all** elements — i.e. a depth-weighted macropore-blend computed against the lake-element's *aquifer* state, not against its "open-water + lake-bed" state
-- It is NOT degenerate `0` or `NaN` and it is NOT an uninitialized read — it IS the same blended quantity used everywhere else in SHUD
-- It is NOT `KsatH` directly (despite `updateLakeElement` writing `KsatH` to AoS, the SoA mirror is not re-synced)
+- `hot.u_effKH[lake_element]` 等于 `updateforcing` 在**全部**元胞上求得的 `effKH(Ygw_at_lake, AquiferDepth_at_lake, macD, macKsatH, geo_vAreaF, KsatH)` — 即一个针对该湖泊元胞**含水层**状态求得的深度加权大孔隙混合值, 并非针对其 "开放水体 + 湖床" 状态;
+- 该值**并非**退化的 `0` 或 `NaN`, 也**并非**未初始化读取; 它**是**与 SHUD 中其余位置同一形态的混合量;
+- 它**并非** `KsatH` 本身 (尽管 `updateLakeElement` 向 AoS 写入了 `KsatH`, 但 SoA 镜像未重新同步)。
 
-So `Kmean = 0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` actually evaluates to:
-- bank-side (i): depth-weighted blend of soil matrix `KsatH` + macropore `macKsatH` (per `effKH` formula) evaluated against bank aquifer state
-- lake-side (inabr): SAME `effKH(...)` blend evaluated against the lake element's **independent** per-element CVODE `Y[iGW]` state — physically the lake-bed aquifer column groundwater level, which is a separate state variable from the lake stage `Y[iLAKE]` (the two are coupled through the lake-bed seepage flux but are not algebraically related at any single substep)
+因此 `Kmean = 0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` 实际计算为:
+- 岸侧 (i): 针对岸边含水层状态求得的土壤基质 `KsatH` + 大孔隙 `macKsatH` 深度加权混合值 (按 `effKH` 公式);
+- 湖侧 (inabr): **同一** `effKH(...)` 混合值, 但针对湖泊元胞**独立**的逐元胞 CVODE `Y[iGW]` 状态 (即湖床下含水层柱的地下水位; 该状态变量与湖水位 `Y[iLAKE]` 相互独立, 二者通过湖床渗漏通量耦合, 但在任一子步上不存在代数关系) 求值。
 
-**Is this still defensible?** Two readings are possible:
+**此形式是否仍属物理可立?** 存在两种解读:
 
-1. **Generously**: treating the lake element as "an aquifer column whose phreatic surface happens to be at lake stage" is a perfectly valid effective-medium abstraction. The depth-weighted blend in fact captures the macropore stratification of the lake-bed sediment column, which the bare `KsatH` would NOT capture. Under this reading the SoA-drift is unintentional but the resulting code is BETTER than the §A.3-intended behavior — both arguments are series-blended consistently.
+1. **宽松解读 (generously)**: 将湖泊元胞视为 "潜水面恰位于湖泊水位的含水层柱" 是一个完全合法的有效介质 (effective-medium) 抽象。深度加权混合值实际上捕捉了湖床沉积物柱的大孔隙分层 — 这是裸 `KsatH` **所不能**捕捉的。在此解读下, SoA 漂移虽属无意, 但所得代码反而**优于** §A.3 所设想的行为 — 两侧参数均以一致的方式做了串联混合。
 
-2. **Strictly**: the master plan §4.18 R-2 concern stands — `u_effKH` on a lake element is the effective-K of an *aquifer at that location*, which is not strictly the *lake-bed* K. The arithmetic mean across "bank aquifer K" and "lake-element aquifer K" is dimensionally consistent but its physical mapping to a textbook lake-bed seepage face is a stretch.
+2. **严格解读 (strictly)**: master plan §4.18 R-2 的关切仍然成立 — 湖泊元胞上的 `u_effKH` 描述的是 *该位置处含水层* 的有效 K, 而非严格意义上的 *湖床* K。"岸侧含水层 K" 与 "湖泊元胞含水层 K" 的算术均值在量纲上自洽, 但在物理对应到教科书湖床渗透面的解释上略嫌牵强。
 
-Both readings agree on one thing: **the live formula is bitwise-stable, deterministic, and consistent with the non-lake GW lateral form** (per §C below). The reading is a quality-of-physics question that warrants PI judgment — it does NOT resolve to "obviously wrong" or "obviously right" from the code alone. The §S6b L1497 "可能审查后不需要改" framing remains accurate.
+两种解读在一点上是一致的: **当前公式按位稳定 (bitwise-stable)、确定性 (deterministic), 且与非湖泊地下水侧渗形式一致** (见 §C)。这一解读为物理品质问题, 应由 PI 判定 — 仅从代码本身无法直接解析为 "明显错" 或 "明显对"。§S6b L1497 "可能审查后不需要改" 的表述依然准确。
 
-### B.5 What WOULD be a defensible "fix" if one were warranted?
+### B.5 若需 "修复", 何种形式可为之
 
-For documentation, the alternative formulations the master plan §4.18 R-3 suggests:
+为完整起见, 列出 master plan §4.18 R-3 所建议的备选形式:
 
-| Alt form | Expression | Pro | Con |
+| 备选形式 | 表达式 | 优点 | 缺点 |
 |---|---|---|---|
-| Bank-only K | `Kmean = hot.u_effKH[i]` (ignore lake side) | Eliminates §4.18 semantic concern about lake-side K | Loses the lake-bed-sediment-K contribution; would over-estimate flux when lake-bed is less conductive than bank aquifer; net effect = upper bound on flux |
-| Harmonic mean | `Kmean = meanHarmonic(hot.u_effKH[i], hot.u_effKH[inabr], Dist2Edge[i], Dist2Edge[inabr])` | Series-resistor exact | The "ambiguity about distance" comment is real — `Dist2Edge[inabr]` is not the lake-bed travel distance; lake elements have a sentinel `Dist2Edge` from rSHUD mesh, which would mis-weight K |
-| Explicit lake-bed param | `Kmean = K_lakebed` from a new lake.sp attribute | Most physical; matches MODFLOW LAK | Adds a new input parameter, breaks rSHUD mesh-export schema, breaks rSHUD-side validation; out of scope for B1b |
+| Bank-only K | `Kmean = hot.u_effKH[i]` (忽略湖侧) | 消除 §4.18 关于湖侧 K 的语义关切 | 丢失湖床沉积物 K 的贡献; 湖床传导率小于岸侧含水层时会高估通量; 净效应为通量的上界 |
+| Harmonic mean | `Kmean = meanHarmonic(hot.u_effKH[i], hot.u_effKH[inabr], Dist2Edge[i], Dist2Edge[inabr])` | 严格符合串联电阻 | 注释中 "距离的歧义" 是真实的 — `Dist2Edge[inabr]` 并非湖床穿越距离; 湖泊元胞 `Dist2Edge` 在 rSHUD 网格中为哨兵值 (sentinel), 会错误地为 K 加权 |
+| Explicit lake-bed param | 在新的 lake.sp 属性中给出 `Kmean = K_lakebed` | 最贴近物理; 与 MODFLOW LAK 匹配 | 引入新输入参数, 破坏 rSHUD 网格导出 schema 与 rSHUD 侧校验; 超出 B1b 范围 |
 
-None of these alternatives is clearly superior to the current arithmetic mean **under SHUD's mesh-classification convention** where the lake-bed soil class typically equals the bank's. The current form is a deliberate engineering compromise consistent with the code comment.
+在 SHUD 的网格分类约定下 (湖床土壤类通常与岸边相同), 上述备选**均不**明显优于当前算术均值。当前形式是一种刻意为之的工程折衷 (engineering compromise), 与代码注释相符。
 
 ---
 
-## §C. Comparison vs the non-lake (element–element) GW lateral branch
+## §C. 与非湖泊 (元胞-元胞) 地下水侧渗分支的对比
 
-`fun_Ele_sub()` L156–L172 (the `else if (inabr >= 0)` branch in the same function):
+`fun_Ele_sub()` L156–L172 (同函数中的 `else if (inabr >= 0)` 分支):
 
 ```cpp
 }else if (inabr >= 0) {
@@ -204,204 +206,204 @@ None of these alternatives is clearly superior to the current arithmetic mean **
 }
 ```
 
-### C.1 Structural diff table
+### C.1 结构性差异表 (structural diff)
 
-| Term | Lake branch (L138–L148) | Non-lake branch (L160–L170) | Same? | Comment |
+| 项 | 湖泊分支 (L138–L148) | 非湖泊分支 (L160–L170) | 是否相同 | 注 |
 |---|---|---|---|---|
-| `dh` | bank `uYgw + z_bottom` − lake `yLakeStg + lake.zmin` | bank `uYgw + z_bottom` − nabr `uYgw + z_bottom` | structurally identical (lake-stage replaces nabr GW head) | PASS — intended divergence |
-| depression clamps | `uYgw[i] <= 0.02` / `yLakeStg[ilake] <= 0.02` | `uYgw[i] <= 0.02` / `uYgw[inabr] <= 0.02` | structurally identical (lake stage replaces nabr GW for the lake-side threshold) | PASS |
-| `Ymean` | `avgY_gw(z_bottom_bank, uYgw_bank, lake.zmin, yLakeStg, 0.002)` | `avgY_gw(z_bottom_bank, uYgw_bank, z_bottom_nabr, uYgw_nabr, 0.002)` | structurally identical | PASS — `avgY_gw` returns `0.5*(max(0,y1)+max(0,y2))`, so it does NOT care which side is a lake |
-| `grad` | `dh / Dist2Nabor[3*i+j]` | `dh / Dist2Nabor[3*i+j]` | **byte-identical** | PASS |
-| `Kmean` | `0.5*(u_effKH[i] + u_effKH[inabr])` | `0.5*(u_effKH[i] + u_effKH[inabr])` | **byte-identical** | PASS — both branches use exactly the same averaging formula |
-| `A = Ymean·edge` | `Ymean·edge[3*i+j]` | `Ymean·edge[3*i+j]` | **byte-identical** | PASS |
-| `Q` | `Kmean·grad·Ymean·edge` | `Kmean·grad·Ymean·edge` | **byte-identical** | PASS |
+| `dh` | 岸侧 `uYgw + z_bottom` − 湖侧 `yLakeStg + lake.zmin` | 岸侧 `uYgw + z_bottom` − 邻居 `uYgw + z_bottom` | 结构等价 (湖泊水位替代邻居地下水位) | PASS — 这是有意的分歧 |
+| 凹陷截断 | `uYgw[i] <= 0.02` / `yLakeStg[ilake] <= 0.02` | `uYgw[i] <= 0.02` / `uYgw[inabr] <= 0.02` | 结构等价 (湖泊水位替代邻居地下水位作为湖侧阈值) | PASS |
+| `Ymean` | `avgY_gw(z_bottom_bank, uYgw_bank, lake.zmin, yLakeStg, 0.002)` | `avgY_gw(z_bottom_bank, uYgw_bank, z_bottom_nabr, uYgw_nabr, 0.002)` | 结构等价 | PASS — `avgY_gw` 返回 `0.5*(max(0,y1)+max(0,y2))`, 不区分某侧是否为湖泊 |
+| `grad` | `dh / Dist2Nabor[3*i+j]` | `dh / Dist2Nabor[3*i+j]` | **按位一致 (byte-identical)** | PASS |
+| `Kmean` | `0.5*(u_effKH[i] + u_effKH[inabr])` | `0.5*(u_effKH[i] + u_effKH[inabr])` | **按位一致 (byte-identical)** | PASS — 两分支采用完全相同的平均公式 |
+| `A = Ymean·edge` | `Ymean·edge[3*i+j]` | `Ymean·edge[3*i+j]` | **按位一致 (byte-identical)** | PASS |
+| `Q` | `Kmean·grad·Ymean·edge` | `Kmean·grad·Ymean·edge` | **按位一致 (byte-identical)** | PASS |
 
-### C.2 Where they intentionally diverge
+### C.2 仅有的两处刻意分歧 (intentional divergence)
 
-Only **two** places:
+仅在两处:
 
-1. **Lake-side head substitution**: lake branch uses `(yLakeStg[ilake] + lake.zmin)` in `dh` and `lake.zmin / yLakeStg` in `avgY_gw` instead of `(uYgw[inabr] + z_bottom[inabr])` and `(z_bottom[inabr], uYgw[inabr])` — this is the standard lake-stage-as-BC formulation (§B.2).
-2. **Scratch slot for gather**: lake branch writes to `QeleSub_lake[i*3+j]` (per-edge slot fed into S4 `rhs_deterministic_gather()` → `QLakeSub`), while non-lake branch writes to `QeleSubAt(i, j)` (per-edge slot fed into the river / element-DY pipeline). Identical deterministic-gather pattern (PR-9 / PR-11).
+1. **湖侧水头替换**: 湖泊分支在 `dh` 中使用 `(yLakeStg[ilake] + lake.zmin)`, 在 `avgY_gw` 中使用 `lake.zmin / yLakeStg`, 取代 `(uYgw[inabr] + z_bottom[inabr])` 与 `(z_bottom[inabr], uYgw[inabr])`; 此即标准的 lake-stage-as-BC 形式 (§B.2)。
+2. **gather 的 scratch 槽**: 湖泊分支写入 `QeleSub_lake[i*3+j]` (单边 scratch 槽, 经 S4 `rhs_deterministic_gather()` 进入 `QLakeSub`), 非湖泊分支写入 `QeleSubAt(i, j)` (单边 scratch 槽, 流向河网 / 元胞 DY 流水线)。两者采用一致的 deterministic-gather 模式 (PR-9 / PR-11)。
 
-### C.3 Implication for the §4.18 concern
+### C.3 对 §4.18 关切的推论
 
-The non-lake GW lateral branch uses the **exact same `0.5 * (u_effKH[i] + u_effKH[inabr])` arithmetic mean** for element-to-element flux. So:
+非湖泊地下水侧渗分支在元胞-元胞通量计算中**采用按位相同的算术均值 `0.5 * (u_effKH[i] + u_effKH[inabr])`**。由此可得:
 
-- The lake-branch formula is **NOT a one-off oddity** — it is consistent with how the codebase already computes all GW lateral fluxes
-- If the lake-branch `Kmean` is "wrong" because of averaging-choice, then **every element-to-element GW lateral flux in SHUD is equally wrong** — which has been verified bitwise against benchmarks across 7 cases over 2 years; no one has reported it as a numerical defect
-- The only lake-specific question reduces to "does `Ele[inabr].u_effKH` on a lake element have meaning?" — answered YES in §B.4 (it equals lake-bed `KsatH`, set deterministically by `updateLakeElement()`)
+- 湖泊分支公式**并非孤例 (one-off oddity)** — 它与该代码库中其余地下水侧渗通量的计算方式完全一致;
+- 若湖泊分支的 `Kmean` 因平均方式选取而 "错误", 则**SHUD 中所有元胞-元胞地下水侧渗通量同样错误** — 而后者在 2 年间已跨 7 个案例按位通过基线验证, 未见任何数值缺陷报告;
+- 湖泊特有的唯一问题归结为 "湖泊元胞上的 `Ele[inabr].u_effKH` 是否具有物理意义?" — §B.4 已回答 **是** (其等于由 `updateLakeElement()` 确定性写入的湖床 `KsatH`)。
 
 ---
 
-## §D. Risk-of-change assessment
+## §D. 变更风险评估
 
-### D.1 Affected cases (lake-enabled = `lakeon == 1`)
+### D.1 受影响案例 (湖泊启用, 即 `lakeon == 1`)
 
-`lakeon` is set at runtime in `MD_Lake.cpp:46–53` based on `Riv[i].down <= -4` (rSHUD-side encoding of "river outlets into lake i"). The presence of `<case>.lake.bathy`, `<case>.lake.ic`, `<case>.lake.sp` input files indicates lake topology defined.
+`lakeon` 在 `MD_Lake.cpp:46–53` 中按 `Riv[i].down <= -4` (rSHUD 侧 "河流入湖 i" 的编码) 在运行时设置。存在 `<case>.lake.bathy`、`<case>.lake.ic`、`<case>.lake.sp` 输入文件即表征湖泊拓扑已定义。
 
-Per Mac-local benchmark fileset inspection:
+按 Mac 本地基准文件集核查:
 
-| Case | NumEle | Has `.lake.*` inputs? | `lakeon` at runtime | Affected by S6b.2 hypothetical fix? |
+| 案例 | NumEle | 是否有 `.lake.*` 输入 | 运行时 `lakeon` | 是否受 S6b.2 假定修复影响 |
 |---|---|---|---|---|
-| keliya | 484 | NO | 0 | NO |
-| xinanjiang_upstream | 801 | NO (only on server) | 0 | NO |
-| qinyijiang | 3,155 | NO (only on server) | 0 | NO |
-| **qhh** | **4,773** | **YES** (`qhh.lake.bathy/ic/sp`) | **1** | **YES** — the lake `.dat` outputs (`qhh.lakqrivin / lakqrivout / lakystage`) are part of the bitwise-validation set; any L147 change would alter these |
-| kashigeer | 3,204 | NO | 0 | NO |
-| tailanhe | 1,614 | NO | 0 | NO |
-| heihe | 6,335 (server) | YES (server, per CHANGELOG S6b.1 references to `qhh-style lake setup`) | 1 | YES — `heihe.rivqdown.dat` baseline bitwise would shift |
-| heihe_x4 | ~25,000 (server) | YES (inherited from heihe via rSHUD 4× refinement) | 1 | YES |
+| keliya | 484 | 否 | 0 | 否 |
+| xinanjiang_upstream | 801 | 否 (仅服务器) | 0 | 否 |
+| qinyijiang | 3,155 | 否 (仅服务器) | 0 | 否 |
+| **qhh** | **4,773** | **有** (`qhh.lake.bathy/ic/sp`) | **1** | **是** — 湖泊 `.dat` 输出 (`qhh.lakqrivin / lakqrivout / lakystage`) 属于 bitwise 验证集; L147 的任何改动都会改变这些输出 |
+| kashigeer | 3,204 | 否 | 0 | 否 |
+| tailanhe | 1,614 | 否 | 0 | 否 |
+| heihe | 6,335 (服务器) | 有 (服务器, 依 CHANGELOG S6b.1 中 `qhh-style lake setup` 引用) | 1 | 是 — `heihe.rivqdown.dat` baseline bitwise 会偏移 |
+| heihe_x4 | ~25,000 (服务器) | 有 (由 heihe 经 rSHUD 4× 加密继承) | 1 | 是 |
 
-**Confirmed lake-affected cases (per spec L23 / §S2.17 / master plan §4.18)**: **qhh, heihe, heihe_x4**.
+**已确认受湖泊影响的案例 (按 spec L23 / §S2.17 / master plan §4.18)**: **qhh, heihe, heihe_x4**。
 
-> Caveat: Mac-side inspection of heihe / heihe_x4 input dirs did not show `*lake*` files (those Basins are server-mounted only). Lake activation for heihe is confirmed indirectly via CHANGELOG S6b.1 evidence (`heihe.rivqdown.dat` 4,835 doubles after lake-route gather) and master plan §4.22 references to "qhh + heihe + heihe_x4" as the lake-path coverage trio. Server `cfg.para` files cannot be read from this Mac session; treating as confirmed per the master plan.
+> 说明: Mac 侧对 heihe / heihe_x4 输入目录的核查未发现 `*lake*` 文件 (上述 Basin 仅服务器挂载)。heihe 的湖泊激活由 CHANGELOG S6b.1 证据 (湖泊路由 gather 之后 `heihe.rivqdown.dat` 含 4,835 个 double) 与 master plan §4.22 中 "qhh + heihe + heihe_x4 作为湖泊路径覆盖三元组" 的描述间接确认。服务器 `cfg.para` 在当前 Mac 会话不可读, 按 master plan 视为已确认。
 
-### D.2 Hypothetical magnitude if "fixed"
+### D.2 若 "修复", 量级估计
 
-For the typical configuration where bank and lake-bed share a soil class (K1 ≈ K2):
-- Arithmetic vs harmonic difference: `0.5(K1+K2) vs 2K1K2/(K1+K2)` — these differ by `(K1−K2)² / (2(K1+K2))`; for K1 ≈ K2 this is **second-order in (K1−K2)/K**, i.e. < 1% for K within 10× of each other.
+对岸边与湖床同属一种土壤类的典型配置 (K1 ≈ K2):
+- 算术与调和均值之差: `0.5(K1+K2) vs 2K1K2/(K1+K2)` — 差值为 `(K1−K2)² / (2(K1+K2))`; K1 ≈ K2 时该差为 `(K1−K2)/K` 的**二阶小量**, 即 K 在 10 倍以内时差异 < 1%。
 
-If the lake-bed K were instead a NEW parameter (alternative C in §B.5) set to a typical sub-lake-bed sediment value (1e-7 to 1e-9 m/s) versus a bank aquifer K of 1e-5 m/s, the harmonic mean would be **2–4 orders of magnitude smaller** than the arithmetic mean — flux would drop by the same factor. This would be a **major** physical change, but it requires a new input parameter (out of B1b scope).
+若湖床 K 改为一个新参数 (§B.5 备选 C), 取典型湖底沉积物值 1e-7 至 1e-9 m/s, 对比岸侧含水层 K 1e-5 m/s, 则调和均值比算术均值小 **2-4 个数量级**, 通量按同等比例下降。此为**重大**物理变更, 但需引入新输入参数 (超出 B1b 范围)。
 
-Within the existing parameter set (no new inputs), the achievable "fix" magnitudes are:
-- Arithmetic → harmonic: < 10% on `qhh.lakqrivin/out/ystage` (bounded above)
-- Arithmetic → bank-only K: would over-estimate flux when lake-bed K < bank K; magnitude bounded by `(K_bank − K_lakebed) / (K_bank + K_lakebed)` × current flux; for typical soil contrasts < 30%
+在现有参数集 (不引入新输入) 范围内, 可达成的 "修复" 量级为:
+- 算术 → 调和: 对 `qhh.lakqrivin/out/ystage` 的变化 < 10% (上界);
+- 算术 → bank-only K: 在湖床 K < 岸侧 K 时高估通量; 量级上界为 `(K_bank − K_lakebed) / (K_bank + K_lakebed)` × 当前通量; 对典型土壤对比 < 30%。
 
-### D.3 Bitwise impact
+### D.3 Bitwise 影响
 
-**Any** non-trivial change to L147 — whether reformulation, harmonic mean, or bank-only K — would break:
-- `qhh.lakqrivin.dat` (bitwise-validated against B1a-tag SHA `1a9db73…ab2d`)
-- `qhh.lakqrivout.dat` (SHA `1a9db73…ab2d`)
-- `qhh.lakystage.dat` (SHA `4fcebe3a…ca250`)
-- `qhh.rivqdown.dat` (lake → river feedback path — likely SHA shift even if small)
-- (server) `heihe.rivqdown.dat`, `heihe_x4.rivqdown.dat`, `heihe_x4.eleygw.dat`
+对 L147 的**任何**非平凡改动 (无论是公式重写、调和均值还是 bank-only K) 都将打破以下基线:
+- `qhh.lakqrivin.dat` (相对 B1a-tag, SHA `1a9db73…ab2d` 完成 bitwise 验证);
+- `qhh.lakqrivout.dat` (SHA `1a9db73…ab2d`);
+- `qhh.lakystage.dat` (SHA `4fcebe3a…ca250`);
+- `qhh.rivqdown.dat` (湖泊 → 河流反馈路径; 即便差异小, SHA 也很可能偏移);
+- (服务器) `heihe.rivqdown.dat`, `heihe_x4.rivqdown.dat`, `heihe_x4.eleygw.dat`。
 
-This **WILL** break the B1a-tag bitwise contract for ANY lake-touching case. Per spec.md L23 + design.md D8, a code-change S6b.2 path requires:
-- Modified formula in single S6b.2 commit
-- `docs/diff_reports/B1a_vs_B1b_diff_s6b_2.md` with affected case list + variation magnitudes
-- Either (a) A4-level "residual_deferred" classification per master plan §A0–A5 grading, or (b) re-baselining of qhh / heihe / heihe_x4 goldens under B1b-tag distinct from B1a
+上述变更**将**破坏任何涉湖案例上 B1a-tag 的 bitwise 合约。按 spec.md L23 + design.md D8, 走代码变更的 S6b.2 路径需满足:
+- 在单一 S6b.2 commit 中修改公式;
+- 编写 `docs/diff_reports/B1a_vs_B1b_diff_s6b_2.md`, 列出受影响案例与变差量级;
+- 任选其一: (a) 按 master plan §A0–A5 分级将其归为 A4 级 `residual_deferred` 分类, 或 (b) 在与 B1a-tag 不同的 B1b-tag 下对 qhh / heihe / heihe_x4 重新基线化。
 
-This is a HIGH-cost change for a numerical refinement that, under the standard SHUD mesh-classification convention, would barely move the answer.
+考虑到 SHUD 标准网格分类约定下 (湖床土壤类与岸侧通常一致) 数值改动幅度极小, 上述变更属于"高成本、低收益"的数值精化。
 
 ---
 
-## §E. Audit conclusion (VERDICT ISSUED — E2)
+## §E. 审计结论 (VERDICT ISSUED — E2)
 
-### Status: **VERDICT ISSUED — E2 ("S2.17: formula correct, no change")** — signed by DankerMu as PI delegate (2026-06-22, PR-19 #210)
+### 状态: **VERDICT ISSUED — E2 ("S2.17: formula correct, no change")** — 由 DankerMu 作为 PI 代理签发 (2026-06-22, PR-19 #210)
 
-### E.1 Formal verdict statement
+### E.1 正式 verdict 陈述
 
 > **`S2.17: formula correct, no change`**
 >
-> Per `spec.md` L23 prerogative and design.md Open Q1 resolution (PI delegate qualification = upstream `SHUD-System/SHUD` GitHub organization owner control, which DankerMu holds alongside owner control of `DankerMu/SHUD-OpenMP`):
+> 依 `spec.md` L23 prerogative 与 design.md Open Q1 决议 (PI 代理资格 = 上游 `SHUD-System/SHUD` GitHub 组织所有者控制权; DankerMu 同时持有 `DankerMu/SHUD-OpenMP` 的所有者控制权):
 >
-> The arithmetic-mean `Kmean = 0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` at `SHUD/src/ModelData/MD_ElementFlux.cpp:147` (lake branch of `fun_Ele_sub`) and `:169` (non-lake branch of the same function) is **correct and SHALL NOT be modified for B1b ship**. Reasoning (cross-refs to §B / §C / §D / §A.4 above + post-audit #205 resolution):
+> `SHUD/src/ModelData/MD_ElementFlux.cpp:147` (`fun_Ele_sub` 湖泊分支) 与 `:169` (同函数非湖泊分支) 处的算术均值 `Kmean = 0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` **正确**, 在 B1b ship 中**不得修改 (SHALL NOT be modified for B1b ship)**。论证 (交叉引用 §B / §C / §D / §A.4 与后审计 #205 决议):
 >
-> 1. **Physics**: §B.1 / §B.2 confirm the macroscopic Darcy + lake-stage-as-BC formulation is the same as MODFLOW LAK7 (Merritt & Konikow 2000), ParFlow Lake, PIHM 2.x. The `dh`, `grad`, `Ymean`, `A` terms map cleanly onto the textbook Darcy form.
-> 2. **Averaging-formula consistency**: §C confirms the **non-lake branch (L169) uses byte-identical `0.5*(u_effKH[i]+u_effKH[inabr])`**. If the lake-branch averaging were "wrong", every element-to-element GW lateral flux in SHUD would be equally "wrong" — a position contradicted by 2+ years of B0 published-baseline validation across 7 cases (Shu et al. and downstream NWM-derivative work).
-> 3. **`u_effKH` semantics resolved post-#205**: §A.4 / §B.4 strict-reading concern (SoA mirror reads aquifer-blend at lake-element state instead of `KsatH` per `updateLakeElement` intent) is **resolved by [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205) PR-18 #209 (merged 2026-06-22, SHUD `de75743`)** — `sync_hot_dynamic(i)` now follows `Ele[i].updateLakeElement()` in `rhs_flux` lake pass-1. The SoA mirror `hot.u_effKH[lake]` now correctly reflects `KsatH` per the `updateLakeElement()` write. This removes the §B.4 "strict reading" objection and makes §B.4 "generous reading" the only consistent interpretation. **The fix is bitwise-neutral on B1b benchmarks** (4-case Mac 2-run canonical SHA byte-identical), so the verdict applies to both the as-shipped B1b-tag state (pre-#205 fix, SoA-drift present) and the post-#205 main HEAD state (SoA-coherent) — in both, the formula is physically defensible.
-> 4. **Defensive `assert(inabr >= 0)` already in (L137)**: §4.18 R-1 already closed.
-> 5. **Cost-of-change is high, magnitude-of-change is bounded**: §D.2 / §D.3 — any L147 alteration breaks B1a-tag bitwise on `qhh / heihe / heihe_x4` for a < 10% flux change under typical SHUD mesh-classification conventions where bank and lake-bed share soil class. A4 `residual_deferred` + new diff reports + re-baselined goldens would be required for negligible physical refinement.
+> 1. **物理**: §B.1 / §B.2 确认 Darcy + lake-stage-as-BC 的宏观表述与 MODFLOW LAK7 (Merritt & Konikow 2000)、ParFlow Lake、PIHM 2.x 一致。`dh`、`grad`、`Ymean`、`A` 各项与教科书 Darcy 形式整齐对应。
+> 2. **平均公式一致性**: §C 确认**非湖泊分支 (L169) 使用按位相同 (byte-identical) 的 `0.5*(u_effKH[i]+u_effKH[inabr])`**。若湖泊分支的平均方式"错误", 则 SHUD 中每个元胞-元胞地下水侧渗通量都同等"错误" — 此立场与过去 2 年间 Shu 等人及下游 NWM 衍生工作在 7 个案例上对 B0 公开基线合约 (published-baseline contract) 的验证结果相矛盾。
+> 3. **`u_effKH` 语义经 #205 关闭后澄清**: §A.4 / §B.4 中严格解读所提关切 (SoA 镜像读到的是湖泊元胞状态下的含水层混合, 而非 `updateLakeElement` 所设想的 `KsatH`) 已通过 **[#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205) PR-18 #209 (2026-06-22 合入, SHUD `de75743`)** 解决 — `rhs_flux` 湖泊第 1 趟中 `Ele[i].updateLakeElement()` 之后已增补 `sync_hot_dynamic(i)`。SoA 镜像 `hot.u_effKH[lake]` 现可正确反映 `updateLakeElement()` 所写入的 `KsatH`。此举消除了 §B.4 "严格解读" 反对意见, 使 §B.4 "宽松解读" 成为唯一自洽解释。**该修复在 B1b 基准上按位中性 (bitwise-neutral)** (Mac 4 案例 2 次重复 canonical SHA 按位一致), 故本 verdict 同时适用于已发布的 B1b-tag 状态 (修复 #205 之前, 含 SoA 漂移) 与修复后的 main HEAD 状态 (SoA 一致); 两种状态下公式均物理可立。
+> 4. **防御性 `assert(inabr >= 0)` 已就位 (L137)**: §4.18 R-1 已关闭。
+> 5. **变更成本高, 数值幅度有限**: §D.2 / §D.3 — 对 L147 的任何修改都将打破 `qhh / heihe / heihe_x4` 在 B1a-tag 上的 bitwise 合约; 而在 SHUD 典型网格分类约定下, 通量变幅 < 10%。A4 `residual_deferred` 分类 + 新增 diff 报告 + 重新基线化的代价不应为可忽略的物理精化而支付。
 >
-> Alternative formulations (B.5 harmonic mean / bank-only / explicit `K_lakebed` parameter) are noted as "not clearly superior under SHUD's mesh convention" and are **explicitly NOT mandated**. Future investigators may revisit under P-strict or post-publication scope; that revisit would proceed as a separate `B1c-tag` stacking (C8 forward-compat) without force-updating any prior tag.
+> 备选形式 (§B.5 调和均值 / bank-only / 显式 `K_lakebed` 参数) 已记录为 "在 SHUD 网格约定下不明显占优", 因此**显式不被强制 (explicitly NOT mandated)**。后续研究者可在 P-strict 或后发表阶段重启此议题; 届时将作为独立 `B1c-tag` 增量叠加 (C8 forward-compat), 不强制更新任何此前的 tag。
 >
-> Sign-off by: **DankerMu** (GitHub organization owner of both `DankerMu/SHUD-OpenMP` and upstream `SHUD-System/SHUD`), 2026-06-22, via this audit-doc revision + issue [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185) comment.
+> 签字人 (sign-off by): **DankerMu** (`DankerMu/SHUD-OpenMP` 与上游 `SHUD-System/SHUD` 的 GitHub 组织所有者), 2026-06-22, 经本审计文档修订 + issue [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185) 评论共同生效。
 
-### E.2 design.md Open Q1 — closed by this sign-off
+### E.2 design.md Open Q1 — 经本次签字关闭
 
-design.md Open Q1 asked: "审查者签字在 GitHub issue 评论是否够正式？" (Is GitHub issue comment sign-off formal enough?) + (implicit) "What qualifies as PI delegate?".
+design.md Open Q1 问及: "审查者签字在 GitHub issue 评论是否够正式?" (Is GitHub issue comment sign-off formal enough?) 以及 (隐式) "怎样的人具备 PI 代理资格?"
 
-**Resolution recorded here**:
-- **Qualification**: PI delegate = GitHub organization owner of upstream `SHUD-System/SHUD` (the canonical Hydro-System home). DankerMu holds this role.
-- **Sign-off mechanism**: GitHub issue comment (this PR posts to #185) **AND** repository doc update (this §E.1) **AND** SHUD-side post-B1b changelog addendum row (PR-19 #210 commits the SHUD-side doc revision). The three-surface mechanism satisfies "formality" — issue history, repo evidence pack, and upstream changelog all carry the verdict.
-- This document closes Open Q1 with the above two-line resolution. Future S6c-style PI audits MAY follow this same three-surface sign-off pattern.
+**本处记录之决议**:
+- **资格 (qualification)**: PI 代理 = 上游 `SHUD-System/SHUD` (Hydro-System 规范源头) 的 GitHub 组织所有者; DankerMu 持有此角色。
+- **签字机制 (sign-off mechanism)**: GitHub issue 评论 (本 PR 发表至 #185)、**且**仓库文档更新 (本节 §E.1)、**且** SHUD 侧后 B1b changelog 增补行 (PR-19 #210 提交 SHUD 侧文档修订)。三表面 (three-surface) 机制满足 "正式性 (formality)" 要求 — issue 历史、仓库证据包、上游 changelog 三处共同承载 verdict。
+- 本文档以上述两行决议关闭 Open Q1。后续 S6c 风格的 PI 审计**可**沿用此三表面签字模式。
 
-### E.3 D9 fast-path trigger #2 — UNBLOCKED
+### E.3 D9 fast-path 触发条件 #2 — 已解锁 (UNBLOCKED)
 
-design.md D9 trigger #2 ("S6b.2 = '审查为无修改' 跳过 fix" with signed conclusion) is **satisfied** by this E2 verdict. The S6b.2 SKIP path (PR-15 #206) retroactively becomes "consistent with PI E2 directive" — the SKIP was a CONDITIONAL path under C8 forward-compat pending sign-off; the sign-off now signs it as the canonical "no change" outcome. D9 fast-path therefore triggers in this PR (PR-19 #210):
+design.md D9 trigger #2 ("S6b.2 = '审查为无修改' 跳过 fix" 且具签字结论) 由本次 E2 verdict **满足**。S6b.2 SKIP 路径 (PR-15 #206) 追溯性地成为 "与 PI E2 指令一致" — SKIP 此前在 C8 forward-compat 下为条件性路径, 等待签字; 现签字将其确认为权威的 "无变更" 结论。D9 fast-path 因此在本 PR (PR-19 #210) 触发:
 
-- `B1-tag` annotated tag created aliasing **main HEAD** (post-#205 fix, post-PI-E2-sign-off) — `B1a-tag` and `B1b-tag` remain immutable per D11 history (they are NOT force-updated), but `B1-tag` becomes the canonical "B1 baseline signed and clean for P1 consumption" reference.
-- Rationale for `B1-tag` aliasing main HEAD (vs aliasing `B1b-tag` commit `18a0c908`): main HEAD includes (a) all B1b work, (b) #205 SoA/AoS sync drift fix (bitwise-neutral, P-strict pre-req cleared), (c) this PI E2 sign-off. Bitwise-equivalent to B1b-tag on benchmark outputs but cleaner code state. Downstream P1+ consumers SHOULD use `B1-tag`; `B1a-tag` and `B1b-tag` remain available for historical reference per D11.
+- 创建 `B1-tag` annotated tag, 指向 **main HEAD** (含 #205 修复, 已 PI E2 签字); `B1a-tag` 与 `B1b-tag` 按 D11 历史保留不可变 (NOT force-updated), 但 `B1-tag` 自此成为 "B1 baseline 已签字、可供 P1 消费" 的权威参照。
+- `B1-tag` 选择 main HEAD 而非 `B1b-tag` 的 commit `18a0c908` 的理由: main HEAD 包含 (a) 全部 B1b 工作、(b) #205 SoA/AoS 同步漂移修复 (bitwise-neutral, P-strict 前置条件已清除)、(c) 本 PI E2 签字。在基准输出上与 B1b-tag bitwise 等价, 但代码状态更整洁。下游 P1+ 消费方**应当** (SHOULD) 使用 `B1-tag`; `B1a-tag` 与 `B1b-tag` 仍可供历史参考, 按 D11 保留。
 
-### E.4 CONDITIONAL ship caveat list — UPGRADED TO UNCONDITIONAL
+### E.4 CONDITIONAL ship 限定列表 — 升级为 UNCONDITIONAL
 
-Following this verdict + #205 closure:
+经本次 verdict + #205 关闭:
 
-| Caveat | Pre-E2 status | Post-E2 status |
+| 限定项 | E2 之前状态 | E2 之后状态 |
 |---|---|---|
-| #185 PI sign-off | OPEN | **RESOLVED** (E2 signed this PR) |
-| #205 SoA/AoS sync drift | OPEN | **RESOLVED** (PR-18 #209) |
-| #186 S6b.2 SKIP | CLOSED-via-SKIP (NOT signed E2) | **CLOSED-via-PI-E2** (SKIP retroactively consistent) |
-| D9 fast-path trigger #2 | BLOCKED on PI | **TRIGGERED** (this PR creates `B1-tag`) |
-| C8 forward-compat | reserved for E1-overrule | **UNUSED** (PI signed E2) |
+| #185 PI 签字 | OPEN | **RESOLVED** (本 PR 签发 E2) |
+| #205 SoA/AoS 同步漂移 | OPEN | **RESOLVED** (PR-18 #209) |
+| #186 S6b.2 SKIP | CLOSED-via-SKIP (未签字 E2) | **CLOSED-via-PI-E2** (SKIP 追溯性一致) |
+| D9 fast-path 触发条件 #2 | BLOCKED on PI | **TRIGGERED** (本 PR 创建 `B1-tag`) |
+| C8 forward-compat | 保留以应对 E1-overrule | **UNUSED** (PI 签发 E2) |
 
-B1b ship status: **PASS (UNCONDITIONAL ship)**. CONDITIONAL → UNCONDITIONAL transition documented in `docs/b1b_summary.md` + `docs/status_matrix.md` + `docs/build_manifest.md` updates this PR.
+B1b ship 状态: **PASS (UNCONDITIONAL ship)**。CONDITIONAL → UNCONDITIONAL 的转换记录在本 PR 内对 `docs/b1b_summary.md`、`docs/status_matrix.md`、`docs/build_manifest.md` 的更新中。
 
-### E.5 Original "evidence-pack-only" framing — historical
+### E.5 原 "纯证据包 (evidence-pack-only)" 表述 — 历史保留
 
-Prior to PR-19 #210 sign-off, this document was a pure evidence pack with no verdict (per Phase-1 audit author convention not to self-claim PI authority). That framing is preserved in revision history (git log on `docs/s217_lake_formula_audit.md`); the present §E reflects the post-sign-off state and is authoritative going forward.
+PR-19 #210 签字之前, 本文档为纯证据包, 不含 verdict (依 Phase-1 审计起草人惯例, 不自我主张 PI 权威)。该早期表述保留于本文档的版本历史中 (`docs/s217_lake_formula_audit.md` 的 git log); 当前 §E 反映签字后的状态, 自此为权威 (authoritative going forward)。
 
-### B1b ship status — UPGRADED FROM CONDITIONAL → UNCONDITIONAL
+### B1b ship 状态 — 由 CONDITIONAL 升级为 UNCONDITIONAL
 
-Pre-PR-19 #210 the ship was CONDITIONAL (per master plan C8 "永不 break userspace") because PI sign-off was OPEN. **Post-sign-off (this PR) the ship is UNCONDITIONAL**. The S6b.2 SKIP path (PR-15 #206) is retroactively consistent with spec.md L29-31 Scenario "审查结论已签字跳过修改" — the signed E2 verdict (this PR §E.1) supplies the previously-missing PI signature.
+PR-19 #210 之前, 由于 PI 签字 OPEN, ship 状态为 CONDITIONAL (依 master plan C8 "永不 break userspace")。**经本 PR 签字后, ship 状态为 UNCONDITIONAL**。S6b.2 SKIP 路径 (PR-15 #206) 追溯性地与 spec.md L29-31 Scenario "审查结论已签字跳过修改" 一致 — 已签字的 E2 verdict (本 PR §E.1) 补足了此前缺失的 PI 签字。
 
-C8 forward-compat remains the codebase convention going forward (any **future** finding that overrules E2 would stack as a `B1c-tag` per D11 history preservation), but C8 is not active for this B1b ship.
+C8 forward-compat 仍作为代码库前进方向的约定 (任何**未来**推翻 E2 的发现都将以 `B1c-tag` 增量叠加形式记录, 依 D11 历史保留), 但 C8 在本次 B1b ship 中不被激活。
 
-### D9 fast-path eligibility — TRIGGERED IN THIS PR
+### D9 fast-path 资格 — 本 PR 触发
 
-design.md D9 trigger #2 requires `S6b.2 = "审查为'无修改'" 跳过 fix` with a signed conclusion. **This trigger is now satisfied** by §E.1 E2 verdict above. D9 fast-path executes in this PR (PR-19 #210):
+design.md D9 触发条件 #2 要求 `S6b.2 = "审查为'无修改'" 跳过 fix` 且具签字结论。**该触发条件由 §E.1 的 E2 verdict 满足**。D9 fast-path 在本 PR (PR-19 #210) 执行:
 
-- `B1-tag` annotated tag created aliasing main HEAD (with #205 SoA/AoS cleanup + PI E2 sign-off).
-- `B1a-tag` and `B1b-tag` remain immutable per D11 history (NOT force-updated).
-- Downstream P1+ consumers SHOULD use `B1-tag` as the canonical "B1 baseline" reference; the historical separate-tag pair (`B1a-tag` / `B1b-tag`) remains available for archaeology.
+- 创建 `B1-tag` annotated tag, 指向 main HEAD (含 #205 SoA/AoS 清理 + PI E2 签字);
+- `B1a-tag` 与 `B1b-tag` 按 D11 历史不可变 (NOT force-updated);
+- 下游 P1+ 消费方**应当** (SHOULD) 使用 `B1-tag` 作为权威 "B1 baseline" 参照; 历史的双 tag 组合 (`B1a-tag` / `B1b-tag`) 仍可供考古使用。
 
-### Evidence summary supporting the PI judgment (cross-ref §E.1)
+### 支持 PI 判定的证据汇总 (与 §E.1 互为交叉引用)
 
-The pack collects the following arguments which the PI may weigh:
+证据包收集如下论点, PI 可据此权衡:
 
-1. **Physics is standard at the macroscopic level**. The lake branch correctly implements lake-stage-as-aquifer-BC Darcy flux at the lake-bed seepage face, matching MODFLOW LAK7 (Merritt & Konikow 2000), ParFlow Lake, and PIHM 2.x conventions on the `dh`, `grad`, `Ymean`, `A` terms (§B.1, §B.2).
+1. **物理在宏观层面属标准做法**。湖泊分支正确实现了 lake-stage-as-aquifer-BC Darcy 通量在湖床渗透面上的形式, `dh`、`grad`、`Ymean`、`A` 各项与 MODFLOW LAK7 (Merritt & Konikow 2000)、ParFlow Lake、PIHM 2.x 的约定吻合 (§B.1, §B.2)。
 
-2. **`Ele[inabr].u_effKH` on a lake element is non-degenerate but has a runtime-semantic subtlety**. The AoS `updateLakeElement()` sets `u_effKH = KsatH` (the lake-bed sediment K), but the runtime SoA mirror is set by the OUTER `updateforcing` general-element loop to the depth-weighted `effKH(...)` blend evaluated against the lake-element's aquifer state. This is a SoA/AoS drift (per §A.4 above + issue [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205)). Two interpretations are defensible (§B.4 generous vs strict reading); PI judgment requested.
+2. **湖泊元胞上的 `Ele[inabr].u_effKH` 非退化, 但存在运行时语义微妙性**。AoS `updateLakeElement()` 写入 `u_effKH = KsatH` (湖床沉积物 K), 而运行时 SoA 镜像由外层 `updateforcing` 通用元胞循环按 `effKH(...)` 在湖泊元胞含水层状态下求得的深度加权混合值写入。此 SoA/AoS 漂移见 §A.4 与 issue [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205)。两种解读均物理可立 (§B.4 宽松 vs 严格); 请 PI 裁定。
 
-3. **Averaging-formula consistency**. The same `0.5 * (u_effKH[i] + u_effKH[inabr])` arithmetic mean is used **without divergence** in the non-lake GW lateral branch immediately below (L169) (§C). Whatever the merits of arithmetic vs harmonic, the lake-branch choice is consistent with the rest of SHUD's GW lateral pattern. The model has been validated against measured streamflow on 7+ cases by Shu et al. (B0 published-baseline contract) using this averaging form.
+3. **平均公式一致性**。紧邻的非湖泊地下水侧渗分支 (L169) **无任何分歧地**使用相同的 `0.5 * (u_effKH[i] + u_effKH[inabr])` 算术均值 (§C)。无论算术与调和均值在普适意义上的优劣, 湖泊分支的选取与 SHUD 其余地下水侧渗模式一致。Shu 等人已在 7 个以上案例上以本平均形式对实测径流 (B0 公开基线合约) 做过模型验证。
 
-4. **Out-of-bounds risk already mitigated**. The `assert(inabr >= 0)` at L137 (added pre-audit, present in live code) closes the §4.18 R-1 defensive-assert recommendation.
+4. **越界风险已缓解**。L137 处的 `assert(inabr >= 0)` (审计前已存在于活跃代码中) 关闭了 §4.18 R-1 防御性 assert 建议。
 
-5. **Cost of any code-change `S6b.2` is high**. A modified formula would break B1a-tag bitwise on `qhh / heihe / heihe_x4` (§D.3), require an A4 `residual_deferred` classification, new diff reports, likely re-baselined goldens — for a change whose magnitude (< 10% on lake flux in typical configurations per §D.2) is bounded.
+5. **任何代码变更 `S6b.2` 的成本高昂**。修改公式将打破 `qhh / heihe / heihe_x4` 上的 B1a-tag bitwise 合约 (§D.3), 需 A4 `residual_deferred` 分类、新增 diff 报告、可能的重新基线化; 而其量级 (典型配置下湖泊通量 < 10%, 见 §D.2) 有限。
 
-6. **The SoA/AoS drift** (issue #205) is the more important finding from this audit and is out-of-scope for #185 / #186. It applies to both the bank- and lake-aquifer aspects of `fun_Ele_sub` lake branch and is best addressed in P-strict (P1-P7) pre-req audit, not in B1b ship.
+6. **SoA/AoS 漂移 (issue #205) 是本审计更重要的发现**, 属 #185 / #186 范围之外。该漂移同时作用于 `fun_Ele_sub` 湖泊分支的岸侧与湖侧含水层语义, 应在 P-strict (P1-P7) 前置审计中处理, 而非在 B1b ship 中。
 
-### Original PI question (historical — answered E2)
+### PI 原始问题 (历史保留 — 已由 E2 回答)
 
-The original (pre-sign-off) framing of the PI question, preserved for archaeology:
+PI 问题的签字前 (pre-sign-off) 表述, 保留以供考古:
 
-> Should the lake-edge GW lateral flux in `fun_Ele_sub()` use:
+> `fun_Ele_sub()` 湖边地下水侧渗通量应采用以下哪种形式?
 >
->   (a) the current arithmetic mean `0.5*(K_bank_blend + K_lake_blend)` — accepting the SoA-drift-induced "K_lake = aquifer-blend at lake state" semantics (this audit recommendation: defensible but PI judgment needed),
+>   (a) 当前算术均值 `0.5*(K_bank_blend + K_lake_blend)` — 接受 SoA 漂移所致 "K_lake = 湖泊元胞状态下的含水层混合" 语义 (本审计推荐: 物理可立, 但需 PI 判定);
 >
->   (b) a harmonic mean `2 K_bank K_lake / (K_bank + K_lake)` to match series-resistor interface physics,
+>   (b) 调和均值 `2 K_bank K_lake / (K_bank + K_lake)` 以匹配串联电阻界面物理;
 >
->   (c) a new explicit `K_lakebed` parameter independent of the bank-soil class (new input parameter, breaks rSHUD schema),
+>   (c) 引入与岸侧土壤类无关的显式 `K_lakebed` 参数 (新输入参数, 破坏 rSHUD schema);
 >
->   (d) bank-only `K_bank` ignoring the lake side?
+>   (d) 取 bank-only `K_bank`, 忽略湖侧?
 >
-> Current call-graph evidence (§A.4) + master plan §4.18 R-2/R-3 + non-lake-branch consistency (§C) point to (a). Sign-off as (a) finalizes the spec L29-31 "no change" Scenario; sign-off as (b)–(d) triggers spec L25-27 "needs fix" Scenario with downstream re-baselining cost.
+> 当前调用图证据 (§A.4) + master plan §4.18 R-2/R-3 + 非湖泊分支一致性 (§C) 共同指向 (a)。签字为 (a) 落实 spec L29-31 "no change" Scenario; 签字为 (b)–(d) 则触发 spec L25-27 "needs fix" Scenario 及随之而来的下游重新基线化成本。
 >
-> Separately: issue #205 documents a SoA/AoS sync drift in the lake pass-1 (`rhs_flux` missing `sync_hot_dynamic` after `updateLakeElement`). PI may want to comment on whether the SoA-drift should be treated as an "intentional generalization" (lake elements use the same general-element aquifer-K blend everywhere) or as a "missed sync" bug (lake elements should re-sync to `KsatH` per `updateLakeElement` intent).
+> 此外: issue #205 记录了湖泊第 1 趟 (`rhs_flux` 中 `updateLakeElement` 之后缺失 `sync_hot_dynamic`) 中的 SoA/AoS 同步漂移。PI 可酌情评议: SoA 漂移应被视为 "刻意的泛化" (湖泊元胞与其他位置同样使用通用元胞含水层 K 混合), 还是 "遗漏同步" 的 bug (湖泊元胞应按 `updateLakeElement` 设想重新同步至 `KsatH`)。
 
 ---
 
-## Appendix — audit completeness checklist
+## 附录 — 审计完整性 checklist
 
-| Acceptance criterion | Status |
+| 验收准则 | 状态 |
 |---|---|
-| §A live formula citation present with file:line | PASS (`MD_ElementFlux.cpp:147` cited; L100–L156 master-plan range updated to live L126–L191) |
-| §A.4 active-runtime SoA state acknowledged | PASS (post-rev. — SoA drift surfaced + #205 follow-up tracked) |
-| §B Darcy physics + lake-stage BC + Kmean averaging discussion | PASS |
-| §B.4 active-runtime semantics (vs §A.3 AoS-intent) | PASS (rewritten to reflect SoA mirror state; both readings presented) |
-| §C non-lake branch byte-for-byte comparison | PASS (L160–L170 quoted; only intended divergence enumerated) |
-| §D affected cases (qhh, heihe, heihe_x4) + magnitude + bitwise impact | PASS |
+| §A 给出活跃公式引用 (file:line) | PASS (`MD_ElementFlux.cpp:147` 已引; master plan L100–L156 范围更新为活跃 L126–L191) |
+| §A.4 承认活跃运行时 SoA 状态 | PASS (修订后 — SoA 漂移已浮现, #205 跟踪) |
+| §B Darcy 物理 + lake-stage BC + Kmean 平均讨论 | PASS |
+| §B.4 活跃运行时语义 (对照 §A.3 AoS 设想) | PASS (已重写以反映 SoA 镜像状态; 两种解读均呈现) |
+| §C 非湖泊分支按位逐项对比 | PASS (L160–L170 引出; 仅枚举有意分歧) |
+| §D 受影响案例 (qhh, heihe, heihe_x4) + 量级 + bitwise 影响 | PASS |
 | §E verdict | **VERDICT ISSUED — E2 ("formula correct, no change") by DankerMu as PI delegate, 2026-06-22 PR-19 #210** |
-| design.md D9 fast-path trigger #2 status | **TRIGGERED in PR-19 #210 — `B1-tag` annotated tag created aliasing main HEAD** |
-| design.md Open Q1 (PI delegate qualification) | **CLOSED — PI delegate = `SHUD-System/SHUD` upstream organization owner (DankerMu holds this role); three-surface sign-off pattern (issue comment + audit doc §E + SHUD CHANGELOG addendum)** |
-| Out-of-scope items explicit | PASS (no #186 fix code — SKIP retroactively consistent with PI E2; #205 RESOLVED via PR-18 #209; SoA/AoS coherence cleared for P-strict pre-req) |
+| design.md D9 fast-path 触发条件 #2 状态 | **TRIGGERED in PR-19 #210 — `B1-tag` annotated tag created aliasing main HEAD** |
+| design.md Open Q1 (PI 代理资格) | **CLOSED — PI delegate = `SHUD-System/SHUD` upstream organization owner (DankerMu holds this role); three-surface sign-off pattern (issue comment + audit doc §E + SHUD CHANGELOG addendum)** |
+| 范围外项已明确 | PASS (未引入 #186 修复代码 — SKIP 追溯性与 PI E2 一致; #205 已由 PR-18 #209 关闭; SoA/AoS 一致性已为 P-strict 前置条件清理) |

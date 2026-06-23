@@ -1,46 +1,31 @@
-# P1 full-run output regression bitwise validation — Mac 4 case
+# P1 阶段全运行输出回归按位一致性验证 — Mac 4 案例
 
-## Scope (tasks.md L52-L55 / spec L143-L161)
+## 验证范围 (tasks.md L52-L55 / spec L143-L161)
 
-Per `openspec/changes/p1-update-omp/tasks.md` L54:
+依 `openspec/changes/p1-update-omp/tasks.md` L54：
 
 > 5.3 Mac 本地 4 case 用 P1 候选 commit 跑 `tools/archive_b0_output.sh <case> 3`
 >     完成 3-run 自洽 + 完整 run canonical summary SHA ≡ B1b/B1-tag baseline
 >     + CVODE 15-key stats identical
 
-Precision level: **A1 (refactor equivalence)** per master plan §2.2 —
-serial `shud` binary built off the P1 candidate commit must reproduce the
-B1b canonical summary SHA bitwise. This is the same canonical-SHA gate
-applied at B0/B1a/B1b archival (`docs/status_matrix.md` L13/L64/L93/L132/L155).
+精度等级：**A1（重构等价 / refactor equivalence）**，依 master plan §2.2。以 P1 候选 commit 编译产出的串行 (serial) `shud` 二进制须按位再现 B1b 规范 (canonical) 汇总 SHA。此门控与 B0 / B1a / B1b 归档阶段所采用的规范 SHA 门控完全一致（参见 `docs/status_matrix.md` L13 / L64 / L93 / L132 / L155）。
 
-- 4 Mac case × `tools/archive_b0_output.sh <case> 3`
-- Two gates per case:
-  - **G1 self-determinism**: 3-run canonical summary SHA identical
-  - **G2 vs B1b**: canonical summary SHA ≡
-    `benchmarks/<case>/B0_output/repeatability.txt sha256_run1`
-- SHUD pin: `07c677f` (3-pragma stack — PR-D element + PR-E river + PR-F lake)
-- Binary: `SHUD/shud` (serial; built `make shud`).  CI
-  `serial-baseline / build-and-compare` exercises this same binary +
-  same gate per `.github/workflows/serial-baseline.yml` L699/L917.
+1. 4 个 Mac 案例 × `tools/archive_b0_output.sh <case> 3` 三轮归档脚本。
+2. 每个案例设两项门控：
+   - **G1 自洽 (self-determinism)**：3 轮运行的规范汇总 SHA 互相一致。
+   - **G2 对标 B1b**：规范汇总 SHA 等于 `benchmarks/<case>/B0_output/repeatability.txt` 字段 `sha256_run1`。
+3. SHUD pin：`07c677f`（即三 pragma 栈 — PR-D element + PR-E river + PR-F lake）。
+4. 二进制：`SHUD/shud`（串行；以 `make shud` 构建）。CI `serial-baseline / build-and-compare` 通过 `.github/workflows/serial-baseline.yml` L699 / L917 调用同一二进制与同一门控。
 
-## Tag chain & golden source
+## Tag 链与黄金来源
 
-- B0 ≡ B1a ≡ B1b ≡ B1 per `docs/status_matrix.md` L107-L113 +
-  L155 (4 Mac case canonical SHA chain).
-- Golden source: `benchmarks/<case>/B0_output/repeatability.txt` field
-  `sha256_run1` (set at B0-tag archive, frozen through B1a/B1b).
-- Canonical SHA algorithm (= `tools/archive_b0_output.sh` lines 109-117 +
-  318-362): per-file SHA256 over the manifest `output_files` set that
-  was actually produced by the run + `cvode_stats.txt`, written one
-  `<hash>  <path>` per line to `/tmp/<case>_run<N>.sha256`; the canonical
-  summary is SHA256 of that hash-file's bytes.
+1. `B0 ≡ B1a ≡ B1b ≡ B1`，依 `docs/status_matrix.md` L107-L113 + L155（4 Mac case canonical SHA chain）。
+2. 黄金来源：`benchmarks/<case>/B0_output/repeatability.txt` 之 `sha256_run1` 字段，于 B0-tag 归档时设定，至 B1a / B1b 期间冻结。
+3. 规范 SHA 算法（即 `tools/archive_b0_output.sh` 第 109-117 行 + 318-362 行所定义）：先按 manifest `output_files` 集合对此次运行实际产出的文件 + `cvode_stats.txt` 各取 SHA256，按 `<hash>  <path>` 每行一条写入 `/tmp/<case>_run<N>.sha256`；规范汇总即对该哈希清单文件字节内容再取一次 SHA256。
 
-## Archive subset honest-disclosure
+## 归档子集诚实披露
 
-The manifest `output_compare.output_files` field lists 6 / 6 / 6 / 9 dat
-files per case (= §S0.13 spec-layer forward placeholder).  `cfg.para
-DT_*=0` disables most channels by deployment default, so the **physically
-produced** archive subset captured by the canonical SHA is:
+manifest 字段 `output_compare.output_files` 列出各案例 6 / 6 / 6 / 9 个 dat 文件（即 §S0.13 spec 层前向占位）。`cfg.para DT_*=0` 在部署默认下禁用了大部分通道，故规范 SHA 实际覆盖的**物理产出**子集为：
 
 | case | files actually hashed under canonical SHA |
 |---|---|
@@ -49,15 +34,9 @@ produced** archive subset captured by the canonical SHA is:
 | qinyijiang | `nanlin.rivqdown.dat` + `cvode_stats.txt`                            (2) |
 | qhh | `qhh.rivqdown.dat` + `qhh.lakystage.dat` + `qhh.lakqrivin.dat` + `qhh.lakqrivout.dat` + `cvode_stats.txt` (5) |
 
-The remaining manifest entries (`eleysurf`/`eleyunsat`/`eleysnow`/`eleygw`
-where DT_*=0, `rivystage`, `flood.csv`) are not produced by SHUD with
-current `cfg.para` settings — `archive_b0_output.sh` (line 340-348) +
-B0-tag `missing_manifest_files` field record this pre-existing NWM
-deployment gap (see S0-4 / issue #11).  The single canonical summary SHA
-covers what is actually produced; that is the historical B0/B1a/B1b
-gate and what `sha256_run1` records.
+manifest 中其余条目（`DT_*=0` 状态下的 `eleysurf` / `eleyunsat` / `eleysnow` / `eleygw`、`rivystage`、`flood.csv`）在当前 `cfg.para` 配置下不会由 SHUD 产出 — `archive_b0_output.sh`（第 340-348 行）及 B0-tag 之 `missing_manifest_files` 字段已记录此 NWM 部署遗留缺口（详见 S0-4 / issue #11）。单一规范汇总 SHA 仅覆盖实际产出的文件；此即 B0 / B1a / B1b 历史门控的范畴，也是 `sha256_run1` 所记录的对象。
 
-## 4-case × 2-gate matrix
+## 4 案例 × 2 门控矩阵
 
 | case | new canonical SHA | golden sha256_run1 | G1 self-det | G2 vs B1b |
 |---|---|---|---|---|
@@ -66,14 +45,11 @@ gate and what `sha256_run1` records.
 | qinyijiang | `383e4099d6f71acfa31b8006fab946cf05c255c6dedae7de24273f90b322b174` | `383e4099d6f71acfa31b8006fab946cf05c255c6dedae7de24273f90b322b174` | PASS | PASS |
 | qhh | `3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e` | `3a86e24c1b6a3a0cf71300c1e32cd9013e69e9effd1c543c285ac714d2cf2c9e` | PASS | PASS |
 
-**Aggregate: G1 self-determinism 4/4 PASS · G2 vs B1b 4/4 PASS = 8/8 PASS.**
+**汇总：G1 自洽 4 / 4 PASS · G2 对标 B1b 4 / 4 PASS = 8 / 8 PASS。**
 
-## CVODE 15-key stats identical (issue #220 acceptance L9)
+## CVODE 15 键统计按位一致 (issue #220 验收项 L9)
 
-`tools/cvode_stats_diff/cvode_stats_diff.sh <new> <golden>` against
-each case's new `cvode_stats.txt` (from run 3 — the last run of the
-`archive_b0_output.sh <case> 3` invocation) vs
-`benchmarks/<case>/B0_output/cvode_stats.txt`:
+以 `tools/cvode_stats_diff/cvode_stats_diff.sh <new> <golden>` 对每个案例新生成的 `cvode_stats.txt`（取自 `archive_b0_output.sh <case> 3` 的第 3 轮运行）与 `benchmarks/<case>/B0_output/cvode_stats.txt` 进行比对：
 
 | case | cvode_stats_diff exit | verdict |
 |---|---:|---|
@@ -82,12 +58,9 @@ each case's new `cvode_stats.txt` (from run 3 — the last run of the
 | qinyijiang | 0 | PASS |
 | qhh | 0 | PASS |
 
-All 15 canonical CVODE keys (`nfe / nfeLS / nni / nli / nsetups / netf
-/ nst / npe / nps / ncfn / ncfl / lenrw / leniw / lenrwLS / leniwLS`,
-per `tools/cvode_stats_diff/canonical_15_keys.yaml` + design D10) byte-
-identical between new run and B1b golden across all 4 case.
+CVODE 全部 15 个规范键 (`nfe / nfeLS / nni / nli / nsetups / netf / nst / npe / nps / ncfn / ncfl / lenrw / leniw / lenrwLS / leniwLS`，依 `tools/cvode_stats_diff/canonical_15_keys.yaml` + design D10) 在全部 4 个案例上、新运行与 B1b 黄金之间逐字节相同。
 
-## Per-case wall times (90d × 3 run, NUM_OPENMP=1, serial shud)
+## 各案例 wall 时间 (90 天 × 3 轮，NUM_OPENMP=1，串行 shud)
 
 | case | run1 (s) | run2 (s) | run3 (s) |
 |---|---:|---:|---:|
@@ -96,53 +69,28 @@ identical between new run and B1b golden across all 4 case.
 | qinyijiang | 242 | 239 | 238 |
 | qhh | 83 | 86 | 91 |
 
-(host: Darwin 24.6.0 arm64, Apple Silicon Mac local; dev-only numbers,
-not §1.1.1 acceptance.)
+（宿主：Darwin 24.6.0 arm64，Apple Silicon Mac 本地；属开发期参考数据，不构成 §1.1.1 验收数据。）
 
-## Cross-link — three independent evidence streams for A0/A1 verification
+## 交叉链接 — A0 / A1 验证三股独立证据流
 
-1. **PR-H canonical RHS snapshot bitwise** (mid-state, `docs/p1_rhs_snapshot_bitwise.md`)
-   — 12/12 PASS for Mac 4 case at NUM_OPENMP=1 vs B1b RHS dumps
-   (`shud_omp` with `SHUD_DUMP_RHS=1`).
-2. **PR-I full-run canonical summary SHA bitwise** (this document)
-   — 4/4 PASS for Mac 4 case at NUM_OPENMP=1 vs B1b archived
-   `sha256_run1` (`shud` serial via `tools/archive_b0_output.sh`).
-3. **CI `serial-baseline / build-and-compare(keliya)`** has gone GREEN
-   on every PR-D / PR-E / PR-F / PR-H merge (≥ 7 GREEN runs) using the
-   same `make shud` + per-`*.dat` SHA256 gate
-   (`.github/workflows/serial-baseline.yml` L905-L955).
+1. **PR-H 规范 RHS 快照按位一致**（中段状态，`docs/p1_rhs_snapshot_bitwise.md`）— Mac 4 案例在 NUM_OPENMP=1 下对标 B1b RHS dumps 取得 12 / 12 PASS（以 `SHUD_DUMP_RHS=1` 编入的 `shud_omp`）。
+2. **PR-I 全运行规范汇总 SHA 按位一致**（本文档）— Mac 4 案例在 NUM_OPENMP=1 下对标 B1b 归档 `sha256_run1` 取得 4 / 4 PASS（串行 `shud`，经 `tools/archive_b0_output.sh` 调用）。
+3. **CI `serial-baseline / build-and-compare(keliya)`** — 在 PR-D / PR-E / PR-F / PR-H 历次合并上保持 GREEN（≥ 7 次 GREEN 运行），采用同一 `make shud` 编译路径与逐 `*.dat` SHA256 门控（`.github/workflows/serial-baseline.yml` L905-L955）。
 
-Combined, A0/A1 baseline preservation under the 3-pragma stack
-(PR-D element loop + PR-E river loop + PR-F lake loop) is corroborated by
-three orthogonal gates: mid-RHS snapshot bitwise, end-of-run canonical
-summary bitwise, and per-file CI byte-compare.
+综合三股证据，三 pragma 栈（PR-D 单元循环 + PR-E 河道循环 + PR-F 湖泊循环）下 A0 / A1 基线保持性 (baseline preservation) 由三个正交门控共同佐证：中段 RHS 快照按位一致、运行结束规范汇总按位一致、以及 CI 逐文件字节比对。
 
-## OMP-runtime sub-note (not a gate)
+## OMP runtime 子注（非门控项）
 
-For completeness — `shud_omp @ OMP_NUM_THREADS=1` (the OpenMP runtime
-binary with `-fopenmp` linked + the 3-pragma stack active) does NOT
-match the serial `sha256_run1` golden bitwise across the 4 cases
-(observed canonical SHAs: keliya `9365d812…`, xj_up `b49722dc…`,
-qinyijiang `98a91323…`, qhh `8ef63a56…`; all 3-run self-deterministic).
-This is expected and not a regression:
+为求完整性补充：`shud_omp @ OMP_NUM_THREADS=1`（即链入 `-fopenmp` 的 OpenMP runtime 二进制 + 启用三 pragma 栈）在 4 个案例上**不**与串行 `sha256_run1` 黄金按位一致（实测规范 SHA：keliya `9365d812…`、xj_up `b49722dc…`、qinyijiang `98a91323…`、qhh `8ef63a56…`；均满足 3 轮自洽）。此乃预期现象，不构成回归：
 
-- B0/B1a/B1b golden was archived from the serial `shud` binary
-  (`binary: …/SHUD/shud` recorded in each `repeatability.txt`).
-- `shud_omp` links the OMP runtime and activates `#pragma omp parallel
-  for` regions even at one thread — the reduction tree, loop scheduler,
-  and FMA selection differ from the no-`-fopenmp` serial path.
-- Master plan §2.2 A0 / A1 gates compare **serial vs serial**; OMP-binary
-  full-run bitwise is the A3a gate (P7 strict), and even there §2.2
-  requires "**same-thread** bitwise" (NUM_OPENMP=N vs NUM_OPENMP=N),
-  not NUM_OPENMP=1 (OMP) vs serial.
-- The OMP-runtime `shud_omp @ N=1` is exercised against B1b at the
-  RHS snapshot (mid-state) level by PR-H (12/12 PASS) — that is the
-  P1 / A2 precision gate per master plan §2.2.
+1. B0 / B1a / B1b 黄金均由串行 `shud` 二进制归档（各 `repeatability.txt` 字段 `binary: …/SHUD/shud` 已记载）。
+2. `shud_omp` 链入 OMP runtime 并在单线程下仍激活 `#pragma omp parallel for` 区域 — 归约树、循环调度器、FMA 选择与无 `-fopenmp` 串行路径不同。
+3. Master plan §2.2 之 A0 / A1 门控仅比对**串行 vs 串行**；OMP 二进制全运行按位一致属 A3a 门控（P7 严格阶段），即便如此 §2.2 也要求"**同线程数**按位一致"（NUM_OPENMP=N vs NUM_OPENMP=N），并非 NUM_OPENMP=1 (OMP) 对 serial。
+4. `shud_omp @ N=1` 与 B1b 的对比在 RHS 快照（中段状态）层面已由 PR-H 完成（12 / 12 PASS）— 即 master plan §2.2 中 P1 / A2 精度门控之所在。
 
-This sub-note documents the observed numerical equality boundary
-between the two binaries; it does not enter the PR-I verdict.
+本子注用以记录两种二进制的数值相等边界 (numerical equality boundary)，不计入 PR-I 判定。
 
-## Reproduce
+## 复现
 
 ```bash
 cd /Users/danker/Desktop/Hydro-SHUD/openMP/SHUD && make shud
@@ -155,93 +103,66 @@ for c in keliya xinanjiang_upstream qinyijiang qhh; do
 done
 ```
 
-Driver script + per-case archive logs preserved under
-`.s2-103/pr-i/` (gitignored scratch tree).
+驱动脚本及各案例归档日志保留于 `.s2-103/pr-i/`（gitignored scratch tree）。
 
-## Signing
+## 签署
 
 - signed_at: 2026-06-22
 - signer: DankerMu
-- signed_against_outer_commit: `3fb14ee` (main HEAD at PR-I start;
-  PR-H capstone `docs(p1): review-loop-log — #219 PR-H capstone`)
-- signed_against_SHUD_commit: `07c677f` (P1 3-pragma stack;
-  PR-F `[#218 PR-F] MD_update.cpp lake loop #pragma omp parallel for`)
-- gate: A1 refactor equivalence (serial `shud` vs B1b) — 4/4 case
-  canonical summary SHA bitwise PASS, 4/4 case 3-run self-determinism
-  PASS = **8/8 PASS**.
+- signed_against_outer_commit: `3fb14ee`（PR-I 起始时 main HEAD；PR-H 收口 commit `docs(p1): review-loop-log — #219 PR-H capstone`）
+- signed_against_SHUD_commit: `07c677f`（P1 三 pragma 栈；PR-F `[#218 PR-F] MD_update.cpp lake loop #pragma omp parallel for`）
+- gate: A1 重构等价（串行 `shud` vs B1b）— 4 / 4 案例规范汇总 SHA 按位 PASS，4 / 4 案例 3 轮自洽 PASS = **8 / 8 PASS**。
 
 ---
 
-## Server section (heihe + heihe_x4) — PR-J #221
+## 服务器章节 (heihe + heihe_x4) — PR-J #221
 
-### Scope (spec L136-L142; tasks 5.5-5.6)
+### 范围 (spec L136-L142；tasks 5.5-5.6)
 
-Per `openspec/changes/p1-update-omp/tasks.md` L57-L58 (server full-run
-bitwise vs B1b @ NUM_OPENMP=1):
+依 `openspec/changes/p1-update-omp/tasks.md` L57-L58（服务器全运行按位 vs B1b @ NUM_OPENMP=1）：
 
 > 5.5 server cn0X 跑 `tools/archive_b0_output.sh heihe 3` + canonical
 >     summary SHA ≡ B1b golden
 > 5.6 server cn0X 跑 `tools/archive_b0_output.sh heihe_x4 3` + canonical
 >     summary SHA ≡ B1b golden
 
-Precision level: **A1 (refactor equivalence)** per master plan §2.2 —
-serial `shud` on server GCC strict-FP toolchain must reproduce the
-B1b `sha256_run1` bitwise on **2 server case** (heihe NumEle=6335 +
-heihe_x4 ~25k via rSHUD v2.5 4× mesh refine). Same algorithm + same
-script as Mac PR-I (`tools/archive_b0_output.sh`), exercising the
-3-pragma stack at NUM_OPENMP=1 where pragmas are no-op (serial build
-has `-fopenmp` NOT linked — see triple-grep gate below).
+精度等级：**A1（重构等价）**，依 master plan §2.2。服务器 GCC 严格浮点工具链上的串行 `shud` 须在 **2 个服务器案例**（`heihe`，NumEle = 6335；`heihe_x4` 约 25k，由 rSHUD v2.5 4× 网格加密生成）上按位再现 B1b 之 `sha256_run1`。算法与脚本与 Mac PR-I 完全相同 (`tools/archive_b0_output.sh`)，并在 NUM_OPENMP=1 下间接演练三 pragma 栈（串行构建未链入 `-fopenmp`，参见下方三 grep 门控）。
 
-This section completes the §1.1.1 server-side acceptance leg of P1:
-Mac PR-I covered the 4 dev-only case for refactor equivalence; PR-J
-covers the 2 production-scale case for **server-platform A1
-verification**.
+本章节完成 P1 §1.1.1 之服务器侧验收支：Mac PR-I 覆盖 4 个开发期案例的重构等价；PR-J 覆盖 2 个生产规模 (production-scale) 案例的**服务器平台 A1 验证**。
 
-### Slurm three-iron-rule compliance
+### Slurm 三铁律合规
 
-Per `CLAUDE.md` server policy:
+依 `CLAUDE.md` 服务器策略：
 
-1. ✓ `sbatch` submitted from `/scratch/frd_muziyao/SHUD-OpenMP/.s221-runs/`
-   (not `/users/$USER` — policy block)
-2. ✓ `#SBATCH --output / --error` paths under `/scratch` shared FS
-   (not compute node `/tmp` — would be lost on job end, manifest as
-   ExitCode 127)
-3. ✓ Script + binary references (`tools/archive_b0_output.sh`,
-   `SHUD/shud`) live in `/scratch`, not `/tmp`
+1. ✓ `sbatch` 由 `/scratch/frd_muziyao/SHUD-OpenMP/.s221-runs/` 提交（非 `/users/$USER`，否则触发 policy 拦截）。
+2. ✓ `#SBATCH --output / --error` 路径位于 `/scratch` 共享文件系统（非 compute node 的 `/tmp`，否则作业结束即丢失，表现为 ExitCode 127）。
+3. ✓ 脚本与二进制引用 (`tools/archive_b0_output.sh`、`SHUD/shud`) 均位于 `/scratch` 而非 `/tmp`。
 
-Scratch tree: `/scratch/frd_muziyao/SHUD-OpenMP/.s221-runs/` (dot-
-prefixed → auto-gitignored). Local mirror of stdout + new/golden
-`repeatability.txt` under `.s2-103/pr-j/`.
+Scratch 树：`/scratch/frd_muziyao/SHUD-OpenMP/.s221-runs/`（dot-prefixed → 自动 gitignored）。stdout 与新旧 `repeatability.txt` 本地镜像置于 `.s2-103/pr-j/`。
 
-### 2-case × 2-gate matrix
+### 2 案例 × 2 门控矩阵
 
 | case | NumEle | new canonical sha256_run1 | golden sha256_run1 | G1 self-det | G2 vs B1b | jobid | Elapsed | node |
 |---|---:|---|---|---|---|---|---|---|
 | heihe | 6335 | `675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67` | `675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67` | PASS | PASS | 8794 | 00:27:18 | cn03 |
 | heihe_x4 | ~25000 | `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` | `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` | PASS | PASS | 8795 | 01:08:45 | cn03 |
 
-**Aggregate: G1 self-determinism 2/2 PASS · G2 vs B1b 2/2 PASS = 4/4 PASS.**
+**汇总：G1 自洽 2 / 2 PASS · G2 对标 B1b 2 / 2 PASS = 4 / 4 PASS。**
 
-Both cases archived 3 identical SHAs across runs (G1) and matched the
-B1b-tag-era golden `sha256_run1` bitwise (G2) — same hash field as
-recorded at original archive in `benchmarks/<case>/B0_output/repeatability.txt`.
+两个案例 3 轮归档的 SHA 完全一致（G1），且与 B1b-tag 期归档的黄金 `sha256_run1` 按位一致（G2）— 该哈希字段与原归档时 `benchmarks/<case>/B0_output/repeatability.txt` 所记录的字段相同。
 
-### Per-case 3-run walls (90d × NUM_OPENMP=1, serial shud on cn03)
+### 各案例 3 轮 wall 时间 (90 天 × NUM_OPENMP=1，串行 shud 于 cn03)
 
 | case | run1 (s) | run2 (s) | run3 (s) | mean (s) |
 |---|---:|---:|---:|---:|
 | heihe | 545 | 534 | 537 | 539 |
 | heihe_x4 | 1367 | 1366 | 1370 | 1368 |
 
-cn03 vs original B1b archive host (Linux 6.8.0-90 / 6.8.0-49) — same
-kernel family, walls within ~5% of golden-era 522/505/528s (heihe)
-and 1216/1211/1214s (heihe_x4). Wall delta is unrelated to numerical
-output (bitwise PASS already covers numerical equivalence).
+cn03 与原 B1b 归档宿主 (Linux 6.8.0-90 / 6.8.0-49) 属同一内核家族，wall 时间偏离黄金期 522 / 505 / 528 s (heihe) 与 1216 / 1211 / 1214 s (heihe_x4) 约 5%。Wall 偏差与数值输出无关（按位 PASS 已覆盖数值等价）。
 
-### Server compile — strict FP triple-grep gate
+### 服务器编译 — 严格浮点三 grep 门控
 
-`make clean && make shud` on server (`/scratch/frd_muziyao/SHUD-OpenMP/SHUD`),
-log captured at `.s221-runs/make_shud_server.log`:
+`make clean && make shud` 于服务器 (`/scratch/frd_muziyao/SHUD-OpenMP/SHUD`) 执行，日志保留于 `.s221-runs/make_shud_server.log`：
 
 | flag | grep -c | required | verdict |
 |---|---:|---:|---|
@@ -249,32 +170,21 @@ log captured at `.s221-runs/make_shud_server.log`:
 | `-ffp-contract=off` | 2 | ≥ 1 (disable FMA contraction) | PASS |
 | `-fno-fast-math` | 2 | ≥ 1 (disable relaxed FP) | PASS |
 
-Compile cmd (sample): `g++ -O2 -g -ffp-contract=off -fno-fast-math
--std=c++14 …` — identical FP-determinism flag set as Mac toolchain;
-GCC vs clang produce different binary SHA (`3e9e5629…` server vs
-`00ea9d80…` original B1b archive) but **output is bitwise identical**
-because both compilers honor the same strict-FP envelope at NUM_OPENMP=1.
+编译命令样例：`g++ -O2 -g -ffp-contract=off -fno-fast-math -std=c++14 …`，浮点确定性旗标集合与 Mac 工具链完全一致；GCC 与 clang 产生不同二进制 SHA（服务器 `3e9e5629…` vs 原 B1b 归档 `00ea9d80…`），然而 NUM_OPENMP=1 下两编译器在同一严格浮点封套内均产出**按位一致的输出**。
 
-### Cross-link — three independent server evidence streams
+### 交叉链接 — 服务器三股独立证据流
 
-1. **PR-B #213 trim bitwise vs B0-tag** (single-`rivqdown.dat` SHA;
-   different hash layer than canonical summary):
-   - heihe: `55abad28…`
-   - heihe_x4: `f90601ef…`
-2. **PR-J #221 full-run canonical summary SHA bitwise vs B1b** (this section):
-   - heihe: `675c927c…b95ba8a67`
-   - heihe_x4: `3fbcbd5c…fea646c06`
-3. **CI `serial-baseline / build-and-compare(keliya)`** consistently GREEN
-   on PR-D / PR-E / PR-F / PR-H / PR-I merges.
+1. **PR-B #213 trim 按位 vs B0-tag**（单文件 `rivqdown.dat` SHA，与规范汇总属不同哈希层级）：
+   - heihe：`55abad28…`
+   - heihe_x4：`f90601ef…`
+2. **PR-J #221 全运行规范汇总 SHA 按位 vs B1b**（本章节）：
+   - heihe：`675c927c…b95ba8a67`
+   - heihe_x4：`3fbcbd5c…fea646c06`
+3. **CI `serial-baseline / build-and-compare(keliya)`** 于 PR-D / PR-E / PR-F / PR-H / PR-I 历次合并均保持 GREEN。
 
-PR-B exercises per-file numerical fidelity at single output channel;
-PR-J exercises the full archive's canonical summary (hash of hash-file)
-covering all produced channels + `cvode_stats.txt`. Different hash
-algorithms, same A1 baseline preservation conclusion. trim cfg.para 90d
-window did not perturb numerical output → bitwise stable across PR-A/B
-forcing trim plumbing + PR-D/E/F 3-pragma stack.
+PR-B 演练单输出通道的逐文件数值保真度；PR-J 演练整个归档之规范汇总（哈希清单的再哈希），覆盖所有实际产出通道 + `cvode_stats.txt`。两者哈希算法不同，但 A1 基线保持性结论一致。M7 forcing trim 90 天窗口未扰动数值输出 → 在 PR-A / B forcing trim 管线 + PR-D / E / F 三 pragma 栈下保持按位稳定。
 
-### Reproduce
+### 复现
 
 ```bash
 # On server, from /scratch (Slurm three-iron-rule):
@@ -291,21 +201,13 @@ sbatch run_heihe_x4.sbatch    # jobid 8795
 # file clean). New-run repeatability saved to .s221-runs/<case>_new_repeatability.txt.
 ```
 
-sbatch scripts + Slurm logs + new/golden `repeatability.txt` preserved
-under `.s221-runs/` on server and mirrored to `.s2-103/pr-j/` locally
-(both gitignored scratch trees).
+sbatch 脚本、Slurm 日志、以及新旧 `repeatability.txt` 保留于服务器 `.s221-runs/`，并镜像至本地 `.s2-103/pr-j/`（均为 gitignored scratch tree）。
 
-### Signing — server section
+### 签署 — 服务器章节
 
 - signed_at: 2026-06-22
 - signer: DankerMu
-- signed_against_outer_commit: `fac3da0` (main HEAD at PR-J start;
-  PR-I capstone `docs(p1): review-loop-log — #220 PR-I capstone (Mac 4-case full-run 8/8 PASS)`)
-- signed_against_SHUD_commit: `07c677f` (P1 3-pragma stack;
-  PR-F `[#218 PR-F] MD_update.cpp lake loop #pragma omp parallel for`)
-- server binary: `SHUD/shud` (serial, no `-fopenmp`),
-  `sha256 = 3e9e56295528b0399aff928d1b44d708da87b37777ea81e0de216a3d12a975f3`
-  on cn03 (Linux 6.8.0-90-generic x86_64, GCC strict FP)
-- gate: A1 refactor equivalence (server serial `shud` vs B1b) — 2/2 case
-  canonical summary SHA bitwise PASS, 2/2 case 3-run self-determinism
-  PASS = **4/4 PASS**.
+- signed_against_outer_commit: `fac3da0`（PR-J 起始时 main HEAD；PR-I 收口 commit `docs(p1): review-loop-log — #220 PR-I capstone (Mac 4-case full-run 8/8 PASS)`）
+- signed_against_SHUD_commit: `07c677f`（P1 三 pragma 栈；PR-F `[#218 PR-F] MD_update.cpp lake loop #pragma omp parallel for`）
+- 服务器二进制：`SHUD/shud`（串行，无 `-fopenmp`），`sha256 = 3e9e56295528b0399aff928d1b44d708da87b37777ea81e0de216a3d12a975f3`，于 cn03（Linux 6.8.0-90-generic x86_64，GCC 严格浮点）。
+- gate: A1 重构等价（服务器串行 `shud` vs B1b）— 2 / 2 案例规范汇总 SHA 按位 PASS，2 / 2 案例 3 轮自洽 PASS = **4 / 4 PASS**。
