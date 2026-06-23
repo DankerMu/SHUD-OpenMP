@@ -4,9 +4,9 @@
 **日期**：2026-06-23  
 **Tag**：`P1c-tag` (annotated, SHA `1da5eb97`, deref `4b8c60a`, SHUD pin `3a0004c`)  
 **基线分支**：`baseline/P1c` (已 lock; `lock_branch=true + enforce_admins=true + allow_force_pushes=false + allow_deletions=false`)  
-**Epic**: [SHUD-OpenMP #243](https://github.com/DankerMu/SHUD-OpenMP/issues/243) — CLOSED with PARTIAL CLOSURE + P9 carve-out  
+**Epic**: [SHUD-OpenMP #243](https://github.com/DankerMu/SHUD-OpenMP/issues/243) — CLOSED with PARTIAL CLOSURE + P1d carve-out  
 **前置基线**：`P1-update-omp-tag` (commit `003f58d` / SHUD pin `07c677f`)  
-**后续阶段**：P2a (J0/J1 OMP scheduling refinement + RHS micro-fusion) + P9 (上游 writer first-touch / NUMA-affinity 治理)
+**后续阶段**：P2a (J0/J1 OMP scheduling refinement + RHS micro-fusion) + P1d (上游 writer first-touch / NUMA-affinity 治理)
 
 ---
 
@@ -24,7 +24,7 @@
 5. **wall-clock 反常改善** — `heihe_x4` N=8 实测墙钟时间 −22.9%，与设计阶段 R2 假设 (Neumaier 注入引入 +1-3% 性能下降) 相反；归因于 Kahan 改变 CVODE 收敛路径 → 减少 SPGMR 线性求解失败 (ncfl)，间接抵消 Neumaier 算术开销；
 6. **NUM_OPENMP=1 二进制反向兼容性 trade-off** — Kahan 注入在 serial 路径下亦改变累加顺序，故 `baseline/P1c` HEAD (Kahan-injected) 与 `P1-update-omp-tag` 在 N=1 二进制层面不再字节等同；但 D11 tag 不可变性 (`P1-update-omp-tag` 自身 SHA `ff21c75c` 不变) 保持。
 
-最终结论为 **PARTIAL CLOSURE + P9 carve-out**：8 站点确定性归约的设计 Requirement 已闭环，但 bit-level A3a 跨线程 + `nst Δ=0` 跨线程不在 P1c 阶段闭合，按 master plan §3 fallback option 2 + spec L100-L103 carve-out Scenario 推 P9 stage 治理上游 writer 噪声。本报告同时论证：P9 不是 P2a 的前置依赖，P2a 可独立启动。
+最终结论为 **PARTIAL CLOSURE + P1d carve-out**：8 站点确定性归约的设计 Requirement 已闭环，但 bit-level A3a 跨线程 + `nst Δ=0` 跨线程不在 P1c 阶段闭合，按 master plan §3 fallback option 2 + spec L100-L103 carve-out Scenario 推 P1d stage 治理上游 writer 噪声。本报告同时论证：P9 不是 P2a 的前置依赖，P2a 可独立启动。
 
 P1c epic 由 13 个 PR (`PR-A` … `PR-M`) 与 1 个 annotated tag 收束，在单日 (2026-06-22 → 2026-06-23) 内完成 epic-burst (含 16 个 Slurm cell 服务器实测 + 13 次平均 review 轮次 + 1 次 R3 retry)。
 
@@ -97,7 +97,7 @@ P1c epic (#243) 拆为 13 个 sub-issue (#244..#256, PR-A..PR-M)：诊断 + 8 �
 - **R6** 是双视角文档（pre-Kahan / Kahan-injected），不作 SHALL；
 - **R7** 是 capstone 收束。
 
-R4 / R5 出现"实测不通过但仍可接受"的情况（即 carve-out 推 P9），按 master plan §3 fallback option 2 + spec L100-L103 Scenario 处理。
+R4 / R5 出现"实测不通过但仍可接受"的情况（即 carve-out 推 P1d），按 master plan §3 fallback option 2 + spec L100-L103 Scenario 处理。
 
 ---
 
@@ -184,7 +184,7 @@ sum = t;
 | 分支 | 描述 | 后续动作 |
 |---|---|---|
 | 1 | 漂移源**在** 8 站点 reduction 内部 | helper-wrap 改造即闭合，无需扩 spec scope |
-| 2 | 漂移源**在** 8 站点**外** (上游 writer noise) | 8 站点改造仍推进作通用 ULP 噪声阻断；同步 carve-out 推 P9 |
+| 2 | 漂移源**在** 8 站点**外** (上游 writer noise) | 8 站点改造仍推进作通用 ULP 噪声阻断；同步 carve-out 推 P1d |
 | 3 | 8 站点改造与漂移源无因果链 | STOP P1c 推进；回退 master plan §6 P1c.1 候选 (c) Deterministic OpenMP N_Vector |
 
 D9 终判依赖服务器 8 cell 实测（PR-H + PR-I）。
@@ -313,7 +313,7 @@ PR-I (#265) `git apply` `docs/p1c/p1c_kahan_patch.diff` 至 SHUD `de9545d → 3a
 
 - §4.4 A3a bitwise：FAIL pattern preserved；
 - §4.5 nst Δ=0：FAIL 但显著改善；
-- **PARTIAL CLOSURE** + carve-out 推 P9 (per master plan §3 fallback option 2 + spec L100-L103 Scenario)；
+- **PARTIAL CLOSURE** + carve-out 推 P1d (per master plan §3 fallback option 2 + spec L100-L103 Scenario)；
 - D9 决策分支 2 **CONFIRMED** — 漂移源头不在 8 站点 reduction 内部。
 
 ### 5.5 反向兼容验证 (PR-J)
@@ -414,19 +414,19 @@ D11 (design D11) 定义"tag SHA 永不变 + branch lock 不允许 force-push"。
 
 ---
 
-## 七、限制与未来工作 (P9 carve-out)
+## 七、限制与未来工作 (P1d carve-out)
 
 ### 7.1 已知限制 (5 项)
 
-1. **N≥4 bit-level A3a 仍 FAIL**：P1c 阶段未关闭，明确 carve-out 推 P9；
+1. **N≥4 bit-level A3a 仍 FAIL**：P1c 阶段未关闭，明确 carve-out 推 P1d；
 2. **NUM_OPENMP=1 binary-level reverse-compat 在 Kahan-injected `baseline/P1c` HEAD 上 FAIL**：D11 tag-level 保留，但 runtime binary 跨 P1 → P1c 不再字节等同；
-3. **`heihe_x4` `Δ_wall` 异常改善 (−22.9%)**：Kahan-injected 比 pre-Kahan 减少 15-23%，待 P2a/P9 阶段 cross-check P1 era PR-K1 wall baseline；
+3. **`heihe_x4` `Δ_wall` 异常改善 (−22.9%)**：Kahan-injected 比 pre-Kahan 减少 15-23%，待 P2a/P1d 阶段 cross-check P1 era PR-K1 wall baseline；
 4. **Mac D7 framing 部分过时**：spec L113 "Mac pass-while-server-fails" 在 P1c PR-F/H/I 经验上不成立 (Mac + server 同 fail-pattern)；spec 文本保留，PR-M PROMOTE 时不改 — 后续 P2a/P9 经验补充；
 5. **8935-8942 sbatch 首次提交数据丢失**：PR-I 操作记录 — 首次 sbatch template 含 `${ROOT}` 变量未被 sed 替换，scancel 前 `rm -rf ${RUN}` 已执行 → `.p1c-runs/` 首跑 scratch 销毁。源真值已固化在 PR-H 文档；重跑 8943-8950 修复后无影响。
 
 ### 7.2 P9 stage forward debt
 
-P9 stage (per master plan §3 P9 row) 的工作范围：
+P1d stage (per master plan §3 P9 row) 的工作范围：
 
 | Task | 描述 | 验收 |
 |---|---|---|
@@ -455,7 +455,7 @@ spec `p1c-deterministic-reduction` L154-157 定义 SHALL Scenario "Mac N=1 反�
 P9 stage T7 任务路径 (3 步)：
 
 1. P9 stage 重 `P1-update-omp-tag` binary 回 Mac 跑 NUM_OPENMP=1 → 4 case rivqdown.dat SHA，archive 进 `docs/p1_perf_baseline.md` 或新文档；
-2. P9 NUMA 治理后，用 P1c Kahan binary OR pre-Kahan binary 跑同 4 case → 与 step 1 比对；
+2. P1d NUMA 治理后，用 P1c Kahan binary OR pre-Kahan binary 跑同 4 case → 与 step 1 比对；
 3. 若 pre-Kahan PASS（期望，同 server PR-J §2）：证 Mac architecture 同 server bit-equivalent at serial；spec L154-157 Scenario closure。
 
 ---
@@ -467,7 +467,7 @@ P1c epic 提交以下贡献：
 1. **`MD_rhs_core.cpp` 8 站点 / 10 行 anchor 全部包装为 4 个 `static inline` helper**（fixed-shape canonical reduction），经 PR-J 服务器实测确认 helper 在 NUM_OPENMP=1 串行路径下与 P1 era 裸 `+=` 实现字节等同；
 2. **设计决策树 D9 终判**：漂移源头**不在** 8 站点 reduction 内部 (branch 1 REFUTED)，而在上游 parallel writer 的 first-touch / NUMA-affinity 异序写入 (branch 2 CONFIRMED)；8 站点 reduction 作 "噪声放大器"，本身改造对漂移有 ~63% 减幅但无法消除 (branch 3 PARTIALLY REFUTED)；
 3. **`heihe` `|Δ_nst|` 从 225 减至 84 (~63% 改善)** via Kahan 注入；同时 SPGMR 线性求解失败次数减少，间接得到 wall-clock 改善 (`heihe_x4` N=8 −22.9%)，REFUTE 设计 R2 性能下降估算 (+1-3%)；
-4. **PARTIAL CLOSURE + P9 carve-out**：8 站点确定性归约的 Requirement 闭环；bit-level A3a cross-N + `nst Δ=0` cross-N 推 P9 stage 治理上游 writer noise；
+4. **PARTIAL CLOSURE + P1d carve-out**：8 站点确定性归约的 Requirement 闭环；bit-level A3a cross-N + `nst Δ=0` cross-N 推 P1d stage 治理上游 writer noise；
 5. **`P1c-tag` annotated**：commit `4b8c60a` / SHUD pin `3a0004c`；`baseline/P1c` 已 lock；D11 不可变链 (`P1-update-omp-tag` + `B1-tag` + `B1a-tag` + `B1b-tag`) 完全保留；
 6. **`P1c-tag` 反向兼容 trade-off 公开化**：Kahan 注入在 serial 路径下亦改变累加顺序，故 `baseline/P1c` HEAD 在 NUM_OPENMP=1 二进制层面与 `P1-update-omp-tag` canonical SHA 不再字节等同；D11 tag 不可变性保留。
 
@@ -584,7 +584,7 @@ grep -rn '#pragma omp atomic' SHUD/src/
 | [`docs/stage-pipeline-log.jsonl`](../stage-pipeline-log.jsonl) | epic-pipeline 累积日志 (P1c 2 entries by PR-M) | meta |
 | `openspec/specs/p1c-deterministic-reduction/spec.md` | P1c deterministic-reduction Requirement (PROMOTE by PR-M) | spec |
 | `openspec/specs/p1c-capstone/spec.md` | P1c capstone Requirement (PROMOTE by PR-M) | spec |
-| `openspec/glossary.md` §"P1c deterministic-reduction baseline 集合" | 5 新术语 (P1c-tag / baseline/P1c / 4 helpers / Kahan held-in-reserve / P9 carve-out) | terminology |
+| `openspec/glossary.md` §"P1c deterministic-reduction baseline 集合" | 5 新术语 (P1c-tag / baseline/P1c / 4 helpers / Kahan held-in-reserve / P1d carve-out) | terminology |
 | `SHUD_openMP_master_plan.md` §6 P1c row | master plan P1c bucket + §3 fallback option 2 + §4 P1c.2 success gate | doctrine |
 
 ---
