@@ -100,10 +100,19 @@ SHUD 是一个全耦合水文模型，核心求解由 SUNDIALS/CVODE 驱动。�
 
 **对 §1.1.1 主表的影响**：T 列**保留为 P9 完成后**的目标；P7 strict 退出 go/no-go 用上方 Amdahl-bounded 表，差距由 P8 补齐（precond 降 Krylov 迭代数 + N_Vector 内部并行）。
 
+> **P1 实测注 (2026-06-22 / P1 epic capstone, PR-G #214 + PR-K2 #223)**：
+>
+> - **heihe**：M7 forcing trim 工具 (PR-A #212) 投产后，trimmed forcing 重测 (PR-G) 实测 `t_forcing_io = 1.90%` (远低于原 79%)，IO 主导假设解除；但 P1 实测 sp@8 = 1.08×，归因变更为 NumEle = 6335 这一 Medium 偏小规模下 OMP fork-join overhead 与 Amdahl serial fraction (B1b S2 P3–P5 owner-local gather 起点 serial) 主导。"不独立验收"条款字面保留，归因更新为 fork-join + serial-fraction 双重约束。
+> - **heihe_x4**：P1 实测 sp@8 = 1.14×，远低于 P7 strict M = 1.8×；P1 为 first OMP candidate (仅 `MD_update.cpp` 三处 owner loop)，未引入 S5d SoA、owner-local gather 并行、`OMP_CUTOFF`、N_Vector 并行；当前数据为 P1 起点报告 (master plan §1.1.2 + design D5 NG3 允许)，预期由 P2+/P7 阶段闭合至 M 列。
+> - 详见 `docs/p1_perf_baseline.md` §2、`docs/p1_summary.md` §5.2、`docs/profile_decision.md` 更新段。
+
 #### 1.1.2 约束条件
 
 - 串行与并行路径物理方程等价（同一套 RHS core）
-- strict 阶段：A3a 强制（同线程数 bitwise）+ A3b 强制（跨线程数 ULP 上界）；A3c 可选
+- strict 阶段精度等级 (按 P 子阶段分级)：
+  - **P1**（first parallel candidate baseline；2026-06-22 已实测）：`NUM_OPENMP=1` vs B1b/B1-tag bitwise **强制** (master plan §2.2 A0 / A1 + design `p1-update-omp` D5 NG3)；`NUM_OPENMP>1` 优先 A3a，若仅满足 A3b 或同时不满足 A3a 与 A3b 均不阻塞 P1 lock，但需在 `docs/p1_perf_baseline.md` 与 spec `p1-state-update-parallel` L205–L209 (PROMOTE 后版本) 记录 CVODE `nst` 漂移证据 + cross-ref P7 final-fusion deterministic-reduction work scope。
+  - **P2 至 P6**：默认沿用 P1 弱化规则，单 PR 视改造范围由 reviewer 决定是否在该子阶段升级为 strict；不设统一 A3a 强制要求。
+  - **P7 strict 退出门**：A3a 强制（同线程数 bitwise）+ A3b 强制（跨线程数 ULP 上界）；A3c 可选。
 - production 阶段精度在可解释的工程容差内，水量守恒不恶化
 - 不同流域规模档位的目标独立验收，小流域达不到 T 不阻塞中/大流域
 
@@ -1627,7 +1636,11 @@ heihe_x4 上 forcing init 占 wall **60%**，CVODE 实测仅 40%。若不解决�
 
 **禁止**：update 阶段不汇总跨 element/river/lake 的 flux；不做 debug print；不对共享计数器做非原子写。
 
-**验收标准（A2 → A3）**：P1 RHS snapshot 与 B1b bitwise identical；完整 run 与 B1b bitwise identical；CVODE stats identical。
+**验收标准（A2 → A3，按线程数分级；M8 修订）**：
+
+- **`NUM_OPENMP=1` 强制门**：P1 RHS snapshot 与 B1b bitwise identical；完整 run 与 B1b bitwise identical；CVODE stats identical（全部 15 个 canonical key 字面相等）。
+- **`NUM_OPENMP>1` 允许 fallback**：优先 A3a（同线程数 bitwise）；若仅满足 A3b（ULP ≤ 4 且 `max_abs_diff < 1e-12`）不阻塞 P1 lock；若同时不满足 A3a 与 A3b，仍允许进入 P1 lock，但 SHALL 记录 CVODE `nst` 漂移证据 + cross-ref P7 final-fusion deterministic-reduction 工作范围（依据 spec `p1-state-update-parallel` L205–L209 PROMOTE 后版本 + design D5 NG3）。
+- **P1 实测 (2026-06-22)**：`NUM_OPENMP=1` 强制门 24 / 24 PASS (3 anchor)；`NUM_OPENMP>1` 在 N = 2 全 PASS bitwise，在 N ∈ {4, 8} dual-FAIL with CVODE `nst` 漂移 (heihe nst N=1/2/4/8 = 6773 / 6773 / 6585 / 6684)。详见 `docs/p1_summary.md` §5、`docs/p1_perf_baseline.md` §2。
 
 **风险**：`Ele[i].updateElement()`/`Riv[i].updateRiver()`/`lake[i].update()` 若内部写共享对象，会破坏并行安全。需先审查。
 
@@ -1932,6 +1945,27 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 - 默认 1024 是经验起点。S0.12 profile 完成后，可在每台目标机器上跑 cutoff sweep（在 `[128, 256, 512, 1024, 2048, 4096]` 上各跑 medium benchmark 测 wall-clock），找到 serial-OMP 交叉点
 - cutoff 可通过命令行 `-DSHUD_OMP_CUTOFF=512` 或运行时 env `SHUD_OMP_CUTOFF=512` 覆盖（运行时需读 `getenv()`，但**必须在 RHS 第一次调用前固定**，不允许时间步中途改变）
 - 一旦确定，写入对应 benchmark manifest
+
+#### P7.3.5 deterministic-reduction tree-shape 固化（M8 新增）
+
+**问题来源**：P1 epic 实测 (2026-06-22, PR-K2 #223) 在 `NUM_OPENMP ∈ {4, 8}` 下出现 CVODE `nst` 漂移 (heihe nst N=1/2/4/8 = 6773 / 6773 / 6585 / 6684)，归因为 B1b 阶段 S2 P3–P5 已并行 owner-local gather 中的 tree-reduction 在 N > 2 时触发 tree-depth 跃迁 (depth-1 → depth-2 → depth-3)，浮点结合律不满足导致 ULP-level RHS sample 漂移，CVODE 自适应步长据此重选，长积分尺度下轨迹分叉 (trajectory bifurcation)。
+
+**P7 工作范围**：将所有 reduction (含 P3–P5 owner-local gather、Krylov norm、若启用的 N_Vector inner-product) 的 tree-shape 固化为与 `NUM_OPENMP` **无关** 的 canonical 形态，使 `DY` 在不同线程数下满足 A3a bitwise（不依赖 A3b ULP fallback）。
+
+**候选技术路径**（择一或并用）：
+
+1. **Fixed-shape pairwise canonical reduction**：以固定相邻列表 (fixed adjacency list) 替代 OpenMP 默认的 tree-reduction，使配对顺序与线程数解耦；适用于 owner-local gather。
+2. **Compensated summation (Kahan / Neumaier)**：在每个 owner 的累加序列上加补偿项，将 ULP 误差吸收至 fixed-shape 路径，保证浮点结合律在数值上闭合。
+3. **Deterministic OpenMP N_Vector**：若 P8/P9 启用 `SHUD_USE_OPENMP_NVECTOR=ON`，须使用 deterministic backend (含 fixed reduction tree + 配对 canonical order)；当前 `nvector_openmp.h` 默认实现 **不满足** 该要求。
+
+**验收要求**（追加至 P7.4 A3a 列）：
+
+| 项 | 标准 |
+|---|---|
+| Reduction tree-shape | 编译期 / 运行期可验证：在 `[1, 2, 4, 8, 16]` 线程数下 `DY` byte-identical |
+| CVODE `nst` 跨线程数一致 | 所有 strict benchmark case 在 N ∈ {1, 2, 4, 8} 下 `nst` 完全相等 |
+
+**与 §P7.2 规则的关系**：本节是 P7.2 "single parallel region" 之上的精度层补充；fork-join 最小化解决性能，deterministic-reduction 解决精度。两者独立但同属 P7 退出门。
 
 #### P7.4 验收标准
 
@@ -2283,7 +2317,7 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | RISK-01 | 继续维护两套 RHS 路径 | R3 | `f.cpp` L7–L26 | 建立唯一 RHS core | S1 前 |
 | RISK-02 | lake/ET/river DY 语义未对齐 | R2/R3 | §4.2–4.4 | B1a 继承 serial 语义（bitwise = B0）；B1b 含 bug fix 差异单独记录 | S2 前 |
 | RISK-03 | shared floating accumulation | R3 | `PassValue()`、`fun_Seg_*`、`Flux_RiverDown` | compute/gather 拆分 | P4/P5 前 |
-| RISK-04 | OpenMP reduction 顺序不确定 | R3(strict)/R1(prod) | OpenMP §2.19.5.4 | strict 禁止；prod 用 deterministic reduction | P1–P7 |
+| RISK-04 | OpenMP reduction 顺序不确定 | R3(strict)/R1(prod) | OpenMP §2.19.5.4 | strict 禁止；prod 用 deterministic reduction；**P1 已观测 (2026-06-22, PR-K2 #223)**：B1b S2 P3–P5 owner-local gather tree-reduction 在 N > 2 触发 depth 跃迁 → CVODE `nst` 漂移；修复路径见 §6 P7.3.5 deterministic-reduction tree-shape 固化 | P1–P7 |
 | RISK-05 | forcing cache 改变时间采样语义 | R2 | `TimeSeriesData.cpp` L45–L89 | 先保持 B0 语义；插值独立进入精度路线 | S5 前 |
 | RISK-06 | CVODE 改造项叠加引入不可定位的 regression | R1/R2 | SUNDIALS docs | P8 子阶段（P8-precond → P8-tune → P8-NVector → P8-KLU）严格串行，每步独立验收；Opt-Tol / Opt-Root 独立于速度主线；先完成 P7 再进入 P8-precond | P7 前 |
 | RISK-07 | 编译器优化改变浮点行为 | R2/R3 | fast-math/FMA/版本差异 | 固定工具链；禁止 fast-math；compile manifest | 全程 |
@@ -2304,7 +2338,7 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | RISK-22 | `_Element` fat AoS + jagged `double**` 拖垮 cache | R1 | `Element.hpp` L63–L67, `Model_Data.hpp` L121–L122（§4.22.1, §4.22.2） | S5d.1 抽 SoA `ElementHotData`；S5d.2 jagged → 一维；保持 bitwise = B1a | S5d |
 | RISK-23 | 串行 first-touch + 无线程绑定导致 NUMA 跨节点访问 | R1 | `Model_Data::malloc_EleRiv()`, `LoadIC()`（§4.22.3, §4.22.4） | S5d.3 parallel first-touch；S5d.4 `OMP_PROC_BIND=close OMP_PLACES=cores` 写入 manifest 和 run script | S5d |
 | RISK-24 | v1.0 P8 设计基于错误的 solver 假设 | R2 | §4.17 修正：基线是 matrix-free SPGMR 非 dense | v1.1 P8 重排为 precond → tune → NVector → KLU；P8-KLU 改为评估性子阶段 | P8 |
-| RISK-25 | profile 前盲目并行 RHS，Amdahl 上限低 | R2 | RHS 占 wall-clock 比例未实测 | S0.12 强制门控：占比 < 50% 触发优先级重排；< 30% 触发战略暂停 | S1 前 |
+| RISK-25 | profile 前盲目并行 RHS，Amdahl 上限低 | R2 | RHS 占 wall-clock 比例未实测 | S0.12 强制门控：占比 < 50% 触发优先级重排；< 30% 触发战略暂停；**P1 已观测 (2026-06-22, PR-G #214 + PR-K2 #223)**：M7 forcing trim 解除 heihe IO 79% 阻塞后，新主导约束变为 NumEle = 6335 这一 Medium 偏小规模的 fork-join overhead + Amdahl serial fraction (B1b owner-local gather 起点 serial)；详 `docs/p1_perf_baseline.md` §2 | S1 前 |
 | RISK-26 | 本地 Mac profile 数字误当目标平台承诺 | R2 | Apple Silicon 异构核心 + UMA + libomp 弱绑定，与 Linux 多 socket 集群性能特征差异大 | `docs/profile_platform.md` 强制声明两平台角色；P7/P8 量化加速比验收**只认目标平台**；两平台占比差 > 10% 触发决策复审；S5d NUMA 验收在 Apple Silicon 上 N/A，目标平台必须全验 | P7 验收前 |
 
 ### 7.3 阶段 go/no-go 汇总
