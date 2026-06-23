@@ -160,3 +160,35 @@ Linux 内存页归属策略；主线程串行初始化会让数据页落单 node
 
 **benchmark 算例**:
 S0 注册的 ≥5 类标准算例（各带 `manifest.yaml`）；所有基线与精度对比的固定输入。
+
+### P1 first-parallel-candidate baseline 集合
+
+P1 epic (#211) 完成后由 PR-N #226 PROMOTE 入册的术语集合（A3a / A3b / A3c 已在 §"精度等级" 节定义，不重复）。
+
+**P1-update-omp-tag**:
+P1 epic capstone tag。annotated tag object SHA `ff21c75c8e968d5e47ca53b015425360be9ac879` deref commit `003f58dc079116ef2161d2f96006228ef0e013d0`（≡ PR-K2 #223 capstone log append + main HEAD 时刻）；SHUD submodule pin `07c677fe3b449f706a2b1f9663ae3cdd60aa7b47`（`openmp-baseline` 分支 HEAD on `SHUD-System/SHUD`，PR-F #218 lake pragma capstone）。D11 immutable：一次锁死禁止 force-update（与 B1a-tag force-update 历史**不同**，与 B1b-tag 一致）；任何后续 retroactive 更新走 forward-compat `P1c-tag stacking` / `P2-* stacking` 路径（master plan C8）。
+_Avoid_: 把 P1-update-omp-tag 理解成 lightweight tag 或允许 force-update
+
+**baseline/P1**:
+P1 epic 完成后从 `main` 分出的 frozen baseline 分支，HEAD ≡ P1-update-omp-tag deref commit `003f58d`。D11 protection rule enforced：`lock_branch=true + enforce_admins=true + allow_force_pushes=false + allow_deletions=false`（与 baseline/B1b 一致）。后续 P2+ 工作从 `main` 分新分支，不再打 `baseline/P1`。仅作历史比对参照（vs B1b / vs P-strict / vs P-prod）。
+_Avoid_: 把 baseline/P1 当作活动开发线 / 误以为可 push 新 commit
+
+**3-pragma stack**:
+`SHUD/src/ModelData/MD_update.cpp` `f_update()` 三 owner loop 上的 `#pragma omp parallel for schedule(static) default(none) shared(<显式列出>) private(i)` 三个并列 pragma 的总称；落地于 PR-D #216 (element loop L64-L105) + PR-E #217 (river loop L107-L125) + PR-F #218 (lake loop L136-L147)，SHUD pin trail `017c629 → 6a9e684 → 08898a3 → 07c677f`。**禁止** `schedule(dynamic|guided)` / `#pragma omp atomic` / floating `+=` / `reduction(+:sum)`（§8.1 strict 禁止项）。3 pragma 是 P1 候选 commit 的全部 SHUD 数值代码改动。
+_Avoid_: 误以为 reset loops (L127-L135 NumRiv+NumEle 闲置) 或 DY zero loop (L148-L150 NumY-bounded) 也并行（本 change 不并行）；把 `f_updatei` case 1-5 五 loop 当作 3-pragma stack 的一部分（NG7：`f_updatei` 留 P2a reviewer 参考）
+
+**owner-local update**:
+P1 三 pragma 的安全前提：每 elem/river/lake by-owner write 无 floating reduction（无 `+=` / `reduction(+:sum)` / `atomic`），写目标按 `i` 索引（disjoint slots：`QeleSubAt(i,j)` = `flat[3i+j]` / `Ele[i].QBC` distinct &Ele[i] / `Riv[i]` distinct / `lake[i]` distinct），无 cross-iter 依赖（无 `Ele[i+k]` / `Riv[neighbor]` / `lake[j!=i]` 读）。是 PR-C #215 P1.0 pre-audit 5 函数 (`_Element::updateElement` / `_River::updateRiver` / `_Lake::update` + `f_updatei` case 1-5) 全部 (a) safe verdict 的根据，也是 owner-local + schedule(static) 在 N=2 vs N=1 同 binary A3a bitwise PASS 的根因（PR-K2 #223 实证）。
+_Avoid_: 把 owner-local update 与 owner-local gather 混淆（前者写 RHS 内部 state 数组，后者汇总跨 element 的 flux 到 owner slot；详 `compute / gather 分离 (C2)` 与 `owner-local gather`）
+
+**CVODE nst bifurcation**:
+CVODE adaptive stepper 在不同 OMP 调度下出现的内部步数分歧现象。实证案例：PR-K2 #223 server heihe N=1/2/4/8 NUM_OPENMP scaling 测试，CVODE `nst` 实测 = 6773/6773/6585/6684（N=1 与 N=2 同步数；N≥4 出现分歧）；伴随 4-cell A3a + A3b dual-FAIL（max_abs_diff 4-20e5 / max_ulp ~9e18 / n_diff 98.4-98.7%）。表征 N>2 reduction-tree depth transition 触发的浮点重排，**不是** PR-D/E/F 三 pragma owner-local 设计缺陷（同一 binary N=2 vs N=1 是 A3a bitwise PASS 的）。Reviewer 根因假设排序：(1) B1b S2 P3-P5 owner-local gather tree-reduction；(2) GCC 13.3.0 auto-vectorization chunk-dependent FMA；(3) CVODE SPGMR norm OMP residual。
+_Avoid_: 把 CVODE nst bifurcation 归咎给 PR-D/E/F 三 pragma；把它当作 P1 lock blocker（per design D5 NG3 + spec L184-L209 dual-FAIL Scenario，不阻 P1 lock）
+
+**P7 final-fusion deterministic-reduction**:
+master plan §6 P7 stage 目标：fork-join 最小化 + chunk-fixed `schedule(static)` 消除 N-dependent reduction tree depth transition，使跨 N 跨线程数 A3a bitwise / A3b ULP≤4 全部 PASS。是 P1 阶段 CVODE nst bifurcation + N≥4 dual-FAIL 的 forward debt。P1 阶段不展开实施；spec p1-state-update-parallel A3a + A3b dual-FAIL Scenario 显式 cross-ref 此 work scope。
+_Avoid_: 把 P7 final-fusion 与 P1 stage 强行并轨 (NG3 per design D5)；P1 阶段 strict A3a-cross-thread bitwise 不强制
+
+**§1.1.1 WARNING**:
+P1 epic capstone verdict 状态。其 carve-out 含义：(a) wall/speedup Amdahl-bound for IO-dominant case (heihe sp@8 实测 1.08× ~ 1.13× IO Amdahl 上限) + below P7 strict target for first OMP candidate (heihe_x4 sp@8 实测 1.14× < P7 strict M=1.8×/T=2.2×)；(b) N≥4 cross-thread A3a + A3b dual-FAIL (P7 final-fusion deterministic-reduction debt)。**non-blocking** per design D5 NG3 + master plan §6 P7 final-fusion scope + spec p1-state-update-parallel L184-L209 dual-FAIL Scenario；P1 lock 已通过 PR-H/I/J 3 anchor (NUM_OPENMP=1 vs B1b bitwise 24/24 PASS) 完成 forced gate。
+_Avoid_: 把 §1.1.1 WARNING 当作 P1 epic 失败标记；把 P1 stage carve-out 解读为永久豁免（P7 阶段 SHALL 解决）
