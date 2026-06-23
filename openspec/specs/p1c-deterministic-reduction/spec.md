@@ -19,17 +19,17 @@
 
 ### Requirement: 全 RHS reduction 站点 grep 清单完整覆盖
 
-P1c 实施前 SHALL 产 `docs/p1c_reduction_sites.md` + `docs/p1c_reduction_sites_baseline.txt`（grep 输出的 frozen baseline, 入 git），列出 SHUD 仓库内**所有** RHS 路径的 reduction 站点：grep 锚定 (a) `reduction(+:` (b) `#pragma omp atomic` (c) anchored function-body accumulator `^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*\[[^]]+\][[:space:]]*[+-]=` 排除注释/字符串 (d) 已知 owner-local gather 函数调用。每个命中站点 SHALL 标注：文件路径 + 行号 + 写目标变量 + 是否本 change 覆盖 + 若 N/A 说明理由 (例如 SPGMR / N_Vector 推 P9 per design D6；或 dead-code mirror per design D1)。
+P1c 实施前 SHALL 产 `docs/p1c/p1c_reduction_sites.md` + `docs/p1c/p1c_reduction_sites_baseline.txt`（grep 输出的 frozen baseline, 入 git），列出 SHUD 仓库内**所有** RHS 路径的 reduction 站点：grep 锚定 (a) `reduction(+:` (b) `#pragma omp atomic` (c) anchored function-body accumulator `^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*\[[^]]+\][[:space:]]*[+-]=` 排除注释/字符串 (d) 已知 owner-local gather 函数调用。每个命中站点 SHALL 标注：文件路径 + 行号 + 写目标变量 + 是否本 change 覆盖 + 若 N/A 说明理由 (例如 SPGMR / N_Vector 推 P9 per design D6；或 dead-code mirror per design D1)。
 
 #### Scenario: grep 清单覆盖完整性 (anchored, comment/string excluded)
 
-- **WHEN** `grep -rnE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*\[[^]]+\][[:space:]]*[+-]=' SHUD/src/Model/ SHUD/src/ModelData/ | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|\*)' | grep -v _uncouple` 与 `docs/p1c_reduction_sites.md` 中"已覆盖" + "N/A 推迟" + "已 OMP-safe / 零改动" 三类站点之并集做差集
-- **AND** 该 grep 输出与 `docs/p1c_reduction_sites_baseline.txt` (frozen baseline) line-for-line diff 为空
+- **WHEN** `grep -rnE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*\[[^]]+\][[:space:]]*[+-]=' SHUD/src/Model/ SHUD/src/ModelData/ | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|\*)' | grep -v _uncouple` 与 `docs/p1c/p1c_reduction_sites.md` 中"已覆盖" + "N/A 推迟" + "已 OMP-safe / 零改动" 三类站点之并集做差集
+- **AND** 该 grep 输出与 `docs/p1c/p1c_reduction_sites_baseline.txt` (frozen baseline) line-for-line diff 为空
 - **THEN** 差集为空 (所有 += 站点均显式分类，无遗漏，且基线无漂移)
 
 #### Scenario: SPGMR / N_Vector / forcing / dead-code mirror 路径 N/A 说明
 
-- **WHEN** 读 `docs/p1c_reduction_sites.md` 的 "N/A 推迟" / "dead-code mirror" 节
+- **WHEN** 读 `docs/p1c/p1c_reduction_sites.md` 的 "N/A 推迟" / "dead-code mirror" 节
 - **THEN** SPGMR Gram-Schmidt / N_Vector `N_VDotProd` / `MD_ET.cpp` / `TimeSeriesData.cpp` 等所有 N/A 站点 SHALL 各引用 design D6 carve-out 或 master plan §6 P1c.1 候选 (c) 推 P9 说明；MD_f.cpp `f_loop` L73-74 / `f_applyDY` 站点 SHALL 标 "dead-code mirror, OMP 路径不可达, per design D1 + §1.4 显式验证 grep 无 active caller"
 
 ---
@@ -49,7 +49,7 @@ P1c 实施前 SHALL 产 `docs/p1c_reduction_sites.md` + `docs/p1c_reduction_site
 | 7 | L392 | `QrivUp[ir] += -QrivDown[up]` | S4.3 `upstream_by_down` |
 | 8 (lake gathers 组) | L406 / L420 / L433 | `QLakeRivIn` / `QLakeSurf` / `QLakeSub` lake gathers | S4.4 `riv_in_by_lake` / S4.6 `lake_bank_edge_by_lake` |
 
-注：L473-474 `QeleSurfTot[i] += QeleSurfAt(i, j)` 与 `QeleSubTot[i] += QeleSubAt(i, j)` 位于 `rhs_apply()` 内 `for i in 0..NumEle: for j in 0..3` 的 inner-loop per-i 顺序累加 (i 已 owner-local，j ∈ {0,1,2} 内层固定)，**不受 OMP 影响，不在本 change 改造范围**；SHALL 在 `docs/p1c_reduction_sites.md` 中显式归入 "已 OMP-safe，零改动" 类。
+注：L473-474 `QeleSurfTot[i] += QeleSurfAt(i, j)` 与 `QeleSubTot[i] += QeleSubAt(i, j)` 位于 `rhs_apply()` 内 `for i in 0..NumEle: for j in 0..3` 的 inner-loop per-i 顺序累加 (i 已 owner-local，j ∈ {0,1,2} 内层固定)，**不受 OMP 影响，不在本 change 改造范围**；SHALL 在 `docs/p1c/p1c_reduction_sites.md` 中显式归入 "已 OMP-safe，零改动" 类。
 
 **禁止**：
 
@@ -63,13 +63,13 @@ P1c 实施前 SHALL 产 `docs/p1c_reduction_sites.md` + `docs/p1c_reduction_site
 #### Scenario: 10 line anchors 落入 8 logical sites (覆盖完整性)
 
 - **WHEN** `grep -nE '[+-]=' SHUD/src/Model/MD_rhs_core.cpp | head -30`
-- **THEN** 上述 10 line anchors (L278 / L279 / L374 / L375 / L382 / L383 / L392 / L406 / L420 / L433) 各对应一条命中；按 Conventions §"站点计数定义" 分组为 8 logical sites — 改造后行号可能漂移，但函数名 / 写目标变量 SHALL 与 `docs/p1c_reduction_sites.md` 中清单逐项对齐
+- **THEN** 上述 10 line anchors (L278 / L279 / L374 / L375 / L382 / L383 / L392 / L406 / L420 / L433) 各对应一条命中；按 Conventions §"站点计数定义" 分组为 8 logical sites — 改造后行号可能漂移，但函数名 / 写目标变量 SHALL 与 `docs/p1c/p1c_reduction_sites.md` 中清单逐项对齐
 
 #### Scenario: S4 adjacency list 复用 (无并行 canonical-order)
 
 - **WHEN** `grep -n 'seg_by_riv\|seg_by_ele\|upstream_by_down\|riv_in_by_lake\|lake_bank_edge_by_lake' SHUD/src/Model/MD_rhs_core.cpp`
 - **THEN** 改造后 5 个 S4 list (站点 3–8) 均被引用；改造前同一函数体内无任何 `std::sort` / `std::stable_sort` / `qsort` 出现 (确认未构造新 canonical-order)
-- **AND** `docs/p1c_reduction_sites.md` 每个站点行 SHALL 显式标注其复用的 S4 list 名称 (与上表 col 4 一致)
+- **AND** `docs/p1c/p1c_reduction_sites.md` 每个站点行 SHALL 显式标注其复用的 S4 list 名称 (与上表 col 4 一致)
 
 #### Scenario: 编译期固定 (不引入新宏)
 
@@ -95,7 +95,7 @@ P1c 实施前 SHALL 产 `docs/p1c_reduction_sites.md` + `docs/p1c_reduction_site
 #### Scenario: 诊断报告归档
 
 - **WHEN** §2.x 改造任何提交进入 PR
-- **THEN** `docs/p1c_a3a_root_cause.md` §"诊断结果" 章 SHALL 已存在并包含 4 项必备字段 (per p1c-capstone §"p1c_a3a_root_cause 吸收 F-K2-2 + 量化数据" Scenario)
+- **THEN** `docs/p1c/p1c_a3a_root_cause.md` §"诊断结果" 章 SHALL 已存在并包含 4 项必备字段 (per p1c-capstone §"p1c_a3a_root_cause 吸收 F-K2-2 + 量化数据" Scenario)
 
 #### Scenario: in-scope 表与诊断结果一致
 
@@ -120,7 +120,7 @@ P1c 实施前 SHALL 产 `docs/p1c_reduction_sites.md` + `docs/p1c_reduction_site
 #### Scenario: Kahan 引入位置正确 (条件触发后)
 
 - **WHEN** server PR-K2 首跑 FAIL，第二轮叠加 Kahan
-- **THEN** Kahan 补偿 SHALL 仅在上述 8 个 reduction 站点的 owner accumulation 处叠加；不在其他无关位置引入；每处叠加 SHALL 在 `docs/p1c_a3a_root_cause.md` 中说明触发理由（ULP-level 残留量化数据）
+- **THEN** Kahan 补偿 SHALL 仅在上述 8 个 reduction 站点的 owner accumulation 处叠加；不在其他无关位置引入；每处叠加 SHALL 在 `docs/p1c/p1c_a3a_root_cause.md` 中说明触发理由（ULP-level 残留量化数据）
 
 #### Scenario: Kahan 引入后必须 PR-K2 重新通过
 
@@ -190,7 +190,7 @@ A3a 在单次 RHS 层之上，完整 CVODE 积分尺度 SHALL 进一步满足跨
 
 - **WHEN** P1c 实施完成后 server 跑 heihe_x4 4 N，残留 \|Δ_nst\| ∈ {1, 2}
 - **AND** 以 `CVODE_RTOL/10` (e.g. 1e-7 → 1e-8) 复跑 heihe_x4 4 N
-- **THEN** 残留 Δ 消失或同比例缩小 → 标记 "SPGMR-noise-attributed, deferred to P9" 入 `docs/p1c_a3a_root_cause.md` (per design D6)；残留 Δ 未缩小 → 视为 P1c FAIL → 触发 §4.7 conditional Kahan + PR-K2 二跑
+- **THEN** 残留 Δ 消失或同比例缩小 → 标记 "SPGMR-noise-attributed, deferred to P9" 入 `docs/p1c/p1c_a3a_root_cause.md` (per design D6)；残留 Δ 未缩小 → 视为 P1c FAIL → 触发 §4.7 conditional Kahan + PR-K2 二跑
 
 ---
 
@@ -228,9 +228,9 @@ Mac local SHOULD 跑 keliya / xinanjiang_upstream / qinyijiang / qhh 各 N ∈ {
 #### Scenario: Mac local 4-case scan (SHOULD)
 
 - **WHEN** §2.x 全部完成后准备 server 提交前
-- **THEN** Mac local SHOULD 跑 4-case × 4-N = 16 cell；任何 PASS/FAIL 输出仅入 `docs/p1c_perf_baseline.md` §"Mac 辅助预筛" 节作为参考；不阻 server Slurm 提交
+- **THEN** Mac local SHOULD 跑 4-case × 4-N = 16 cell；任何 PASS/FAIL 输出仅入 `docs/p1c/p1c_perf_baseline.md` §"Mac 辅助预筛" 节作为参考；不阻 server Slurm 提交
 
 #### Scenario: Mac 结果不触发 Kahan
 
 - **WHEN** Mac local 16-cell 4-case scan 出现任一 FAIL
-- **THEN** 不触发 §4.7 conditional Kahan injection (per design D7)；仅记录 `docs/p1c_perf_baseline.md`；继续推进 server PR-K2 首跑作为唯一 Kahan 触发判据 (per design D4)
+- **THEN** 不触发 §4.7 conditional Kahan injection (per design D7)；仅记录 `docs/p1c/p1c_perf_baseline.md`；继续推进 server PR-K2 首跑作为唯一 Kahan 触发判据 (per design D4)

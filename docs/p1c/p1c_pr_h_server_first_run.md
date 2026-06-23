@@ -136,12 +136,12 @@ Per master plan §4.4 + spec L62-L72 strict gate: 一 case 内任一 N pair 字�
 - §4.5 nst FAIL (heihe |Δ|=225, heihe_x4 |Δ|=3) ✓
 - §4.6 15-key 6 项漂移 ✓
 
-→ **§4.7 SHALL TRIGGER**：PR-I (#252) 走条件 Kahan injection 主分支 (per PR-G `docs/p1c_kahan_patch.diff` + `docs/p1c_a3a_root_cause.md` §"Kahan 候选路径" §(e) 应用流程)，PR-K2 二跑。
+→ **§4.7 SHALL TRIGGER**：PR-I (#252) 走条件 Kahan injection 主分支 (per PR-G `docs/p1c/p1c_kahan_patch.diff` + `docs/p1c/p1c_a3a_root_cause.md` §"Kahan 候选路径" §(e) 应用流程)，PR-K2 二跑。
 
 二跑命令 (PR-I 内执行):
 ```bash
 cd /scratch/frd_muziyao/SHUD-OpenMP/SHUD
-git apply ../docs/p1c_kahan_patch.diff
+git apply ../docs/p1c/p1c_kahan_patch.diff
 git commit -m "P1c §4.7 conditional Kahan injection (Neumaier 1974) — PR-K2 二跑 trigger"
 git push origin openmp-baseline
 cd .. && git add SHUD && git commit -m "SHUD pointer bump: Kahan-injected"
@@ -151,7 +151,7 @@ make -C SHUD clean && make -C SHUD shud_omp
 
 ### Mac 模式 vs Server 模式 reproducibility 观察
 
-PR-F `docs/p1c_perf_baseline.md` §1 Mac 16-cell scan: 全 FAIL with 同 "N=1=N=2 / N=4 / N=8 = 3 distinct SHAs" pattern。Server PR-H 复现同 pattern。设计 D7 假设 "Mac fail-pattern 不代表 server 行为" 此处不成立 — server 与 Mac 在 catastrophic RHS round-off 上同 vulnerable. Mac 仍 SHOULD-level (per D7 不是 SHALL gate)，但其 fail 是 server fail 的 early signal。a3a_root_cause.md §"Kahan 候选路径" §(c) 触发条件不变 — 仍只 server PR-K2 触发 (这里), Mac 不触发 (Mac results 信息性 only)。
+PR-F `docs/p1c/p1c_perf_baseline.md` §1 Mac 16-cell scan: 全 FAIL with 同 "N=1=N=2 / N=4 / N=8 = 3 distinct SHAs" pattern。Server PR-H 复现同 pattern。设计 D7 假设 "Mac fail-pattern 不代表 server 行为" 此处不成立 — server 与 Mac 在 catastrophic RHS round-off 上同 vulnerable. Mac 仍 SHOULD-level (per D7 不是 SHALL gate)，但其 fail 是 server fail 的 early signal。a3a_root_cause.md §"Kahan 候选路径" §(c) 触发条件不变 — 仍只 server PR-K2 触发 (这里), Mac 不触发 (Mac results 信息性 only)。
 
 ## §8 Hand-off — FAIL 路径
 
