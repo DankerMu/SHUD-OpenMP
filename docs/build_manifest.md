@@ -371,6 +371,63 @@ S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day,
 - 安装大小：`26M`
 - 路径：`SHUD/InstallSundials/`
 
+## P1-update-omp-tag（P1 epic / Issue #211 capstone）
+
+`P1-update-omp-tag` annotated git tag pin 住了 P1 epic 全套 phase（Phase A m7-forcing-trim + Phase B profile-retest-m7 / Opt-IO 决策 + Phase C.audit p1-state-update-parallel pre-audit + Phase C.implement PR-D element + PR-E river + PR-F lake 3-pragma stack + Phase C.verify PR-H snapshot + PR-I/J fullrun + PR-K1/K2 scaling + Phase D.tag PR-L）完成后认证的那一对 `(outer, SHUD submodule)` commit。P2+ 起回归比对 baseline 切到 `P1-update-omp-tag`（B0-tag / B1a-tag / B1b-tag / B1-tag 仍可比对，但 P1-update-omp-tag 是 P2 阶段的首个 parallel-candidate 参考点）。
+
+> **节有效性说明**：下面的命令（`git rev-parse P1-update-omp-tag`、`git show P1-update-omp-tag --stat -- SHUD`）只有在项目所有者 `git tag -a P1-update-omp-tag <merge-commit-sha>` + `git push origin P1-update-omp-tag` 之后才能成功；这一动作发生在 PR-L #224 中（2026-06-22）。在那之前 `P1-update-omp-tag` 不存在。
+> 实时状态见下面的 `## P1-update-omp-tag 应用状态`。
+
+> **D11 强制**：P1-update-omp-tag 一次锁死，**禁止 force-update**（与 B1b-tag 一致；与 B1a-tag force-update 历史不同）。任何后续 retroactive 更新（如 P2 sub-stage stacking）走 forward-compat **P1c-tag stacking / P2-* stacking** 路径（master plan C8）；design D9 fast-path 可能触发 "P1-update-omp-tag extension" 走 P1c 不新建 P-strict baseline。
+
+- **外层 repo tag**：`P1-update-omp-tag` 在 `main` 分支上、PR-K2 #223 squash-merge + #223 post-merge log append (commit `003f58d`) 上打（PR-L #224 capstone 完成）。
+- **P1-update-omp-tag 时刻的 SHUD submodule pin**：`07c677fe3b449f706a2b1f9663ae3cdd60aa7b47`（外层 tag commit 抓住的 submodule pointer，`openmp-baseline` 分支 HEAD；3-pragma stack 完整 = element loop L64-L105 + river loop L107-L125 + lake loop L136-L147 三 `#pragma omp parallel for schedule(static) default(none)` 已落地）。
+- **D11 / D12 收尾约束**：
+  - Mac 4-case RHS snapshot bitwise vs B1b/B1-tag canonical golden = 12/12 PASS (`shud_omp @ NUM_OPENMP=1` + `SHUD_DUMP_RHS=1` + `SHUD_DUMP_SITE=f_update` per `docs/p1_rhs_snapshot_bitwise.md`)
+  - Mac 4-case full-run canonical summary SHA ≡ `benchmarks/<case>/B0_output/repeatability.txt sha256_run1` + CVODE 15-key byte-identical = 8/8 + 4/4 PASS (`shud` serial via `tools/archive_b0_output.sh` per `docs/p1_fullrun_bitwise.md` §1-§6)
+  - Server 2-case (heihe / heihe_x4) cn03 Slurm `shud` serial full-run canonical summary SHA ≡ B1b/B1-tag golden = 4/4 PASS (jobid 8794/8795 per `docs/p1_fullrun_bitwise.md` §"Server section")
+  - PR-D / PR-E / PR-F 5-step push workflow 严格遵守（SHUD pin trail `017c629 → 6a9e684 → 08898a3 → 07c677f`）
+  - `baseline/P1` 分支 protection `lock_branch=true` + `enforce_admins=true` + `allow_force_pushes=false` + `allow_deletions=false` enforced
+  - §1.1.1 verdict = **WARNING（P1 epic 不阻塞）** per design D5 NG3 + master plan §6 P7 final-fusion debt（详 `docs/p1_summary.md` §"§1.1.1 verdict"）：heihe sp@8=1.08× (Amdahl-bound ~1.13× ✓ + "不独立验收" carve-out)；heihe_x4 sp@8=1.14× (P7 strict M=1.8× 退出门，P1 起点报告)；A3a/A3b strict at N≥4 4/6 cells dual-FAIL with CVODE nst bifurcation (heihe nst per N: 6773/6773/6585/6684)；root cause hypothesis = B1b S3c owner-local gather tree-reduction-depth N>2 transition；P7 final-fusion deterministic-reduction debt logged
+
+## P1-update-omp-tag 应用状态
+
+| 字段 | 值 |
+|---|---|
+| `P1-update-omp-tag-applied` | `true` |
+| `P1-update-omp-tag-date` | `2026-06-22` |
+| `P1-update-omp-tag-object-sha` | `ff21c75c8e968d5e47ca53b015425360be9ac879`（annotated） |
+| `P1-update-omp-tag-commit-sha` | `003f58dc079116ef2161d2f96006228ef0e013d0`（PR-K2 #223 squash-merge + #223 post-merge log append on `main` 之后；PR-L #224 capstone 创建 tag） |
+| `P1-update-omp-tag-SHUD-pin` | `07c677fe3b449f706a2b1f9663ae3cdd60aa7b47`（`openmp-baseline` branch HEAD） |
+| `P1-warning-not-blocked` | `yes`（§1.1.1 verdict = WARNING per design D5 NG3；详 `docs/p1_summary.md` §"§1.1.1 verdict"；P7 final-fusion debt logged） |
+
+`P1-update-omp-tag` push 后命令全部成功（已 2026-06-22 验证）：
+- `git rev-parse P1-update-omp-tag` → `ff21c75c…`
+- `git rev-parse P1-update-omp-tag^{}` → `003f58d…`
+- `git show P1-update-omp-tag --stat -- SHUD` → SHUD pin 显示 `07c677f`
+- `git ls-remote --tags origin | grep P1-update-omp-tag` → 远端 tag 存在
+- `gh api repos/DankerMu/SHUD-OpenMP/branches/baseline/P1/protection` → `lock_branch=true`
+
+### P1 build provenance（PR-K2 #223 capstone 时刻 + PR-L #224 tag lock）
+
+| 项 | 值 | 来源 |
+|---|---|---|
+| Stage | P1 (update-omp) | master plan §3 P1 行 |
+| SHUD pin | `07c677fe3b449f706a2b1f9663ae3cdd60aa7b47` | `openmp-baseline` branch HEAD post-PR-F |
+| Outer commit (P1-update-omp-tag^{}) | `003f58dc079116ef2161d2f96006228ef0e013d0` | PR-K2 #223 post-merge log append on `main` |
+| Mac binary (`SHUD/shud_omp`) sha256 | not recorded in PR-K1 #222 doc (Apple Clang 17.0.0 binary, available in `.s2-103/pr-k1/` scratch only) | `docs/p1_perf_baseline.md` §1.2 / `.s2-103/pr-k1/` |
+| Mac binary (`SHUD/shud` serial) | reproducible via `make shud` post-checkout `P1-update-omp-tag^{}`; binary hash not pinned in doc (BC for cross-host Apple Clang versioning) | `docs/p1_fullrun_bitwise.md` §"Build evidence" |
+| Server binary (`SHUD/shud_omp`) sha256 | `b637537c53ff446b9885f949c19f20e50eba53296ef417ea5a5924fa803b2865` (built in-sbatch on cn03 per PR-K2) | `docs/p1_perf_baseline.md` §2.1 / §2.3 |
+| Server binary (`SHUD/shud` serial) sha256 | `3e9e56295528b0399aff928d1b44d708da87b37777ea81e0de216a3d12a975f3` (cn03 PR-J #221) | `docs/p1_fullrun_bitwise.md` §"Server section" L307 |
+| Mac compiler | Apple Clang 17.0.0 (clang-1700.6.3.2) arm64-apple-darwin24.6.0 | `docs/p1_perf_baseline.md` §1.2 |
+| Linux compiler (server cn03) | GCC `13.3.0-6ubuntu2~24.04.1` | `docs/p1_perf_baseline.md` §2.3 + `docs/p1_fullrun_bitwise.md` §"Server section" L250 |
+| Strict FP flags (Mac + server) | `-O2 -g -ffp-contract=off -fno-fast-math -std=c++14`（serial `make shud`）; 同上 + `-fopenmp` / `-Xpreprocessor -fopenmp`（OMP `make shud_omp`，per platform）— 3-grep gate `-O2 / -ffp-contract=off / -fno-fast-math ≥ 1 hit each` + `-ffast-math / -Ofast / -funsafe-math-optimizations` 0 hit 全 PASS | `docs/p1_rhs_snapshot_bitwise.md` §"Build evidence" + `docs/p1_fullrun_bitwise.md` §"Server compile" + 本文档 §1 / §2 |
+| OMP runtime env | `OMP_PROC_BIND=close OMP_PLACES=cores`（server PR-K2 `--cpus-per-task=8`）; Mac libomp（NG1 dev-only，不强制 binding per design D5）| `docs/p1_perf_baseline.md` §2.3 |
+| Slurm jobids (server cn03) | PR-J: `8794` heihe (Elapsed 00:27:18) + `8795` heihe_x4 (Elapsed 01:08:45)；PR-K2: `8796` heihe (Elapsed 00:09:10) + `8797` heihe_x4 (Elapsed 01:05:41) | `docs/p1_fullrun_bitwise.md` §"Server section" L220-L221 + `docs/p1_perf_baseline.md` §2.1 |
+| Tag | `P1-update-omp-tag` = `ff21c75c…` (annotated) deref `003f58d…` | `git ls-remote --tags origin` |
+| Baseline branch | `baseline/P1` (D11 locked: `lock_branch=true / enforce_admins=true / allow_force_pushes=false / allow_deletions=false`) | `gh api repos/DankerMu/SHUD-OpenMP/branches/baseline/P1/protection` |
+| Cases (per status_matrix L23 P1 行) | keliya / xinanjiang_upstream / qinyijiang / qhh PASS (Mac local) + heihe / heihe_x4 PASS @ server cn03 + kashigeer N/A deferred-upstream | `docs/status_matrix.md` §"P1 行证据" |
+
 ## CHANGELOG（S0-13 修订）
 
 - S0-13 / #17：kashigeer 在 `benchmarks/INDEX.md` 里从 `local-and-server` 重分类为 `deferred-upstream`；`status-matrix` + `rhs-profile-gate` spec 修订，让 deferred-upstream 单元格成为 N/A 不阻塞；上面新增 `B0-tag` 一节；`docs/profile_decision.md` 由 DankerMu 通过 2026-06-17 的 delegated grant 签字，针对外层 `a860eae5` + SHUD `78c37a1`。
