@@ -415,8 +415,8 @@ S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day,
 | Stage | P1 (update-omp) | master plan §3 P1 行 |
 | SHUD pin | `07c677fe3b449f706a2b1f9663ae3cdd60aa7b47` | `openmp-baseline` branch HEAD post-PR-F |
 | Outer commit (P1-update-omp-tag^{}) | `003f58dc079116ef2161d2f96006228ef0e013d0` | PR-K2 #223 post-merge log append on `main` |
-| Mac binary (`SHUD/shud_omp`) sha256 | not recorded in PR-K1 #222 doc (Apple Clang 17.0.0 binary, available in `.s2-103/pr-k1/` scratch only) | `docs/p1_perf_baseline.md` §1.2 / `.s2-103/pr-k1/` |
-| Mac binary (`SHUD/shud` serial) | reproducible via `make shud` post-checkout `P1-update-omp-tag^{}`; binary hash not pinned in doc (BC for cross-host Apple Clang versioning) | `docs/p1_fullrun_bitwise.md` §"Build evidence" |
+| Mac binary (`SHUD/shud_omp`) sha256 | **NOT PINNED** (Apple Clang versioning drift; reproducible via `make shud_omp` post-checkout `P1-update-omp-tag^{}` on matching Apple Clang 17.0.0 toolchain; ephemeral binary kept under `.s2-103/pr-k1/` scratch only) | `docs/p1_perf_baseline.md` §1.2 / `.s2-103/pr-k1/` |
+| Mac binary (`SHUD/shud` serial) sha256 | **NOT PINNED** (Apple Clang versioning drift; reproducible via `make shud` post-checkout `P1-update-omp-tag^{}` on matching Apple Clang 17.0.0 toolchain) | `docs/p1_fullrun_bitwise.md` §"Build evidence" |
 | Server binary (`SHUD/shud_omp`) sha256 | `b637537c53ff446b9885f949c19f20e50eba53296ef417ea5a5924fa803b2865` (built in-sbatch on cn03 per PR-K2) | `docs/p1_perf_baseline.md` §2.1 / §2.3 |
 | Server binary (`SHUD/shud` serial) sha256 | `3e9e56295528b0399aff928d1b44d708da87b37777ea81e0de216a3d12a975f3` (cn03 PR-J #221) | `docs/p1_fullrun_bitwise.md` §"Server section" L307 |
 | Mac compiler | Apple Clang 17.0.0 (clang-1700.6.3.2) arm64-apple-darwin24.6.0 | `docs/p1_perf_baseline.md` §1.2 |

@@ -113,7 +113,7 @@ cn03 Slurm（三铁律：`/scratch` 下 `sbatch` + `/scratch` output 路径 + �
 | Case | NumEle | new canonical sha256_run1 | golden sha256_run1 | G1 | G2 | jobid | Elapsed | node |
 |---|---|---|---|---|---|---|---|---|
 | heihe | 6335 | `675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67` | `675c927c…` | PASS | PASS | 8794 | 00:27:18 | cn03 |
-| heihe_x4 | ~25000 | `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` | `3fbcbd5c…` | PASS | PASS | 8795 | 01:08:45 | cn03 |
+| heihe_x4 | 40046 | `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` | `3fbcbd5c…` | PASS | PASS | 8795 | 01:08:45 | cn03 |
 
 **4 / 4 PASS**（2 G1 + 2 G2）。Server binary `SHUD/shud` (serial, 无 `-fopenmp` link) sha256 = `3e9e56295528b0399aff928d1b44d708da87b37777ea81e0de216a3d12a975f3` on cn03（GCC 13.3.0-6ubuntu2~24.04.1，strict FP 3-grep gate PASS：`-O2/-ffp-contract=off/-fno-fast-math ≥ 1 hit each` + `-ffast-math/-Ofast/-funsafe-math-optimizations` 0 hit）。详 [`docs/p1_fullrun_bitwise.md`](p1_fullrun_bitwise.md) §"Server section"。
 
@@ -193,6 +193,8 @@ B0-tag (884cfb13 / SHUD 78c37a1, 2026-06-17)
               └─ P1-update-omp-tag (003f58d / SHUD 07c677f, 2026-06-22 PR-L #224 capstone)
                   ↑ baseline/P1 lock_branch=true / enforce_admins=true
 ```
+
+(commit SHA shown; annotated tag object SHA see §"P1-update-omp-tag 的处理")
 
 P1-update-omp-tag 后下游 P2 阶段优先从 `main` 分新分支；`baseline/P1` 仅作 frozen baseline 历史比对参照，不再 base 新 PR；P-strict / P-prod baseline branch 在对应阶段开启时建立（reserved Open Question #5）。
 
