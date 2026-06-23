@@ -17,6 +17,10 @@ openspec/changes/
 .s2-103/
 .s6c12a-runs/
 
+# P1d epic scratch run directories (server Slurm + Mac local run scratch)
+.p1d-runs/
+.p1d-pr-*-runs/
+
 # Per-PR review snapshots (local notes, not part of evidence chain)
 docs/review/
 
