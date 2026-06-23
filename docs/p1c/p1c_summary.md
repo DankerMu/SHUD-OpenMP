@@ -19,7 +19,7 @@ P1c "deterministic-reduction + capstone" 阶段在以下条件达成时视为 CL
 | (i) P1c-tag annotated + baseline/P1c lock | spec L150-L160 + design D11 | △ PENDING (PR-L 下一 PR) | PR-L |
 | (j) PROMOTE 2 specs + archive + jsonl | spec p1c-capstone "PROMOTE" Scenario | △ PENDING (PR-M 下一 PR) | PR-M |
 
-**closure status**: (a)-(h) 8/8 done; (i)/(j) 顺序推进。**Carve-out scope (推 P9)**:
+**closure status**: (a)-(h) 8/8 done; (i)/(j) 顺序推进。**Carve-out scope (推 P1d)**:
 - ✗ Bit-level A3a cross-N (heihe / heihe_x4 N=1≡N=2 ≠ N=4 ≠ N=8 pattern)
 - ✗ nst Δ=0 cross-N (heihe |Δ|=84 post-Kahan; heihe_x4 |Δ|=5)
 - ✗ Upstream parallel writer first-touch / NUMA-affinity 治理 (OMP_PROC_BIND/OMP_PLACES + numactl interleave) — P1d stage 独立范围
@@ -185,7 +185,7 @@ spec `p1c-deterministic-reduction` L154-157 定义 SHALL Scenario "Mac N=1 反�
 - P1-update-omp-tag Mac canonical **rivqdown.dat** SHA 未直接 archived 在 P1 era docs (`docs/p1_summary.md` §"§4 Mac canonical SHA" 表 + `docs/p1_fullrun_bitwise.md` §3 表均报告的是 archive_b0_output.sh **summary SHA**, 非单文件 rivqdown.dat SHA — file artifact 不同)。
 - 已知架构等式 (server PR-J §2 实证): 8-site helper-wrap 在 NUM_OPENMP=1 (serial) bitwise-equivalent (P1 era rivqdown SHA == P1c pre-Kahan rivqdown SHA at server)。**理论上** Mac 同样应满足此等式, 但缺乏 P1 era Mac N=1 rivqdown.dat SHA 直接 reference, 不能字面验证。
 - **决定**: 将 spec L154-157 Mac SHALL Scenario 标 DEFERRED, 推 P1d stage 同时:
-  1. 在 P9 stage 重 P1-update-omp-tag binary 回 Mac 跑 NUM_OPENMP=1 → 4 case rivqdown.dat SHA, archive 进 `docs/p1_perf_baseline.md` 或 `docs/p1d/p1d_*.md`;
+  1. 在 P1d stage 重 P1-update-omp-tag binary 回 Mac 跑 NUM_OPENMP=1 → 4 case rivqdown.dat SHA, archive 进 `docs/p1_perf_baseline.md` 或 `docs/p1d/p1d_*.md`;
   2. P1d NUMA 治理后, 用 P1c Kahan binary OR pre-Kahan binary 跑同 4 case → 与 step (1) 比对;
   3. 若 pre-Kahan PASS (期望, 同 server PR-J §2): 证 Mac architecture 同 server bit-equivalent at serial; spec L154-157 Scenario 闭。
 
@@ -248,7 +248,7 @@ P1c epic 结束时 baseline/P1c HEAD (SHUD@3a0004c) NUM_OPENMP=1 binary SHA 与 
 
 ## §9 限制与已知问题
 
-1. **N≥4 bit-level A3a 仍 FAIL** — P1c 阶段未关闭, 推 P1d (per §1 carve-out scope + §5.2 P9 hand-off)。
+1. **N≥4 bit-level A3a 仍 FAIL** — P1c 阶段未关闭, 推 P1d (per §1 carve-out scope + §5.2 P1d hand-off)。
 2. **NUM_OPENMP=1 binary-level reverse-compat 在 Kahan-injected baseline/P1c HEAD 上 FAIL** — D11 tag-level immutability 保留, 但 runtime binary 跨 P1→P1c 阶段不再 byte-identical。
 3. **heihe_x4 Δ_wall 异常改善** — Kahan-injected wall 比 pre-Kahan 减少 15-23%, 与 R2 +1-3% perf 降估算相反。需 PR-K capstone 后 P2a/P1d 阶段 cross-check P1 era PR-K1 wall baseline 是否在同 hardware platform 上同样幅度。
 4. **Mac D7 framing 部分过时** — spec L113 "Mac snapshot 已知 pass-while-server-fails per design D7" 在 P1c PR-F/PR-H/PR-I 经验上不成立 (Mac + server 同 fail-pattern)。spec 文本保留, PR-M PROMOTE 时由 reviewer 决定是否在 archive 标 "P1c era 经验补充"。

@@ -24,7 +24,9 @@
 5. **wall-clock 反常改善** — `heihe_x4` N=8 实测墙钟时间 −22.9%，与设计阶段 R2 假设 (Neumaier 注入引入 +1-3% 性能下降) 相反；归因于 Kahan 改变 CVODE 收敛路径 → 减少 SPGMR 线性求解失败 (ncfl)，间接抵消 Neumaier 算术开销；
 6. **NUM_OPENMP=1 二进制反向兼容性 trade-off** — Kahan 注入在 serial 路径下亦改变累加顺序，故 `baseline/P1c` HEAD (Kahan-injected) 与 `P1-update-omp-tag` 在 N=1 二进制层面不再字节等同；但 D11 tag 不可变性 (`P1-update-omp-tag` 自身 SHA `ff21c75c` 不变) 保持。
 
-最终结论为 **PARTIAL CLOSURE + P1d carve-out**：8 站点确定性归约的设计 Requirement 已闭环，但 bit-level A3a 跨线程 + `nst Δ=0` 跨线程不在 P1c 阶段闭合，按 master plan §3 fallback option 2 + spec L100-L103 carve-out Scenario 推 P1d stage 治理上游 writer 噪声。本报告同时论证：P9 不是 P2a 的前置依赖，P2a 可独立启动。
+最终结论为 **PARTIAL CLOSURE + P1d carve-out**：8 站点确定性归约的设计 Requirement 已闭环，但 bit-level A3a 跨线程 + `nst Δ=0` 跨线程不在 P1c 阶段闭合，按 master plan §3 fallback option 2 + spec L100-L103 carve-out Scenario 推 P1d stage 治理上游 writer 噪声。
+
+> **2026-06-23 修订**：master plan §6 P1c.7 实测发现后追加 **P1d 子阶段** (§7.2)，P1d 是 P2a 的严格 hard gate（升级自原 P1c 行 → P2a 表述）。P1d 与 master plan §6 P9 (production deterministic reduction) 命名空间不重叠 — P1d 早 / strict / bitwise B1b，§6 P9 晚 / production / 允许偏离 B1b。
 
 P1c epic 由 13 个 PR (`PR-A` … `PR-M`) 与 1 个 annotated tag 收束，在单日 (2026-06-22 → 2026-06-23) 内完成 epic-burst (含 16 个 Slurm cell 服务器实测 + 13 次平均 review 轮次 + 1 次 R3 retry)。
 
@@ -37,7 +39,7 @@ P1c epic 由 13 个 PR (`PR-A` … `PR-M`) 与 1 个 annotated tag 收束，在�
 SHUD (Simulator for Hydrologic Unstructured Domains) 是耦合地表-地下水文模型，使用 SUNDIALS-CVODE 6.0.0 作非线性常微分方程组求解器。本工程 (`SHUD-OpenMP`) 路线沿 `SHUD_openMP_master_plan.md` v1.2 划分阶段：
 
 - **B 阶段** (B0/B1a/B1b)：单线程基线与重构等价基线，已 lock；
-- **P 阶段** (P1/P1c/P2a/...P9)：OpenMP 候选并行基线序列；
+- **P 阶段** (P1/P1c/P1d/P2a/.../P9 production)：OpenMP 候选并行基线序列；
 - **strict / prod**：最终验收与生产基线（未开启）。
 
 P1 (`P1-update-omp-tag`，commit `003f58d` / SHUD `07c677f`) 是 `MD_update.cpp` 中三处 owner-local 循环（element / river / lake）添加 `#pragma omp parallel for` 后的首个 OMP 候选基线，于 2026-06-22 完成并锁定。
@@ -60,7 +62,7 @@ P1 阶段将此现象列为 §1.1.1 WARNING (per `openspec/glossary.md`)，标�
 
 ### 1.3 P1c 子阶段的设立
 
-master plan v1.3 修订时在 P1 与 P2a 之间插入 P1c 子阶段，目标是：**在 P2a 启动前，先排查 `MD_rhs_core.cpp` 中 8 个浮点归约站点是否为 N≥4 漂移的源头。** 若是，则在 P1c 阶段以"固定形状成对求和 + 可选 Kahan 补偿"闭合；若不是，则正式将 forward debt 推至 P9 stage（上游 writer 治理）。
+master plan v1.3 修订时在 P1 与 P2a 之间插入 P1c 子阶段，目标是：**在 P2a 启动前，先排查 `MD_rhs_core.cpp` 中 8 个浮点归约站点是否为 N≥4 漂移的源头。** 若是，则在 P1c 阶段以"固定形状成对求和 + 可选 Kahan 补偿"闭合；若不是，则正式将 forward debt 推至 P1d stage（上游 writer 治理）。
 
 P1c epic (#243) 拆为 13 个 sub-issue (#244..#256, PR-A..PR-M)：诊断 + 8 站点改造 (B/C/D/E) + Mac 预筛 (F) + Kahan 兜底 patch 准备 (G) + 服务器首跑 (H) + 条件 Kahan 注入 (I) + 反向兼容验证 (J) + capstone (K/L/M)。
 
@@ -368,7 +370,7 @@ decision branch 2 确认后，漂移源定位为**上游 parallel writer 的 fir
 
 > **类比**：8 站点 reduction 像 8 个标准化的会计，按固定流程加账。账本本身（上游写入）里有几个数字本来就因为"多人同时写"带微小偏差，会计再标准也救不回来 — 要解决的是**写账本的人**，不是**算账的会计**。
 
-P9 stage forward debt 的核心 work scope：
+P1d stage forward debt 的核心 work scope：
 
 1. 对 `MD_update.cpp` 三 `#pragma omp parallel for` 区添加 `OMP_PROC_BIND=close` + `OMP_PLACES=cores`；
 2. 服务器侧 `numactl --interleave=all` 显式 NUMA 分布；
@@ -385,9 +387,9 @@ R2 估算基于"每 `+=` 多 3 算术 op + 1 magnitude-compare"的微观开销�
 3. SPGMR ncfl (linear solve failure count) 减少 → CVODE 不必重选步长 → 总迭代次数减少；
 4. 总迭代减少的时间收益 > Neumaier 微观开销。
 
-`heihe_x4` 在 N=4/N=8 下 ncfl 大量发生（SPGMR 高 fanin 易触发），故收益最显著（−15.2% / −22.9%）。这一观察提示 P9 stage 治理 writer noise 后，可能进一步获得 wall-clock 改善（即"双重红利"）。
+`heihe_x4` 在 N=4/N=8 下 ncfl 大量发生（SPGMR 高 fanin 易触发），故收益最显著（−15.2% / −22.9%）。这一观察提示 P1d stage 治理 writer noise 后，可能进一步获得 wall-clock 改善（即"双重红利"）。
 
-> **限制**：此解释为 hypothesis，待 P2a/P9 stage cross-check P1 era PR-K1 wall baseline 是否在同 hardware platform 上同样幅度变化才能 confirm。
+> **限制**：此解释为 hypothesis，待 P2a/P1d stage cross-check P1 era PR-K1 wall baseline 是否在同 hardware platform 上同样幅度变化才能 confirm。
 
 ### 6.4 Mac D7 framing 的部分修订
 
@@ -398,7 +400,7 @@ P1c 实测部分修订此 framing：
 - **保留**部分：Mac 不作 SHALL gate (PR-K2 唯一 SHALL gate)；Mac informational only；
 - **修订**部分：PR-F Mac 16-cell + PR-H/PR-I server 8-cell **同**显 N=1≡N=2 ≠ N=4 ≠ N=8 pattern（pre-Kahan + post-Kahan 双视角）⇒ Mac 不再是 D7 描述的"非典型 case"，而是 server pattern 的 **early signal**（RISK-26 NUMA / cache locality 共享敏感性的另一表征）。
 
-实践含义：未来阶段（P2a/P9）Mac 16-cell 仍可作低成本预筛工具，但其 PASS 不构成 server PASS 充分条件（这一点 D7 原本已包含）。
+实践含义：未来阶段（P2a/P1d）Mac 16-cell 仍可作低成本预筛工具，但其 PASS 不构成 server PASS 充分条件（这一点 D7 原本已包含）。
 
 ### 6.5 反向兼容 trade-off 的 D11 兼容性
 
@@ -410,7 +412,7 @@ D11 (design D11) 定义"tag SHA 永不变 + branch lock 不允许 force-push"。
 | Helper-wrap layer at N=1 (pre-Kahan baseline) | ✓ **EQUIVALENT** | SHUD@`de9545d` (PR-E end) NUM_OPENMP=1 SHA 与 `P1-update-omp-tag` canonical SHA byte-identical (PR-J §2 实证) |
 | Binary runtime SHA at N=1 (current `baseline/P1c` HEAD) | ✗ **DIVERGED** | SHUD@`3a0004c` (Kahan-injected) NUM_OPENMP=1 SHA 与 `P1-update-omp-tag` canonical SHA byte-different (trade-off) |
 
-> **结论**：D11 tag-level immutability **完全保留**；binary runtime cross-stage equivalence 是设计上的 trade-off (不在 D11 保证范围)。若 P9 stage NUMA 治理使 N≥4 漂移自然闭合，可 revert Kahan injection 回到 SHUD@`de9545d` 等价 helper-wrap，binary-level reverse-compat 自然恢复。
+> **结论**：D11 tag-level immutability **完全保留**；binary runtime cross-stage equivalence 是设计上的 trade-off (不在 D11 保证范围)。若 P1d stage NUMA 治理使 N≥4 漂移自然闭合，可 revert Kahan injection 回到 SHUD@`de9545d` 等价 helper-wrap，binary-level reverse-compat 自然恢复。
 
 ---
 
@@ -421,12 +423,12 @@ D11 (design D11) 定义"tag SHA 永不变 + branch lock 不允许 force-push"。
 1. **N≥4 bit-level A3a 仍 FAIL**：P1c 阶段未关闭，明确 carve-out 推 P1d；
 2. **NUM_OPENMP=1 binary-level reverse-compat 在 Kahan-injected `baseline/P1c` HEAD 上 FAIL**：D11 tag-level 保留，但 runtime binary 跨 P1 → P1c 不再字节等同；
 3. **`heihe_x4` `Δ_wall` 异常改善 (−22.9%)**：Kahan-injected 比 pre-Kahan 减少 15-23%，待 P2a/P1d 阶段 cross-check P1 era PR-K1 wall baseline；
-4. **Mac D7 framing 部分过时**：spec L113 "Mac pass-while-server-fails" 在 P1c PR-F/H/I 经验上不成立 (Mac + server 同 fail-pattern)；spec 文本保留，PR-M PROMOTE 时不改 — 后续 P2a/P9 经验补充；
+4. **Mac D7 framing 部分过时**：spec L113 "Mac pass-while-server-fails" 在 P1c PR-F/H/I 经验上不成立 (Mac + server 同 fail-pattern)；spec 文本保留，PR-M PROMOTE 时不改 — 后续 P2a/P1d 经验补充；
 5. **8935-8942 sbatch 首次提交数据丢失**：PR-I 操作记录 — 首次 sbatch template 含 `${ROOT}` 变量未被 sed 替换，scancel 前 `rm -rf ${RUN}` 已执行 → `.p1c-runs/` 首跑 scratch 销毁。源真值已固化在 PR-H 文档；重跑 8943-8950 修复后无影响。
 
-### 7.2 P9 stage forward debt
+### 7.2 P1d stage forward debt
 
-P1d stage (per master plan §3 P9 row) 的工作范围：
+P1d stage (per master plan §6 P1d.1-6 + §7.3 → P1d / → P2a entry conditions, 2026-06-23 修订) 的工作范围：
 
 | Task | 描述 | 验收 |
 |---|---|---|
@@ -438,7 +440,7 @@ P1d stage (per master plan §3 P9 row) 的工作范围：
 | T6 | NUM_OPENMP=1 SHA 恢复至 `7f22bd6f...` (P1 canonical) | reverse-compat closure |
 | T7 | `P1-update-omp-tag` Mac canonical rivqdown.dat SHA capture (DEFERRED Scenario L154-157) | spec L154-157 closure |
 
-**P9 不是 P2a 前置**：master plan §3 中 P2a / P9 是并列独立阶段，可同时推进或先 P2a 后 P9。
+**P1d 是 P2a 严格 hard gate (per master plan §6 P1d.6 / §7.3 → P2a 修订, 2026-06-23)**：master plan §6 P1c.7 实测修订后 P1d 必须先于 P2a 完成 (从原 "P2a/P9 并列" 升级为 "P1d → P2a 严格串行")。
 
 ### 7.3 Mac SHALL Scenario DEFERRED 路径
 
@@ -452,9 +454,9 @@ spec `p1c-deterministic-reduction` L154-157 定义 SHALL Scenario "Mac N=1 反�
 - `P1-update-omp-tag` Mac canonical **rivqdown.dat** SHA 未在 P1 era docs 中直接 archived (`docs/p1_summary.md` §4 + `docs/p1_fullrun_bitwise.md` §3 报告的是 `archive_b0_output.sh` summary SHA，非单文件 SHA — file artifact 不同)；
 - 已知架构等式（PR-J §2 实证）：8 站点 helper-wrap 在 NUM_OPENMP=1 串行下 byte-equivalent；**理论上** Mac 同样满足此等式，但缺乏 P1 era Mac N=1 rivqdown.dat 直接参照，不能字面验证。
 
-P9 stage T7 任务路径 (3 步)：
+P1d stage T7 任务路径 (3 步)：
 
-1. P9 stage 重 `P1-update-omp-tag` binary 回 Mac 跑 NUM_OPENMP=1 → 4 case rivqdown.dat SHA，archive 进 `docs/p1_perf_baseline.md` 或新文档；
+1. P1d stage 重 `P1-update-omp-tag` binary 回 Mac 跑 NUM_OPENMP=1 → 4 case rivqdown.dat SHA，archive 进 `docs/p1_perf_baseline.md` 或新文档；
 2. P1d NUMA 治理后，用 P1c Kahan binary OR pre-Kahan binary 跑同 4 case → 与 step 1 比对；
 3. 若 pre-Kahan PASS（期望，同 server PR-J §2）：证 Mac architecture 同 server bit-equivalent at serial；spec L154-157 Scenario closure。
 
@@ -471,7 +473,7 @@ P1c epic 提交以下贡献：
 5. **`P1c-tag` annotated**：commit `4b8c60a` / SHUD pin `3a0004c`；`baseline/P1c` 已 lock；D11 不可变链 (`P1-update-omp-tag` + `B1-tag` + `B1a-tag` + `B1b-tag`) 完全保留；
 6. **`P1c-tag` 反向兼容 trade-off 公开化**：Kahan 注入在 serial 路径下亦改变累加顺序，故 `baseline/P1c` HEAD 在 NUM_OPENMP=1 二进制层面与 `P1-update-omp-tag` canonical SHA 不再字节等同；D11 tag 不可变性保留。
 
-**P9 不是 P2a 的前置依赖**：master plan §3 中两阶段独立并列。P2a 可在 P1c lock 后立即启动 (entry condition per `docs/p1c/p1c_summary.md` §5.1 已满足)。
+**P1d 是 P2a 严格 hard gate** (per master plan §6 P1c.7 + P1d.6 / §7.3 → P2a 修订, 2026-06-23)：原 P1c 时刻论证「P9 不是 P2a 前置」基于 master plan §3 P2a / P9 并列假设，已被 P1c.7 实测发现 + 用户严格 hard gate 决策推翻。当前 P2a entry 要求 P1d 闭环 (A3a + nst Δ=0 + N=1 reverse-compat 三 SHALL 全 PASS)。`baseline/P1c` lock + capstone 历史保留作 vs P1d 差异比对参照物。
 
 ---
 
@@ -591,4 +593,4 @@ grep -rn '#pragma omp atomic' SHUD/src/
 
 **完**
 
-本报告作为 P1c epic 的高层叙事综合 (narrative synthesis)，与 8 份 source-of-truth 文档 (per A.5) 形成"综合 + raw evidence"二层结构。Source-of-truth 文档原汁原味保留 per-PR audit trail；本报告负责 narrative + cross-reference + 学术风格收口。后续 P2a / P9 阶段如需引用 P1c 经验，先读本报告获取整体视角，再按 A.5 表深入对应 raw evidence。
+本报告作为 P1c epic 的高层叙事综合 (narrative synthesis)，与 8 份 source-of-truth 文档 (per A.5) 形成"综合 + raw evidence"二层结构。Source-of-truth 文档原汁原味保留 per-PR audit trail；本报告负责 narrative + cross-reference + 学术风格收口。后续 P1d / P2a / §6 P9 production 阶段如需引用 P1c 经验，先读本报告获取整体视角，再按 A.5 表深入对应 raw evidence。

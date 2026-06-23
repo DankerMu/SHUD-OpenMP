@@ -286,7 +286,7 @@ Server PR-K2 二跑 (PR-H) 期望矩阵：
 **PR-I 阶段终判结论**: **分支 2 CONFIRMED** (诊断结果落在 8 站点 reduction 路径外部)。
 - ✓ §2.x fixed-shape pairwise 改造已完成 (PR-B/C/D/E)，作为通用 ULP 噪声阻断手段在 helper 层闭合;
 - ✓ Kahan 兜底 (PR-G/PR-I) 已注入并测量, 部分改善但未关闭 §4.4 A3a + §4.5 nst Δ=0 门;
-- ✓ **carve-out 推 P1d** (per design D6 + spec L100-L103 Scenario): 上游 writer first-touch / NUMA-affinity 治理 (OMP_PROC_BIND + OMP_PLACES + numactl interleave) 为 P9 stage 单独范围;
+- ✓ **carve-out 推 P1d** (per design D6 + spec L100-L103 Scenario): 上游 writer first-touch / NUMA-affinity 治理 (OMP_PROC_BIND + OMP_PLACES + numactl interleave) 为 P1d stage 单独范围;
 - 详 PR-I §8 "§4.7 二次决策 — PARTIAL CLOSURE + P1d CARVE-OUT" 三条结论 + carve-out scope 表 + extend 选项 cost 分析。
 - 若 server 数据 confirm 分支 1 (落在 8 站点内)，§2.x 改造直接闭合，无需 spec 扩展。
 - 若 server 数据 confirm 分支 3 (无因果链)，**STOP §2.x 推进**，P1c 范围重新评估，退回 master plan §6 P1c.1 候选 (c) Deterministic OpenMP N_Vector。
