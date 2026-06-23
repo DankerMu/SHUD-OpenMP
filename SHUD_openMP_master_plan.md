@@ -1743,7 +1743,84 @@ B0 → B1a → B1b → B1 → P1-update-omp → P1c
 
 - P2a 启动前置：P1c 全部通过 + `baseline/P1c` 锁定
 - 若 P1c 揭示更深 reduction 路径（如 SPGMR norm 跨线程数 reduction tree），追加 P1c 子任务而非延迟至 P7
-- 文档遗产：`docs/p1c_summary.md` + `docs/p1c_perf_baseline.md` + `docs/p1c_a3a_root_cause.md` (验证 P1 假设 root cause 是 tree-reduction-depth N>2 transition，吸收 F-K2-2 reviewer finding)
+- 文档遗产：`docs/p1c/p1c_summary.md` + `docs/p1c/p1c_perf_baseline.md` + `docs/p1c/p1c_a3a_root_cause.md` (验证 P1 假设 root cause 是 tree-reduction-depth N>2 transition，吸收 F-K2-2 reviewer finding)
+
+#### P1c.7 实测后修订 (2026-06-23)
+
+P1c epic (#243) 在单日 13 PR + 1 tag 完成后达到 **PARTIAL CLOSURE**：8 站点 / 10 anchor canonical-reduction Requirement 闭环 (helper-wrap bitwise-neutral at NUM_OPENMP=1，server PR-J §2 实证)，但 §4.4 A3a 跨线程 bitwise 与 §4.5 nst Δ=0 跨线程未达成 (heihe Kahan-injected 仍残 `|Δ_nst|=84`)。design D9 decision branch 2 **CONFIRMED**：drift origin **不在 8 站点 reduction 内部**，而在上游 parallel writer 的 first-touch / NUMA-affinity 异序写入；8 站点仅作 noise amplifier 忠实累加放大。
+
+按 P1c.5 严格表述，P2a 不可启动（A3a + nst 未通过）。原 docs/ 期写"carve-out 推 P9 stage"，但 §6 P9 实际范围是 production deterministic reduction (compensated summation)，与 NUMA writer 治理不同。修订：插入 **P1d 子阶段** (§下) 集中处置 NUMA writer 治理 + Kahan revert + Mac SHALL closure，作为 P1c → P2a 的真正前置。原 P1c docs 中 "P9 carve-out" 引用一律重命名为 "P1d carve-out"。
+
+---
+
+### P1d：NUMA writer governance + A3a closure (2026-06-23 新增, source: P1c.7 实测发现)
+
+**目标**：闭合 P1c.7 揭示的 carve-out — A3a 跨线程 bitwise + nst Δ=0 跨线程 + NUM_OPENMP=1 反向兼容 三项 SHALL 全 PASS，为 P2a 启动提供严格 hard gate。
+
+**与 §6 P9 (production deterministic reduction) 的区分**：
+- P1d 范围 = MD_update.cpp 上游 parallel writer 的 first-touch / NUMA-affinity 治理 (`OMP_PROC_BIND` + `OMP_PLACES` + `numactl` + source-level first-touch loop) + Kahan revert + Mac N=1 reverse-compat 闭环。**strict 模式**，必须保持与 B1b bitwise (NUM_OPENMP=1) 通过。
+- §6 P9 范围 = production 模式下的 fixed pairwise / Kahan / Neumaier / binned 求和 — 是 P7 strict 闭环后的 production-tail 数值稳定性提升，不与 B1b bitwise (允许 production 偏离)。
+- 两者**正交且独立 entry condition**：P1d 早 (P1c 直接后置)，P9 晚 (P8 之后)。命名空间不重叠。
+
+#### P1d.1 NUMA env 标准化
+
+服务器侧 sbatch template 加：
+
+- `OMP_PROC_BIND=close` (per RISK-23 / RISK-26)
+- `OMP_PLACES=cores`
+- `numactl --interleave=all` (multi-socket NUMA 显式分布)
+
+Mac 侧 `OMP_PROC_BIND=close` 同步 (libomp 弱绑定下 informational only, 但保证 env 一致)。
+
+#### P1d.2 source-level first-touch governance
+
+`SHUD/src/Model/MD_update.cpp` 中 P1 阶段添加的 3 个 `#pragma omp parallel for` 区 (element / river / lake owner-local 循环) 前置插入 parallel first-touch loop，使 hot 数组 (`hot.soa` / `QeleSurf_flat` / `Ele_AoS`) 的 page-fault 在并行 region 内由对应 owner 触发，避免 master thread 串行 first-touch → 跨 NUMA cache-line ping-pong。
+
+每 pragma 区独立 PR (PR-B / PR-C / PR-D)，每 PR 跑 server 8-cell with NUMA env (P1d.1 已 land)。
+
+#### P1d.3 Kahan revert + 三 SHALL 验收
+
+PR-F: SHUD revert Kahan injection (`3a0004c` → `de9545d` 等价 pre-Kahan helper-wrap)，恢复 NUM_OPENMP=1 reverse-compat 候选。  
+PR-G: 跑 server 8-cell with NUMA env + first-touch + no-Kahan + Mac 16-cell 同。
+
+**三 SHALL gate** (per Q1 严格 hard gate):
+
+1. §4.4 A3a bitwise: `heihe` + `heihe_x4` × N ∈ {1,2,4,8} 全等 (双 case 各 4-cell 同 SHA)
+2. §4.5 nst Δ=0: `heihe` `nst` 跨 N 全等 + `heihe_x4` `|Δ_nst|` ≤ 2
+3. NUM_OPENMP=1 reverse-compat: 6-case (heihe + heihe_x4 server + 4 Mac case) × N=1 byte-identical 至 `P1-update-omp-tag` canonical
+
+三项任一 FAIL → P1d 不 closure。
+
+#### P1d.4 Mac SHALL Scenario closure (spec L154-157)
+
+PR-H: 在 Mac 上重 `P1-update-omp-tag` binary (SHUD@`07c677f`) 跑 4 Mac case × NUM_OPENMP=1，archive `rivqdown.dat` SHA reference 进 `docs/p1c/p1c_perf_baseline.md` 或新 `docs/p1d/p1d_mac_reference.md`。  
+PR-I: P1d-binary Mac N=1 vs PR-H reference 比对，验证 byte-identical (per server PR-J §2 已建立的架构等式)。spec `p1c-deterministic-reduction` L154-157 SHALL Scenario closure。
+
+#### P1d.5 baseline lock + tag
+
+`baseline/P1d` 从 `baseline/P1c` HEAD (`c58e04f`) 分出，不污染 P1c lock。完成后：
+
+- `P1d-tag` annotated (D11 immutable，加入 5 tag chain → 6 tag chain)
+- `baseline/P1d` lock_branch=true + enforce_admins=true + allow_force_pushes=false + allow_deletions=false
+- SHUD pin 期望恢复 `de9545d` 等价 helper-wrap (PR-F revert Kahan + NUMA first-touch source 改造)
+
+#### P1d.6 Go/No-Go → P2a
+
+**严格 hard gate** (per 2026-06-23 用户决策):
+
+- P1d.3 三 SHALL gate 全 PASS (A3a bitwise + nst Δ=0 + N=1 reverse-compat)
+- P1d.4 Mac SHALL Scenario closure
+- `P1d-tag` 已 push + `baseline/P1d` 已 lock
+- OpenSpec change `p1d-numa-governance` 已 PROMOTE 至 `openspec/specs/p1d-numa-governance/spec.md`
+- D11 6 tag chain 不可变验证: P1-update-omp-tag / B1-tag / B1a-tag / B1b-tag / P1c-tag / P1d-tag 全 SHA 不变
+
+任一不满足 → P2a 不可启动。
+
+#### P1d.7 后续移交
+
+- P2a 启动前置：P1d 全部通过 + `baseline/P1d` 锁定 (取代原 §7.3 → P2a 行的 "P1c 锁定" 表述)
+- 文档遗产：`docs/p1d/p1d_summary.md` + `docs/p1d/p1d_perf_baseline.md` + `docs/p1d/p1d_numa_root_cause.md`
+- P1c-tag 历史保留：`baseline/P1c` lock 不动，作 vs P1d 差异比对历史参照
 
 ---
 
@@ -2434,7 +2511,8 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | → S6b (B1b) | B1a 已锁定；所有待修 bug 清单已确定 |
 | → P1 | B1b 已锁定；strict 编译选项确定；不存在共享浮点 `+=`；**`OMP_PROC_BIND=close OMP_PLACES=cores` 已写入 manifest** |
 | → P1c (M9) | P1 已锁定 + P1-update-omp-tag 已 push；P1 实测 `nst` 漂移证据已归档 (`docs/p1_perf_baseline.md` §2)；reduction 站点 grep 清单已完成（含 S2 P3–P5 gather + 候选其他 RHS reduction） |
-| → P2a | P1c 已锁定 + `P1c-tag` 已 push + `baseline/P1c` D11 protection 已 set；P1c.3 验收 A3a 全部通过；P1 实测 `nst` 漂移在 P1c 复跑中**消除** (heihe + heihe_x4 各 4-cell N 跨线程 `nst` 完全相等) |
+| → P1d (2026-06-23 新增) | P1c 已 PARTIAL CLOSURE + `P1c-tag` 已 push + `baseline/P1c` D11 protection 已 set；P1c.7 实测发现已 documented (design D9 branch 2 CONFIRMED drift origin OUTSIDE 8 sites)；docs/p1c/ 完整归档；P1d carve-out scope 已在 P1c.7 / P1d.1-6 子节定义 |
+| → P2a | **P1d 已锁定 + `P1d-tag` 已 push + `baseline/P1d` D11 protection 已 set**；P1d.3 三 SHALL 全部通过 (A3a bitwise + nst Δ=0 + N=1 reverse-compat)；P1d.4 Mac SHALL Scenario closure 完成；D11 6 tag chain 验证不变 (原 P1c entry 表述已升级，per P1c.7 实测修订 + 用户严格 hard gate 决策 2026-06-23) |
 | → P4/P5 | P2a–P2b–P3 bitwise 通过；segment flux 函数只写 `Qseg*`；gather list 排序与 B1c 一致 |
 | → P7 | P2–P6 每阶段 RHS snapshot 均 bitwise identical (基于 P1c deterministic-reduction) |
 | → P8-precond | P7 通过 A3a + A3b（A3c 加分不强制）；**`grep -c '#pragma omp parallel' MD_rhs_core.cpp` == 1**（fork-join 验证）；P7 性能验收 M 列通过 |

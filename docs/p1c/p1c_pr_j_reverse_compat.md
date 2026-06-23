@@ -4,7 +4,7 @@
 
 **结论**: 双视角文档:
 1. **Pre-Kahan (SHUD@de9545d, PR-H stage)** N=1 reverse-compat: **✓ PASS** — 8-site helper-wrap (PR-B/C/D/E) bitwise-equivalent at serial。
-2. **Kahan-injected (SHUD@3a0004c, PR-I stage, current baseline/P1c)** N=1 reverse-compat: **✗ FAIL** — Neumaier 改 helper acc order 引入 N=1 bit-level drift (acknowledged trade-off, P9 carve-out 范围)。
+2. **Kahan-injected (SHUD@3a0004c, PR-I stage, current baseline/P1c)** N=1 reverse-compat: **✗ FAIL** — Neumaier 改 helper acc order 引入 N=1 bit-level drift (acknowledged trade-off, P1d carve-out 范围)。
 
 ## §1 P1-update-omp-tag canonical reference
 
@@ -75,7 +75,7 @@ Per master plan + spec L100-L103 carve-out Scenario + PR-I §8 三结论:
 
 可选 baseline/P1c 子模块 pointer 由 `3a0004c` 回退至 `de9545d` 以恢复 N=1 reverse-compat ✓, 牺牲 Kahan 部分改善 (heihe Δ_nst 225 vs 84). 不 recommended 因为:
 - Kahan patch 仍 held-in-reserve 在 `docs/p1c/p1c_kahan_patch.diff` (PR-G);
-- master plan §3 fallback option 2 (carve-out) 已 closes 8-site Requirement, residual A3a 推 P9 — 与是否 land Kahan 二者均 D11-compatible;
+- master plan §3 fallback option 2 (carve-out) 已 closes 8-site Requirement, residual A3a 推 P1d — 与是否 land Kahan 二者均 D11-compatible;
 - Kahan 改善 nst stability 是 P1c 阶段最大 progress, 回退会失。
 
 ### Default (recommended) — keep Kahan landed at SHUD@3a0004c
@@ -88,4 +88,4 @@ Per master plan + spec L100-L103 carve-out Scenario + PR-I §8 三结论:
 - ✓ PR-K capstone (#254) `docs/p1c/p1c_summary.md` 须 narrate 此 trade-off + 列入 §"反向兼容判定" 章节;
 - ✓ PR-L (#255) P1c-tag annotated message 含 "NUM_OPENMP=1 binary-level reverse-compat NOT preserved due to PR-G/PR-I Kahan injection; D11 tag-immutability preserved" 语句;
 - ✓ PR-M (#256) PROMOTE 时 spec p1c-deterministic-reduction 已含 Kahan 兜底 + carve-out 路径, 不需 reshape;
-- ✓ P9 stage 范围 (per master plan): 若 P9 NUMA 治理 + OMP_PROC_BIND 标准化 后 nst Δ=0 自然达成, 可 P9 阶段 revert Kahan 注入 (回 `de9545d` 等价 helper-wrap) + 重新 evaluate N=1 reverse-compat (期望恢复 PASS)。
+- ✓ P1d stage 范围 (per master plan): 若 P1d NUMA 治理 + OMP_PROC_BIND 标准化 后 nst Δ=0 自然达成, 可 P1d 阶段 revert Kahan 注入 (回 `de9545d` 等价 helper-wrap) + 重新 evaluate N=1 reverse-compat (期望恢复 PASS)。

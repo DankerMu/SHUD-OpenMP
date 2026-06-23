@@ -152,7 +152,7 @@ qhh N=8    ac5c1ce922705e7fab40568404de52a0db06697730481b447303d5ba7ca26818
 **verdict**:
 - A3a: 3 distinct SHAs per case 仍存 — **FAIL** (pattern preserved)
 - nst delta: heihe |Δ|=84 (改善 ~63% vs 225); heihe_x4 |Δ|=5 (噪声幅度) — **PARTIAL**
-- §4.7 二次决策: **PARTIAL CLOSURE + P9 carve-out**
+- §4.7 二次决策: **PARTIAL CLOSURE + P1d carve-out**
 
 ## §4 Δ_wall 对比 PR-H pre-Kahan vs PR-I Kahan (R2 估算 verification)
 
@@ -190,6 +190,6 @@ PR-F Mac 16-cell scan (per §1.2) + Server PR-H/PR-I 8-cell (per §2/§3) 比较
 
 ## §6 阶段 hand-off
 
-详 `docs/p1c/p1c_summary.md` §5 (P2a + P9)。本 perf baseline 文档是 capstone source of truth for performance 数据, 在 PR-M PROMOTE 时随 archive。
+详 `docs/p1c/p1c_summary.md` §5 (P2a + P1d)。本 perf baseline 文档是 capstone source of truth for performance 数据, 在 PR-M PROMOTE 时随 archive。
 
 [`docs/p1c/p1c_summary.md`](p1c_summary.md) — sibling capstone (≥7 主题完整结构)。

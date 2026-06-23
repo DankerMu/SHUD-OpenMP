@@ -35,8 +35,8 @@ Kahan/Neumaier conditional path APPLIED (per spec L107-L128):
 - nst delta improvement: heihe |Δ| 225 → 84 (~63%); heihe_x4 |Δ| 3 → 5
   (within noise)
 
-PARTIAL CLOSURE + P9 carve-out (per master plan §3 fallback option 2):
-- §4.4 A3a cross-N + §4.5 nst Δ=0 cross-N: CARVE-OUT 推 P9 stage (upstream
+PARTIAL CLOSURE + P1d carve-out (per master plan §3 fallback option 2):
+- §4.4 A3a cross-N + §4.5 nst Δ=0 cross-N: CARVE-OUT 推 P1d stage (upstream
   parallel writer first-touch / NUMA-affinity governance)
 - design D9 decision branch 2 CONFIRMED: drift origin OUTSIDE 8 sites
 

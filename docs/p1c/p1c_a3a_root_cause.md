@@ -271,7 +271,7 @@ Server PR-K2 二跑 (PR-H) 期望矩阵：
 
 - 倾向 hypothesis 修订版 (writer noise → gather amplification)，即 **decision branch 2** (诊断结果落在 8 站点 reduction 路径**外部**)；
 - 故 §2.x 8 站点 fixed-shape pairwise 改造仍 SHALL 推进作为 ULP 噪声放大阻断手段 (per design D9 决策分支 2)；
-- 同时 server PR-K2 数据 (PR-H) SHALL 验证: 若实际证据指向上游 writer noise 而非 gather noise，**spec R2 表 SHALL 在 capstone 锁前扩展 in-scope 表 OR 显式记录为 carve-out 推 P9** (per design D6 + spec L100-L103 Scenario)。
+- 同时 server PR-K2 数据 (PR-H) SHALL 验证: 若实际证据指向上游 writer noise 而非 gather noise，**spec R2 表 SHALL 在 capstone 锁前扩展 in-scope 表 OR 显式记录为 carve-out 推 P1d** (per design D6 + spec L100-L103 Scenario)。
 
 ---
 
@@ -286,8 +286,8 @@ Server PR-K2 二跑 (PR-H) 期望矩阵：
 **PR-I 阶段终判结论**: **分支 2 CONFIRMED** (诊断结果落在 8 站点 reduction 路径外部)。
 - ✓ §2.x fixed-shape pairwise 改造已完成 (PR-B/C/D/E)，作为通用 ULP 噪声阻断手段在 helper 层闭合;
 - ✓ Kahan 兜底 (PR-G/PR-I) 已注入并测量, 部分改善但未关闭 §4.4 A3a + §4.5 nst Δ=0 门;
-- ✓ **carve-out 推 P9** (per design D6 + spec L100-L103 Scenario): 上游 writer first-touch / NUMA-affinity 治理 (OMP_PROC_BIND + OMP_PLACES + numactl interleave) 为 P9 stage 单独范围;
-- 详 PR-I §8 "§4.7 二次决策 — PARTIAL CLOSURE + P9 CARVE-OUT" 三条结论 + carve-out scope 表 + extend 选项 cost 分析。
+- ✓ **carve-out 推 P1d** (per design D6 + spec L100-L103 Scenario): 上游 writer first-touch / NUMA-affinity 治理 (OMP_PROC_BIND + OMP_PLACES + numactl interleave) 为 P1d stage 单独范围;
+- 详 PR-I §8 "§4.7 二次决策 — PARTIAL CLOSURE + P1d CARVE-OUT" 三条结论 + carve-out scope 表 + extend 选项 cost 分析。
 - 若 server 数据 confirm 分支 1 (落在 8 站点内)，§2.x 改造直接闭合，无需 spec 扩展。
 - 若 server 数据 confirm 分支 3 (无因果链)，**STOP §2.x 推进**，P1c 范围重新评估，退回 master plan §6 P1c.1 候选 (c) Deterministic OpenMP N_Vector。
 
@@ -356,4 +356,4 @@ qhh case (lake-bearing, 4773 ele) 同模式，`SHUD_DUMP_T_VALUES=12098880`
 - [ ] 在每个 reduction 站点入口 + 出口插 instrumented dump (ULP delta probe), 跑 N=2/4/8 各 8 站点 = 24 cell，填字段 (c) ULP delta 表。
 - [ ] 基于 server 数据 update 字段 (d) tree-reduction hypothesis confirm/refute。
 - [ ] 终判 D9 decision branch 1/2/3, update 本文档 §"design D9 decision branch 判定" 表的 "终判 (PR-H 后)" 列。
-- [ ] 若 branch 2 或 branch 3, update spec R2 表 in-scope 扩展 OR 显式 carve-out 推 P9 (per design D6) **在 spec 锁前**完成。
+- [ ] 若 branch 2 或 branch 3, update spec R2 表 in-scope 扩展 OR 显式 carve-out 推 P1d (per design D6) **在 spec 锁前**完成。
