@@ -13,7 +13,7 @@
 #
 # Run:
 #   OMP_NUM_THREADS=1
-#   Three Mac cases attempted to maximize anchor coverage:
+#   Four Mac cases attempted to maximize anchor coverage:
 #     keliya       (NumEle=484,   NumLake=0)
 #     xinanjiang   (NumEle=801,   NumLake=0)
 #     qinyijiang   (NumEle=3155,  NumLake=0)
@@ -34,15 +34,15 @@
 #   L279 qLakePrcp_L279       PRESENT (qhh)
 #   L311 QrivSurf_L311        PRESENT (keliya / qhh / xinanjiang / qinyijiang)
 #   L312 QrivSub_L312         PRESENT (keliya / qhh / xinanjiang / qinyijiang)
-#   L319 Qe2r_Surf_L319       ABSENT  -- seg_by_ele[ie] empty across 4 Mac cases
+#   L319 Qe2r_Surf_L319       ABSENT (= class-1 L382 Qe2r_Surf)  -- seg_by_ele[ie] empty across 4 Mac cases
 #                                       (Mac case structure: river bank
 #                                       segments back-feed onto elements
 #                                       but seg.iEle indices fall on
 #                                       elements that are themselves
 #                                       lake-interior -- see #1.5 notes)
-#   L320 Qe2r_Sub_L320        ABSENT  -- same cause as L319
+#   L320 Qe2r_Sub_L320        ABSENT (= class-1 L383 Qe2r_Sub)  -- same cause as L319
 #   L329 QrivUp_L329          PRESENT (keliya / qhh / xinanjiang / qinyijiang)
-#   L343 QLakeRivIn_L343      ABSENT  -- qhh has lake but riv_in_by_lake[ilake]
+#   L343 QLakeRivIn_L343      ABSENT (= class-1 L406 QLakeRivIn)  -- qhh has lake but riv_in_by_lake[ilake]
 #                                       empty under current case (lake fed
 #                                       directly from inflow forcing, not
 #                                       via a river-network downstream that

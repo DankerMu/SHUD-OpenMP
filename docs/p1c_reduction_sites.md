@@ -4,6 +4,17 @@ OpenSpec change `p1c-deterministic-reduction` 前置 audit (PR-A #244 §1.2 task
 
 ## 来源 (baseline grep)
 
+**分支模型 (P1c 阶段)**：`baseline/P1c` 是 P1c 阶段唯一活动集成线 (从 main HEAD `53d5294`
+分出, 2026-06-22)。PR-A..PR-M 全部 base 该分支 (PR base != main, `Closes #N` 自动关闭
+keyword 失效, orchestrator 手动 `gh issue close <N>`); PR-M 合并后 lock + sync main +
+annotate `P1c-tag` (D11 immutable), per master plan §6 P1c capstone procedure.
+
+**SHUD submodule 工作流 (P1c §2.x SHUD code change)**：PR-B 起涉及 SHUD source 改造的 PR
+SHALL 走 CLAUDE.md "SHUD submodule 工作流 (强制)" — `cd SHUD && git commit && git push origin
+openmp-baseline` → `cd .. && git add SHUD && git commit` (pointer bump) → 外层 PR。禁 push
+master / 禁 fork / 禁改 `.gitmodules`。PR-A 本身不动 SHUD source，pointer 与 baseline/P1c 一致
+`07c677f` (verified)。
+
 `docs/p1c_reduction_sites_baseline.txt` 为 frozen baseline，命令逐字：
 
 ```bash
@@ -44,6 +55,29 @@ SHUD pin = `07c677f`（PR-A #244 起始 + PR-K2 #223 三 pragma 栈，与 `basel
 | 8b | `SHUD/src/Model/MD_rhs_core.cpp:420` | `QLakeSurf[ilake]` | `QeleSurf_lake[ie*3+j]` | S4.6 `lake_bank_edge_by_lake[ilake]` |
 | 8c | `SHUD/src/Model/MD_rhs_core.cpp:433` | `QLakeSub[ilake]` | `QeleSub_lake[ie*3+j]` | S4.6 `lake_bank_edge_by_lake[ilake]` |
 
+### Line-number 等价表 (B1b SHUD `0b3998d` ↔ current SHUD `07c677f`)
+
+`docs/p1c_b1b_serial_order_dump.txt` 采用 B1b SHUD pin `0b3998d` 行号家族 (`site_tag` 后缀)，
+sites.md 类1 表 / spec L39-L50 / `docs/p1c_a3a_root_cause.md` 使用 PR-K2 #223 SHUD pin
+`07c677f` 行号家族。下游 §2.x PR-B/C/D/E 消费 dump 时按此表 cross-walk。
+
+| 站点 | 写目标 | dump-family (`0b3998d`) | class-1-family (`07c677f`) |
+|---|---|---|---|
+| 1 | `qLakeEvap[ilake]` | L222 (`qLakeEvap_L222`) | L278 |
+| 2 | `qLakePrcp[ilake]` | L223 (`qLakePrcp_L223`) | L279 |
+| 3 | `QrivSurf[ir]` | L311 (`QrivSurf_L311`) | L374 |
+| 4 | `QrivSub[ir]` | L312 (`QrivSub_L312`) | L375 |
+| 5 | `Qe2r_Surf[ie]` | L319 (`Qe2r_Surf_L319`) | L382 |
+| 6 | `Qe2r_Sub[ie]` | L320 (`Qe2r_Sub_L320`) | L383 |
+| 7 | `QrivUp[ir]` | L329 (`QrivUp_L329`) | L392 |
+| 8a | `QLakeRivIn[ilake]` | L343 (`QLakeRivIn_L343`) | L406 |
+| 8b | `QLakeSurf[ilake]` | L357 (`QLakeSurf_L357`) | L420 |
+| 8c | `QLakeSub[ilake]` | L370 (`QLakeSub_L370`) | L433 |
+
+**Cross-walk 验证**：`grep -c 'site=QrivSurf_L311' docs/p1c_b1b_serial_order_dump.txt` 期望 ≥ 1
+(dump-family hit); `grep -nE '\| 3 \|' docs/p1c_reduction_sites.md` 期望命中本表 L374 行
+(class-1-family hit)。
+
 合并 8a/8b/8c 为单一 logical site "lake gathers 组" — 三者共用 `lake_bank_edge_by_lake`
 或 `riv_in_by_lake` adjacency 结构 + 同一 iteration pattern (per spec L8-L10
 Conventions)，改造路径一致。
@@ -58,9 +92,9 @@ B1b serial loop 在以上 anchors 的 (iter, acc_target, src_idx) 输入顺序�
 
 | file:line | 写目标 | 类别 | 原因 + 引用 |
 |---|---|---|---|
-| `SHUD/src/ModelData/MD_f.cpp:73` | `qLakeEvap[ilake]` | dead-code mirror | dead-code mirror of L278; `f_loop()` 在 SHUD 仓库内**无 active caller** (§1.4 grep 验证: `grep -rnE '(->|::)f_loop\(' SHUD/src/` 仅命中 `MD_f.cpp:15` 定义本身)，OMP 路径不可达，per design D1 + §1.4 显式验证。`f.cpp` callers (L77/L91/L104/L117/L130) 调用的是 `f_loop1`/`f_loop2`/.../`f_loop5` 而非 `f_loop()`。 |
+| `SHUD/src/ModelData/MD_f.cpp:73` | `qLakeEvap[ilake]` | dead-code mirror | dead-code mirror of L278; `f_loop()` 在 SHUD 仓库内**无 active caller** (§1.4 grep 验证: `grep -rnE '(->|::)[[:space:]]*f_loop\(' SHUD/src/` 仅命中 `MD_f.cpp:15` 定义本身)，OMP 路径不可达，per design D1 + §1.4 显式验证。`f.cpp` callers (L77/L91/L104/L117/L130) 调用的是 `f_loop1`/`f_loop2`/.../`f_loop5` 而非 `f_loop()`。(regex 含 `[[:space:]]*` 兼容 `MD_f.cpp:15` 字面 `void Model_Data:: f_loop` 之间空格；sibling `f_applyDY` 无空格也命中。) |
 | `SHUD/src/ModelData/MD_f.cpp:74` | `qLakePrcp[ilake]` | dead-code mirror | 同上 (L279 mirror) |
-| `SHUD/src/ModelData/MD_f.cpp:147` | `DY[igw] += hot.QBC[i] / area` | dead-code mirror | `f_applyDY(double*, double)` 在 SHUD 仓库内**无 active caller** (§1.4 grep 验证: `grep -rnE '(->|::)f_applyDY\(' SHUD/src/` 仅命中 `MD_f.cpp:111` 定义本身)，`f.cpp` callers 调用的是 `f_applyDYi`/`f_applyDY_gw`/`f_applyDY_surf`/`f_applyDY_unsat`/`f_applyDY_river` 而非 `f_applyDY()`。OMP 路径不可达，per design D1。 |
+| `SHUD/src/ModelData/MD_f.cpp:147` | `DY[igw] += hot.QBC[i] / area` | dead-code mirror | `f_applyDY(double*, double)` 在 SHUD 仓库内**无 active caller** (§1.4 grep 验证: `grep -rnE '(->|::)[[:space:]]*f_applyDY\(' SHUD/src/` 仅命中 `MD_f.cpp:111` 定义本身)，`f.cpp` callers 调用的是 `f_applyDYi`/`f_applyDY_gw`/`f_applyDY_surf`/`f_applyDY_unsat`/`f_applyDY_river` 而非 `f_applyDY()`。OMP 路径不可达，per design D1。 |
 | `SHUD/src/ModelData/MD_f.cpp:152` | `DY[isf] += hot.QSS[i] / area` | dead-code mirror | 同上 |
 | `SHUD/src/ModelData/MD_f.cpp:154` | `DY[igw] += hot.QSS[i] / area` | dead-code mirror | 同上 |
 | `SHUD/src/ModelData/MD_f.cpp:249` | `DY[iGW] += hot.QBC[i] / hot.area[i]` | applyBCSS 内部 | `applyBCSS(double*, int i)` 仅在 splitter-RHS 路径 (`f_applyDY_gw` 等) 被调用，per-i scalar accumulation，**无 cross-thread reduction** (每个 element owner 单独负责自身 `DY[iGW]`)。non-OMP-driven write，per design D6 carve-out (SPGMR/N_Vector 同类) 推 P9 deterministic N_Vector. |
