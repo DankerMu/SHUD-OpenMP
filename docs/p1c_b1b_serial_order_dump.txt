@@ -22,12 +22,20 @@
 # Instrumentation:
 #   first-call sentinel fprintf(stderr, "[p1c_dump] site=<tag> iter=<i>
 #   acc_target=<dst>[<idx>] src_idx=<j>\n") inserted at each of the 10
-#   `+=` accumulations in MD_rhs_core.cpp (lines 222, 223, 311, 312,
-#   319, 320, 329, 343, 357, 370 at the B1b SHUD pin). After loop body
-#   completes, the sentinel flag is set, so re-entry on subsequent RHS
-#   calls is silent. This gives a single complete first-RHS-call ordering
-#   for each site without flooding the integrator with O(NumEle*NumSteps)
-#   stderr writes.
+#   `+=` accumulations in MD_rhs_core.cpp. site_tag line-number suffix
+#   uses the post-fix family (= class-1 family at SHUD `07c677f`, the
+#   PR-A/PR-K2 reference family also used by p1c_reduction_sites.md
+#   类1 表 + spec L39-L50): L278, L279 (qLake* pre-clamp, top of file)
+#   plus L311, L312, L319, L320, L329, L343, L357, L370 (gather body).
+#   Note: at the B1b SHUD pin `0b3998d` build state, those latter 8
+#   anchors literally sit at lines 311/312/319/320/329/343/357/370,
+#   while the qLake* pre-clamp pair (L278/L279 on `07c677f`) sits at
+#   L222/L223 — both families pinpoint the same C++ statements; see
+#   `docs/p1c_reduction_sites.md` "Line-number 等价表" cross-walk for
+#   per-row mapping. After loop body completes, the sentinel flag is
+#   set, so re-entry on subsequent RHS calls is silent. This gives a
+#   single complete first-RHS-call ordering for each site without
+#   flooding the integrator with O(NumEle*NumSteps) stderr writes.
 #
 # Anchor coverage observed (Mac local first-call):
 #   L278 qLakeEvap_L278       PRESENT (qhh)

@@ -7,7 +7,7 @@ P1c.0 实验诊断 (前置 SHALL, per design D9)。本文档在 PR-A 阶段建�
 
 ## 上下文
 
-- **分支模型 (P1c 阶段)**: `baseline/P1c` 是 P1c 阶段活动集成线, PR-A..PR-M 全部 base 该分支; PR-H server 数据回填本文档时同样 base baseline/P1c, per master plan §6 P1c capstone procedure.
+- **分支模型 (P1c 阶段)**: `baseline/P1c` 是 P1c 阶段活动集成线, PR-A..PR-M 全部 base 该分支; PR-H server 数据回填本文档时同样 base baseline/P1c, per master plan §6 P1c.4 baseline lock 与 tag + P1c.6 后续移交.
 - **基线**: SHUD pin `07c677f` (B1b-tag SHUD + PR-D/PR-E/PR-F element/river/lake `#pragma omp parallel for` 三栈, PR-K2 #223 实测 state).
 - **P1 epic 实测 (PR-K2 #223 / 2026-06-22)**: heihe `nst` 跨 N ∈ {1,2,4,8} = **6773 / 6773 / 6585 / 6684**，N≥4 漂移；heihe_x4 `nst` = 6571 / 6571 / 6570 / 6572 (微漂)。
 - **疑似机理 (Stage 1 hypothesis, per proposal.md L3)**: P1 阶段已并行的 owner-local writer 路径 (Model_Data.cpp / MD_update.cpp 中的 `#pragma omp parallel for`) 在 N>2 下产生 first-touch / NUMA-affinity 异序写入 ULP 噪声 → 下游 `rhs_deterministic_gather()` 8 reduction 站点忠实累加噪声 → CVODE 自适应步长重选 → `nst` 跨 N 漂移。
@@ -47,7 +47,7 @@ Mac snapshot 已知 pass-while-server-fails)。
 
 ### (a) pre-fix DY divergence first-occurrence
 
-**Server PR-K2 #223 实测 reference** (源自 `docs/p1_fullrun_bitwise.md` F-K2-2 reviewer finding): heihe `nst` 跨 N ∈ {1,2,4,8} = 6773/6773/**6585**/**6684**, heihe_x4 `nst` = 6571/6571/**6570**/**6572**; PR-H 二跑 success gate 要求 spec L172 Δ=0 强制 (heihe) + heihe_x4 Δ=0 with optional SPGMR-noise ladder (per design D6).
+**Server PR-K2 #223 实测 reference** (heihe nst 数据见 `docs/p1_summary.md` + `docs/p1_perf_baseline.md` + `docs/build_manifest.md`; heihe_x4 nst 数据见 `docs/p1_perf_baseline.md`; F-K2-2 reviewer finding tracking in P1 fullrun review): heihe `nst` 跨 N ∈ {1,2,4,8} = 6773/6773/**6585**/**6684**, heihe_x4 `nst` = 6571/6571/**6570**/**6572**; PR-H 二跑 success gate 要求 spec L172 Δ=0 强制 (heihe) + heihe_x4 Δ=0 with optional SPGMR-noise ladder (per design D6).
 
 | 字段 | Mac local 初步 | Server PR-K2 (TBD via PR-H) |
 |---|---|---|
@@ -146,13 +146,13 @@ heihe_x4 × N ∈ {1,2,4,8} = 8 cell) 以确认 first-occurrence。Mac local 单
 ## Mac local sanity check 复现脚本 (本 PR §1.5 (1) 部分)
 
 ```bash
-# 0) truncate cfg.para 到 90d (项目铁律: 所有 case ≤90 天截断, per CLAUDE.md)
-#    keliya 4y → 90d ≈ 1 个月 (避免 4y model time burn ~11min/case)
-#    cfg.para END = START + 90 (day-index 制); 见 tools/fix_case_paths/ 或手动 sed
-sed -i.bak -E 's/^([[:space:]]*END[[:space:]]+)[0-9]+/\1$(awk "\/START\/{print \$2+90}" SHUD/Basins/keliya/input/keliya/keliya.cfg.para)/' SHUD/Basins/keliya/input/keliya/keliya.cfg.para
+# 0) verify cfg.para 已 90d 截断 (项目铁律: 所有 case ≤90 天截断, per CLAUDE.md;
+#    shipped Basins/keliya/input/keliya/keliya.cfg.para 已就位 90d)
+grep -E '^START|^END' SHUD/Basins/keliya/input/keliya/keliya.cfg.para
+# expected: START 12053 / END 12143 (END - START = 90 day-index 制)
+# 若不等, 改 cfg.para 或用 `tools/fix_case_paths/fix_case_paths.sh` (该工具
+# rewrite path + NUM_OPENMP, 不 truncate END; END 需手动改).
 ```
-
-(注：sed 表达式为示意 — 实际若有 `tools/fix_case_paths/<case>.py` 优先用工具; manual sed 注意 `cfg.para` 字段顺序与 day-index vs minute-index unit。)
 
 ```bash
 # 1) build shud_omp with SHUD_DUMP_RHS=1
@@ -198,6 +198,7 @@ qhh case (lake-bearing, 4773 ele) 同模式，`SHUD_DUMP_T_VALUES=12098880`
 
 - [ ] **Re-dump 3 ABSENT anchors on server case** — Mac local dump 缺 L319 Qe2r_Surf / L320 Qe2r_Sub / L343 QLakeRivIn (= class-1 L382 / L383 / L406, per dump.txt L37-L49 + sites.md Line-number 等价表). server PR-K2 二跑 instrumentation SHALL 在 heihe + heihe_x4 case 各 N ∈ {1,4,8} 复跑时补这 3 anchor 的 `[p1c_dump]` trace 行，写回 `docs/p1c_b1b_serial_order_dump.txt` 末尾 OR 新建 `docs/p1c_server_order_dump.txt` (二者皆可，capstone PR-K decide).
 - [ ] **Slurm 三铁律 (server cn0X 提交 SHALL 遵循)** — (i) `sbatch` 从 `/scratch` 下提交 (不从 `/users/$USER`); (ii) `#SBATCH --output/--error` 路径必须在 `/scratch` 共享盘 (compute node `/tmp` node-local, 作业结束丢, sacct 显示 ExitCode 127); (iii) 作业脚本/patch/hash/run.sh 都放 `/scratch`. **禁 login node 跑 SHUD/keliya/heihe** (共享 CPU 30s 可膨胀到 30+ min). Per CLAUDE.md "Slurm 三铁律".
+- [ ] **SHUD submodule 工作流 (PR-H 复跑 SHALL 遵循)** — PR-H 会 re-instrument SHUD source (插 8 站点 ULP delta probe + 3 ABSENT anchor dump); 任何 SHUD source 改造 SHALL `cd SHUD && git commit && git push origin openmp-baseline` (长寿分支, 从 `3aec657` 派生) → `cd .. && git add SHUD && git commit` (pointer bump) → 外层 PR; **禁 push master / 禁 fork / 禁改 `.gitmodules`**. Per CLAUDE.md "SHUD submodule 工作流 (强制)".
 - [ ] Server cn0X build `shud_omp SHUD_DUMP_RHS=1`，3-grep gate strict FP.
 - [ ] heihe + heihe_x4 各 N ∈ {1, 4, 8} = 6 cell `f_applyDY` snapshot dump.
 - [ ] `compare_snapshot` 跨 N 对 (heihe N=1 vs N=4 等)，定位首发散点；记入字段 (a)。

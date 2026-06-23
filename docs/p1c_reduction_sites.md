@@ -7,7 +7,8 @@ OpenSpec change `p1c-deterministic-reduction` 前置 audit (PR-A #244 §1.2 task
 **分支模型 (P1c 阶段)**：`baseline/P1c` 是 P1c 阶段唯一活动集成线 (从 main HEAD `53d5294`
 分出, 2026-06-22)。PR-A..PR-M 全部 base 该分支 (PR base != main, `Closes #N` 自动关闭
 keyword 失效, orchestrator 手动 `gh issue close <N>`); PR-M 合并后 lock + sync main +
-annotate `P1c-tag` (D11 immutable), per master plan §6 P1c capstone procedure.
+annotate `P1c-tag` (D11 immutable), per master plan §6 P1c.4 baseline lock 与 tag +
+P1c.6 后续移交.
 
 **SHUD submodule 工作流 (P1c §2.x SHUD code change)**：PR-B 起涉及 SHUD source 改造的 PR
 SHALL 走 CLAUDE.md "SHUD submodule 工作流 (强制)" — `cd SHUD && git commit && git push origin
@@ -63,8 +64,8 @@ sites.md 类1 表 / spec L39-L50 / `docs/p1c_a3a_root_cause.md` 使用 PR-K2 #22
 
 | 站点 | 写目标 | dump-family (`0b3998d`) | class-1-family (`07c677f`) |
 |---|---|---|---|
-| 1 | `qLakeEvap[ilake]` | L222 (`qLakeEvap_L222`) | L278 |
-| 2 | `qLakePrcp[ilake]` | L223 (`qLakePrcp_L223`) | L279 |
+| 1 | `qLakeEvap[ilake]` | L278 (`qLakeEvap_L278`) | L278 |
+| 2 | `qLakePrcp[ilake]` | L279 (`qLakePrcp_L279`) | L279 |
 | 3 | `QrivSurf[ir]` | L311 (`QrivSurf_L311`) | L374 |
 | 4 | `QrivSub[ir]` | L312 (`QrivSub_L312`) | L375 |
 | 5 | `Qe2r_Surf[ie]` | L319 (`Qe2r_Surf_L319`) | L382 |
