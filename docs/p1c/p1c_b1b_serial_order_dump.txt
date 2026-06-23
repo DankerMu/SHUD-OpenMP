@@ -31,7 +31,7 @@
 #   anchors literally sit at lines 311/312/319/320/329/343/357/370,
 #   while the qLake* pre-clamp pair (L278/L279 on `07c677f`) sits at
 #   L222/L223 — both families pinpoint the same C++ statements; see
-#   `docs/p1c_reduction_sites.md` "Line-number 等价表" cross-walk for
+#   `docs/p1c/p1c_reduction_sites.md` "Line-number 等价表" cross-walk for
 #   per-row mapping. After loop body completes, the sentinel flag is
 #   set, so re-entry on subsequent RHS calls is silent. This gives a
 #   single complete first-RHS-call ordering for each site without
@@ -45,7 +45,7 @@
 #   L319 Qe2r_Surf_L319       PRESENT (= class-1 L382 Qe2r_Surf) — 6240 total body hits
 #                                       (keliya 534 / xinanjiang 584 / qinyijiang 1384 /
 #                                       qhh 3738; verified `grep -c 'site=Qe2r_Surf_L319'
-#                                       docs/p1c_b1b_serial_order_dump.txt` = 6241 = 6240
+#                                       docs/p1c/p1c_b1b_serial_order_dump.txt` = 6241 = 6240
 #                                       body + 1 header self-reference in this comment).
 #                                       R3 correction (2026-06-23): prior ABSENT framing was a
 #                                       fixture defect — the seg_by_ele[ie] adjacency is
@@ -54,7 +54,7 @@
 #                                       (per-case identical distribution to L319,
 #                                       same iter/src_idx pairing per shared seg_by_ele[ie]
 #                                       loop; verified `grep -c 'site=Qe2r_Sub_L320'
-#                                       docs/p1c_b1b_serial_order_dump.txt` = 6241 = 6240
+#                                       docs/p1c/p1c_b1b_serial_order_dump.txt` = 6241 = 6240
 #                                       body + 1 header self-reference in this comment).
 #   L329 QrivUp_L329          PRESENT (keliya / qhh / xinanjiang / qinyijiang)
 #   L343 QLakeRivIn_L343      ABSENT (= class-1 L406 QLakeRivIn)  -- qhh has lake but riv_in_by_lake[ilake]
@@ -86,11 +86,11 @@
 #   for tag in qLakeEvap_L278 qLakePrcp_L279 QrivSurf_L311 QrivSub_L312 \
 #              Qe2r_Surf_L319 Qe2r_Sub_L320 QrivUp_L329 QLakeRivIn_L343 \
 #              QLakeSurf_L357 QLakeSub_L370; do
-#     echo "$(grep -c "site=${tag}" docs/p1c_b1b_serial_order_dump.txt) ${tag}"
+#     echo "$(grep -c "site=${tag}" docs/p1c/p1c_b1b_serial_order_dump.txt) ${tag}"
 #   done
 #
 # Per-case body-line counts (run on PR head, SHUD@0b3998d Mac local 4-case
-# 90d cfg build; case ranges per `grep -n '^=====' docs/p1c_b1b_serial_order_dump.txt`):
+# 90d cfg build; case ranges per `grep -n '^=====' docs/p1c/p1c_b1b_serial_order_dump.txt`):
 #
 #   ANCHOR             | Total body hits | keliya | xinanjiang | qinyijiang | qhh
 #   ---                | ---             | ---    | ---        | ---        | ---
@@ -112,7 +112,7 @@
 #   qhh        : line 11006..EOF
 # (line numbers above are post-R3-fix at PR #257 R3-retry; pre-fix shipped
 #  at line 76/2545/5098/10954 before this header expansion. Recompute via
-#  `grep -n '^=====' docs/p1c_b1b_serial_order_dump.txt` on any subsequent
+#  `grep -n '^=====' docs/p1c/p1c_b1b_serial_order_dump.txt` on any subsequent
 #  edit before re-running the awk slice.)
 #
 # This table makes the PRESENT/ABSENT classification falsifiable: any
