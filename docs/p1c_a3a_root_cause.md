@@ -277,16 +277,17 @@ Server PR-K2 二跑 (PR-H) 期望矩阵：
 
 ## design D9 decision branch 判定 (PR-A 阶段初步)
 
-| 分支 | 描述 | PR-A 阶段判定 | 终判 (PR-H 后) |
+| 分支 | 描述 | PR-A 阶段判定 | 终判 (PR-I 后) |
 |---|---|---|---|
-| 1 | 诊断结果落在 8 站点 reduction 路径 | **NOT confirmed** by Mac local | TBD |
-| 2 | 诊断结果落在 8 站点 reduction 路径**外部** (parallel writer noise) | **PROBABLE** per Stage 1 + Mac local + proposal L3 修订 hypothesis | TBD |
-| 3 | 诊断显示 8 站点改造与漂移源无任何因果链 | NOT supported by Stage 1 grep | TBD |
+| 1 | 诊断结果落在 8 站点 reduction 路径 | **NOT confirmed** by Mac local | **REFUTED** — Kahan 完全注入 (PR-I §3-§6) 残 |Δ_nst|=84 / SHAs cross-N 不等 = drift 不在 8 站点内部 |
+| 2 | 诊断结果落在 8 站点 reduction 路径**外部** (parallel writer noise) | **PROBABLE** per Stage 1 + Mac local + proposal L3 修订 hypothesis | **CONFIRMED** (PR-I 8-cell Kahan 数据) |
+| 3 | 诊断显示 8 站点改造与漂移源无任何因果链 | NOT supported by Stage 1 grep | **PARTIALLY REFUTED** — Kahan 改善 heihe Δ_nst 225→84 (~63% 改善) 证 8 站点 reduction 与 drift 有部分因果链 (作为 noise 放大器), 但非源头 |
 
-**PR-A 阶段判定结论**: 倾向 **分支 2** (诊断结果落在 8 站点 reduction 路径外部)。
-- 推进 §2.x fixed-shape pairwise 改造作为通用 ULP 噪声阻断手段；
-- 同时 server PR-K2 二跑 (PR-H stage) SHALL 提供 byte-level dump 跨 N=1/4/8 数据，定位 DY 首发散点；
-- 若 server 数据 confirm 分支 2, **SHALL 在 spec R2 表锁前扩展 in-scope** OR 显式 carve-out 推 P9 (per design D6)。
+**PR-I 阶段终判结论**: **分支 2 CONFIRMED** (诊断结果落在 8 站点 reduction 路径外部)。
+- ✓ §2.x fixed-shape pairwise 改造已完成 (PR-B/C/D/E)，作为通用 ULP 噪声阻断手段在 helper 层闭合;
+- ✓ Kahan 兜底 (PR-G/PR-I) 已注入并测量, 部分改善但未关闭 §4.4 A3a + §4.5 nst Δ=0 门;
+- ✓ **carve-out 推 P9** (per design D6 + spec L100-L103 Scenario): 上游 writer first-touch / NUMA-affinity 治理 (OMP_PROC_BIND + OMP_PLACES + numactl interleave) 为 P9 stage 单独范围;
+- 详 PR-I §8 "§4.7 二次决策 — PARTIAL CLOSURE + P9 CARVE-OUT" 三条结论 + carve-out scope 表 + extend 选项 cost 分析。
 - 若 server 数据 confirm 分支 1 (落在 8 站点内)，§2.x 改造直接闭合，无需 spec 扩展。
 - 若 server 数据 confirm 分支 3 (无因果链)，**STOP §2.x 推进**，P1c 范围重新评估，退回 master plan §6 P1c.1 候选 (c) Deterministic OpenMP N_Vector。
 
