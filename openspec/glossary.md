@@ -192,3 +192,27 @@ _Avoid_: 把 P7 final-fusion 与 P1 stage 强行并轨 (NG3 per design D5)；P1 
 **§1.1.1 WARNING**:
 P1 epic capstone verdict 状态。其 carve-out 含义：(a) wall/speedup Amdahl-bound for IO-dominant case (heihe sp@8 实测 1.08× ~ 1.13× IO Amdahl 上限) + below P7 strict target for first OMP candidate (heihe_x4 sp@8 实测 1.14× < P7 strict M=1.8×/T=2.2×)；(b) N≥4 cross-thread A3a + A3b dual-FAIL (P7 final-fusion deterministic-reduction debt)。**non-blocking** per design D5 NG3 + master plan §6 P7 final-fusion scope + spec p1-state-update-parallel L184-L209 dual-FAIL Scenario；P1 lock 已通过 PR-H/I/J 3 anchor (NUM_OPENMP=1 vs B1b bitwise 24/24 PASS) 完成 forced gate。
 _Avoid_: 把 §1.1.1 WARNING 当作 P1 epic 失败标记；把 P1 stage carve-out 解读为永久豁免（P7 阶段 SHALL 解决）
+
+### P1c deterministic-reduction baseline 集合
+
+P1c epic (#243) 完成后由 PR-M (TBD) PROMOTE 入册的术语集合。
+
+**P1c-tag**:
+P1c epic capstone tag。annotated tag object SHA `1da5eb9734680fc61e68f6091964c38fc5f67c6f` deref commit `4b8c60af261e0d1517f52702e4827a4e2d67dd41`（≡ PR-L #268 capstone log append + baseline/P1c HEAD post-PR-L 时刻）；SHUD submodule pin `3a0004c4c2a9a1d8eb586aba45186f8a2ff79df4`（`openmp-baseline` 分支 HEAD on `SHUD-System/SHUD`，PR-I #265 Kahan injection on top of post-PR-E helper-wrap）。D11 immutable：一次锁死禁止 force-update（与 P1-update-omp-tag 一致）；任何后续 retroactive 更新走 forward-compat `P2-* stacking` 路径（master plan C8）。
+_Avoid_: 把 P1c-tag 理解成 lightweight tag 或允许 force-update；把 P1c-tag 误以为 supersede P1-update-omp-tag（两 tag 并存 D11 immutable）
+
+**baseline/P1c**:
+P1c epic 活动开发线分支（PR-A..PR-M base）。Lock prep PR-L #268 + 实际 lock 在 PR-M post-merge 执行。lock 后 HEAD frozen at PR-M 合并 SHA；SHUD pin `3a0004c`（Kahan-injected）。后续 P2+ 工作从 `main` 分新分支，不再打 `baseline/P1c`。仅作历史比对参照（vs P1 / vs P-strict）。**与 baseline/P1 关系**：两 baseline 并存 D11 immutable；P1c **不取代** P1，而是 P1 stage 的 sub-epic capstone（per master plan §6 P1c 子节）。
+_Avoid_: 把 baseline/P1c 当作活动开发线（lock 后不允许 push）；把 baseline/P1c 当 supersede baseline/P1 的 successor branch
+
+**4 helpers (fixed-shape canonical reduction)**:
+`SHUD/src/Model/MD_rhs_core.cpp` 中 4 个 `static inline` helper functions（`fixed_pairwise_sum_range` / `fixed_pairwise_sum_indexed` / `fixed_leftfold_sum_indexed` / `fixed_leftfold_sum_pair_indexed`）的总称，由 PR-B/C/D/E #258/#259/#260/#261 落地，cover 10 line anchors → 8 logical sites（spec p1c-deterministic-reduction §"全 RHS reduction 站点 grep 清单完整覆盖" + §"MD_rhs_core.cpp 8 reduction 站点 fixed-shape pairwise 改造" Requirements）。helper-wrap **bitwise-equivalent at NUM_OPENMP=1**（server PR-J #266 §2 实证：P1 era N=1 SHA `7f22bd6f...` ≡ P1c pre-Kahan N=1 SHA `7f22bd6f...` heihe / `55403bef...` heihe_x4）。**Kahan-aware variant** 通过 Neumaier compensation 引入（per `Kahan held-in-reserve patch`）。
+_Avoid_: 把 helper-wrap 与 OpenMP `reduction(+:sum)` 混淆（helpers 内部仍 serial，OMP 写在调用端）；把 helper-wrap 当作完整 A3a closure（需 Kahan + NUMA 双重补偿）
+
+**Kahan held-in-reserve patch**:
+`docs/p1c_kahan_patch.diff` (PR-G #263) — git-apply 风格 patch file，记录 Neumaier 1974 (Kahan-Babuška variant) compensation 在 4 helpers 中的注入。**Held-in-reserve** = patch 作 documentation artifact 存在但 conditional apply：spec p1c-deterministic-reduction Requirement "Kahan 补偿求和兜底 (条件触发, server PR-K2 首跑 FAIL)" 触发时才应用（per `docs/p1c_a3a_root_cause.md` §"Kahan 候选路径" §(c) trigger conditions）。P1c epic 中 PR-H #264 §4.7 trigger fired → PR-I #265 应用 patch → SHUD pin de9545d → 3a0004c。算法：Neumaier 改进版（每 += 注入 floor-comparison + 3 算术 op，保 backward-stable）。Wall-clock 影响实测改善而非 R2 估算 +1-3%（heihe_x4 N=8 -22.9%，per `docs/p1c_perf_baseline.md` §4）— **R2 估算 REFUTED**。
+_Avoid_: 把 Kahan held-in-reserve 与 classic Kahan summation 混淆（Neumaier 显式处理 sign-mixing 序列，对站点 5/6/7 sigma 含负数 robust）；把 patch apply 后 SHUD pin 3a0004c 当作 baseline/P1c 的永久 pin（P9 NUMA 治理后可 revert 回 de9545d 等价 pre-Kahan helper-wrap，per `docs/p1c_pr_j_reverse_compat.md` §4 rollback option）
+
+**P9 carve-out (writer noise governance)**:
+P1c epic capstone verdict `PARTIAL CLOSURE` 的 forward debt。Per `docs/p1c_summary.md` §5.2 + `docs/p1c_pr_i_kahan_injection.md` §8 + design D9 decision branch 2 CONFIRMED：drift origin 不在 P1c 8-site reduction 内部 (Kahan 完全注入仍残 heihe |Δ_nst|=84)，而是上游 parallel writer first-touch / NUMA-affinity 异序写入 ULP 噪声 → gather 站点忠实累加放大。P9 stage SHALL：(a) MD_update.cpp 3 #pragma omp parallel for region (hot.soa / QeleSurf_flat / Ele_AoS) 加 `OMP_PROC_BIND=close` + `OMP_PLACES=cores` + `numactl --interleave=all`; (b) 验证 NUMA 治理后 heihe / heihe_x4 4 N SHA 全等 (A3a closure); (c) nst Δ=0 cross-N closure; (d) NUM_OPENMP=1 reverse-compat 恢复 (revert Kahan)。**non-blocking P1c** per master plan §3 fallback option 2 + spec L100-L103 carve-out Scenario。
+_Avoid_: 把 P9 carve-out 与 P7 final-fusion deterministic-reduction 混淆（两 forward debt 独立：P7 = fork-join + chunk-fixed schedule；P9 = NUMA + first-touch governance）；把 P9 work scope 误以为可 P2a 阶段解决（master plan §6 显式 P9 范围）
