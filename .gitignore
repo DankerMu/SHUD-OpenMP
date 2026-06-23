@@ -16,6 +16,9 @@ openspec/changes/
 .s*-runs/
 .s2-103/
 .s6c12a-runs/
+.p1c-runs/
+.p1c-pr-*-runs/
+.workplans/
 
 # Per-PR review snapshots (local notes, not part of evidence chain)
 docs/review/

@@ -173,7 +173,7 @@ sum = t;
 
 为何选 Neumaier 而非经典 Kahan：站点 5/6/7 的 `Qe2r_Surf`、`Qe2r_Sub`、`QrivUp` 含 `-fixed_leftfold_sum_indexed(...)` 整体负号，中间过程仍可 sign-mixed；经典 Kahan 在 sign-mixing 序列上对 `|sum| < |x|` 边界 vulnerable。
 
-**Held-in-reserve 含义**：PR-G (#263) 仅产 `docs/p1c_kahan_patch.diff` 作为 documentation artifact，**不**直接 apply。仅在 §4.7 触发条件命中时（即 PR-H 服务器首跑 FAIL）才 apply。这一设计来自 master plan §3 P1c fallback option 1 + spec L107-L128 + design D2/D4/R2。
+**Held-in-reserve 含义**：PR-G (#263) 仅产 `docs/p1c/p1c_kahan_patch.diff` 作为 documentation artifact，**不**直接 apply。仅在 §4.7 触发条件命中时（即 PR-H 服务器首跑 FAIL）才 apply。这一设计来自 master plan §3 P1c fallback option 1 + spec L107-L128 + design D2/D4/R2。
 
 每次 `+=` 多 1 次 magnitude-compare + 3 次 FP 算术运算 (vs naive `+=` 的 1 op)；按 `heihe` 规模 (≈6 800 RHS calls × O(fanin)) 估算，wall-clock 影响初设 R2 ≈ +1-3%。
 
@@ -251,19 +251,19 @@ post-PR-E SHUD HEAD = `de9545d` (helper-wrap landed, **pre-Kahan**)。
 
 PR-F (#262) 在 SHUD@`de9545d` 跑 4 case × 4 N = 16 cell：
 
-- 4 case × N=1 SHA 已采集 (per `docs/p1c_perf_baseline.md` §1.3)；
+- 4 case × N=1 SHA 已采集 (per `docs/p1c/p1c_perf_baseline.md` §1.3)；
 - 跨 N 一致性：4 case 全部 4-N SHA 等同 → **Mac 未复现** N≥4 漂移；
 - 3 negative grep gate PASS：
   - `grep -rE 'SHUD_USE_DETERMINISTIC_REDUCTION|SHUD_DET_REDUCT|SHUD_PAIRWISE' SHUD/` → 0 hits
   - `grep -nE 'schedule\(' SHUD/src/Model/MD_rhs_core.cpp` → 0 hits
   - `grep -rn '#pragma omp atomic' SHUD/src/` → 0 hits
-- 10 行 anchor → 8 logical site coverage 表完整 (per `docs/p1c_summary.md` §6.2)。
+- 10 行 anchor → 8 logical site coverage 表完整 (per `docs/p1c/p1c_summary.md` §6.2)。
 
 Mac 16-cell 全 PASS **不能** confirm/refute 服务器假设：Mac M4 Pro 4P+10E 异构核心 + libomp 弱绑定 (per master plan §7.2 RISK-26) 即便有服务器 NUMA-affinity 噪声 mechanism 在场，也未必在 Mac snapshot 层面显现（这是 P1 era design D7 "Mac pass-while-server-fails" 模式的延续）。
 
 ### 5.3 服务器 PR-K2 首跑 (PR-H, 8-cell pre-Kahan)
 
-PR-H (#264) 在服务器 cn0X 节点 (Slurm jobs 8925-8932) 跑 SHUD@`de9545d` 8 cell。原始数据 (per `docs/p1c_pr_h_server_first_run.md` §3-§7)：
+PR-H (#264) 在服务器 cn0X 节点 (Slurm jobs 8925-8932) 跑 SHUD@`de9545d` 8 cell。原始数据 (per `docs/p1c/p1c_pr_h_server_first_run.md` §3-§7)：
 
 #### 5.3.1 SHA256 矩阵
 
@@ -289,7 +289,7 @@ PR-H (#264) 在服务器 cn0X 节点 (Slurm jobs 8925-8932) 跑 SHUD@`de9545d` 8
 
 ### 5.4 §4.7 触发条件命中 → Kahan 注入 (PR-I, 8-cell post-Kahan)
 
-PR-I (#265) `git apply` `docs/p1c_kahan_patch.diff` 至 SHUD `de9545d → 3a0004c`，并 Slurm jobs 8943-8950 跑 8 cell 二次实测（per `docs/p1c_pr_i_kahan_injection.md` §3-§7）。
+PR-I (#265) `git apply` `docs/p1c/p1c_kahan_patch.diff` 至 SHUD `de9545d → 3a0004c`，并 Slurm jobs 8943-8950 跑 8 cell 二次实测（per `docs/p1c/p1c_pr_i_kahan_injection.md` §3-§7）。
 
 #### 5.4.1 SHA256 矩阵 (Kahan-injected)
 
@@ -434,7 +434,7 @@ P9 stage (per master plan §3 P9 row) 的工作范围：
 | T2 | server 侧 `numactl --interleave=all` 标准化 | sbatch template 修订 |
 | T3 | 验证 NUMA 治理后 `heihe` / `heihe_x4` 4 N SHA 全等 | A3a closure |
 | T4 | 验证 NUMA 治理后 `nst Δ=0` cross-N | nst closure |
-| T5 | revert Kahan injection (`docs/p1c_kahan_patch.diff` 反向 apply) | SHUD pin 3a0004c → de9545d 等价 |
+| T5 | revert Kahan injection (`docs/p1c/p1c_kahan_patch.diff` 反向 apply) | SHUD pin 3a0004c → de9545d 等价 |
 | T6 | NUM_OPENMP=1 SHA 恢复至 `7f22bd6f...` (P1 canonical) | reverse-compat closure |
 | T7 | `P1-update-omp-tag` Mac canonical rivqdown.dat SHA capture (DEFERRED Scenario L154-157) | spec L154-157 closure |
 
@@ -471,7 +471,7 @@ P1c epic 提交以下贡献：
 5. **`P1c-tag` annotated**：commit `4b8c60a` / SHUD pin `3a0004c`；`baseline/P1c` 已 lock；D11 不可变链 (`P1-update-omp-tag` + `B1-tag` + `B1a-tag` + `B1b-tag`) 完全保留；
 6. **`P1c-tag` 反向兼容 trade-off 公开化**：Kahan 注入在 serial 路径下亦改变累加顺序，故 `baseline/P1c` HEAD 在 NUM_OPENMP=1 二进制层面与 `P1-update-omp-tag` canonical SHA 不再字节等同；D11 tag 不可变性保留。
 
-**P9 不是 P2a 的前置依赖**：master plan §3 中两阶段独立并列。P2a 可在 P1c lock 后立即启动 (entry condition per `docs/p1c_summary.md` §5.1 已满足)。
+**P9 不是 P2a 的前置依赖**：master plan §3 中两阶段独立并列。P2a 可在 P1c lock 后立即启动 (entry condition per `docs/p1c/p1c_summary.md` §5.1 已满足)。
 
 ---
 
@@ -570,18 +570,18 @@ grep -rn '#pragma omp atomic' SHUD/src/
 | 文档 | 内容 | 角色 |
 |---|---|---|
 | 本文件 | P1c 阶段研究报告 (narrative synthesis) | 综合 |
-| [`docs/p1c_summary.md`](p1c_summary.md) | P1c capstone 10 sections (机制说明) | source of truth |
-| [`docs/p1c_a3a_root_cause.md`](p1c_a3a_root_cause.md) | A3a 根因 + D9 决策分支 + Kahan 路径终判 | analysis |
-| [`docs/p1c_perf_baseline.md`](p1c_perf_baseline.md) | Mac 16-cell + Server PR-H/PR-I 8-cell wall + 数据 | raw data |
-| [`docs/p1c_reduction_sites.md`](p1c_reduction_sites.md) | 8 站点 overview + B1b serial canonical order | reference |
-| [`docs/p1c_pr_h_server_first_run.md`](p1c_pr_h_server_first_run.md) | PR-H server first run 8-cell raw data + verdict | raw data |
-| [`docs/p1c_pr_i_kahan_injection.md`](p1c_pr_i_kahan_injection.md) | PR-I Kahan 二跑 8-cell raw data + carve-out 决策 | raw data |
-| [`docs/p1c_pr_j_reverse_compat.md`](p1c_pr_j_reverse_compat.md) | PR-J reverse-compat 双视角 (pre-Kahan / Kahan) | analysis |
-| [`docs/p1c_tag_and_lock.md`](p1c_tag_and_lock.md) | P1c-tag annotated procedure + branch lock | procedure |
-| [`docs/p1c_kahan_patch.diff`](p1c_kahan_patch.diff) | Kahan held-in-reserve patch (PR-G 输出 / PR-I 应用) | code artifact |
-| [`docs/p1c_b1b_serial_order_dump.txt`](p1c_b1b_serial_order_dump.txt) | B1b 基线 serial order dump (PR-A) | reference |
-| [`docs/status_matrix.md`](status_matrix.md) | 阶段 × benchmark 状态矩阵 (P1c 行 PR-K 已写入) | status |
-| [`docs/stage-pipeline-log.jsonl`](stage-pipeline-log.jsonl) | epic-pipeline 累积日志 (P1c 2 entries by PR-M) | meta |
+| [`docs/p1c/p1c_summary.md`](p1c_summary.md) | P1c capstone 10 sections (机制说明) | source of truth |
+| [`docs/p1c/p1c_a3a_root_cause.md`](p1c_a3a_root_cause.md) | A3a 根因 + D9 决策分支 + Kahan 路径终判 | analysis |
+| [`docs/p1c/p1c_perf_baseline.md`](p1c_perf_baseline.md) | Mac 16-cell + Server PR-H/PR-I 8-cell wall + 数据 | raw data |
+| [`docs/p1c/p1c_reduction_sites.md`](p1c_reduction_sites.md) | 8 站点 overview + B1b serial canonical order | reference |
+| [`docs/p1c/p1c_pr_h_server_first_run.md`](p1c_pr_h_server_first_run.md) | PR-H server first run 8-cell raw data + verdict | raw data |
+| [`docs/p1c/p1c_pr_i_kahan_injection.md`](p1c_pr_i_kahan_injection.md) | PR-I Kahan 二跑 8-cell raw data + carve-out 决策 | raw data |
+| [`docs/p1c/p1c_pr_j_reverse_compat.md`](p1c_pr_j_reverse_compat.md) | PR-J reverse-compat 双视角 (pre-Kahan / Kahan) | analysis |
+| [`docs/p1c/p1c_tag_and_lock.md`](p1c_tag_and_lock.md) | P1c-tag annotated procedure + branch lock | procedure |
+| [`docs/p1c/p1c_kahan_patch.diff`](p1c_kahan_patch.diff) | Kahan held-in-reserve patch (PR-G 输出 / PR-I 应用) | code artifact |
+| [`docs/p1c/p1c_b1b_serial_order_dump.txt`](p1c_b1b_serial_order_dump.txt) | B1b 基线 serial order dump (PR-A) | reference |
+| [`docs/status_matrix.md`](../status_matrix.md) | 阶段 × benchmark 状态矩阵 (P1c 行 PR-K 已写入) | status |
+| [`docs/stage-pipeline-log.jsonl`](../stage-pipeline-log.jsonl) | epic-pipeline 累积日志 (P1c 2 entries by PR-M) | meta |
 | `openspec/specs/p1c-deterministic-reduction/spec.md` | P1c deterministic-reduction Requirement (PROMOTE by PR-M) | spec |
 | `openspec/specs/p1c-capstone/spec.md` | P1c capstone Requirement (PROMOTE by PR-M) | spec |
 | `openspec/glossary.md` §"P1c deterministic-reduction baseline 集合" | 5 新术语 (P1c-tag / baseline/P1c / 4 helpers / Kahan held-in-reserve / P9 carve-out) | terminology |
