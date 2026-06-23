@@ -187,12 +187,20 @@ patch 再生于 `git apply` 失败前 SHALL 重新 rebase 到当前 HEAD (helper
 
 **Server PR-K2 #223 实测 reference** (heihe nst 数据见 `docs/p1_summary.md` + `docs/p1_perf_baseline.md` + `docs/build_manifest.md`; heihe_x4 nst 数据见 `docs/p1_perf_baseline.md`; F-K2-2 reviewer finding tracking in P1 fullrun review): heihe `nst` 跨 N ∈ {1,2,4,8} = 6773/6773/**6585**/**6684**, heihe_x4 `nst` = 6571/6571/**6570**/**6572**; PR-H 二跑 success gate 要求 spec L172 Δ=0 强制 (heihe) + heihe_x4 Δ=0 with optional SPGMR-noise ladder (per design D6).
 
-| 字段 | Mac local 初步 | Server PR-K2 (TBD via PR-H) |
+**PR-H 首跑实测 (2026-06-22, SHUD@de9545d, post-PR-E HEAD)** (per `docs/p1c_pr_h_server_first_run.md` §3-§6):
+- heihe nst {N=1,2,4,8} = {6773, 6773, **6682**, **6548**}, |Δ_max|=225 (≫ §4.5 D9 ≤2 阈值)
+- heihe_x4 nst {N=1,2,4,8} = {6571, 6571, **6568**, **6570**}, |Δ_max|=3 (越 §4.5 D9 ≤2 阈值)
+- A3a bitwise: 双 case 全 FAIL (3 distinct SHAs per case, N=1≡N=2 due to SHUD internal `max(NUM_OPENMP,2)` thread floor)
+- **§4.7 SHALL TRIGGER**: PR-I (#252) 走条件 Kahan injection 主分支 (per PR-G `docs/p1c_kahan_patch.diff`)，PR-K2 二跑。
+
+P1 era (B1b PR-K2 #223) 与 P1c PR-H 首跑 nst 数值不同 (heihe 6585/6684 → 6682/6548) 因 SHUD HEAD 漂移 (P1 era 07c677f → P1c post-PR-E de9545d 含 8 站点 helper-wrap)。Pattern 一致 (N≥4 漂移)，幅度变化。
+
+| 字段 | Mac local 初步 | Server PR-H 首跑 (de9545d, pre-Kahan) |
 |---|---|---|
-| step_index (CVODE) | N/A — Mac local 6/6 BITWISE IDENTICAL | TBD |
-| array_name | N/A — no first-divergence anchor observed | TBD |
-| ele/seg/riv index | N/A — see Mac sanity check below | TBD |
-| bit-level diff | 0 byte (Mac 6/6 BITWISE IDENTICAL) | TBD |
+| step_index (CVODE) | N/A — Mac local 6/6 BITWISE IDENTICAL | TBD via Kahan-injected 二跑 + per-site rhs_dump probe (deferred to PR-K diagnostic deep-dive) |
+| array_name | N/A — no first-divergence anchor observed | TBD via 同上 |
+| ele/seg/riv index | N/A — see Mac sanity check below | TBD via 同上 |
+| bit-level diff | 0 byte (Mac 6/6 BITWISE IDENTICAL) | heihe N=1↔N=4 ≠ 0 byte (整 rivqdown.dat SHA mismatch, 90-day timeseries); heihe_x4 同。Per-step / per-site bit-diff 待 PR-I/K 二跑 + 加 instrumentation |
 
 **Mac local sanity check** (本 PR §1.5 (1) 部分):
 
