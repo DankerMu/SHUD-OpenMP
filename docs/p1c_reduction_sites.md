@@ -62,10 +62,10 @@ SHUD pin = `07c677f`（PR-A #244 起始 + PR-K2 #223 三 pragma 栈，与 `basel
 sites.md 类1 表 / spec L39-L50 / `docs/p1c_a3a_root_cause.md` 使用 PR-K2 #223 SHUD pin
 `07c677f` 行号家族。下游 §2.x PR-B/C/D/E 消费 dump 时按此表 cross-walk。
 
-| 站点 | 写目标 | dump-family (`0b3998d`) | class-1-family (`07c677f`) |
+| 站点 | 写目标 | dump-family site_tag suffix (*) | class-1-family (`07c677f`) |
 |---|---|---|---|
-| 1 | `qLakeEvap[ilake]` | L278 (`qLakeEvap_L278`) | L278 |
-| 2 | `qLakePrcp[ilake]` | L279 (`qLakePrcp_L279`) | L279 |
+| 1 | `qLakeEvap[ilake]` | L278 (`qLakeEvap_L278`) (*) | L278 |
+| 2 | `qLakePrcp[ilake]` | L279 (`qLakePrcp_L279`) (*) | L279 |
 | 3 | `QrivSurf[ir]` | L311 (`QrivSurf_L311`) | L374 |
 | 4 | `QrivSub[ir]` | L312 (`QrivSub_L312`) | L375 |
 | 5 | `Qe2r_Surf[ie]` | L319 (`Qe2r_Surf_L319`) | L382 |
@@ -74,6 +74,14 @@ sites.md 类1 表 / spec L39-L50 / `docs/p1c_a3a_root_cause.md` 使用 PR-K2 #22
 | 8a | `QLakeRivIn[ilake]` | L343 (`QLakeRivIn_L343`) | L406 |
 | 8b | `QLakeSurf[ilake]` | L357 (`QLakeSurf_L357`) | L420 |
 | 8c | `QLakeSub[ilake]` | L370 (`QLakeSub_L370`) | L433 |
+
+(*) Rows 1-2 site_tag suffix uses current SHUD `07c677f` line number (L278/L279)
+because B1b SHUD `0b3998d` source has the same statements at L222/L223 — the
+instrumented code at dump producer time used the post-fix line number for the
+lake aggregation rows; rows 3-10 site_tag suffix matches the B1b source line at
+`0b3998d`. The column header "dump-family site_tag suffix" therefore reflects
+the suffix literal as it appears in `docs/p1c_b1b_serial_order_dump.txt`,
+not necessarily the B1b source line number.
 
 **Cross-walk 验证**：`grep -c 'site=QrivSurf_L311' docs/p1c_b1b_serial_order_dump.txt` 期望 ≥ 1
 (dump-family hit); `grep -nE '\| 3 \|' docs/p1c_reduction_sites.md` 期望命中本表 L374 行
@@ -93,7 +101,7 @@ B1b serial loop 在以上 anchors 的 (iter, acc_target, src_idx) 输入顺序�
 
 | file:line | 写目标 | 类别 | 原因 + 引用 |
 |---|---|---|---|
-| `SHUD/src/ModelData/MD_f.cpp:73` | `qLakeEvap[ilake]` | dead-code mirror | dead-code mirror of L278; `f_loop()` 在 SHUD 仓库内**无 active caller** (§1.4 grep 验证: `grep -rnE '(->|::)[[:space:]]*f_loop\(' SHUD/src/` 仅命中 `MD_f.cpp:15` 定义本身)，OMP 路径不可达，per design D1 + §1.4 显式验证。`f.cpp` callers (L77/L91/L104/L117/L130) 调用的是 `f_loop1`/`f_loop2`/.../`f_loop5` 而非 `f_loop()`。(regex 含 `[[:space:]]*` 兼容 `MD_f.cpp:15` 字面 `void Model_Data:: f_loop` 之间空格；sibling `f_applyDY` 无空格也命中。) |
+| `SHUD/src/ModelData/MD_f.cpp:73` | `qLakeEvap[ilake]` | dead-code mirror | dead-code mirror of L278; `f_loop()` 在 SHUD 仓库内**无 active caller** (§1.4 grep 验证: `grep -rnE '(->|::)[[:space:]]*f_loop\(' SHUD/src/` 仅命中 `MD_f.cpp:15` 定义本身)，OMP 路径不可达，per design D1 + §1.4 显式验证。`f.cpp` callers (L78/L91/L104/L117/L130) 调用的是 `f_loop1`/`f_loop2`/.../`f_loop5` 而非 `f_loop()`。(regex 含 `[[:space:]]*` 兼容 `MD_f.cpp:15` 字面 `void Model_Data:: f_loop` 之间空格；sibling `f_applyDY` 无空格也命中。) |
 | `SHUD/src/ModelData/MD_f.cpp:74` | `qLakePrcp[ilake]` | dead-code mirror | 同上 (L279 mirror) |
 | `SHUD/src/ModelData/MD_f.cpp:147` | `DY[igw] += hot.QBC[i] / area` | dead-code mirror | `f_applyDY(double*, double)` 在 SHUD 仓库内**无 active caller** (§1.4 grep 验证: `grep -rnE '(->|::)[[:space:]]*f_applyDY\(' SHUD/src/` 仅命中 `MD_f.cpp:111` 定义本身)，`f.cpp` callers 调用的是 `f_applyDYi`/`f_applyDY_gw`/`f_applyDY_surf`/`f_applyDY_unsat`/`f_applyDY_river` 而非 `f_applyDY()`。OMP 路径不可达，per design D1。 |
 | `SHUD/src/ModelData/MD_f.cpp:152` | `DY[isf] += hot.QSS[i] / area` | dead-code mirror | 同上 |

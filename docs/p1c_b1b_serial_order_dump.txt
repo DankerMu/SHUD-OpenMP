@@ -42,13 +42,20 @@
 #   L279 qLakePrcp_L279       PRESENT (qhh)
 #   L311 QrivSurf_L311        PRESENT (keliya / qhh / xinanjiang / qinyijiang)
 #   L312 QrivSub_L312         PRESENT (keliya / qhh / xinanjiang / qinyijiang)
-#   L319 Qe2r_Surf_L319       ABSENT (= class-1 L382 Qe2r_Surf)  -- seg_by_ele[ie] empty across 4 Mac cases
-#                                       (Mac case structure: river bank
-#                                       segments back-feed onto elements
-#                                       but seg.iEle indices fall on
-#                                       elements that are themselves
-#                                       lake-interior -- see #1.5 notes)
-#   L320 Qe2r_Sub_L320        ABSENT (= class-1 L383 Qe2r_Sub)  -- same cause as L319
+#   L319 Qe2r_Surf_L319       PRESENT (= class-1 L382 Qe2r_Surf) — 6240 total body hits
+#                                       (keliya 534 / xinanjiang 584 / qinyijiang 1384 /
+#                                       qhh 3738; verified `grep -c 'site=Qe2r_Surf_L319'
+#                                       docs/p1c_b1b_serial_order_dump.txt` = 6241 = 6240
+#                                       body + 1 header self-reference in this comment).
+#                                       R3 correction (2026-06-23): prior ABSENT framing was a
+#                                       fixture defect — the seg_by_ele[ie] adjacency is
+#                                       non-empty on all 4 Mac cases.
+#   L320 Qe2r_Sub_L320        PRESENT (= class-1 L383 Qe2r_Sub) — 6240 total body hits
+#                                       (per-case identical distribution to L319,
+#                                       same iter/src_idx pairing per shared seg_by_ele[ie]
+#                                       loop; verified `grep -c 'site=Qe2r_Sub_L320'
+#                                       docs/p1c_b1b_serial_order_dump.txt` = 6241 = 6240
+#                                       body + 1 header self-reference in this comment).
 #   L329 QrivUp_L329          PRESENT (keliya / qhh / xinanjiang / qinyijiang)
 #   L343 QLakeRivIn_L343      ABSENT (= class-1 L406 QLakeRivIn)  -- qhh has lake but riv_in_by_lake[ilake]
 #                                       empty under current case (lake fed
@@ -58,17 +65,62 @@
 #   L357 QLakeSurf_L357       PRESENT (qhh)
 #   L370 QLakeSub_L370        PRESENT (qhh)
 #
-# Implication for §2.x: ABSENT-on-Mac sites (L319 / L320 / L343) still need
-# server-case (heihe / heihe_x4) dumps to capture their adjacency-list
-# iteration order. PR-H server PR-K2 二跑 instrumentation SHALL re-dump
-# those three anchors at SHUD@P1c-候选 commit to confirm S4 list ordering
-# equivalence. Mac dump alone is INSUFFICIENT for §2.x bitwise gate on
-# heihe / heihe_x4.
+# Implication for §2.x: only 1 anchor (L343 QLakeRivIn = class-1 L406) is
+# ABSENT on Mac local; PR-H server PR-K2 二跑 SHALL re-instrument that single
+# anchor on heihe + heihe_x4 (lake-bearing case necessary to trigger
+# `riv_in_by_lake[ilake]` non-empty — qhh lake on Mac is fed by inflow
+# forcing rather than a downstream river network). L319/L320 are now
+# correctly classified PRESENT (R3 correction, this commit); their (iter,
+# acc_target, src_idx) triples are fully captured below for §2.x S4
+# adjacency-list cross-check on Mac local. Only the L343 dump remains
+# strictly needed from server PR-K2 二跑.
 #
 # §2.x adjacency-list consumers SHALL cross-check each (iter, acc_target,
 # src_idx) triple here against the produced S4 list it claims to consume.
 # Any mismatch indicates the S4 list construction has drifted from the B0
 # serial loop input order anchored here.
+#
+# Anchor hit count audit (R3 regression rule — every PRESENT/ABSENT claim
+# backed by literal grep count on this very file):
+#
+#   for tag in qLakeEvap_L278 qLakePrcp_L279 QrivSurf_L311 QrivSub_L312 \
+#              Qe2r_Surf_L319 Qe2r_Sub_L320 QrivUp_L329 QLakeRivIn_L343 \
+#              QLakeSurf_L357 QLakeSub_L370; do
+#     echo "$(grep -c "site=${tag}" docs/p1c_b1b_serial_order_dump.txt) ${tag}"
+#   done
+#
+# Per-case body-line counts (run on PR head, SHUD@0b3998d Mac local 4-case
+# 90d cfg build; case ranges per `grep -n '^=====' docs/p1c_b1b_serial_order_dump.txt`):
+#
+#   ANCHOR             | Total body hits | keliya | xinanjiang | qinyijiang | qhh
+#   ---                | ---             | ---    | ---        | ---        | ---
+#   qLakeEvap_L278     | 688             | 0      | 0          | 0          | 688
+#   qLakePrcp_L279     | 688             | 0      | 0          | 0          | 688
+#   QrivSurf_L311      | 6240            | 534    | 584        | 1384       | 3738
+#   QrivSub_L312       | 6240            | 534    | 584        | 1384       | 3738
+#   Qe2r_Surf_L319     | 6240            | 534    | 584        | 1384       | 3738
+#   Qe2r_Sub_L320      | 6240            | 534    | 584        | 1384       | 3738
+#   QrivUp_L329        | 2452            | 331    | 215        | 318        | 1588
+#   QLakeRivIn_L343    | 0               | 0      | 0          | 0          | 0     <- ABSENT (only one)
+#   QLakeSurf_L357     | 114             | 0      | 0          | 0          | 114
+#   QLakeSub_L370      | 114             | 0      | 0          | 0          | 114
+#
+# Per-case ranges used for awk slicing (grep -n '^=====' on this file):
+#   keliya     : line   128..2596
+#   xinanjiang : line  2597..5149
+#   qinyijiang : line  5150..11005
+#   qhh        : line 11006..EOF
+# (line numbers above are post-R3-fix at PR #257 R3-retry; pre-fix shipped
+#  at line 76/2545/5098/10954 before this header expansion. Recompute via
+#  `grep -n '^=====' docs/p1c_b1b_serial_order_dump.txt` on any subsequent
+#  edit before re-running the awk slice.)
+#
+# This table makes the PRESENT/ABSENT classification falsifiable: any
+# inconsistency between this audit table and the dump body grep counts
+# (above command) is a fixture defect (R3 regression rule). The header
+# "Anchor coverage observed" section + this audit table are the only two
+# locations where PRESENT/ABSENT may appear; free-form classification
+# elsewhere is forbidden.
 #
 # --- begin dump (filtered to [p1c_dump] lines only; stderr WARNINGs
 # from shud (Aqd of Node = 0.0) elided) ---

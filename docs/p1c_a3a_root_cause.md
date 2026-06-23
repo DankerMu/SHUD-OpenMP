@@ -94,8 +94,11 @@ heihe_x4 × N ∈ {1,2,4,8} = 8 cell) 以确认 first-occurrence。Mac local 单
 
 ### (c) per-site ULP delta table
 
-8 站点 × N {2, 4, 8} = 24 cells. PR-A 阶段无数据 (Mac local 7-of-10 anchors
-未触发漂移 = 全 0 ULP delta)。Server PR-K2 二跑 (PR-H) 期望矩阵：
+8 站点 × N {2, 4, 8} = 24 cells. PR-A 阶段无数据 (Mac local 9-of-10 anchors
+PRESENT 但 N=1 baseline-only, 无 cross-N ULP delta probe; 1-of-10 anchor
+即 L343 QLakeRivIn ABSENT 在 4 Mac case (per dump.txt R3 audit table),
+SHALL 由 server PR-K2 二跑 heihe + heihe_x4 lake-bearing case 补)。
+Server PR-K2 二跑 (PR-H) 期望矩阵：
 
 | Site | N=2 ULP delta | N=4 ULP delta | N=8 ULP delta |
 |---|---|---|---|
@@ -196,9 +199,9 @@ qhh case (lake-bearing, 4773 ele) 同模式，`SHUD_DUMP_T_VALUES=12098880`
 
 ## Hand-off → PR-H (server PR-K2 二跑) checklist
 
-- [ ] **Re-dump 3 ABSENT anchors on server case** — Mac local dump 缺 L319 Qe2r_Surf / L320 Qe2r_Sub / L343 QLakeRivIn (= class-1 L382 / L383 / L406, per dump.txt L37-L49 + sites.md Line-number 等价表). server PR-K2 二跑 instrumentation SHALL 在 heihe + heihe_x4 case 各 N ∈ {1,4,8} 复跑时补这 3 anchor 的 `[p1c_dump]` trace 行，写回 `docs/p1c_b1b_serial_order_dump.txt` 末尾 OR 新建 `docs/p1c_server_order_dump.txt` (二者皆可，capstone PR-K decide).
+- [ ] **Re-dump 1 ABSENT anchor on server case** — Mac local dump 缺 L343 QLakeRivIn (= class-1 L406, per dump.txt R3-fixed L65-L73 footer + Anchor hit count audit table + sites.md Line-number 等价表). 这是 4 Mac case 唯一真正 ABSENT 的 anchor (L319/L320 在 R3 retro fix 已修正为 PRESENT, 各 6240 body hits, 无需 server re-dump). server PR-K2 二跑 instrumentation SHALL 在 heihe + heihe_x4 case (lake-bearing case 才能触发 `riv_in_by_lake[ilake]` non-empty) 各 N ∈ {1,4,8} 复跑时补这 1 anchor 的 `[p1c_dump]` trace 行，写回 `docs/p1c_b1b_serial_order_dump.txt` 末尾 OR 新建 `docs/p1c_server_order_dump.txt` (二者皆可，capstone PR-K decide).
 - [ ] **Slurm 三铁律 (server cn0X 提交 SHALL 遵循)** — (i) `sbatch` 从 `/scratch` 下提交 (不从 `/users/$USER`); (ii) `#SBATCH --output/--error` 路径必须在 `/scratch` 共享盘 (compute node `/tmp` node-local, 作业结束丢, sacct 显示 ExitCode 127); (iii) 作业脚本/patch/hash/run.sh 都放 `/scratch`. **禁 login node 跑 SHUD/keliya/heihe** (共享 CPU 30s 可膨胀到 30+ min). Per CLAUDE.md "Slurm 三铁律".
-- [ ] **SHUD submodule 工作流 (PR-H 复跑 SHALL 遵循)** — PR-H 会 re-instrument SHUD source (插 8 站点 ULP delta probe + 3 ABSENT anchor dump); 任何 SHUD source 改造 SHALL `cd SHUD && git commit && git push origin openmp-baseline` (长寿分支, 从 `3aec657` 派生) → `cd .. && git add SHUD && git commit` (pointer bump) → 外层 PR; **禁 push master / 禁 fork / 禁改 `.gitmodules`**. Per CLAUDE.md "SHUD submodule 工作流 (强制)".
+- [ ] **SHUD submodule 工作流 (PR-H 复跑 SHALL 遵循)** — PR-H 会 re-instrument SHUD source (插 8 站点 ULP delta probe + 1 ABSENT anchor dump i.e. L343 QLakeRivIn); 任何 SHUD source 改造 SHALL `cd SHUD && git commit && git push origin openmp-baseline` (长寿分支, 从 `3aec657` 派生) → `cd .. && git add SHUD && git commit` (pointer bump) → 外层 PR; **禁 push master / 禁 fork / 禁改 `.gitmodules`**. Per CLAUDE.md "SHUD submodule 工作流 (强制)".
 - [ ] Server cn0X build `shud_omp SHUD_DUMP_RHS=1`，3-grep gate strict FP.
 - [ ] heihe + heihe_x4 各 N ∈ {1, 4, 8} = 6 cell `f_applyDY` snapshot dump.
 - [ ] `compare_snapshot` 跨 N 对 (heihe N=1 vs N=4 等)，定位首发散点；记入字段 (a)。
