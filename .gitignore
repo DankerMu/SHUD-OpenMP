@@ -11,3 +11,14 @@ CLAUDE.md
 
 # OpenSpec transient changes (glossary.md & specs stay tracked)
 openspec/changes/
+
+# Stage scratch run directories (.sX-runs/ + .sNNN-runs/ + numeric variants)
+.s*-runs/
+.s2-103/
+.s6c12a-runs/
+
+# Per-PR review snapshots (local notes, not part of evidence chain)
+docs/review/
+
+# Python cache
+**/__pycache__/
