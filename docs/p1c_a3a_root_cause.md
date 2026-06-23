@@ -70,6 +70,18 @@ Neumaier 1974 ZAMM Vol 54.
 所有 10 个 call sites — helper-wrap 结构允许 patch 不需逐 anchor 重写
 call site, 比 inline-per-site 改造少 6 处 diff hunk。
 
+注: 站点 1-2 (qLakeEvap / qLakePrcp) 通过 `fixed_pairwise_sum_indexed`
+→ `fixed_pairwise_sum_range` 间接获 Neumaier 补偿; 站点 3-7 + 8a 通过
+`fixed_leftfold_sum_indexed` 直接获补偿; 站点 8b-c 通过
+`fixed_leftfold_sum_pair_indexed` 直接获补偿. 4 helper def 修改 cover
+10 call sites (R1 Suggestion fold-in: 透明 transitive coverage 关系).
+
+**Header include note**: post-PR-E HEAD (`de9545d`) 的 `MD_rhs_core.cpp`
+不直接 include `<cmath>` (`grep -nE '#include' …` 验证), 注释掉的 L611/L627
+legacy `fabs` 通过 `Model_Data.hpp` 链 transitive 拾起 `<cmath>`. Patch
+**显式** add `#include <cmath>` — Neumaier `std::fabs(lo)` 分支是
+hot-path use, 必须在 helper TU 内自洽 resolve, 不依赖 transitive.
+
 ### (c) 触发条件 / 非触发条件
 
 **SHALL 触发** (§4.7 server PR-K2 首跑 FAIL):
@@ -103,11 +115,37 @@ call site, 比 inline-per-site 改造少 6 处 diff hunk。
   条目, 但不阻 Kahan-injected 路径 A3a success gate; perf rollback 走独
   立 PR (不复用 PR-K2 二跑).
 
+**Tracking 阈值**: 实测 wall delta > 5% vs pre-Kahan PR-E HEAD ⇒
+record in `docs/p1c_perf_baseline.md` 跟踪条目 (perf-regression-investigation),
+但不 block A3a success gate.
+
 ### (e) 条件应用流程 (§4.7 触发后, PR-K2 二跑)
+
+**触发条件** (§4.7 server PR-K2 FIRST run FAIL, 任一):
+
+- §4.4 A3a bitwise FAIL on heihe 4 N OR heihe_x4 4 N (任一 N-pair byte diff).
+- OR §4.5 nst across N FAIL (heihe nst 跨 N ∈ {1,2,4,8} 不全相等).
+- OR §4.5 heihe_x4 nst 残留 `|Δ_nst| > 2` (`≤2` 走 SPGMR-noise ladder,
+  不直接触 Kahan).
+- OR reverse-compat FAIL (heihe / heihe_x4 N=1 与 P1-update-omp-tag 不
+  字面相等).
+
+**非触发条件** (per design D7, MUST NOT trigger Kahan):
+
+- Mac local §2.5 16-cell scan ANY FAIL (Mac pass-while-server-fails
+  已知模式 — Mac M4 Pro 4P+10E 异构核心 + libomp 弱绑定 mask server
+  NUMA-affinity noise, per master plan §7.2 RISK-26).
+- 单 PR (B / C / D / E) 增量 keliya bitwise vs B0 FAIL (PR-level gate, fix
+  at PR; 不上升到 Kahan).
+
+**应用命令** (only when §4.7 trigger fires, PR-K2 二跑):
 
 ```bash
 # Server cn0X, /scratch/frd_muziyao/SHUD-OpenMP/
-cd SHUD && git apply ../docs/p1c_kahan_patch.diff
+cd SHUD && git apply ../docs/p1c_kahan_patch.diff  # verified PASS via
+                                                    # `git apply --check`
+                                                    # on PR-G; patch source
+                                                    # pin = SHUD@de9545d
 git commit -m "P1c §4.7 conditional Kahan injection (Neumaier 1974) — PR-K2 二跑"
 git push origin openmp-baseline
 # 外层 pointer bump
@@ -119,10 +157,21 @@ sbatch /scratch/frd_muziyao/SHUD-OpenMP/.<stage>-runs/p1c_pr_k2_run2.sbatch
 
 Per CLAUDE.md "SHUD submodule 工作流 (强制)" + "Slurm 三铁律".
 
-Patch source pin: SHUD@de9545d (post-PR-E HEAD on `openmp-baseline`,
-= 外层 `baseline/P1c` HEAD `afffcb2` SHUD pointer). 若 SHUD upstream
-HEAD 漂移, patch 再生于 `git apply` 失败前 SHALL 重新 rebase 到当前
-HEAD (helper def 行号偏移; algorithm 内容不变).
+**Patch source pin**: SHUD@`de9545d` (post-PR-E HEAD on `openmp-baseline`,
+= 外层 `baseline/P1c` HEAD `afffcb2` SHUD pointer). Patch 由 `git diff` 自动
+生成 (临时分支 → reset 不污染 upstream), 自动计算 hunk header 行数;
+PR-G 已 `git apply --check` clean verify. 若 SHUD upstream HEAD 漂移,
+patch 再生于 `git apply` 失败前 SHALL 重新 rebase 到当前 HEAD (helper def
+行号偏移; algorithm 内容不变).
+
+**应用后 verification**:
+
+- SHUD `make shud_omp` build PASS (no `<cmath>` symbol unresolved).
+- PR-K2 二跑 A3a bitwise PASS on heihe + heihe_x4 × N ∈ {1,2,4,8}.
+- nst across N all-equal (heihe) / `|Δ_nst| ≤ 2` (heihe_x4).
+- Reverse-compat: N=1 byte-equal to P1-update-omp-tag.
+- Wall delta ≤ 5% vs pre-Kahan PR-E HEAD (record in
+  `docs/p1c_perf_baseline.md`).
 
 ---
 

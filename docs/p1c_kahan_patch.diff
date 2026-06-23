@@ -1,71 +1,10 @@
-# P1c PR-G — Kahan/Neumaier 补偿求和 held-in-reserve patch (NOT applied)
-#
-# Purpose: documentation artifact. This diff is **NOT** applied in PR-G (#250).
-# Conditional application only on §4.7 trigger (see "Trigger conditions" below).
-#
-# Source SHA:
-#   - Pin baseline: SHUD@de9545d (post-PR-E HEAD on `openmp-baseline` long-lived
-#     branch, equal to outer `baseline/P1c` HEAD `afffcb2` SHUD pointer).
-#   - Target file: SHUD/src/Model/MD_rhs_core.cpp
-#   - HEAD-of-P1c PR-E line layout: helpers at L192-L242 (verified
-#     `grep -nE 'static inline double fixed_'` 2026-06-22).
-#
-# Trigger conditions (§4.7 server PR-K2 FIRST run FAIL):
-#   - §4.4 A3a bitwise FAIL on heihe 4 N OR heihe_x4 4 N (any N-pair byte diff)
-#   - OR §4.5 nst across N FAIL (heihe nst not all-equal across N ∈ {1,2,4,8})
-#   - OR §4.5 heihe_x4 nst residual |Δ_nst| > 2 (≤2 walks SPGMR-noise ladder,
-#     does NOT trigger Kahan directly)
-#   - OR reverse-compat FAIL (heihe / heihe_x4 N=1 not bit-equal to
-#     P1-update-omp-tag literal)
-#
-# Non-trigger (per design D7, MUST NOT trigger Kahan):
-#   - Mac local §2.5 16-cell scan ANY FAIL (Mac pass-while-server-fails is the
-#     known mode — Mac M4 Pro 4P+10E heterogeneous + libomp soft-binding masks
-#     server NUMA-affinity noise, per master plan §7.2 RISK-26).
-#   - Single-PR (B/C/D/E) increment keliya bitwise vs B0 FAIL (PR-level gate,
-#     fix at PR; do NOT escalate to Kahan).
-#
-# Algorithm: Neumaier 1974 ZAMM Vol 54 (Kahan-Babuška variant). Chosen over
-# classical Kahan because anchors 5/6/7 (Qe2r_Surf, Qe2r_Sub, QrivUp) feed the
-# accumulator via the negation site `-fixed_leftfold_sum_indexed(...)` (one-shot
-# negate of the sum, but intermediate sigma can still be sign-mixed during
-# call-site chaining — see anchor table). Neumaier explicitly handles
-# |sum|<|x| sign-bit asymmetry; classical Kahan would degrade on mixed-sign
-# sequences. See SUNDIALS user guide §3.1.1 "deterministic dot-product".
-#
-# Header include note: current MD_rhs_core.cpp (post-PR-E HEAD) does NOT
-# include <cmath> directly (verified `grep -nE '#include' …`); commented-out
-# legacy `fabs` calls at L611/L627 picked up `<cmath>` transitively through
-# Model_Data.hpp chain. The patch SHALL add `#include <cmath>` explicitly to
-# avoid relying on transitive resolution — Neumaier's `std::fabs(lo)` branch
-# is a hot-path use and must resolve at the helper TU.
-#
-# Wall-clock impact (per design R2): estimated 1-3% wall increase. Neumaier
-# per-+= adds 1 magnitude compare + 3 FP ops (vs 1 op naive). 10 anchors ×
-# heihe-scale fanin ≈ 5% overhead per RHS call × ~6800 RHS calls = ~1-3%
-# total wall (memory-bound CVODE step dominates). Track as a
-# perf-regression-investigation item only if measured wall delta > 5%.
-#
-# Application command (only when §4.7 trigger fires, PR-K2 二跑):
-#   # On server cn0X, from /scratch/frd_muziyao/SHUD-OpenMP/
-#   cd SHUD && git apply ../docs/p1c_kahan_patch.diff
-#   git commit -m "P1c §4.7 conditional Kahan injection (Neumaier 1974) — PR-K2 二跑"
-#   git push origin openmp-baseline
-#   cd .. && git add SHUD
-#   git commit -m "SHUD pointer bump: Kahan-injected (§4.7 PR-K2 二跑)"
-#   # Slurm 三铁律 — sbatch from /scratch, --output/--error in /scratch:
-#   sbatch /scratch/frd_muziyao/SHUD-OpenMP/.<stage>-runs/p1c_pr_k2_run2.sbatch
-#
-# Verification after application:
-#   - SHUD `make shud_omp` build PASS (no `<cmath>` symbol unresolved)
-#   - PR-K2 二跑 A3a bitwise PASS on heihe + heihe_x4 × N ∈ {1,2,4,8}
-#   - nst across N all-equal (heihe) / |Δ_nst| ≤ 2 (heihe_x4)
-#   - Reverse-compat: N=1 byte-equal to P1-update-omp-tag
-#   - Wall delta ≤ 5% vs pre-Kahan PR-E HEAD (record in docs/p1c_perf_baseline.md)
-
---- SHUD/src/Model/MD_rhs_core.cpp	(HEAD-of-P1c PR-E, SHUD@de9545d)
-+++ SHUD/src/Model/MD_rhs_core.cpp	(held-in-reserve PR-G, §4.7 conditional apply)
-@@ -37,6 +37,9 @@
+diff --git a/src/Model/MD_rhs_core.cpp b/src/Model/MD_rhs_core.cpp
+index a7da108..96053ad 100644
+--- a/src/Model/MD_rhs_core.cpp
++++ b/src/Model/MD_rhs_core.cpp
+@@ -35,6 +35,9 @@
+                               * "MD_rhs_core.cpp 文件顶部 SHALL 包含
+                               * #include MD_adjacency.hpp". */
  #include <cstdlib>   /* std::abort -- S1d.1 OMP stub regression guard */
 +#include <cmath>     /* P1c §4.7 conditional Kahan injection: std::fabs used
 +                      * by Neumaier compensation branch in fixed_*_sum helpers
@@ -73,7 +12,7 @@
  #ifdef SHUD_DUMP_RHS
  #include "MD_rhs_dump.h"
  #endif
-@@ -189,16 +192,30 @@
+@@ -188,7 +191,14 @@ void Model_Data::rhs_update(double *Y, double *DY, double t){
   * Empty list returns 0.0 (preserves prior explicit zero-init semantics);
   * single element returns src[idx[0]]. Range-pointer variant avoids
   * per-call vector copies (O(n log n) work, O(log n) stack). Stack depth
@@ -83,14 +22,13 @@
 + * P1c §4.7 Kahan injection (Neumaier 1974, conditional): every recursive
 + * pair-join uses compensated addition. The pairwise tree already minimizes
 + * round-off magnitude growth at intermediate nodes, but the top-level join
-+ * `lo + hi` can lose low bits when |lo| ≠ |hi|. Neumaier compensation
++ * `lo + hi` can lose low bits when |lo| != |hi|. Neumaier compensation
 + * captures the round-off explicitly. Recursion still bounds stack at
 + * ceil(log2(n)); compensation `c` is per-frame stack-local, no heap. */
  static inline double fixed_pairwise_sum_range(
          const int* idx, std::size_t n, const double* src) {
      if (n == 0) return 0.0;
-     if (n == 1) return src[idx[0]];
-     if (n == 2) return src[idx[0]] + src[idx[1]];
+@@ -197,7 +207,14 @@ static inline double fixed_pairwise_sum_range(
      const std::size_t mid = n / 2;
      const double lo = fixed_pairwise_sum_range(idx, mid, src);
      const double hi = fixed_pairwise_sum_range(idx + mid, n - mid, src);
@@ -104,13 +42,15 @@
 +                       : (hi - t) + lo;
 +    return t + c;
  }
-
+ 
  static inline double fixed_pairwise_sum_indexed(
-@@ -216,12 +233,20 @@
+@@ -215,12 +232,24 @@ static inline double fixed_pairwise_sum_indexed(
+  * (segment -> river / element gathers, upstream river gather) where
   * keliya N=1 bitwise vs B0 must be preserved. Sites 1-2 (lake
   * aggregation) use the tree variant `fixed_pairwise_sum_indexed`
-  * instead (different shape trade-off documented in PR-B). */
-+/*
+- * instead (different shape trade-off documented in PR-B). */
++ * instead (different shape trade-off documented in PR-B).
++ *
 + * P1c §4.7 Kahan injection: leftfold accumulator switched from naive
 + * `acc += src[i]` to Neumaier-compensated form. Running compensation `c`
 + * accumulates per-step round-off; final `acc + c` returns the
@@ -130,18 +70,18 @@
 +    }
 +    return acc + c;
  }
-
+ 
  /* Fixed-shape leftfold canonical reduction over an index-pair list
-@@ -232,12 +257,20 @@
+@@ -231,14 +260,25 @@ static inline double fixed_leftfold_sum_indexed(
+  * S4.6) where adjacency list contains (ie, j) pairs; lookup is the
   * standard stride=3 element-edge convention. Constant-stride keeps the
   * helper trivially inlinable.
-  */
-+/*
++ *
 + * P1c §4.7 Kahan injection: same Neumaier compensation as the indexed
 + * leftfold above, applied to the (ie, j) pair-list overload. Site 8
-+ * (lake_bank_edge_by_lake, anchors 8b/8c) inherits the same
-+ * accumulator semantics; constant stride=3 keeps the per-+= overhead
-+ * bounded. */
++ * (lake_bank_edge_by_lake, anchors 8b/8c) inherits the same accumulator
++ * semantics; constant stride=3 keeps the per-+= overhead bounded.
+  */
  static inline double fixed_leftfold_sum_pair_indexed(
          const std::vector<std::pair<int,int>>& pairs,
          const double* src,
@@ -158,5 +98,5 @@
 +    }
 +    return acc + c;
  }
-
+ 
  void Model_Data:: rhs_flux(double t){
