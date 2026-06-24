@@ -431,3 +431,69 @@ Three negative grep gate post-PR-E re-verification:
   + `openspec/changes/p1d-numa-governance/tasks.md` (spec drift fix; not
   in outer git, validated via `openspec validate ... --strict
   --no-interactive`) ✓
+
+## §"3 pragma 实现" 章 (PR-K append, M10 修订: DEPRECATED 标注)
+
+> **M10 修订（2026-06-24）DEPRECATED 警告**：本章描述 PR-C/D/E 在 `SHUD/src/ModelData/MD_update.cpp` 3 处 `#pragma omp parallel for` 区前置插入的 **steady-state parallel first-touch loop**。P1d PR-H 实测 + codebase 事实核查（参 `docs/p1d/p1d_numa_root_cause.md` §5）发现：
+>
+> 1. `SHUD/src/Model/f.cpp:54` 始终调 `ExecPolicy::Serial`
+> 2. `SHUD/src/Model/MD_rhs_core.cpp:802-811` `StrictOMP` / `ProductionOMP` cases 全 `std::abort()` 桩
+> 3. 当前 `shud_omp` 实际跑的是 **Serial 水文 RHS + OpenMP N_Vector backend**
+>
+> **含义**：steady-state first-touch loops 是为**完全没发生的** owner-compute (parallel RHS consumer) 做的页面预放置——consumer 是单线程，根本无视 NUMA locality，是无效优化。
+>
+> M10 master plan §6 P1d.4 第 4 项动作明确：**PR-C/D/E steady-state first-touch loops 标 deprecated**（owner-compute 未实现，无 consumer 享受 NUMA locality）；**allocation-time first-touch** 保留（per `Model_Data.cpp::malloc_EleRiv` L251-L346 的 page-fault 一次性触发模式仍正确）。
+>
+> 下个 epic P1e (F 路) 将重新设计 steady-state first-touch 作为 **`ExecPolicy::StrictOMP` 真正并行 RHS** 的配套（owner-compute 真正存在时）。
+>
+> 本章保留 PR-C/D/E 实施详情作为历史档案 + P1e 重新设计参考。
+
+### 3 pragma 区实施总结
+
+`SHUD/src/ModelData/MD_update.cpp` 中有 3 处 `#pragma omp parallel for`：
+
+| Pragma 区 | 文件位置 (P1d-tag 时) | 受治理字段集 | PR 实施 |
+|---|---|---|---|
+| element | MD_update.cpp 内 element owner-local 循环 | `hot.soa.{Qsurf,Qsub,...}` (per §"字段集 grep 输出" ELEMENT-owned 子集) | PR-C (#293) |
+| river | MD_update.cpp 内 river owner-local 循环 | `QeleSurf_flat` (per RIVER-owned 子集) | PR-D (#294) |
+| lake | MD_update.cpp 内 lake owner-local 循环 | `Ele_AoS` (per LAKE-owned 子集) | PR-E (#295) |
+
+### 实施模式
+
+每个 pragma 区前置以下 steady-state first-touch loop（伪代码）：
+
+```cpp
+#pragma omp parallel for schedule(static)
+for (int i = 0; i < N; i++) {
+    // first-touch warmup: read 1 byte per owner-local field
+    volatile auto _warm_field1 = field1[i];
+    volatile auto _warm_field2 = field2[i];
+    // ... (per field 集)
+}
+// 紧跟原 #pragma omp parallel for 区...
+```
+
+意图（pre-PR-H hypothesis）：在 owner thread 上 touch 受治理字段集首页 → 操作系统 page-fault 机制让 page 落到该 thread 所属 NUMA node → 后续 owner-compute 在原 pragma 区里读写时已经在本地 NUMA cache line，避免跨 socket cache-line ping-pong + page migration。
+
+### 为何此 hypothesis 在 PR-H 阶段失败
+
+PR-H 实测 cross-N rivqdown.dat 散度 10-25% (mean rel error) + nst Δ=80-152。事实核查后发现：
+
+1. 后续 owner-compute (在 pragma 区内) 实际由 **`ExecPolicy::Serial`** 执行（per `f.cpp:54`），不是 OpenMP 并行的。
+2. Serial consumer 读取该 page 时 thread 永远是 main thread——和 first-touch 时哪个 worker thread "占用了"该 page 没关系，因为 NUMA locality 是 thread × page 配对，不是 program × page 配对。
+3. Worker thread 在 first-touch 后立即返回 main loop，page 已 mapped 但 owner thread 已退出；当 Serial RHS consumer 在 main thread 上读时，本质上是跨 NUMA 访问（哪个 worker thread 触发的 page-fault 就是 page 落在哪个 NUMA node，但 consumer 不在那 node）。
+
+**结论**：在当前 `Serial RHS + OpenMP N_Vector` 配置下，steady-state first-touch 不仅无效，而且 (a) 浪费 bandwidth (worker threads 全程跑去 touch page 然后即刻闲置) + (b) 引入额外 fork-join overhead。
+
+### M10 修订动作
+
+- Status: **DEPRECATED for current `shud_omp` build** (Serial RHS path)
+- Removal: P1e epic (F 路) 删除 steady-state first-touch loops；重新设计为 owner-compute 真正发生时的配套
+- 保留: allocation-time first-touch (`Model_Data.cpp::malloc_EleRiv`) 不动；它是 page 一次性初始化时的正确模式
+
+### 引用
+
+- master plan v1.5 / M10 §6 P1d.2 (item 4) + §6 P1d.4 (item 4) + §6 P1e.3 (item 5)
+- `docs/p1d/p1d_numa_root_cause.md` §5 "Why first-touch did not help"
+- `docs/p1d/p1d_summary.md` §5 (E′ 8 项动作 item 4)
+- `docs/p1d/p1d_pr_h_final_run.md` "Post-verdict 修订" § "PR-C/D/E first-touch deprecation note"
