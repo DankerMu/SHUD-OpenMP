@@ -326,3 +326,108 @@ confirmed at the river-block scope.
   `-fopenmp` = 2; `-ffast-math` / `-Ofast` = 0 ✓
 - Outer diff scope: `M SHUD` (submodule pointer bump, orchestrator-owned) +
   `M docs/p1d/p1d_first_touch_design.md` (this section append) ✓
+
+---
+
+## PR-E implementation note (lake first-touch in rhs_update)
+
+PR-E (#279) inserts the lake first-touch loop INSIDE
+`MD_rhs_core.cpp::rhs_update`, **NOT** in `rhs_flux` as the original
+PROMOTE-era spec text framed it. Spec drift fix landed in PR-E:
+PR-C / PR-D round-1 cross-review confirmed that lake-owned per-i
+zero writes (`QLakeSub` / `QLakeSurf` / `QLakeRivIn` / `QLakeRivOut` /
+`qLakeEvap` / `qLakePrcp`) are emitted at `rhs_update` L177-182
+(pre-PR-E tree), inside the existing `for (i = 0; i < NumLake; i++)`
+lake block. The `rhs_flux` lake segment only *accumulates* into these
+fields (does NOT reset); it never zero-writes them. So PR-E's natural
+site mirrors PR-C's `rhs_update` placement, not PR-D's `rhs_flux`
+placement. `openspec/changes/p1d-numa-governance/specs/p1d-numa-governance/spec.md`
+Scenario "lake first-touch loop (P1d.2.3, PR-E, live path)" + `tasks.md`
+§3.6 both updated; `openspec validate p1d-numa-governance --strict
+--no-interactive` returns "Change 'p1d-numa-governance' is valid".
+
+Insert location and pattern (post-PR-E tree):
+
+- `rhs_update` definition: L64 (unchanged)
+- First-touch gate + pragma: L196-207 (post-insert)
+  - L196 `if (g_numa_first_touch_enabled) {`
+  - L197 `int i;`
+  - L198 `#pragma omp parallel for schedule(static) default(none) shared(QLakeSub, QLakeSurf, qLakeEvap, qLakePrcp, QLakeRivIn, QLakeRivOut) private(i)`
+  - L199 `for (i = 0; i < NumLake; i++) {`
+  - L200-205 `QLakeSub[i] = 0.0; QLakeSurf[i] = 0.0; qLakeEvap[i] = 0.0; qLakePrcp[i] = 0.0; QLakeRivIn[i] = 0.0; QLakeRivOut[i] = 0.0;`
+  - L209 `for (int i = 0; i < NumLake; i++) {` (the original lake owner block, now shifted +37 lines from pre-PR-E L172)
+
+Implemented field set = **6 fields** (`QLakeSub` / `QLakeSurf` /
+`QLakeRivIn` / `QLakeRivOut` / `qLakeEvap` / `qLakePrcp`), exactly
+matching the OQ1 LAKE subset table prediction. `yLakeStg` and
+`y2LakeArea` are NOT included — both are persistent state writers
+assigned non-zero values in the same lake block (`yLakeStg[i] =
+Y[iLAKE]` at L210, `y2LakeArea[i] = lake[i].u_toparea` at L213),
+so excluded from pure-zero first-touch per the same rationale as the
+ELEMENT-table "Excluded" row for `uYsf / uYus / uYgw` and the
+RIVER-table "Excluded" row for `uYriv`.
+
+Re-zero + first-read chain (re-zero stays inside the immediately
+following lake owner for-i loop within `rhs_update`; first read is in
+`rhs_flux` lake segments via accumulate `+=` or in `rhs_apply`
+`DY[iLAKE]`):
+
+| Field          | First-touch L? | Re-zero L? (lake owner for-i) | Final overwrite L? (rhs_flux / accumulate) | First read L? (rhs_apply) |
+| -------------- | -------------- | ----------------------------- | ------------------------------------------ | ------------------------- |
+| `QLakeSub`     | 200            | 214                           | rhs_flux L652 (`QLakeSub[ilake] = fixed_leftfold_sum_pair_indexed(...)`) | L777 (`DY[iLAKE] = ... + QLakeSub[i] ...`) |
+| `QLakeSurf`    | 201            | 215                           | rhs_flux L642 (`QLakeSurf[ilake] = fixed_leftfold_sum_pair_indexed(...)`) | L777 |
+| `qLakeEvap`    | 202            | 216                           | rhs_flux L497 (`qLakeEvap[i] = fixed_pairwise_sum_indexed(...)`), L504 clamp | L776 (`DY[iLAKE] = ... - qLakeEvap[i] ...`) |
+| `qLakePrcp`    | 203            | 217                           | rhs_flux L499 (`qLakePrcp[i] = fixed_pairwise_sum_indexed(...)`) | L776 |
+| `QLakeRivIn`   | 204            | 218                           | rhs_flux L631 (`QLakeRivIn[ilake] = fixed_leftfold_sum_indexed(...)`) | L777 |
+| `QLakeRivOut`  | 205            | 219                           | (No explicit re-overwrite in rhs_flux — re-zero at L219 carries through; sum below at L777) | L777 (`DY[iLAKE] = ... - QLakeRivOut[i] ...`) |
+
+(Line numbers above reflect the post-PR-E tree; pre-PR-E referenced
+L177-182 — `+37` line shift to L214-219 due to the inserted 37-line
+first-touch block immediately above the lake owner for-i loop.
+rhs_flux line numbers are post-PR-D + post-PR-E shift relative to
+pre-PR-D.)
+
+OQ1 doc LAKE subset table drift: **none**. PR-C-authored table cited
+all 6 fields exactly; PR-E implemented exactly those 6. The table's
+`yLakeStg` and `y2LakeArea` rows are correctly marked "(allocate-time
+only)" with non-zero re-write sites, and excluded from PR-E scope.
+
+6-SHA bitwise gate vs PR-D baseline `f2e291f` / SHUD `7023ee9`
+(keliya + qhh 90-day, N=1, 3 configs × {pre/post}):
+
+| Case   | Config | Pre-impl SHA256 | Post-impl SHA256 | Equal? |
+| ------ | ------ | --------------- | ---------------- | ------ |
+| keliya | serial (`./shud keliya`, OMP env unset) | `afceb9222aa4d8f0bc083a30db1100f0567040567d8cea936edba94dbe24c757` | `afceb9222aa4d8f0bc083a30db1100f0567040567d8cea936edba94dbe24c757` | ✓ |
+| keliya | `shud_omp` @ N=1, OMP_PROC_BIND unset (gate skipped) | `f7e9aad66488ee7e872c4d0b1de462f73944e5aeb98eb9427ddcf6a9805c183e` | `f7e9aad66488ee7e872c4d0b1de462f73944e5aeb98eb9427ddcf6a9805c183e` | ✓ |
+| keliya | `shud_omp` @ N=1, `OMP_PROC_BIND=close OMP_PLACES=cores` (gate active — first-touch loop fires) | `f7e9aad66488ee7e872c4d0b1de462f73944e5aeb98eb9427ddcf6a9805c183e` | `f7e9aad66488ee7e872c4d0b1de462f73944e5aeb98eb9427ddcf6a9805c183e` | ✓ |
+| qhh    | serial (`./shud qhh`, OMP env unset) | `be8b6530f4259fe3f9d61a644b9b89f956cba3d4eda1b5f77004be4935d386c9` | `be8b6530f4259fe3f9d61a644b9b89f956cba3d4eda1b5f77004be4935d386c9` | ✓ |
+| qhh    | `shud_omp` @ N=1, OMP_PROC_BIND unset (gate skipped) | `6bcae26ccb07a026d04af8f48896c65c1818c8c5ff222bfc31b83430575661de` | `6bcae26ccb07a026d04af8f48896c65c1818c8c5ff222bfc31b83430575661de` | ✓ |
+| qhh    | `shud_omp` @ N=1, `OMP_PROC_BIND=close OMP_PLACES=cores` (gate active — first-touch loop fires) | `6bcae26ccb07a026d04af8f48896c65c1818c8c5ff222bfc31b83430575661de` | `6bcae26ccb07a026d04af8f48896c65c1818c8c5ff222bfc31b83430575661de` | ✓ |
+
+**Verdict**: 6-SHA matrix all equal → bitwise-neutrality proven for
+both gate-skipped and gate-active paths, across both keliya (non-lake)
+and qhh (lake-bearing) cases. Pure-zero-write hypothesis confirmed at
+the lake-block scope. qhh gate-active run log shows
+`[NUMA] first-touch begin tag=hot.soa / QeleSurf_flat / Ele_AoS /
+LoadIC` confirming the existing allocation-time first-touch sites
+emit, and qhh has live lake-bearing data that exercises the new lake
+first-touch loop on each RHS evaluation.
+
+Three negative grep gate post-PR-E re-verification:
+
+- `schedule(dynamic|guided)` in `SHUD/src` = **0 hits** ✓
+- `#pragma omp atomic` in `SHUD/src` = **0 hits** ✓
+- `SHUD_USE_DETERMINISTIC_REDUCTION|SHUD_DET_REDUCT|SHUD_PAIRWISE` in
+  `SHUD/src` = **0 hits** ✓
+
+- Pragma count delta = +1 vs PR-D baseline (2 → 3) ✓
+- SHUD diff scope: `src/Model/MD_rhs_core.cpp` only (+37 lines) ✓
+- FP strict 3-grep gate: `-ffp-contract=off` = 2, `-fno-fast-math` = 2,
+  `-fopenmp` = 2; `-ffast-math` / `-Ofast` = 0 ✓
+- Outer diff scope: `M SHUD` (submodule pointer bump, orchestrator-owned) +
+  `M docs/p1d/p1d_first_touch_design.md` (this section append) +
+  local-only edits to gitignored
+  `openspec/changes/p1d-numa-governance/specs/p1d-numa-governance/spec.md`
+  + `openspec/changes/p1d-numa-governance/tasks.md` (spec drift fix; not
+  in outer git, validated via `openspec validate ... --strict
+  --no-interactive`) ✓
