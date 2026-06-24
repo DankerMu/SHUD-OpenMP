@@ -28,15 +28,15 @@ P1c deterministic-reduction + capstone (2026-06-23)
   #pragma omp atomic 0)
 
 Kahan/Neumaier conditional path APPLIED (per spec L107-L128):
-- Kahan held-in-reserve patch (docs/p1c_kahan_patch.diff PR-G #263) applied
+- Kahan held-in-reserve patch (docs/p1c/p1c_kahan_patch.diff PR-G #263) applied
   at PR-I (#265) on §4.7 trigger fire (PR-H #264 8-cell A3a + nst FAIL)
 - 4 helpers gain Neumaier 1974 (Kahan-Babuška variant) compensation
 - SHUD pin: de9545d → 3a0004c (openmp-baseline pushed; master untouched)
 - nst delta improvement: heihe |Δ| 225 → 84 (~63%); heihe_x4 |Δ| 3 → 5
   (within noise)
 
-PARTIAL CLOSURE + P9 carve-out (per master plan §3 fallback option 2):
-- §4.4 A3a cross-N + §4.5 nst Δ=0 cross-N: CARVE-OUT 推 P9 stage (upstream
+PARTIAL CLOSURE + P1d carve-out (per master plan §3 fallback option 2):
+- §4.4 A3a cross-N + §4.5 nst Δ=0 cross-N: CARVE-OUT 推 P1d stage (upstream
   parallel writer first-touch / NUMA-affinity governance)
 - design D9 decision branch 2 CONFIRMED: drift origin OUTSIDE 8 sites
 
@@ -53,13 +53,13 @@ D11 immutability verification baseline:
 - B1b-tag SHA: 96e224daad8cb9c93f855851724f8d45468391c2 (unchanged)
 
 Sources of truth:
-- docs/p1c_summary.md §1-§10 (capstone)
-- docs/p1c_a3a_root_cause.md §"design D9 decision branch 判定" (终判)
-- docs/p1c_perf_baseline.md §2-§6 (perf + D7 reframing)
-- docs/p1c_pr_h_server_first_run.md (8-cell pre-Kahan)
-- docs/p1c_pr_i_kahan_injection.md (8-cell Kahan + carve-out 决策)
-- docs/p1c_pr_j_reverse_compat.md (3-layer matrix)
-- docs/p1c_kahan_patch.diff (held-in-reserve patch, applied at PR-I)
+- docs/p1c/p1c_summary.md §1-§10 (capstone)
+- docs/p1c/p1c_a3a_root_cause.md §"design D9 decision branch 判定" (终判)
+- docs/p1c/p1c_perf_baseline.md §2-§6 (perf + D7 reframing)
+- docs/p1c/p1c_pr_h_server_first_run.md (8-cell pre-Kahan)
+- docs/p1c/p1c_pr_i_kahan_injection.md (8-cell Kahan + carve-out 决策)
+- docs/p1c/p1c_pr_j_reverse_compat.md (3-layer matrix)
+- docs/p1c/p1c_kahan_patch.diff (held-in-reserve patch, applied at PR-I)
 ```
 
 ## §3 Tag 创建命令 (post-PR-L 合并立即执行)

@@ -50,7 +50,7 @@ tag 创建后 SHALL 立即 push origin。**P1c-tag 自身亦 D11 immutable**：�
 #### Scenario: P1c-tag 自身 immutable (D11)
 
 - **WHEN** capstone 后任何时间执行 `git show P1c-tag --format=%H` 与 `git rev-list -n1 P1c-tag`
-- **THEN** 两者输出 SHALL 字面等于 `docs/p1c_summary.md` §"验证 P1c-tag" 节记录的 capstone-time tag-object SHA 与 deref commit SHA (D11 immutable enforced; 禁止 force-update / re-target)
+- **THEN** 两者输出 SHALL 字面等于 `docs/p1c/p1c_summary.md` §"验证 P1c-tag" 节记录的 capstone-time tag-object SHA 与 deref commit SHA (D11 immutable enforced; 禁止 force-update / re-target)
 
 #### Scenario: P1-update-omp-tag 不被修改 (D11)
 
@@ -71,29 +71,29 @@ tag 创建后 SHALL 立即 push origin。**P1c-tag 自身亦 D11 immutable**：�
 
 ---
 
-### Requirement: docs/p1c_* 三文档产出 (≥7 topic per p1-capstone F-M-2 PROMOTE upgrade)
+### Requirement: docs/p1c/p1c_* 三文档产出 (≥7 topic per p1-capstone F-M-2 PROMOTE upgrade)
 
 P1c capstone SHALL 产 3 个 docs (位置 / 模板 / 必要内容如下表)：
 
 | 文档 | 模板锚 | 必要内容 |
 |---|---|---|
-| `docs/p1c_summary.md` | `docs/p1_summary.md` ≥7 topic 结构 (per F-M-2 upgrade) | **必备 ≥7 topic**：(1) 完成定义 / (2) 旧版错误复盘 [P1c 无独立旧版时写一行 "不适用 — P1c 为 P1 后置新阶段"] / (3) P1c-tag 处理 / (4) 时间线 / (5) hand-off → P2a / (6) capstone 验证结果 / (7) 验证 P1c-tag；实际写作可深至 9–12 节 (deeper sub-section inline 在所属 topic 内) |
-| `docs/p1c_perf_baseline.md` | `docs/p1_perf_baseline.md` §2 服务器 scaling | PR-K2 复跑 8-cell A3a + nst 跨 N 表 + wall 数据 + 与 P1 实测的对比 + Kahan 引入与否说明 + Mac 辅助预筛节 (若执行) |
-| `docs/p1c_a3a_root_cause.md` | 新文档 (吸收 F-K2-2 reviewer finding) | 4 项必备字段 (per "p1c_a3a_root_cause 吸收 F-K2-2 + 量化数据" Scenario)：(a) pre-fix DY divergence first-occurrence step + element ID + bit-level diff；(b) post-fix same probe showing zero divergence；(c) per-site ULP delta table (8 站点 × N {2,4,8})；(d) 显式 confirm/refute tree-reduction-depth N>2 hypothesis with data |
+| `docs/p1c/p1c_summary.md` | `docs/p1_summary.md` ≥7 topic 结构 (per F-M-2 upgrade) | **必备 ≥7 topic**：(1) 完成定义 / (2) 旧版错误复盘 [P1c 无独立旧版时写一行 "不适用 — P1c 为 P1 后置新阶段"] / (3) P1c-tag 处理 / (4) 时间线 / (5) hand-off → P2a / (6) capstone 验证结果 / (7) 验证 P1c-tag；实际写作可深至 9–12 节 (deeper sub-section inline 在所属 topic 内) |
+| `docs/p1c/p1c_perf_baseline.md` | `docs/p1_perf_baseline.md` §2 服务器 scaling | PR-K2 复跑 8-cell A3a + nst 跨 N 表 + wall 数据 + 与 P1 实测的对比 + Kahan 引入与否说明 + Mac 辅助预筛节 (若执行) |
+| `docs/p1c/p1c_a3a_root_cause.md` | 新文档 (吸收 F-K2-2 reviewer finding) | 4 项必备字段 (per "p1c_a3a_root_cause 吸收 F-K2-2 + 量化数据" Scenario)：(a) pre-fix DY divergence first-occurrence step + element ID + bit-level diff；(b) post-fix same probe showing zero divergence；(c) per-site ULP delta table (8 站点 × N {2,4,8})；(d) 显式 confirm/refute tree-reduction-depth N>2 hypothesis with data |
 
 #### Scenario: 三 docs 存在且填好
 
-- **WHEN** `ls docs/p1c_summary.md docs/p1c_perf_baseline.md docs/p1c_a3a_root_cause.md`
+- **WHEN** `ls docs/p1c/p1c_summary.md docs/p1c/p1c_perf_baseline.md docs/p1c/p1c_a3a_root_cause.md`
 - **THEN** 三文件均存在；逐文件检查含上述"必要内容"列字段
 
 #### Scenario: p1c_summary.md 7 topic 必备 + 顺序对齐
 
-- **WHEN** 检查 `docs/p1c_summary.md` topic 标题
+- **WHEN** 检查 `docs/p1c/p1c_summary.md` topic 标题
 - **THEN** 上述 7 必备 topic 全部出现；topic 顺序与 p1_summary.md / b1b_summary.md 一致；deeper sub-section 数量不计 (允许 9–12 节)
 
 #### Scenario: p1c_a3a_root_cause 吸收 F-K2-2 + 量化数据
 
-- **WHEN** 读 `docs/p1c_a3a_root_cause.md`
+- **WHEN** 读 `docs/p1c/p1c_a3a_root_cause.md`
 - **THEN** SHALL 显式引用 PR-K2 #223 reviewer F-K2-2 finding (P1 epic F-K2-2 残留 debt)；SHALL 含 4 项必备字段：(a) pre-fix DY divergence first-occurrence (step / element ID / bit-level diff)；(b) post-fix same probe showing zero divergence；(c) per-site ULP delta table (8 站点 × N {2,4,8})；(d) 显式 confirm/refute tree-reduction-depth N>2 hypothesis with data backing
 
 ---
@@ -152,16 +152,16 @@ P1c capstone PR SHALL：
 
 ### Requirement: master plan §6 P1c.2 文件名修正移交 (M10) + 文档全量无 stale MD_f.cpp 引用
 
-P1c capstone SHALL 在 `docs/p1c_summary.md` §"Hand-off" 节或独立 sub-task 中显式记录：master plan §6 P1c.2 表中文件名 `SHUD/src/Model/MD_f.cpp` 与实际仓库 `MD_rhs_core.cpp` 不一致，**延后**至 M10 修订段同步更新；本 change 不动 master plan (per design D1 / Q3 决策)。
+P1c capstone SHALL 在 `docs/p1c/p1c_summary.md` §"Hand-off" 节或独立 sub-task 中显式记录：master plan §6 P1c.2 表中文件名 `SHUD/src/Model/MD_f.cpp` 与实际仓库 `MD_rhs_core.cpp` 不一致，**延后**至 M10 修订段同步更新；本 change 不动 master plan (per design D1 / Q3 决策)。
 
-同时，除 M10 hand-off 段与 "dead-code mirror" 显式声明外，docs/p1c_* 与 openspec/specs/p1c-* 范围内**禁止**残留任何 stale MD_f.cpp 引用（防止 P1c 文档误导读者认为实际改的是 MD_f.cpp）。
+同时，除 M10 hand-off 段与 "dead-code mirror" 显式声明外，docs/p1c/p1c_* 与 openspec/specs/p1c-* 范围内**禁止**残留任何 stale MD_f.cpp 引用（防止 P1c 文档误导读者认为实际改的是 MD_f.cpp）。
 
 #### Scenario: M10 移交事项显式记录
 
-- **WHEN** 读 `docs/p1c_summary.md` 或 `docs/p1c_a3a_root_cause.md`
+- **WHEN** 读 `docs/p1c/p1c_summary.md` 或 `docs/p1c/p1c_a3a_root_cause.md`
 - **THEN** SHALL 含一段说明 master plan §6 P1c.2 typo + M10 修订段同步范围 + 本 change 不动 master plan 的理由 (design D1)
 
 #### Scenario: 文档全量无 stale MD_f.cpp 引用
 
-- **WHEN** `grep -rn 'MD_f.cpp' docs/p1c_* openspec/specs/p1c-* 2>/dev/null | grep -v 'Hand-off\|M10\|legacy dead-code mirror\|dead-code mirror'`
+- **WHEN** `grep -rn 'MD_f.cpp' docs/p1c/p1c_* openspec/specs/p1c-* 2>/dev/null | grep -v 'Hand-off\|M10\|legacy dead-code mirror\|dead-code mirror'`
 - **THEN** 返回 0 hits (所有 MD_f.cpp 引用仅出现在 M10 hand-off 段或 dead-code mirror 显式声明段)

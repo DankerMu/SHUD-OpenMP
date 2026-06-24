@@ -16,14 +16,14 @@ openmp-baseline` → `cd .. && git add SHUD && git commit` (pointer bump) → �
 master / 禁 fork / 禁改 `.gitmodules`。PR-A 本身不动 SHUD source，pointer 与 baseline/P1c 一致
 `07c677f` (verified)。
 
-`docs/p1c_reduction_sites_baseline.txt` 为 frozen baseline，命令逐字：
+`docs/p1c/p1c_reduction_sites_baseline.txt` 为 frozen baseline，命令逐字：
 
 ```bash
 grep -rnE '^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*\[[^]]+\][[:space:]]*[+-]=' \
   SHUD/src/Model/ SHUD/src/ModelData/ \
   | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|\*)' \
   | grep -v _uncouple \
-  > docs/p1c_reduction_sites_baseline.txt
+  > docs/p1c/p1c_reduction_sites_baseline.txt
 ```
 
 附加 grep (覆盖性自检，不入 baseline.txt)：
@@ -58,8 +58,8 @@ SHUD pin = `07c677f`（PR-A #244 起始 + PR-K2 #223 三 pragma 栈，与 `basel
 
 ### Line-number 等价表 (B1b SHUD `0b3998d` ↔ current SHUD `07c677f`)
 
-`docs/p1c_b1b_serial_order_dump.txt` 采用 B1b SHUD pin `0b3998d` 行号家族 (`site_tag` 后缀)，
-sites.md 类1 表 / spec L39-L50 / `docs/p1c_a3a_root_cause.md` 使用 PR-K2 #223 SHUD pin
+`docs/p1c/p1c_b1b_serial_order_dump.txt` 采用 B1b SHUD pin `0b3998d` 行号家族 (`site_tag` 后缀)，
+sites.md 类1 表 / spec L39-L50 / `docs/p1c/p1c_a3a_root_cause.md` 使用 PR-K2 #223 SHUD pin
 `07c677f` 行号家族。下游 §2.x PR-B/C/D/E 消费 dump 时按此表 cross-walk。
 
 | 站点 | 写目标 | dump-family site_tag suffix (*) | class-1-family (`07c677f`) |
@@ -80,11 +80,11 @@ because B1b SHUD `0b3998d` source has the same statements at L222/L223 — the
 instrumented code at dump producer time used the post-fix line number for the
 lake aggregation rows; rows 3-10 site_tag suffix matches the B1b source line at
 `0b3998d`. The column header "dump-family site_tag suffix" therefore reflects
-the suffix literal as it appears in `docs/p1c_b1b_serial_order_dump.txt`,
+the suffix literal as it appears in `docs/p1c/p1c_b1b_serial_order_dump.txt`,
 not necessarily the B1b source line number.
 
-**Cross-walk 验证**：`grep -c 'site=QrivSurf_L311' docs/p1c_b1b_serial_order_dump.txt` 期望 ≥ 1
-(dump-family hit); `grep -nE '\| 3 \|' docs/p1c_reduction_sites.md` 期望命中本表 L374 行
+**Cross-walk 验证**：`grep -c 'site=QrivSurf_L311' docs/p1c/p1c_b1b_serial_order_dump.txt` 期望 ≥ 1
+(dump-family hit); `grep -nE '\| 3 \|' docs/p1c/p1c_reduction_sites.md` 期望命中本表 L374 行
 (class-1-family hit)。
 
 合并 8a/8b/8c 为单一 logical site "lake gathers 组" — 三者共用 `lake_bank_edge_by_lake`
@@ -92,7 +92,7 @@ not necessarily the B1b source line number.
 Conventions)，改造路径一致。
 
 B1b serial loop 在以上 anchors 的 (iter, acc_target, src_idx) 输入顺序参照
-`docs/p1c_b1b_serial_order_dump.txt` (§1.3 产物，SHUD@0b3998d N=1 dump).
+`docs/p1c/p1c_b1b_serial_order_dump.txt` (§1.3 产物，SHUD@0b3998d N=1 dump).
 §2.x adjacency-list 消费 SHALL cross-check 该 dump。
 
 ---
@@ -155,10 +155,10 @@ awk 'BEGIN { p=0 }
              if (site ~ /\.cpp:[0-9]+$/) print site;
              $0=substr($0, RSTART+RLENGTH);
          }
-     }' docs/p1c_reduction_sites.md | sort -u > /tmp/p1c_union.txt
+     }' docs/p1c/p1c_reduction_sites.md | sort -u > /tmp/p1c_union.txt
 
 # 2) 从 baseline.txt 抽取 file:line tokens
-sort -u docs/p1c_reduction_sites_baseline.txt \
+sort -u docs/p1c/p1c_reduction_sites_baseline.txt \
   | awk -F: '{print $1":"$2}' > /tmp/p1c_baseline_filelines.txt
 
 # 3) diff (期望空白 + exit 0)
@@ -169,10 +169,10 @@ echo "exit=$?"
 ## 实际 verification (PR-A 完成时记录)
 
 ```text
-$ wc -l docs/p1c_reduction_sites_baseline.txt
-      25 docs/p1c_reduction_sites_baseline.txt
+$ wc -l docs/p1c/p1c_reduction_sites_baseline.txt
+      25 docs/p1c/p1c_reduction_sites_baseline.txt
 
-$ awk '...' docs/p1c_reduction_sites.md | sort -u | wc -l
+$ awk '...' docs/p1c/p1c_reduction_sites.md | sort -u | wc -l
       25
 
 $ diff /tmp/p1c_baseline_filelines.txt /tmp/p1c_union.txt

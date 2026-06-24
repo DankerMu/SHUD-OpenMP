@@ -16,6 +16,9 @@ openspec/changes/
 .s*-runs/
 .s2-103/
 .s6c12a-runs/
+.p1c-runs/
+.p1c-pr-*-runs/
+.workplans/
 
 # P1d epic scratch run directories (server Slurm + Mac local run scratch)
 .p1d-runs/

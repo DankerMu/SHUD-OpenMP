@@ -14,7 +14,7 @@ P1c.0 实验诊断 (前置 SHALL, per design D9)。本文档在 PR-A 阶段建�
 
 ## Kahan 候选路径 (held-in-reserve, §4.7 条件触发)
 
-PR-G (#250) 产 `docs/p1c_kahan_patch.diff` 作为 held-in-reserve patch.
+PR-G (#250) 产 `docs/p1c/p1c_kahan_patch.diff` 作为 held-in-reserve patch.
 **NOT applied** in PR-G; conditional application only on §4.7 trigger
 (server PR-K2 first run FAIL). Per spec L107-L128 `Kahan 补偿求和兜底
 (条件触发, server PR-K2 首跑 FAIL)` Requirement + design D2 + D4 + R2.
@@ -64,7 +64,7 @@ Neumaier 1974 ZAMM Vol 54.
 | 8b (L420) | QLakeSurf | fixed_leftfold_sum_pair_indexed (PR-E) | fixed_leftfold_sum_pair_indexed_kahan |
 | 8c (L433) | QLakeSub | fixed_leftfold_sum_pair_indexed (PR-E) | same |
 
-实际 patch (`docs/p1c_kahan_patch.diff`) 在 4 个 helper def
+实际 patch (`docs/p1c/p1c_kahan_patch.diff`) 在 4 个 helper def
 (`fixed_pairwise_sum_range`, `fixed_leftfold_sum_indexed`,
 `fixed_leftfold_sum_pair_indexed` × 2 use-sites) 内修改累加循环, 即 cover
 所有 10 个 call sites — helper-wrap 结构允许 patch 不需逐 anchor 重写
@@ -100,7 +100,7 @@ hot-path use, 必须在 helper TU 内自洽 resolve, 不依赖 transitive.
 - Mac local §2.5 16-cell scan 任一 FAIL (Mac pass-while-server-fails
   已知模式, Mac M4 Pro 4P+10E 异构核心 + libomp 弱绑定 per master plan
   §7.2 RISK-26 即便有 server NUMA-affinity 噪声 mechanism 在场也不会在
-  Mac local snapshot 层面显现, 见 PR-F `docs/p1c_perf_baseline.md` §1).
+  Mac local snapshot 层面显现, 见 PR-F `docs/p1c/p1c_perf_baseline.md` §1).
 - 单 PR (B / C / D / E) 增量 keliya bitwise vs B0 FAIL (这是 PR 自身
   gate, 应在 PR 级 fix, 不上升到 Kahan).
 
@@ -116,7 +116,7 @@ hot-path use, 必须在 helper TU 内自洽 resolve, 不依赖 transitive.
   立 PR (不复用 PR-K2 二跑).
 
 **Tracking 阈值**: 实测 wall delta > 5% vs pre-Kahan PR-E HEAD ⇒
-record in `docs/p1c_perf_baseline.md` 跟踪条目 (perf-regression-investigation),
+record in `docs/p1c/p1c_perf_baseline.md` 跟踪条目 (perf-regression-investigation),
 但不 block A3a success gate.
 
 ### (e) 条件应用流程 (§4.7 触发后, PR-K2 二跑)
@@ -142,7 +142,7 @@ record in `docs/p1c_perf_baseline.md` 跟踪条目 (perf-regression-investigatio
 
 ```bash
 # Server cn0X, /scratch/frd_muziyao/SHUD-OpenMP/
-cd SHUD && git apply ../docs/p1c_kahan_patch.diff  # verified PASS via
+cd SHUD && git apply ../docs/p1c/p1c_kahan_patch.diff  # verified PASS via
                                                     # `git apply --check`
                                                     # on PR-G; patch source
                                                     # pin = SHUD@de9545d
@@ -171,7 +171,7 @@ patch 再生于 `git apply` 失败前 SHALL 重新 rebase 到当前 HEAD (helper
 - nst across N all-equal (heihe) / `|Δ_nst| ≤ 2` (heihe_x4).
 - Reverse-compat: N=1 byte-equal to P1-update-omp-tag.
 - Wall delta ≤ 5% vs pre-Kahan PR-E HEAD (record in
-  `docs/p1c_perf_baseline.md`).
+  `docs/p1c/p1c_perf_baseline.md`).
 
 ---
 
@@ -187,11 +187,11 @@ patch 再生于 `git apply` 失败前 SHALL 重新 rebase 到当前 HEAD (helper
 
 **Server PR-K2 #223 实测 reference** (heihe nst 数据见 `docs/p1_summary.md` + `docs/p1_perf_baseline.md` + `docs/build_manifest.md`; heihe_x4 nst 数据见 `docs/p1_perf_baseline.md`; F-K2-2 reviewer finding tracking in P1 fullrun review): heihe `nst` 跨 N ∈ {1,2,4,8} = 6773/6773/**6585**/**6684**, heihe_x4 `nst` = 6571/6571/**6570**/**6572**; PR-H 二跑 success gate 要求 spec L172 Δ=0 强制 (heihe) + heihe_x4 Δ=0 with optional SPGMR-noise ladder (per design D6).
 
-**PR-H 首跑实测 (2026-06-22, SHUD@de9545d, post-PR-E HEAD)** (per `docs/p1c_pr_h_server_first_run.md` §3-§6):
+**PR-H 首跑实测 (2026-06-22, SHUD@de9545d, post-PR-E HEAD)** (per `docs/p1c/p1c_pr_h_server_first_run.md` §3-§6):
 - heihe nst {N=1,2,4,8} = {6773, 6773, **6682**, **6548**}, |Δ_max|=225 (≫ §4.5 D9 ≤2 阈值)
 - heihe_x4 nst {N=1,2,4,8} = {6571, 6571, **6568**, **6570**}, |Δ_max|=3 (越 §4.5 D9 ≤2 阈值)
 - A3a bitwise: 双 case 全 FAIL (3 distinct SHAs per case, N=1≡N=2 due to SHUD internal `max(NUM_OPENMP,2)` thread floor)
-- **§4.7 SHALL TRIGGER**: PR-I (#252) 走条件 Kahan injection 主分支 (per PR-G `docs/p1c_kahan_patch.diff`)，PR-K2 二跑。
+- **§4.7 SHALL TRIGGER**: PR-I (#252) 走条件 Kahan injection 主分支 (per PR-G `docs/p1c/p1c_kahan_patch.diff`)，PR-K2 二跑。
 
 P1 era (B1b PR-K2 #223) 与 P1c PR-H 首跑 nst 数值不同 (heihe 6585/6684 → 6682/6548) 因 SHUD HEAD 漂移 (P1 era 07c677f → P1c post-PR-E de9545d 含 8 站点 helper-wrap)。Pattern 一致 (N≥4 漂移)，幅度变化。
 
@@ -271,7 +271,7 @@ Server PR-K2 二跑 (PR-H) 期望矩阵：
 
 - 倾向 hypothesis 修订版 (writer noise → gather amplification)，即 **decision branch 2** (诊断结果落在 8 站点 reduction 路径**外部**)；
 - 故 §2.x 8 站点 fixed-shape pairwise 改造仍 SHALL 推进作为 ULP 噪声放大阻断手段 (per design D9 决策分支 2)；
-- 同时 server PR-K2 数据 (PR-H) SHALL 验证: 若实际证据指向上游 writer noise 而非 gather noise，**spec R2 表 SHALL 在 capstone 锁前扩展 in-scope 表 OR 显式记录为 carve-out 推 P9** (per design D6 + spec L100-L103 Scenario)。
+- 同时 server PR-K2 数据 (PR-H) SHALL 验证: 若实际证据指向上游 writer noise 而非 gather noise，**spec R2 表 SHALL 在 capstone 锁前扩展 in-scope 表 OR 显式记录为 carve-out 推 P1d** (per design D6 + spec L100-L103 Scenario)。
 
 ---
 
@@ -286,8 +286,8 @@ Server PR-K2 二跑 (PR-H) 期望矩阵：
 **PR-I 阶段终判结论**: **分支 2 CONFIRMED** (诊断结果落在 8 站点 reduction 路径外部)。
 - ✓ §2.x fixed-shape pairwise 改造已完成 (PR-B/C/D/E)，作为通用 ULP 噪声阻断手段在 helper 层闭合;
 - ✓ Kahan 兜底 (PR-G/PR-I) 已注入并测量, 部分改善但未关闭 §4.4 A3a + §4.5 nst Δ=0 门;
-- ✓ **carve-out 推 P9** (per design D6 + spec L100-L103 Scenario): 上游 writer first-touch / NUMA-affinity 治理 (OMP_PROC_BIND + OMP_PLACES + numactl interleave) 为 P9 stage 单独范围;
-- 详 PR-I §8 "§4.7 二次决策 — PARTIAL CLOSURE + P9 CARVE-OUT" 三条结论 + carve-out scope 表 + extend 选项 cost 分析。
+- ✓ **carve-out 推 P1d** (per design D6 + spec L100-L103 Scenario): 上游 writer first-touch / NUMA-affinity 治理 (OMP_PROC_BIND + OMP_PLACES + numactl interleave) 为 P1d stage 单独范围;
+- 详 PR-I §8 "§4.7 二次决策 — PARTIAL CLOSURE + P1d CARVE-OUT" 三条结论 + carve-out scope 表 + extend 选项 cost 分析。
 - 若 server 数据 confirm 分支 1 (落在 8 站点内)，§2.x 改造直接闭合，无需 spec 扩展。
 - 若 server 数据 confirm 分支 3 (无因果链)，**STOP §2.x 推进**，P1c 范围重新评估，退回 master plan §6 P1c.1 候选 (c) Deterministic OpenMP N_Vector。
 
@@ -346,7 +346,7 @@ qhh case (lake-bearing, 4773 ele) 同模式，`SHUD_DUMP_T_VALUES=12098880`
 
 ## Hand-off → PR-H (server PR-K2 二跑) checklist
 
-- [ ] **Re-dump 1 ABSENT anchor on server case** — Mac local dump 缺 L343 QLakeRivIn (= class-1 L406, per dump.txt R3-fixed L60-L64 (L343 ABSENT row) + L68-L76 (Implication footer) + Anchor hit count audit table + sites.md Line-number 等价表). 这是 4 Mac case 唯一真正 ABSENT 的 anchor (L319/L320 在 R3 retro fix 已修正为 PRESENT, 各 6240 body hits, 无需 server re-dump). server PR-K2 二跑 instrumentation SHALL 在 heihe + heihe_x4 case (lake-bearing case 才能触发 `riv_in_by_lake[ilake]` non-empty) 各 N ∈ {1,4,8} 复跑时补这 1 anchor 的 `[p1c_dump]` trace 行，写回 `docs/p1c_b1b_serial_order_dump.txt` 末尾 OR 新建 `docs/p1c_server_order_dump.txt` (二者皆可，capstone PR-K decide).
+- [ ] **Re-dump 1 ABSENT anchor on server case** — Mac local dump 缺 L343 QLakeRivIn (= class-1 L406, per dump.txt R3-fixed L60-L64 (L343 ABSENT row) + L68-L76 (Implication footer) + Anchor hit count audit table + sites.md Line-number 等价表). 这是 4 Mac case 唯一真正 ABSENT 的 anchor (L319/L320 在 R3 retro fix 已修正为 PRESENT, 各 6240 body hits, 无需 server re-dump). server PR-K2 二跑 instrumentation SHALL 在 heihe + heihe_x4 case (lake-bearing case 才能触发 `riv_in_by_lake[ilake]` non-empty) 各 N ∈ {1,4,8} 复跑时补这 1 anchor 的 `[p1c_dump]` trace 行，写回 `docs/p1c/p1c_b1b_serial_order_dump.txt` 末尾 OR 新建 `docs/p1c/p1c_server_order_dump.txt` (二者皆可，capstone PR-K decide).
 - [ ] **Slurm 三铁律 (server cn0X 提交 SHALL 遵循)** — (i) `sbatch` 从 `/scratch` 下提交 (不从 `/users/$USER`); (ii) `#SBATCH --output/--error` 路径必须在 `/scratch` 共享盘 (compute node `/tmp` node-local, 作业结束丢, sacct 显示 ExitCode 127); (iii) 作业脚本/patch/hash/run.sh 都放 `/scratch`. **禁 login node 跑 SHUD/keliya/heihe** (共享 CPU 30s 可膨胀到 30+ min). Per CLAUDE.md "Slurm 三铁律".
 - [ ] **SHUD submodule 工作流 (PR-H 复跑 SHALL 遵循)** — PR-H 会 re-instrument SHUD source (插 8 站点 ULP delta probe + 1 ABSENT anchor dump i.e. L343 QLakeRivIn); 任何 SHUD source 改造 SHALL `cd SHUD && git commit && git push origin openmp-baseline` (长寿分支, 从 `3aec657` 派生) → `cd .. && git add SHUD && git commit` (pointer bump) → 外层 PR; **禁 push master / 禁 fork / 禁改 `.gitmodules`**. Per CLAUDE.md "SHUD submodule 工作流 (强制)".
 - [ ] Server cn0X build `shud_omp SHUD_DUMP_RHS=1`，3-grep gate strict FP.
@@ -356,4 +356,4 @@ qhh case (lake-bearing, 4773 ele) 同模式，`SHUD_DUMP_T_VALUES=12098880`
 - [ ] 在每个 reduction 站点入口 + 出口插 instrumented dump (ULP delta probe), 跑 N=2/4/8 各 8 站点 = 24 cell，填字段 (c) ULP delta 表。
 - [ ] 基于 server 数据 update 字段 (d) tree-reduction hypothesis confirm/refute。
 - [ ] 终判 D9 decision branch 1/2/3, update 本文档 §"design D9 decision branch 判定" 表的 "终判 (PR-H 后)" 列。
-- [ ] 若 branch 2 或 branch 3, update spec R2 表 in-scope 扩展 OR 显式 carve-out 推 P9 (per design D6) **在 spec 锁前**完成。
+- [ ] 若 branch 2 或 branch 3, update spec R2 表 in-scope 扩展 OR 显式 carve-out 推 P1d (per design D6) **在 spec 锁前**完成。

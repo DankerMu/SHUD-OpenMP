@@ -93,7 +93,7 @@ qhh N=8    ac5c1ce922705e7fab40568404de52a0db06697730481b447303d5ba7ca26818
 | heihe | `7f22bd6faa438d50` | `7f22bd6faa438d50` | `7f7a621cf1c4f02b` | `8c581172a17db537` | 530 / 502 / 479 / 472 |
 | heihe_x4 | `55403bef48ee5ad8` | `55403bef48ee5ad8` | `7e8f7a8a9697279e` | `8b0efa6f6a74a43a` | 1182 / 1178 / 1240 / 1212 |
 
-(完整 64-hex SHA 见 `docs/p1c_pr_h_server_first_run.md` §3。)
+(完整 64-hex SHA 见 `docs/p1c/p1c_pr_h_server_first_run.md` §3。)
 
 ### §2.2 cvode_stats 15-key — nst 主要漂移
 
@@ -134,7 +134,7 @@ qhh N=8    ac5c1ce922705e7fab40568404de52a0db06697730481b447303d5ba7ca26818
 | heihe | `fd2d55716b5daffd` | `fd2d55716b5daffd` | `e058db2e9c2a9b9a` | `6285e8a4a30a3917` | 508 / 509 / 506 / 500 |
 | heihe_x4 | `4eb804f571ba6f89` | `4eb804f571ba6f89` | `ff0787abd2170d4d` | `6e9f9a2eaf652747` | 1058 / 1140 / 1051 / 934 |
 
-(完整 64-hex SHA 见 `docs/p1c_pr_i_kahan_injection.md` §3。)
+(完整 64-hex SHA 见 `docs/p1c/p1c_pr_i_kahan_injection.md` §3。)
 
 ### §3.2 cvode_stats 15-key (Kahan)
 
@@ -152,7 +152,7 @@ qhh N=8    ac5c1ce922705e7fab40568404de52a0db06697730481b447303d5ba7ca26818
 **verdict**:
 - A3a: 3 distinct SHAs per case 仍存 — **FAIL** (pattern preserved)
 - nst delta: heihe |Δ|=84 (改善 ~63% vs 225); heihe_x4 |Δ|=5 (噪声幅度) — **PARTIAL**
-- §4.7 二次决策: **PARTIAL CLOSURE + P9 carve-out**
+- §4.7 二次决策: **PARTIAL CLOSURE + P1d carve-out**
 
 ## §4 Δ_wall 对比 PR-H pre-Kahan vs PR-I Kahan (R2 估算 verification)
 
@@ -186,10 +186,10 @@ PR-F Mac 16-cell scan (per §1.2) + Server PR-H/PR-I 8-cell (per §2/§3) 比较
 - 原假设: "Mac snapshot 已知 pass-while-server-fails" (spec L113 framing) → 经 PR-F 不成立
 - 修订: Mac + Server **共享** RISK-26 (NUMA / cache locality) 触发 floating-point 不确定性的同类机制
 - D7 SHOULD/SHALL trigger 不对称仍**保留** (Mac informational only, server SHALL gate) — 因为 Mac 不在 D11 immutability 范围, 不能担任 PROMOTE 验证。但 Mac 不再是 "may pass while server fails" 的非典型 case, 反而是 server pattern 的 early signal。
-- PR-M PROMOTE 时由 reviewer 决定是否在 archive 标 "Mac sanity prediction power 经验补充" (per `docs/p1c_summary.md` §9.4)
+- PR-M PROMOTE 时由 reviewer 决定是否在 archive 标 "Mac sanity prediction power 经验补充" (per `docs/p1c/p1c_summary.md` §9.4)
 
 ## §6 阶段 hand-off
 
-详 `docs/p1c_summary.md` §5 (P2a + P9)。本 perf baseline 文档是 capstone source of truth for performance 数据, 在 PR-M PROMOTE 时随 archive。
+详 `docs/p1c/p1c_summary.md` §5 (P2a + P1d)。本 perf baseline 文档是 capstone source of truth for performance 数据, 在 PR-M PROMOTE 时随 archive。
 
-[`docs/p1c_summary.md`](p1c_summary.md) — sibling capstone (≥7 主题完整结构)。
+[`docs/p1c/p1c_summary.md`](p1c_summary.md) — sibling capstone (≥7 主题完整结构)。
