@@ -89,7 +89,7 @@ E′ 是 "Linus 路线": 不假装 P1d 成功，但也不放弃 P1d 的工程工
 - hydrology RHS 真并行 → 真去吃 RHS 66.55% wall → 理想 2.39× 上界可达
 - closure 不要求 vendor change
 
-P1e 首选 F 路。若 mode C (Serial NVec + StrictOMP RHS) 跨 N 仍漂，再 fallback 到 ADR-0001 的二选项 NVECTOR_REPRO_OMP；KLU 仍推到 P2/P3。
+P1e 首选 F 路。若 mode C (Serial NVec + StrictOMP RHS) 跨 N 仍漂，再 fallback 到 ADR-0002 的二选项 NVECTOR_REPRO_OMP；KLU 仍推到 P2/P3。
 
 ## §8 Outputs
 
@@ -100,7 +100,7 @@ P1e 首选 F 路。若 mode C (Serial NVec + StrictOMP RHS) 跨 N 仍漂，再 f
 | Master plan revision | v1.5 / M10 (merged 2026-06-24) | DONE |
 | OpenSpec specs | `p1d-numa-governance` (PROMOTE per PR-M) + `p1d-capstone` (PROMOTE per PR-M) | PR-M PENDING |
 | Docs | 11 必备 + PR-K self-evidence + 2 update = **14 doc 总计 in `docs/p1d/`** | 本 PR |
-| ADR | `docs/adr/0001-solver-path.md` 4-way solver comparison | Phase 2(e) 并行 agent owns (not this PR) |
+| ADR | `docs/adr/0002-solver-path.md` 4-way solver comparison | Phase 2(e) 并行 agent owns (not this PR) |
 | P1e openspec | `openspec/changes/p1e-strict-omp-rhs/` proposal + design + tasks + specs | Phase 2(e) 并行 agent owns (not this PR) |
 | Status matrix | P1d 行 PARTIAL CLOSURE + P1e 行 PENDING | 本 PR |
 | Build manifest | SHUD pin trail P1d 段 + FP gate 3-flag 形 | 本 PR |
@@ -135,14 +135,14 @@ P1e 首选 F 路。若 mode C (Serial NVec + StrictOMP RHS) 跨 N 仍漂，再 f
 - **P1e intake**: openspec `p1e-strict-omp-rhs` change propose（Phase 2(e) 并行 agent owns）
 - **P1e.1 启动前置实验**: 2×2 build matrix × N∈{1,2,4,8} × 3 reps 因果实验（4 build = A/B/C/D per `docs/p1d/p1d_summary.md` §9.3）
   - 判据若 mode C cross-N bitwise + nst Δ=0 + 加速 ≥1.5× → F 路成立 → P1e.2-7 实施
-  - 判据若 mode C 失败 → 进 ADR-0001 评估二选项 NVECTOR_REPRO_OMP
+  - 判据若 mode C 失败 → 进 ADR-0002 评估二选项 NVECTOR_REPRO_OMP
 - **P1e.2-7**: StrictOMP RHS 实施 + deterministic gather 复用 + first-touch 重新设计 + `rivqdown.dat` 输出 audit + 3 SHALL gate strict-omp mode 验收
-- **P1e.8 capstone**: `P1e-tag` (D11 7-tag chain) + `baseline/P1e` lock + ADR-0001 close out
+- **P1e.8 capstone**: `P1e-tag` (D11 7-tag chain) + `baseline/P1e` lock + ADR-0002 close out
 
 ### §11.3 Long-term (P2a+)
 
-- **P2a 启动前置**: 原 "P1c-tag lock + P1c.3 A3a 全通过" 不再充分。新前置 = **P1e (F 路) 完成 strict-omp mode 实现 + 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0001 close out**
-- **ADR-0001 (solver-path)**: Phase 2(e) 并行 agent 创建 4 路 solver 对比（Serial NVec + StrictOMP RHS / Deterministic NVECTOR_REPRO_OMP / SPGMR + block-Jacobi precond / KLU sparse direct），不阻塞 F 路
+- **P2a 启动前置**: 原 "P1c-tag lock + P1c.3 A3a 全通过" 不再充分。新前置 = **P1e (F 路) 完成 strict-omp mode 实现 + 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0002 close out**
+- **ADR-0002 (solver-path)**: Phase 2(e) 并行 agent 创建 4 路 solver 对比（Serial NVec + StrictOMP RHS / Deterministic NVECTOR_REPRO_OMP / SPGMR + block-Jacobi precond / KLU sparse direct），不阻塞 F 路
 
 ## §12 References
 
@@ -163,6 +163,6 @@ P1e 首选 F 路。若 mode C (Serial NVec + StrictOMP RHS) 跨 N 仍漂，再 f
 | `SHUD_openMP_master_plan.md` v1.5 / M10 | §6 P1d + §6 P1e + §7.2 RISK-NEW1/2 + §7.3 stage rows + §8.1 4-mode block |
 | `openspec/changes/p1d-numa-governance/` | P1d openspec change (PR-M PROMOTE) |
 | `openspec/changes/p1e-strict-omp-rhs/` | P1e openspec change (Phase 2(e) 并行 agent owns) |
-| `docs/adr/0001-solver-path.md` | 4 路 solver 对比 ADR (Phase 2(e) 并行 agent owns) |
+| `docs/adr/0002-solver-path.md` | 4 路 solver 对比 ADR (Phase 2(e) 并行 agent owns) |
 | `docs/status_matrix.md` | P1d 行 PARTIAL CLOSURE + P1e 行 PENDING（本 PR 更新） |
 | `docs/build_manifest.md` | SHUD pin trail P1d 段 + FP gate 3-flag 形（本 PR 更新） |

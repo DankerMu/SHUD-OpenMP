@@ -483,7 +483,7 @@ PR-L 阶段创建 `P1d-tag` 时 annotated message 必须含（per master plan §
 3. 4-mode spec rewrite (`serial` / `strict-omp` / `det-omp` / `fast-omp`)
 4. PR-C/D/E steady-state first-touch deprecation note
 5. PR-G Kahan revert 保留 + N=1 byte-identical to pre-K2 canonical
-6. 指向 P1e (F 路) + 2×2 build matrix 因果实验 + ADR-0001 (solver-path)
+6. 指向 P1e (F 路) + 2×2 build matrix 因果实验 + ADR-0002 (solver-path)
 7. SHUD pin 变更（P1c `3a0004c` → P1d `210ac19`）
 8. PR-C/C0/D/E/F/G/H/I/K/L/M 11 PR cross-ref（PR-A/B 在 epic intake，PR-J cancel after PR-H FAIL）
 9. D11 historical immutability re-verify (P1-update-omp-tag / B1-tag / B1a-tag / B1b-tag / P1c-tag SHAs 不变)

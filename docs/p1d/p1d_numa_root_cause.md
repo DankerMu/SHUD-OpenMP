@@ -1,6 +1,6 @@
 # P1d — NUMA / N≥4 散度根因技术分析
 
-P1d epic 最重要的一份 doc。记录 PR-H 3 SHALL gate FAIL 后，通过两轮独立 GPT Pro 复查 + 5/5 codebase 事实核查得到的**正确根因**，并把 PR-H 初版 4 个错误诊断逐项纠正。本 doc 是 ADR-0001 (solver-path) + P1e (F 路) openspec change + master plan §6 P1d / §6 P1e 修订的技术依据。
+P1d epic 最重要的一份 doc。记录 PR-H 3 SHALL gate FAIL 后，通过两轮独立 GPT Pro 复查 + 5/5 codebase 事实核查得到的**正确根因**，并把 PR-H 初版 4 个错误诊断逐项纠正。本 doc 是 ADR-0002 (solver-path) + P1e (F 路) openspec change + master plan §6 P1d / §6 P1e 修订的技术依据。
 
 ## §1 Original P1d hypothesis（pre-PR-H, master plan v1.4 era）
 
@@ -107,7 +107,7 @@ solve trajectory 完全分叉
 output rivqdown.dat byte-different + mean_rel 10-25% (不是 ULP, 是另一条轨迹)
 ```
 
-**Reference**: SUNDIALS 6.0.0 source `src/nvector/openmp/nvector_openmp.c` 全部 reduction ops 都用 `reduction(+:sum) schedule(static)` pattern；这是 SUNDIALS 的 fast/non-strict-deterministic backend, 与之对应的 strict-deterministic backend 是 SUNDIALS post-6.x 加的 NVECTOR_OPENMP_REPRO 或 user-implemented serial-order N_Vector wrapper（详 §11 ADR-0001 路径）。
+**Reference**: SUNDIALS 6.0.0 source `src/nvector/openmp/nvector_openmp.c` 全部 reduction ops 都用 `reduction(+:sum) schedule(static)` pattern；这是 SUNDIALS 的 fast/non-strict-deterministic backend, 与之对应的 strict-deterministic backend 是 SUNDIALS post-6.x 加的 NVECTOR_OPENMP_REPRO 或 user-implemented serial-order N_Vector wrapper（详 §11 ADR-0002 路径）。
 
 ## §5 Why first-touch did NOT help
 
@@ -167,7 +167,7 @@ PR-H 初版 verdict 把 FAIL 解读为 "nst Δ 超 spec ladder + 根因在 SPGMR
 | 1 | "drift origin 在 SPGMR multi-threaded preconditioner" | SPGMR **没有** preconditioner；drift 是 `N_VDotProd_OpenMP` / `N_VWSqrSumLocal_OpenMP` 的 `reduction(+:sum) schedule(static)` 跨 N reduction tree 顺序不固定 | fact-check #5 + SUNDIALS 6.0.0 `nvector_openmp.c` source review |
 | 2 | "Amdahl serial fraction ~72%" | 由 wall 反推 `f = (1/S - 1/N)/(1 - 1/N)`：heihe ~**87%**, heihe_x4 ~**76%**（差 15pp）；且不能全部归因 CVODE——含 serial RHS + N_Vector fork/join 开销 + memory bandwidth 饱和 | `docs/p1d/p1d_perf_baseline.md` §4 重新计算 |
 | 3 | "reltol=1e-4 但实测 10% → solver 承诺被打穿四个数量级" | CVODE reltol 控制的是**每步状态 WRMS local error**，**不是** 90 天派生流量轨迹的全局相对误差上界。两个 reduction tree shapes 各自 satisfy WRMS local error tolerance，但走出两条 trajectory，输出 90-day 后 derived flow 差 10%；这不是 CVODE 实现错误的证据 | CVODE 6.0 manual §6.2 reltol/abstol definition + step-size controller spec |
-| 4 | "KLU 是唯一根治路径" | KLU 不能单独 fix。CVODE WRMS norm 还是过 N_Vector reduction，换 KLU 不换 N_Vector 仍然漂。Determinism 与 solver 选择**正交**。KLU 推到 ADR-0001 作 4 路对比之一 | fact-check + §10 remediation 路径决策表 |
+| 4 | "KLU 是唯一根治路径" | KLU 不能单独 fix。CVODE WRMS norm 还是过 N_Vector reduction，换 KLU 不换 N_Vector 仍然漂。Determinism 与 solver 选择**正交**。KLU 推到 ADR-0002 作 4 路对比之一 | fact-check + §10 remediation 路径决策表 |
 
 ## §8 K=200 vs K=0 在流量层面的真实含义
 
@@ -199,8 +199,8 @@ PR-G revert 保留是 E′ 第 5 项动作的依据。
 | 路径 | 描述 | 评估 | 落点 |
 |---|---|---|---|
 | A | 放宽 ladder K=200 | ❌ false advertising "strict" | 拒 |
-| B | SPGMR → KLU 重构 | P2/P3 ADR 评估，**不是 P1d 必选**——KLU 单独不能 fix N_Vector reduction (fact-check)；除非配合 §4.1 NVECTOR_REPRO_OMP，否则换 KLU 也跨 N 漂 | ADR-0001 路径之一 |
-| C | SUNDIALS 内部 deterministic patch (用 NVECTOR_OPENMP_REPRO 或 fork) | ❌ 验收周期长（vendor change），未必彻底 fix | ADR-0001 fallback |
+| B | SPGMR → KLU 重构 | P2/P3 ADR 评估，**不是 P1d 必选**——KLU 单独不能 fix N_Vector reduction (fact-check)；除非配合 §4.1 NVECTOR_REPRO_OMP，否则换 KLU 也跨 N 漂 | ADR-0002 路径之一 |
+| C | SUNDIALS 内部 deterministic patch (用 NVECTOR_OPENMP_REPRO 或 fork) | ❌ 验收周期长（vendor change），未必彻底 fix | ADR-0002 fallback |
 | D | N=1/2 bitwise + N≥4 ladder 双 mode | 配合 E′ 4-mode spec（serial mode + strict-omp mode 划分） | E′ 4-mode spec 内 |
 | **E′** | **P1d containment closure** | **当前 P1d 收尾路线**（不是简单 E，含 4-mode spec + 错误叙事更正 + first-touch deprecation note） | **P1d capstone (本 epic)** |
 | **F** | **Serial N_Vector + StrictOMP RHS** | **下个 epic (P1e) 技术主线**——真正完成 P1d 原计划应该完成的事 | **P1e (next epic)** |
@@ -235,7 +235,7 @@ P1e 任何代码改造前，必须先用 4 build × N∈{1,2,4,8} × 3 repeats �
 - **B 跨 N 不同 而 A 跨 N 相同** → 确认 NVECTOR_OPENMP reduction 是主因（不是 RHS race）
 - **C 跨 N bitwise + nst Δ=0 + 加速** → F 路成立，进入 P1e.3 正式实施
 - **C 跨 N 也分叉** → 查 RHS race / 共享状态 / phase dependency；可能更细 owner-compute 分解
-- **C 加速 < 1.5×** → 进 ADR-0001 评估 (block-Jacobi precond / NVECTOR_REPRO_OMP / KLU)
+- **C 加速 < 1.5×** → 进 ADR-0002 评估 (block-Jacobi precond / NVECTOR_REPRO_OMP / KLU)
 
 ### §11.3 实施要点
 
@@ -248,7 +248,7 @@ P1e 任何代码改造前，必须先用 4 build × N∈{1,2,4,8} × 3 repeats �
 
 ## §12 Long-term ADR roadmap
 
-`docs/adr/0001-solver-path.md`（Phase 2(e) 并行 agent 创建）将做 4 路 solver 对比，不阻塞 F 路：
+`docs/adr/0002-solver-path.md`（Phase 2(e) 并行 agent 创建）将做 4 路 solver 对比，不阻塞 F 路：
 
 | 路径 | 优势 | 劣势 |
 |---|---|---|
@@ -257,7 +257,7 @@ P1e 任何代码改造前，必须先用 4 build × N∈{1,2,4,8} × 3 repeats �
 | SPGMR + block-Jacobi physics-based precond | 加速 SPGMR Krylov 收敛 → 减 iter count → 减 N_Vector ops → 间接减 cross-N 散度 source | precond setup 不通用，element/river/lake 3 块独立；compute 量增 |
 | KLU sparse direct | 完全消除 SPGMR + Krylov layer → 单步 solve 确定性 + 不依赖 N_Vector reduction | full Jacobian factorize cost (fill ratio, memory peak)；P2/P3 评估 |
 
-P1e 首选 Serial N_Vector + StrictOMP RHS（F 路）。若 2×2 因果实验 mode C 失败，进 ADR-0001 评估二选项 NVECTOR_REPRO_OMP。KLU 仅作 P2/P3 单独决策（量化 fill ratio + memory peak + factor wall 后比较）。
+P1e 首选 Serial N_Vector + StrictOMP RHS（F 路）。若 2×2 因果实验 mode C 失败，进 ADR-0002 评估二选项 NVECTOR_REPRO_OMP。KLU 仅作 P2/P3 单独决策（量化 fill ratio + memory peak + factor wall 后比较）。
 
 ## §13 References
 
@@ -275,5 +275,5 @@ P1e 首选 Serial N_Vector + StrictOMP RHS（F 路）。若 2×2 因果实验 mo
 | SUNDIALS 6.0.0 `src/nvector/openmp/nvector_openmp.c` | NVECTOR_OPENMP reduction source |
 | CVODE 6.0 manual §6.2 reltol/abstol | reltol semantics (本 doc §7 #3 依据) |
 | `SHUD_openMP_master_plan.md` v1.5 / M10 §6 P1d + §6 P1e | master plan 修订主体 |
-| `docs/adr/0001-solver-path.md` (forthcoming) | 4 路 solver 对比 (Phase 2(e) 并行 agent owns) |
+| `docs/adr/0002-solver-path.md` (forthcoming) | 4 路 solver 对比 (Phase 2(e) 并行 agent owns) |
 | `openspec/changes/p1e-strict-omp-rhs/` (forthcoming) | P1e openspec change (Phase 2(e) 并行 agent owns) |
