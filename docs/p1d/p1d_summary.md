@@ -230,3 +230,57 @@ PR-K capstone 显式 re-verify per spec L221-L224 Scenario。
 | `openspec/changes/p1e-strict-omp-rhs/` | P1e openspec change (Phase 2(e) 并行 agent owns) |
 | `docs/status_matrix.md` | P1d 行 + P1e 行 PENDING（本 PR 更新） |
 | `docs/build_manifest.md` | SHUD pin trail P1d 段 + FP gate 3-flag 形 (本 PR 更新) |
+
+## §13 验证 P1d-tag（placeholder — PR-M 填实）
+
+**Status**: PLACEHOLDER (PR-L commit time)
+
+PR-L 创建本 placeholder 章；PR-L 合并后 orchestrator 执行 `git tag -a P1d-tag <HEAD> -m '<msg>'` 创建 tag；PR-M 编辑本章填入实测 tag-object SHA + deref commit SHA。
+
+### §13.1 P1d-tag 创建命令（orchestrator post-merge 执行）
+
+详 `docs/p1d/p1d_tag_and_lock.md` § "Post-merge actions"。
+
+### §13.2 D11 5 historical tag SHA 不变 + P1d-tag 新增 = 6 chain（PR-M 填实）
+
+| Tag | SHA (PR-L commit time) | SHA (PR-M 验证时) | Match |
+|---|---|---|---|
+| B1-tag | (P1c epic 记录值) | TBD | TBD |
+| B1a-tag | (P1c epic 记录值) | TBD | TBD |
+| B1b-tag | (P1c epic 记录值) | TBD | TBD |
+| P1-update-omp-tag | (P1c epic 记录值) | TBD | TBD |
+| P1c-tag | (P1c epic 记录值) | TBD | TBD |
+| P1d-tag | n/a | TBD（PR-M 填） | n/a |
+
+### §13.3 P1d-tag 内容验证（PR-M 填）
+
+| Item | 实测值 |
+|---|---|
+| `git rev-parse P1d-tag` (tag-object SHA) | TBD (PR-M) |
+| `git rev-parse P1d-tag^{}` (deref commit SHA) | TBD (PR-M) |
+| `git show P1d-tag --format=%s` (subject line) | TBD (PR-M) |
+| `git cat-file -p P1d-tag | wc -l` (message lines) | TBD (PR-M) |
+| `git show P1d-tag^{}:SHUD | head -1` (SHUD submodule pin at tag) | TBD (PR-M, expected `210ac19...`) |
+
+### §13.4 baseline/P1d 分支 lock 验证（PR-M 填）
+
+| Item | 实测值 |
+|---|---|
+| `gh api repos/.../branches/baseline/P1d --jq '.protection.lock_branch.enabled'` | TBD (PR-M, expected true) |
+| `gh api .../protection --jq '.enforce_admins.enabled'` | TBD (PR-M, expected true) |
+| `gh api .../protection --jq '.allow_force_pushes.enabled'` | TBD (PR-M, expected false) |
+| `gh api .../protection --jq '.allow_deletions.enabled'` | TBD (PR-M, expected false) |
+
+### §13.5 main fast-forward 验证（PR-M 填）
+
+| Item | 实测值 |
+|---|---|
+| `git rev-parse origin/main` | TBD (PR-M) |
+| `git rev-parse origin/baseline/P1d` | TBD (PR-M) |
+| Match | TBD (PR-M, expected true) |
+
+### References
+
+- `docs/p1d/p1d_tag_and_lock.md` (P1d-tag procedure)
+- `openspec/changes/p1d-numa-governance/specs/p1d-numa-governance/spec.md` § "baseline/P1d 分支 + P1d-tag"
+- master plan v1.5 / M10 §6 P1d.5 (D11 6-tag chain) + §6 P1d.6 (Go/No-Go → P1e)
