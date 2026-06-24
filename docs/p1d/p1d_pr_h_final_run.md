@@ -169,7 +169,87 @@ Neither root cause is addressable by NUMA placement or Kahan compensation alone.
 - Each run dir contains: `rivqdown.sha256`, `wall.txt`, `cvode_stats.txt` (15-key set), `output_listing.txt`, `done.txt`
 - Slurm logs: `/scratch/frd_muziyao/SHUD-OpenMP/.p1d-runs/pr-h-final/logs/p1d_pr_h_{9041..9048}.{out,err}`
 
+## 重大实测补充（post-verdict, 2026-06-24）
+
+初版 verdict 把 PR-H FAIL 表述为 `nst Δ` 量级超 spec ladder（K=200 vs K=0），但只看了 CVODE step count，没看实际 `rivqdown.dat` 河道流量。补做后发现：**N≥4 不是 ULP-level 漂移，是 CVODE 轨迹分叉**，下游水文输出 mean rel error 在 10-25% 量级。
+
+### 实测 rivqdown.dat 数值散度（PR-H, 90-day heihe / heihe_x4）
+
+| Case / N | mean_rel | RMSE | max_rel | n_diff / n_total | 不同值占比 |
+|---|---|---|---|---|---|
+| heihe N=2 vs N=1 | 0 | 0 | 0 | 0 / 214252 | 0% |
+| heihe N=4 vs N=1 | **3.8%** | 1.79e+03 | 1010× | 210774 / 214252 | 98.4% |
+| heihe N=8 vs N=1 | **10.0%** | 2.76e+03 | 12534× | 210779 / 214252 | 98.4% |
+| heihe_x4 N=2 vs N=1 | 0 | 0 | 0 | 0 / 387607 | 0% |
+| heihe_x4 N=4 vs N=1 | **17.6%** | 8.63e+03 | 2214× | 383130 / 387607 | 98.8% |
+| heihe_x4 N=8 vs N=1 | **25.1%** | 7.59e+03 | 2908× | 382116 / 387607 | 98.6% |
+
+### P1c era 对照（Kahan IN, no NUMA env, no first-touch — 即已上线版本）
+
+| Case / N | mean_rel | RMSE | max_rel |
+|---|---|---|---|
+| heihe N=4 vs N=1 | 3.0% | 5.86e+03 | 213× |
+| heihe N=8 vs N=1 | 10.0% | 1.35e+03 | 1446× |
+| heihe_x4 N=4 vs N=1 | 3.5% | 7.80e+03 | 4710× |
+| heihe_x4 N=8 vs N=1 | **20.3%** | 9.39e+03 | 66120× |
+
+**P1c era 与 PR-H 在 N=8 上同量级**（heihe 10% vs 10%, heihe_x4 20% vs 25%）。Kahan 注入只压住 `|Δ_nst|`，**没修水文输出散度**。P1d Kahan revert（PR-G）也没让事情变差太多——drift 是 SUNDIALS SPGMR 层面物理限制，per design D9。
+
+heihe_x4 N=4 PR-H (17.6%) > P1c (3.5%) — Kahan 在此 mesh 上 mask 效果更好；revert 后裸露出来。N=8 双方量级相当。
+
+### 并行加速比实测
+
+| Case | N=1 wall (s) | N=2 wall | N=4 wall | N=8 wall | Speedup (8 cores) |
+|---|---|---|---|---|---|
+| heihe | 513 | 513 | 503 | 456 | **1.13×** |
+| heihe_x4 | 1187 | 1169 | 1096 | 937 | **1.27×** |
+
+Amdahl 反推：parallel fraction ≈ 28% (heihe) / 28% (heihe_x4)。**72% 时间在 CVODE+SPGMR 串行内核**。第一性原理：花 8 倍 CPU 换 1.13× 加速 + 10-25% 流量误差，**ROI 为负**。
+
+### K=200 vs K=0 在流量层面的真实对应关系
+
+| Mode | nst Δ | 流量散度量级 | 学术 / 工程含义 |
+|---|---|---|---|
+| K=0 (true strict) | 0 | ≤ULP | 真 reproducible，可作 forensic 复现 |
+| K=200 (PR-H actual) | 80-152 (heihe) | **10-25% rel error** | 跑出来是**另一条 CVODE 轨迹**；峰值差 1000-12500× |
+
+放在水文工程语境对照：
+- vs CMFD forcing 不确定性 (10-20%) → **同量级，被 forcing noise 吃掉**
+- vs gauge 测量精度 (5-10%) → **超过测量精度**
+- vs Manning's n 标定带宽 (~50%) → 量级以下
+- vs CVODE reltol=1e-4 承诺 → **超出 4 个数量级**
+
+学术发表层面：reltol=1e-4 但实测 1e-1，**solver 自身的精度承诺已经被打穿**。不能说"converged within tolerance"——这是 tolerance 之外的轨迹分叉。
+
+### Remediation 路径重新评估
+
+| 路径 | 描述 | 实测前评估 | 实测后评估 |
+|---|---|---|---|
+| **A** | 放宽 ladder K=200 (spec rewrite) | 推荐 | **不推荐**——K=200 对应 10-25% 流量误差，承诺"strict"等同 false advertising |
+| **B** | SPGMR → KLU direct solver (大重构) | 不推荐 | **P2a/P2b 阶段考虑**——这是唯一根治路径，但 wall 可能退化 + 大 case 内存爆炸风险 |
+| **C** | SUNDIALS 内部 deterministic gather patch | 不推荐 | **不推荐**——验收周期长，未必彻底 fix |
+| **D** | N=1/2 bitwise + N≥4 ladder 双 mode 承诺 | 推荐配合 A | **配合 E**——承诺重定义思路对，但 ladder 不该承诺 |
+| **E (NEW)** | ship serial-only + OMP research artifact | n/a | **新推荐**——诚实，与 P1c 实际状态 + PR-H 实测一致 |
+
+### E 路具体内容
+
+1. **production 默认 `NUM_OPENMP=1`**（serial path 实测可 reproducible + 不慢太多：heihe 513s vs 456s @ N=8 only 11% slower）
+2. **`shud_omp` 二进制继续 ship + build**（CI / 验收保留），但 default `cfg.para NUM_OPENMP=1`
+3. **PR-K capstone docs 诚实记录**：
+   > P1d 完成 NUMA env standardization + first-touch loops (PR-C/D/E) + B0-ordered schedule(static) + P1c §4.7 Kahan revert (PR-G) 全部 mechanical engineering 工作；**OMP runtime mode 由于 SUNDIALS 6.0.0 SPGMR 内部并行 reduction 顺序非 deterministic，N≥4 产生不可接受的 CVODE 轨迹分叉（mean rel error 10-25%, max rel 1000-12500×）**，不推荐 production 使用。
+4. **P1d-tag annotated message** 把 finding 作为核心 deliverable：尝试了 NUMA + first-touch + Kahan，得出 SUNDIALS internals 是 bottleneck 的科学结论
+5. **三 SHALL gate 重写** for `spec/specs/p1d-numa-governance/spec.md` L126-150：
+   - L130 (A3a bitwise): 改成 "N=1 == P1-update-omp canonical SHA strict + N≥2 informational only"
+   - L139 (nst Δ): 改成 "N=1 nst deterministic strict + N≥2 informational only"
+   - L145 (reverse-compat): 保留 "N=1 6-case bitwise"（这条 PR-H + PR-I 数据已支持）
+6. **B 路（KLU）开 ADR** `docs/adr/0001-spgmr-vs-klu.md` 作为 P2/P3 路线图
+
 ## Awaiting user decision
 
 Per `openspec/changes/p1d-numa-governance/specs/p1d-numa-governance/spec.md` L150-151:
 > 由用户决策 P1d 延展或 master plan 修订（不在本 change scope）
+
+**给决策方的核心问题**：
+1. 接受 P1c 早就存在的 10-25% N≥4 流量散度作为 SUNDIALS SPGMR 物理限制，走 E 路（serial-only ship + OMP research-artifact），P1d epic 当晚关单 → P2 路线纳入 KLU/deterministic 工作？
+2. 还是 P1d 不关单，立刻投入 B 路（KLU 重构，2-4 周延期 + wall 退化风险）等真 bitwise fix 后再 ship？
+3. 其它思路？
