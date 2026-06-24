@@ -231,56 +231,84 @@ PR-K capstone 显式 re-verify per spec L221-L224 Scenario。
 | `docs/status_matrix.md` | P1d 行 + P1e 行 PENDING（本 PR 更新） |
 | `docs/build_manifest.md` | SHUD pin trail P1d 段 + FP gate 3-flag 形 (本 PR 更新) |
 
-## §13 验证 P1d-tag（placeholder — PR-M 填实）
+## §13 验证 P1d-tag（PR-M 实测填实）
 
-**Status**: PLACEHOLDER (PR-L commit time)
+**Status**: FILLED — PR-M post-PR-L-merge 实测 (2026-06-24)
 
 PR-L 创建本 placeholder 章；PR-L 合并后 orchestrator 执行 `git tag -a P1d-tag <HEAD> -m '<msg>'` 创建 tag；PR-M 编辑本章填入实测 tag-object SHA + deref commit SHA。
 
 ### §13.1 P1d-tag 创建命令（orchestrator post-merge 执行）
 
-详 `docs/p1d/p1d_tag_and_lock.md` § "Post-merge actions"。
+详 `docs/p1d/p1d_tag_and_lock.md` §4 P1d-tag 创建命令。
 
-### §13.2 D11 5 historical tag SHA 不变 + P1d-tag 新增 = 6 chain（PR-M 填实）
+### §13.2 D11 5 historical tag SHA 不变 + P1d-tag 新增 = 6 chain（PR-M 实测）
 
-| Tag | SHA (PR-L commit time) | SHA (PR-M 验证时) | Match |
-|---|---|---|---|
-| B1-tag | (P1c epic 记录值) | TBD | TBD |
-| B1a-tag | (P1c epic 记录值) | TBD | TBD |
-| B1b-tag | (P1c epic 记录值) | TBD | TBD |
-| P1-update-omp-tag | (P1c epic 记录值) | TBD | TBD |
-| P1c-tag | (P1c epic 记录值) | TBD | TBD |
-| P1d-tag | n/a | TBD（PR-M 填） | n/a |
+| Tag | tag-object SHA (PR-L 时刻) | tag-object SHA (PR-M 验证) | deref commit SHA (PR-M 验证) | 状态 |
+|---|---|---|---|---|
+| B1-tag | `0c0621c986e54e371c5a176850d1eb981150010e` | `0c0621c986e54e371c5a176850d1eb981150010e` | `ed054b417101bca35d2e10cd262d3333187b983d` | byte-identical immutable |
+| B1a-tag | `f3a7ff1efe20c94de2fda73a17d74fb3a0016c1d` | `f3a7ff1efe20c94de2fda73a17d74fb3a0016c1d` | `f7f992cabab5d5aec3bf08ab2db7c0669ef7fe75` | byte-identical immutable |
+| B1b-tag | `96e224daad8cb9c93f855851724f8d45468391c2` | `96e224daad8cb9c93f855851724f8d45468391c2` | `18a0c9085f494d1cf228c7be4adf27d9132d05dd` | byte-identical immutable |
+| P1-update-omp-tag | `ff21c75c8e968d5e47ca53b015425360be9ac879` | `ff21c75c8e968d5e47ca53b015425360be9ac879` | `003f58dc079116ef2161d2f96006228ef0e013d0` | byte-identical immutable |
+| P1c-tag | `1da5eb9734680fc61e68f6091964c38fc5f67c6f` | `1da5eb9734680fc61e68f6091964c38fc5f67c6f` | `4b8c60af261e0d1517f52702e4827a4e2d67dd41` | byte-identical immutable |
+| P1d-tag | n/a (PR-L 时刻未创建) | `a82bf3361b5e4dcbc1f07ca22e99a917b00b78f0` | `f88f2dc2cad1adbe3797b89fbe247aa12bf8c0a9` | NEW (PR-L post-merge, 6th chain) |
 
-### §13.3 P1d-tag 内容验证（PR-M 填）
+D11 immutability 验证通过：5 historical SHA 全部 byte-identical 至 P1c epic close 时刻记录值（per `docs/p1c_tag_and_lock.md` + `openspec/glossary.md` L168/L200 entries）；P1d-tag 仅追加，不动 5 historical。
 
-| Item | 实测值 |
-|---|---|
-| `git rev-parse P1d-tag` (tag-object SHA) | TBD (PR-M) |
-| `git rev-parse P1d-tag^{}` (deref commit SHA) | TBD (PR-M) |
-| `git show P1d-tag --format=%s` (subject line) | TBD (PR-M) |
-| `git cat-file -p P1d-tag | wc -l` (message lines) | TBD (PR-M) |
-| `git show P1d-tag^{}:SHUD | head -1` (SHUD submodule pin at tag) | TBD (PR-M, expected `210ac19...`) |
+> 注：`docs/p1d/p1d_tag_and_lock.md` §5 表（PR-L 录入版）SHA 值与本节略有错位；PR-M 已在 `p1d_tag_and_lock.md` §5.1 添加 SHA correction note 说明。本节 §13.2 取 PR-M `git rev-parse <tag>` 实测输出作权威 source-of-truth。
 
-### §13.4 baseline/P1d 分支 lock 验证（PR-M 填）
+### §13.3 P1d-tag 内容验证（PR-M 实测）
 
 | Item | 实测值 |
 |---|---|
-| `gh api repos/.../branches/baseline/P1d --jq '.protection.lock_branch.enabled'` | TBD (PR-M, expected true) |
-| `gh api .../protection --jq '.enforce_admins.enabled'` | TBD (PR-M, expected true) |
-| `gh api .../protection --jq '.allow_force_pushes.enabled'` | TBD (PR-M, expected false) |
-| `gh api .../protection --jq '.allow_deletions.enabled'` | TBD (PR-M, expected false) |
+| `git rev-parse P1d-tag` (tag-object SHA) | `a82bf3361b5e4dcbc1f07ca22e99a917b00b78f0` |
+| `git rev-parse P1d-tag^{}` (deref commit SHA) | `f88f2dc2cad1adbe3797b89fbe247aa12bf8c0a9` |
+| `git show P1d-tag --format=%s` (subject line) | `P1d epic capstone — E' containment closure` |
+| `git cat-file -p P1d-tag \| wc -l` (message lines) | 66 |
+| `git ls-tree P1d-tag SHUD` (SHUD submodule pin at tag) | `160000 commit 210ac193a4f09f700a9c0b20010d19f788948c32	SHUD` |
 
-### §13.5 main fast-forward 验证（PR-M 填）
+### §13.4 baseline/P1d 分支 lock 验证（PR-M 后置）
+
+**Status**: PENDING PR-M merge + branch lock command execution.
 
 | Item | 实测值 |
 |---|---|
-| `git rev-parse origin/main` | TBD (PR-M) |
-| `git rev-parse origin/baseline/P1d` | TBD (PR-M) |
-| Match | TBD (PR-M, expected true) |
+| `gh api repos/.../branches/baseline/P1d --jq '.protection.lock_branch.enabled'` | TBD (post-PR-M-merge, expected true) |
+| `gh api .../protection --jq '.enforce_admins.enabled'` | TBD (post-PR-M-merge, expected true) |
+| `gh api .../protection --jq '.allow_force_pushes.enabled'` | TBD (post-PR-M-merge, expected false) |
+| `gh api .../protection --jq '.allow_deletions.enabled'` | TBD (post-PR-M-merge, expected false) |
+
+> 注：lock 命令在 PR-M merge 后由 orchestrator 立即执行（per `docs/p1d/p1d_tag_and_lock.md` §6）。本表 post-lock 由 orchestrator 填回实测 `gh api` 输出。
+
+### §13.5 main fast-forward 验证（PR-M 后置）
+
+**Status**: PENDING PR-M merge + main fast-forward command execution.
+
+| Item | 实测值 |
+|---|---|
+| `git rev-parse origin/main` | TBD (post-PR-M-merge) |
+| `git rev-parse origin/baseline/P1d` | TBD (post-PR-M-merge) |
+| Match | TBD (post-PR-M-merge, expected true) |
+
+> 注：main fast-forward 在 PR-M lock 完成后执行（per `docs/p1d/p1d_tag_and_lock.md` §7）。本表 post-fast-forward 由 orchestrator 填回实测 `git rev-parse` 输出。
+
+### §13.6 P1d 6-tag chain post-PR-L summary table
+
+PR-L 合并 + P1d-tag 创建 + push 后，完整 D11 6-tag chain（含 tag-object SHA + deref commit SHA 双视图）：
+
+| Tag | tag-object SHA (annotated) | deref commit SHA |
+|---|---|---|
+| B1-tag | `0c0621c986e54e371c5a176850d1eb981150010e` | `ed054b417101bca35d2e10cd262d3333187b983d` |
+| B1a-tag | `f3a7ff1efe20c94de2fda73a17d74fb3a0016c1d` | `f7f992cabab5d5aec3bf08ab2db7c0669ef7fe75` |
+| B1b-tag | `96e224daad8cb9c93f855851724f8d45468391c2` | `18a0c9085f494d1cf228c7be4adf27d9132d05dd` |
+| P1-update-omp-tag | `ff21c75c8e968d5e47ca53b015425360be9ac879` | `003f58dc079116ef2161d2f96006228ef0e013d0` |
+| P1c-tag | `1da5eb9734680fc61e68f6091964c38fc5f67c6f` | `4b8c60af261e0d1517f52702e4827a4e2d67dd41` |
+| P1d-tag | `a82bf3361b5e4dcbc1f07ca22e99a917b00b78f0` | `f88f2dc2cad1adbe3797b89fbe247aa12bf8c0a9` |
+
+D11 NG7：6 tag 全 annotated；`git tag --verify <tag>` 全 6 PASS；force-update 禁止（per design D11 + master plan §6 P1d.5）。
 
 ### References
 
-- `docs/p1d/p1d_tag_and_lock.md` (P1d-tag procedure)
+- `docs/p1d/p1d_tag_and_lock.md` (P1d-tag procedure + §5.1 SHA correction note)
 - `openspec/changes/p1d-numa-governance/specs/p1d-numa-governance/spec.md` § "baseline/P1d 分支 + P1d-tag"
 - master plan v1.5 / M10 §6 P1d.5 (D11 6-tag chain) + §6 P1d.6 (Go/No-Go → P1e)
+- `docs/p1d/p1d_go_nogo_verdict.md` (PR-M 综合 verdict)

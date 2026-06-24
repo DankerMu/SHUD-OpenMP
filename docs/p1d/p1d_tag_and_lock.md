@@ -161,16 +161,31 @@ git rev-parse B1-tag B1a-tag B1b-tag P1-update-omp-tag P1c-tag P1d-tag
 # Expected: 6 SHA outputs; first 5 immutable from P1c epic; P1d-tag new
 ```
 
-| Tag | SHA (pre-PR-L commit time, 2026-06-24 实测) | 状态 |
+| Tag | SHA (PR-L commit time, 2026-06-24 实测) | 状态 |
 |---|---|---|
-| `B1-tag` | `1da5eb9734680fc61e68f6091964c38fc5f67c6f` | ✓ historical immutable |
-| `B1a-tag` | `0c0621c986e54e371c5a176850d1eb981150010e` | ✓ historical immutable |
-| `B1b-tag` | `f3a7ff1efe20c94de2fda73a17d74fb3a0016c1d` | ✓ historical immutable |
-| `P1-update-omp-tag` | `96e224daad8cb9c93f855851724f8d45468391c2` | ✓ historical immutable |
-| `P1c-tag` | `ff21c75c8e968d5e47ca53b015425360be9ac879` | ✓ historical immutable |
-| `P1d-tag` | `<TBD post-PR-L>` | **NEW (PR-L 创建)** |
+| `B1-tag` | `0c0621c986e54e371c5a176850d1eb981150010e` | ✓ historical immutable |
+| `B1a-tag` | `f3a7ff1efe20c94de2fda73a17d74fb3a0016c1d` | ✓ historical immutable |
+| `B1b-tag` | `96e224daad8cb9c93f855851724f8d45468391c2` | ✓ historical immutable |
+| `P1-update-omp-tag` | `ff21c75c8e968d5e47ca53b015425360be9ac879` | ✓ historical immutable |
+| `P1c-tag` | `1da5eb9734680fc61e68f6091964c38fc5f67c6f` | ✓ historical immutable |
+| `P1d-tag` | `a82bf3361b5e4dcbc1f07ca22e99a917b00b78f0` | ✓ NEW (PR-L post-merge, 6th chain) |
 
-> 注：本节 5 historical SHA 取自 PR-L commit 时刻 `git rev-parse` 实测输出（顺序 `B1 / B1a / B1b / P1-update-omp / P1c`）。任一 SHA 改变 → D11 immutability 违反，orchestrator abort + git tag --verify + 回滚 force-tag-update（per D11 NG3 + NG7 rule）。post-tag 验证由 PR-M `docs/p1d/p1d_summary.md` §13 表 §13.2 填入 PR-M 验证时刻 SHA，对比 PR-L 列即可。
+> 注：本节 5 historical SHA 取自 PR-L commit 时刻 `git rev-parse <tag>` 实测输出（顺序 `B1 / B1a / B1b / P1-update-omp / P1c`）。任一 SHA 改变 → D11 immutability 违反，orchestrator abort + git tag --verify + 回滚 force-tag-update（per D11 NG3 + NG7 rule）。post-tag 验证由 PR-M `docs/p1d/p1d_summary.md` §13 表 §13.2 填入 PR-M 验证时刻 SHA，对比 PR-L 列即可。
+
+### §5.1 SHA correction note (PR-M fix)
+
+**PR-L 阶段记录错位 → PR-M 校正**：PR-L agent 录入 §5 表时把 6 行 SHA 的 SHA 值错位放置（off-by-one：B1-tag 槽位上写了 P1c-tag SHA，B1a-tag 槽位上写了 B1-tag SHA，等等）。PR-M post-merge 时刻跑 `git rev-parse B1-tag B1a-tag B1b-tag P1-update-omp-tag P1c-tag P1d-tag` 实测输出为：
+
+```
+0c0621c986e54e371c5a176850d1eb981150010e  # B1-tag
+f3a7ff1efe20c94de2fda73a17d74fb3a0016c1d  # B1a-tag
+96e224daad8cb9c93f855851724f8d45468391c2  # B1b-tag
+ff21c75c8e968d5e47ca53b015425360be9ac879  # P1-update-omp-tag
+1da5eb9734680fc61e68f6091964c38fc5f67c6f  # P1c-tag
+a82bf3361b5e4dcbc1f07ca22e99a917b00b78f0  # P1d-tag (NEW)
+```
+
+PR-M 已用实测数据替换 §5 表（上方修订版本）。**D11 historical immutability 未违反** — 5 historical SHA 与 `docs/p1c_tag_and_lock.md` 同期记录一致；仅 PR-L 录入位置错位，SHA 值本身正确。`git tag --verify` 全 6 tag 通过。
 
 ## §6 baseline/P1d branch lock 程序（deferred to post-PR-M per issue #287）
 
