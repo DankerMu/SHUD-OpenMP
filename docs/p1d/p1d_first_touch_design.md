@@ -265,3 +265,64 @@ stems present (cited at L177, L178, L181, L182 + 2 supplementary stems
 - Outer diff scope: `M SHUD` + `M .gitignore` + this new doc ✓
 - FP strict 3-grep gate: `-ffp-contract=off` ≥1, `-fno-fast-math` ≥1,
   `-fopenmp` ≥1; `-ffast-math` / `-Ofast` = 0 ✓
+
+---
+
+## PR-D implementation note (river first-touch in rhs_flux)
+
+PR-D (#278) inserts the river first-touch loop at the TOP of
+`MD_rhs_core.cpp::rhs_flux`, mirroring PR-C's top-of-`rhs_update`
+placement. Insert location and pattern (post-PR-D tree):
+
+- `rhs_flux` definition: L325 (post-insert)
+- First-touch gate + pragma: L351-358 (post-insert)
+  - L351 `if (g_numa_first_touch_enabled) {`
+  - L352 `#pragma omp parallel for schedule(static) default(none) shared(QrivSurf, QrivSub, QrivUp) private(i)`
+  - L353 `for (i = 0; i < NumRiv; i++) {`
+  - L354-356 `QrivSurf[i] = 0.0; QrivSub[i] = 0.0; QrivUp[i] = 0.0;`
+
+Implemented field set = **3 fields** (`QrivSurf` / `QrivSub` / `QrivUp`),
+exactly matching the OQ1 RIVER subset table prediction
+(`uYriv` is NOT included — it is a persistent state writer assigned
+non-zero `uYriv[i] = Y[iRIV]` at rhs_update L144, so excluded from
+pure-zero first-touch per the same rationale as the ELEMENT-table
+"Excluded" row for `uYsf / uYus / uYgw`).
+
+Re-zero + final-overwrite chain (all inside `rhs_flux` body via the
+`rhs_deterministic_gather()` call at L502 → L542-587 gather function):
+
+| Field       | First-touch L? | Re-zero L? (gather pre-zero) | Final overwrite L? (gather body) | First read L? (rhs_apply) |
+| ----------- | -------------- | ---------------------------- | -------------------------------- | ------------------------- |
+| `QrivSurf`  | 354            | 545                          | 561                              | 719 (`DY[iRIV] = (... - QrivSurf[i] ...)`) |
+| `QrivSub`   | 355            | 546                          | 562                              | 719                       |
+| `QrivUp`    | 356            | 547                          | 582                              | 719                       |
+
+(Line numbers above reflect the post-PR-D tree; pre-PR-D referenced
+L511-514 / L528-549 / L686 — `+34` line shift across rhs_deterministic_gather and rhs_apply due to the inserted 33-line first-touch block at the top of rhs_flux.)
+
+OQ1 doc RIVER subset table drift: **none**. PR-C-authored table cited
+`QrivSurf / QrivSub / QrivUp` exactly; PR-D implemented exactly those
+3. The table's `uYriv` row is correctly marked "(allocate-time only)"
+and excluded from PR-D scope (persistent state writer, not a pure-zero
+candidate).
+
+6-SHA bitwise gate vs PR-C baseline `a2085de` (keliya 90-day, N=1, 3
+configs × {pre/post}):
+
+| Config | Pre-impl SHA256 | Post-impl SHA256 | Equal? |
+| --- | --- | --- | --- |
+| serial (`./shud keliya`, OMP env unset) | `afceb922...4dbe24c757` | `afceb922...4dbe24c757` | ✓ |
+| `shud_omp` @ N=1, OMP_PROC_BIND unset (gate skipped) | `f7e9aad6...c6a9805c183e` | `f7e9aad6...c6a9805c183e` | ✓ |
+| `shud_omp` @ N=1, `OMP_PROC_BIND=close OMP_PLACES=cores` (gate active — first-touch loop fires) | `f7e9aad6...c6a9805c183e` | `f7e9aad6...c6a9805c183e` | ✓ |
+
+**Verdict**: 6-SHA matrix all equal → bitwise-neutrality proven for
+both gate-skipped and gate-active paths (the strongest evidence form,
+mirroring PR-C verification methodology). Pure-zero-write hypothesis
+confirmed at the river-block scope.
+
+- Pragma count delta = +1 vs PR-C baseline (1 → 2) ✓
+- SHUD diff scope: `src/Model/MD_rhs_core.cpp` only (+33 lines) ✓
+- FP strict 3-grep gate: `-ffp-contract=off` = 2, `-fno-fast-math` = 2,
+  `-fopenmp` = 2; `-ffast-math` / `-Ofast` = 0 ✓
+- Outer diff scope: `M SHUD` (submodule pointer bump, orchestrator-owned) +
+  `M docs/p1d/p1d_first_touch_design.md` (this section append) ✓
