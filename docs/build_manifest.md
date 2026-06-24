@@ -428,6 +428,68 @@ S1a 1.5.a 验证：在 90-day 窗口内通过 `Update_IC_STEP = 43200`（30 day,
 | Baseline branch | `baseline/P1` (D11 locked: `lock_branch=true / enforce_admins=true / allow_force_pushes=false / allow_deletions=false`) | `gh api repos/DankerMu/SHUD-OpenMP/branches/baseline/P1/protection` |
 | Cases (per status_matrix L23 P1 行) | keliya / xinanjiang_upstream / qinyijiang / qhh PASS (Mac local) + heihe / heihe_x4 PASS @ server cn03 + kashigeer N/A deferred-upstream | `docs/status_matrix.md` §"P1 行证据" |
 
+## P1d-tag preparation（P1d epic capstone via E′ containment path / Issue #274）
+
+P1d epic 走 **E′ containment closure** 后 `P1d-tag` annotated git tag 将 pin 住 P1c → P1d 阶段 13-PR + PR-C0 insertion = 14 PR 完成时刻的 `(outer, SHUD submodule)` commit。`P1d-tag` 由 PR-L 创建 + push（PR-K capstone 仅记录 SHUD pin trail，tag 创建动作不在 PR-K scope）。本节是 PR-K capstone 阶段的 SHUD pin trail 引用 + 后续 PR-L tag 创建前置 doc。
+
+> **D11 强制**：P1d-tag 一次锁死，**禁止 force-update**（与 B1b-tag / P1-update-omp-tag / P1c-tag 一致）。任何后续 retroactive 更新走 forward-compat **P1e-tag stacking** 路径（master plan C8）。
+
+### SHUD pin trail（P1c → P1d）
+
+| 阶段 | SHUD pin | 说明 |
+|---|---|---|
+| P1c capstone (PR-K2 #223 / `P1c-tag`) | `3a0004c4c2a9a1d8eb586aba45186f8a2ff79df4` | Kahan-injected（P1c §4.7 conditional Neumaier 1974 注入 4 reduction helpers） |
+| P1d PR-C/D/E (steady-state first-touch) | `de9545d` → `a2085de` → `7023ee9` → `6aada88` | 在 `MD_rhs_core.cpp::rhs_update` element + `rhs_flux` river + `rhs_update` lake 三 owner block 前置插 first-touch loop（M10 修订后这 3 loop 标 DEPRECATED — see `docs/p1d/p1d_first_touch_design.md` + `docs/p1d/p1d_numa_root_cause.md` §5） |
+| P1d PR-G (Kahan revert) | **`210ac191...`** (final P1d SHUD pin) | 4 surgical revert in `MD_rhs_core.cpp`（去掉 `#include <cmath>` + 3 helpers 内 Neumaier branch），net +7/-47 vs `6aada88`；Mac 9-SHA matrix 证明 revert 干净 (per `docs/p1d/p1d_kahan_revert.md` §"SHA matrix"); post-PR-G == pre-K2 `de9545d` byte-identical at N=1 (server heihe N=1 SHA == `7f22bd6faa438d50...` = `P1-update-omp-tag` canonical) |
+
+### `baseline/P1d` outer HEAD 推进
+
+| 阶段 | Outer baseline/P1d HEAD | PR / merge note |
+|---|---|---|
+| PR-A (intake) | (post-intake commits) | epic propose + .gitignore + tasks |
+| PR-B (NUMA env runbook) | `<merge SHA>` | `docs/p1d/p1d_numa_env_runbook.md` + 3-cell PR-B env-plumbing verification |
+| PR-C0 (legacy dead-code deletion) | `<merge SHA>` | delete `f_update / f_loop / f_applyDY` 3 函数 + 3 declarations |
+| PR-C / PR-D / PR-E (first-touch element / river / lake) | `<merge SHA>` × 3 | `MD_rhs_core.cpp` 3 #pragma 区 stack |
+| PR-F (intermediate Kahan IN baseline) | `573dfdf` | server 8-cell + `--interleave=all` anti-pattern finding |
+| PR-G (Kahan revert) | `21de1e2` | 4 surgical revert + Mac 9-SHA matrix |
+| PR-H (final 8-cell + E′ post-verdict 修订) | `6f2522b` | 3 SHALL gate verdict FAIL + post-verdict 修订 |
+| PR-I (Mac `P1-update-omp-tag` 6-cell anchor) | (PR-I merge SHA) | 独立 worktree 切 `P1-update-omp-tag` 跑 keliya + qhh × {serial, omp@N=1, omp@N=8} |
+| PR-K (capstone docs, 本 PR) | `<post-PR-K merge SHA>` | 4 new + 2 update + 1 self-evidence doc (本 doc) |
+| PR-L (next, tag-only) | `<post-PR-L merge SHA>` = `P1d-tag` deref | `P1d-tag` annotated + `baseline/P1d` lock |
+| PR-M (last, PROMOTE) | `<post-PR-M merge SHA>` | PROMOTE 2 specs + archive + glossary + jsonl + Epic close + propose `p1e-strict-omp-rhs` |
+
+PR-K capstone 时刻 outer HEAD = `a19fb5e`（master plan v1.5 / M10 merged 2026-06-24）；PR-L tag deref 将是 PR-K merge 后的 SHA + PR-L docs append。
+
+### FP gate（与 P1c 一致，无变化）
+
+P1d epic 全期 SHUD `Makefile` FP gate = **3-flag 形** `-O2 -ffp-contract=off -fno-fast-math -fopenmp`（per master plan §8.1.1）：
+
+| Flag | shud | shud_omp |
+|---|---|---|
+| `-O2` | ≥1 | ≥1 |
+| `-ffp-contract=off` | ≥1 | ≥1 |
+| `-fno-fast-math` | ≥1 | ≥1 |
+| `-fopenmp` (linux) / `-Xpreprocessor -fopenmp` (mac) | — | ≥1 |
+| `-ffast-math` / `-Ofast` / `-funsafe-math-optimizations` | 0 | 0 |
+
+PR-G post-revert + PR-K verify：3-grep ≥1 + 0-grep =0 全通过（无 FP gate 变化 vs P1c）。
+
+### P1d-tag annotated message（PR-L 草拟，PR-K 仅引用）
+
+PR-L 阶段创建 `P1d-tag` 时 annotated message 必须含（per master plan §6 P1d.5）：
+
+1. Containment closure narrative（E′ path, 不是简单 E）
+2. 5/5 codebase 事实核查（fact #1-#5 verbatim）
+3. 4-mode spec rewrite (`serial` / `strict-omp` / `det-omp` / `fast-omp`)
+4. PR-C/D/E steady-state first-touch deprecation note
+5. PR-G Kahan revert 保留 + N=1 byte-identical to pre-K2 canonical
+6. 指向 P1e (F 路) + 2×2 build matrix 因果实验 + ADR-0002 (solver-path)
+7. SHUD pin 变更（P1c `3a0004c` → P1d `210ac19`）
+8. PR-C/C0/D/E/F/G/H/I/K/L/M 11 PR cross-ref（PR-A/B 在 epic intake，PR-J cancel after PR-H FAIL）
+9. D11 historical immutability re-verify (P1-update-omp-tag / B1-tag / B1a-tag / B1b-tag / P1c-tag SHAs 不变)
+
+详 `docs/p1d/p1d_tag_and_lock.md`（PR-L 作者创建）+ `docs/p1d/p1d_report.md` §11 forward plan + master plan v1.5 §6 P1d.5。
+
 ## CHANGELOG（S0-13 修订）
 
 - S0-13 / #17：kashigeer 在 `benchmarks/INDEX.md` 里从 `local-and-server` 重分类为 `deferred-upstream`；`status-matrix` + `rhs-profile-gate` spec 修订，让 deferred-upstream 单元格成为 N/A 不阻塞；上面新增 `B0-tag` 一节；`docs/profile_decision.md` 由 DankerMu 通过 2026-06-17 的 delegated grant 签字，针对外层 `a860eae5` + SHUD `78c37a1`。
