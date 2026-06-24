@@ -20,7 +20,7 @@ PR-K 仅 docs 改动，不改 SHUD submodule pointer / OpenSpec specs / 代码 /
 | 修改 SHUD submodule pointer | ✗ (P1d-tag 在 PR-L 创建) |
 | 修改 `openspec/specs/` (PROMOTE spec) | ✗ (PR-M scope) |
 | 创建 `docs/p1d/p1d_tag_and_lock.md` | ✗ (PR-L scope) |
-| 创建 `docs/adr/0001-solver-path.md` | ✗ (Phase 2(e) 并行 agent owns) |
+| 创建 `docs/adr/0002-solver-path.md` | ✗ (Phase 2(e) 并行 agent owns) |
 | 创建 `openspec/changes/p1e-strict-omp-rhs/` | ✗ (Phase 2(e) 并行 agent owns) |
 
 ## §2 Files created / modified
@@ -92,7 +92,7 @@ PR-K 是 **docs-only** PR：
 - **Code / src / tests**: 不动
 - **CI workflow**: 不动（`.github/workflows/serial-baseline.yml` 不变）
 - **Master plan**: 不动（v1.5 / M10 已在前序 commit 合入 `a19fb5e`）
-- **`docs/adr/0001-solver-path.md`**: 不创建（Phase 2(e) 并行 agent owns）
+- **`docs/adr/0002-solver-path.md`**: 不创建（Phase 2(e) 并行 agent owns）
 - **`openspec/changes/p1e-strict-omp-rhs/`**: 不创建（Phase 2(e) 并行 agent owns）
 - **`docs/p1d/p1d_tag_and_lock.md`**: 不创建（PR-L scope）
 
@@ -122,7 +122,7 @@ PR-K 是 **docs-only** PR：
 
 - 本 doc 不审计 SHUD source 实际行号是否 drift（用 brief 提供的 `f.cpp:54` / `MD_rhs_core.cpp:802-811` / `Makefile:140` / `cvode_config.cpp:259` 行号 verbatim；若 SHUD pin 后续变化导致行号 shift，本 doc 引用过期，但事实 #1-#5 内容不变）
 - 本 doc 不验证 master plan v1.5 / M10 字面是否与本 PR 7 doc 内容**完全**对齐到字（仅做 §3.1-§3.5 高层对齐验证；line-for-line audit 留 PR-M PROMOTE 阶段 reviewer 做）
-- ADR-0001 + p1e-strict-omp-rhs openspec change 由 Phase 2(e) 并行 agent owns；本 doc 标记为 "forthcoming" 但不创建
+- ADR-0002 + p1e-strict-omp-rhs openspec change 由 Phase 2(e) 并行 agent owns；本 doc 标记为 "forthcoming" 但不创建
 
 ## §8 References
 

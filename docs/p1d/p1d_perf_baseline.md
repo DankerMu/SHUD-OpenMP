@@ -185,7 +185,7 @@ PR-H 10-25% mean_rel 落在哪个量级？
 | Large (heihe_x4 ~25k) | 10k-100k | **1.8×** | 2.4× | T 目标 = B1a profile 66.55% RHS 的 Amdahl 8 核理想上界 |
 | XLarge (heihe_x16 ~100k+) | >100k | 2.0× | 3.0× | 留 P2+ |
 
-### §10.2 fallback 路径（per ADR-0001, by Phase 2(e) 并行 agent）
+### §10.2 fallback 路径（per ADR-0002, by Phase 2(e) 并行 agent）
 
 若 P1e mode C（Serial N_Vector + StrictOMP RHS）跨 N 不可达 strict bitwise：
 
@@ -193,7 +193,7 @@ PR-H 10-25% mean_rel 落在哪个量级？
 |---|---|---|
 | NVECTOR_REPRO_OMP custom backend | serial-order left-fold reduction (确定性 wrapper at N_Vector layer) | 第一 fallback (per Pro2 推荐) |
 | SPGMR + block-Jacobi physics-based precond | element/river/lake 3×3 小块独立 setup + solve | 第二 (per Pro2 推荐) |
-| KLU sparse direct | full Jacobian 直接 LU 分解 | 第三 (per ADR-0001, 仅在前两个不 work + 量化 fill ratio + memory peak + factor wall 后单独决策) |
+| KLU sparse direct | full Jacobian 直接 LU 分解 | 第三 (per ADR-0002, 仅在前两个不 work + 量化 fill ratio + memory peak + factor wall 后单独决策) |
 
 ## §11 References
 

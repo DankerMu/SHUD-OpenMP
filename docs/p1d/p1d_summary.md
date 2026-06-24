@@ -123,7 +123,7 @@ PR-H 初版 verdict 把 FAIL 解读为 "nst Δ 超 spec ladder + 根因在 SPGMR
 | "drift origin 在 SPGMR multi-threaded preconditioner" | SPGMR 没有 preconditioner（fact-check #5）；drift 是 `N_VDotProd_OpenMP` 的 `reduction(+:sum) schedule(static)` 跨 N reduction tree 顺序不固定（SUNDIALS 6.0.0 `nvector_openmp.c`）。WRMS norm 同样过 OpenMP reduction |
 | "Amdahl serial fraction ~72%" | 由 wall 反推 `f = (1/S - 1/N)/(1 - 1/N)`：heihe ~**87%**，heihe_x4 ~**76%**（§4.4）；且不能全部归因 CVODE——含 serial RHS + N_Vector fork/join 开销 + memory bandwidth 饱和 |
 | "reltol=1e-4 但实测 10% → solver 承诺被打穿四个数量级" | CVODE reltol 控制的是**每步状态 WRMS local error**，**不是** 90 天派生流量轨迹的全局相对误差上界。10% mean_rel 不可接受是工程结论，不是 CVODE 实现错误的证据 |
-| "KLU 是唯一根治路径" | KLU 不能单独 fix。CVODE WRMS norm 还是过 N_Vector reduction，换 KLU 不换 N_Vector 仍然漂。Determinism 与 solver 选择**正交**。KLU 推到 ADR-0001 作 4 路对比之一 |
+| "KLU 是唯一根治路径" | KLU 不能单独 fix。CVODE WRMS norm 还是过 N_Vector reduction，换 KLU 不换 N_Vector 仍然漂。Determinism 与 solver 选择**正交**。KLU 推到 ADR-0002 作 4 路对比之一 |
 
 详 `docs/p1d/p1d_numa_root_cause.md` §7。
 
@@ -150,7 +150,7 @@ PR-H 初版 verdict 把 FAIL 解读为 "nst Δ 超 spec ladder + 根因在 SPGMR
 
 - P1d 全部 closure (本 doc + p1d_pr_h_final_run.md 的 E′ post-verdict 修订)
 - `baseline/P1d` 已 lock + `P1d-tag` 已 push（PR-L）
-- ADR `docs/adr/0001-solver-path.md` 已建立（4 路对比：Serial N_Vector + StrictOMP RHS / Deterministic NVECTOR_REPRO_OMP / SPGMR + block-Jacobi precond / KLU sparse direct）— Phase 2(e) 并行 agent owns
+- ADR `docs/adr/0002-solver-path.md` 已建立（4 路对比：Serial N_Vector + StrictOMP RHS / Deterministic NVECTOR_REPRO_OMP / SPGMR + block-Jacobi precond / KLU sparse direct）— Phase 2(e) 并行 agent owns
 - openspec `p1e-strict-omp-rhs` change 已 propose — Phase 2(e) 并行 agent owns
 
 ### §9.2 P1e 技术主线（F 路）
@@ -172,7 +172,7 @@ PR-H 初版 verdict 把 FAIL 解读为 "nst Δ 超 spec ladder + 根因在 SPGMR
 - **B 跨 N 不同 而 A 跨 N 相同** → 确认 NVECTOR_OPENMP reduction 是主因（不是 RHS race）
 - **C 跨 N bitwise + nst Δ=0 + 加速** → F 路成立
 - **C 跨 N 也分叉** → 查 RHS race / 共享状态 / phase dependency；可能更细 owner-compute 分解
-- **C 加速 < 1.5×** → 进 ADR-0001 评估 (block-Jacobi precond / NVECTOR_REPRO_OMP / KLU)
+- **C 加速 < 1.5×** → 进 ADR-0002 评估 (block-Jacobi precond / NVECTOR_REPRO_OMP / KLU)
 
 ### §9.4 P1e 实施要点
 
@@ -185,7 +185,7 @@ PR-H 初版 verdict 把 FAIL 解读为 "nst Δ 超 spec ladder + 根因在 SPGMR
 
 ### §9.5 P2a 启动前置改链
 
-原 "P1c-tag 已 lock + P1c.3 A3a 全通过" 不再充分。新前置 = **P1e (F 路) 完成 strict-omp mode 实现 + 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥ 1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0001 close out**。详 master plan §6 P1d.7 + §6 P2a preamble。
+原 "P1c-tag 已 lock + P1c.3 A3a 全通过" 不再充分。新前置 = **P1e (F 路) 完成 strict-omp mode 实现 + 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥ 1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0002 close out**。详 master plan §6 P1d.7 + §6 P2a preamble。
 
 ## §10 P1c carve-out closure
 
@@ -225,7 +225,7 @@ PR-K capstone 显式 re-verify per spec L221-L224 Scenario。
 | `docs/p1d/p1d_tag_and_lock.md` | PR-L `P1d-tag` + branch lock 程序 (PR-L 作) |
 | `docs/p1d/p1d_report.md` | epic executive report |
 | `SHUD_openMP_master_plan.md` v1.5 / M10 | §6 P1d + §6 P1e + §7.2 RISK-NEW1/2 + §7.3 stage rows + §8.1 4-mode block |
-| `docs/adr/0001-solver-path.md` | 4 路 solver 对比 ADR (Phase 2(e) 并行 agent owns) |
+| `docs/adr/0002-solver-path.md` | 4 路 solver 对比 ADR (Phase 2(e) 并行 agent owns) |
 | `openspec/changes/p1d-numa-governance/` | P1d openspec change (PR-M PROMOTE) |
 | `openspec/changes/p1e-strict-omp-rhs/` | P1e openspec change (Phase 2(e) 并行 agent owns) |
 | `docs/status_matrix.md` | P1d 行 + P1e 行 PENDING（本 PR 更新） |

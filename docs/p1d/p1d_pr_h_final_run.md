@@ -277,7 +277,7 @@ F 路 epic 具体实现要点：
 
 ### 后续 ADR 路线图（不阻塞 F）
 
-- `docs/adr/0001-solver-path.md`（新建）：4 路对比 — Serial N_Vector + StrictOMP RHS / Deterministic NVECTOR_REPRO_OMP / SPGMR + block-Jacobi precond / KLU sparse direct prototype。F 路是首选，KLU 推后做 pattern-only spike 量化 fill ratio + memory peak + factor wall
+- `docs/adr/0002-solver-path.md`（新建）：4 路对比 — Serial N_Vector + StrictOMP RHS / Deterministic NVECTOR_REPRO_OMP / SPGMR + block-Jacobi precond / KLU sparse direct prototype。F 路是首选，KLU 推后做 pattern-only spike 量化 fill ratio + memory peak + factor wall
 
 ## Master plan 同步修订
 
