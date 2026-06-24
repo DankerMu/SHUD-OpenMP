@@ -20,6 +20,7 @@ openspec/changes/
 # P1d epic scratch run directories (server Slurm + Mac local run scratch)
 .p1d-runs/
 .p1d-pr-*-runs/
+.p1d-pr-*-worktree/
 
 # Stale per-PR scan dirs from P1c PR-F + per-PR workplan scratch (local-only)
 .p1c-pr-f-runs/
