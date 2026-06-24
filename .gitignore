@@ -21,6 +21,10 @@ openspec/changes/
 .p1d-runs/
 .p1d-pr-*-runs/
 
+# Stale per-PR scan dirs from P1c PR-F + per-PR workplan scratch (local-only)
+.p1c-pr-f-runs/
+.workplans/pr-*/
+
 # Per-PR review snapshots (local notes, not part of evidence chain)
 docs/review/
 
