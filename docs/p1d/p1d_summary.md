@@ -312,3 +312,56 @@ D11 NG7：6 tag 全 annotated；`git tag --verify <tag>` 全 6 PASS；force-upda
 - `openspec/changes/p1d-numa-governance/specs/p1d-numa-governance/spec.md` § "baseline/P1d 分支 + P1d-tag"
 - master plan v1.5 / M10 §6 P1d.5 (D11 6-tag chain) + §6 P1d.6 (Go/No-Go → P1e)
 - `docs/p1d/p1d_go_nogo_verdict.md` (PR-M 综合 verdict)
+
+## §14 时间线（per P1c §4 模板，补齐对齐）
+
+| 日期 | 事件 | PR / Issue |
+|---|---|---|
+| 2026-06-23 | PR-A merged: epic intake + baseline/P1d 分支 + `.gitignore .p1d-runs/` scratch | #288 / closes #275 |
+| 2026-06-23 | PR-B merged: NUMA env 标准化 runbook + server sbatch `OMP_PROC_BIND=close + OMP_PLACES=cores` | #289 / closes #276 |
+| 2026-06-24 | PR-C0 merged: SHUD submodule pointer bump `3a0004c → 9d22e17`（delete dead legacy `f_update/f_loop/f_applyDY`） | #292 / closes #291 |
+| 2026-06-24 | PR-C merged: `rhs_update.cpp` element 块 steady-state first-touch loop + OQ1 doc append | #293 / closes #277 |
+| 2026-06-24 | PR-D merged: `rhs_flux.cpp` river 块 first-touch + OQ1 append | #294 / closes #278 |
+| 2026-06-24 | PR-E merged: `rhs_update.cpp` lake 块 first-touch + 3 negative grep gate + qhh 自验证 | #295 / closes #279 |
+| 2026-06-24 | PR-F merged: server intermediate 8-cell（NUMA env + first-touch IN，Kahan IN）+ `numactl --interleave=all` 实证有害 | #296 / closes #280 |
+| 2026-06-24 | PR-G merged: SHUD Kahan revert（`3a0004c → 210ac19`，4 surgical reverts 共 +7/-47）+ Mac 9-SHA matrix 证明 clean revert | #297 / closes #281 |
+| 2026-06-24 | PR-H merged: server final 8-cell 三 SHALL gate verdict **FAIL** + post-verdict E′ rewrite（5/5 事实核查 + 4 错误纠正 + F 路 next epic）| #298 / closes #282 |
+| 2026-06-24 | PR-I merged: Mac 独立 worktree at `P1-update-omp-tag` reference 采集（keliya + qhh × 3 mode = 6 cell SHA + nst + wall） | #299 / closes #283 |
+| 2026-06-24 | master plan v1.5 / M10 sync revision: +180/-7 additive；新增 §6 P1d + §6 P1e + §7.2 RISK-NEW1/2 + §8.1 4-mode | #300 |
+| 2026-06-24 | PR-K merged: capstone docs（4 new + 2 update + first_touch_design §"3 pragma 实现" DEPRECATED note + go_nogo placeholder）| #301 / closes #285 |
+| 2026-06-24 | ADR-0002 (solver-path) merged: 4 路对比（Path 1 SELECTED for P1e）+ 15 文件 cross-ref 修正（ADR-0001 被 SoA hot fields 占用，renumber 0001 → 0002） | #302 |
+| 2026-06-24 | PR-L merged: P1d-tag annotated procedure 草拟 + `p1d_summary.md §13` placeholder | #303 / closes #286 |
+| 2026-06-24 | PR-M merged: Go/No-Go verdict 填实 + PROMOTE 2 specs（byte-identical）+ glossary 4 新术语 + 2 既存 term 更新 + jsonl 2 entries + PR-L §5 SHA 修正 | #304 / closes #287 |
+| 2026-06-24 | post-PR-L merge: `git tag -a P1d-tag f88f2dc -F /tmp/p1d-tag-msg.txt && git push origin P1d-tag` → tag-object `a82bf336...` + deref `f88f2dc2...` | n/a |
+| 2026-06-24 | post-PR-M merge: `openspec/changes/p1d-numa-governance → openspec/changes/archive/2026-06-24-p1d-numa-governance/`（gitignored）+ `gh api .../branches/baseline/P1d/protection PUT lock_branch=true enforce_admins=true ...` | n/a |
+| 2026-06-24 | main promote PR: 因 main 含 4 个 P1c-era 独立 commit 不可 FF，改 merge PR + `--ours` 解决 3 处冲突（master plan / status_matrix / glossary 取 M10 v1.5 一侧），main 至 `4a520bb` 含 `baseline/P1d` ancestor + 4 P1c housekeeping commits | #306 |
+| 2026-06-24 | Epic #274 CLOSED（auto-close via "Closes #274" in PR-M body） | #274 close |
+
+15 PR（含 PR-A through PR-M 共 13 + master plan + ADR-0002 + main promote）+ 1 epic = 16 issues / PR 在 2 日 burst（2026-06-23 启动 + 2026-06-24 全部 close）完成。PR-J (#284) 跳过（per E′ narrative，PR-I + PR-G Mac 9-SHA matrix 已覆盖 Mac reference scope）。
+
+## §15 反向兼容判定（per PR-I + PR-G Mac 9-SHA matrix，对应 P1c §8 模板）
+
+P1d epic 结束时 `baseline/P1d` HEAD（outer `85fc567` / SHUD `210ac19`）NUM_OPENMP=1 binary SHA 与 `P1-update-omp-tag` canonical SHA 关系：
+
+| Layer | 状态 | 解释 |
+|---|---|---|
+| Tag SHA immutability (D11) | ✓ PRESERVED | `P1-update-omp-tag` annotated tag SHA 永不变（D11 6-tag chain 5 historical 全部字面一致） |
+| Mac N=1 binary SHA（serial mode）| ✓ EQUIVALENT | PR-G Mac 9-SHA matrix + PR-I Mac 6-cell reference 双侧实证：`keliya serial SHA = 89686fb8c97a3852...e99a8fc` byte-identical 至 `P1-update-omp-tag` 期 SHUD@`07c677f` build；`qhh serial` 同样 byte-identical |
+| Mac N=1 binary SHA（omp@N=1 path）| ✓ EQUIVALENT | `keliya omp@N=1 PROC_BIND=close = b23e15b9...033a51a1a` byte-identical 至 pre-Kahan (`de9545d`) → 证明 Kahan revert + first-touch 叠加在 N=1 path 上数学等价于 `P1-update-omp-tag` 期 |
+| Server N=1 binary SHA（serial / omp@N=1）| ✓ PASS at canonical heihe | PR-H server heihe N=1 SHA = `7f22bd6faa438d50...` byte-identical 至 spec L123 预写 canonical（全 64-hex 一致） |
+| Server N=1 binary SHA（heihe_x4 / 其它 case）| ⚠ PARTIAL（spec 未预写）| `heihe_x4 N=1 = 55403bef48ee5ad8...` 无 spec 预写 canonical reference；性质上仍 N=1 deterministic（强 implication of N=1 reverse-compat），但缺正式 baseline 比对 → 标 PARTIAL pending P1e 期补 reference baseline |
+| N≥2 binary SHA cross-N（fast-omp mode = `shud_omp` 当前 build）| ✗ DIVERGED（设计内） | `shud_omp` = Serial RHS + NVECTOR_OPENMP backend，跨 N reduction tree 顺序非 deterministic → 跨 N rivqdown.dat mean rel error 10-25% / max rel 1000-12500× / nst Δ=80-152；E′ closure 已把 `shud_omp` 标 `fast-omp experimental, non-production` |
+| Helper-wrap layer（owner-local gather, P1c 引入）| ✓ EQUIVALENT to pre-Kahan | PR-G revert SHUD `3a0004c → 210ac19` 4 surgical reverts 后，所有 8 site helper-wrap 数学等价于 `de9545d`（pre-Kahan helper-wrap baseline）→ 还原 P1c 之前的 owner-gather FP 序 |
+
+**Trade-off accepted**（per master plan §6 P1d.4 E′ closure narrative）：production 默认 `cfg.para NUM_OPENMP=1`（serial mode）→ 完整 N=1 reverse-compat preserved；`shud_omp`（fast-omp mode）保留作 research / experimental 但明确 non-production。Strict cross-N bitwise + nst Δ=0 待 P1e（F 路）`strict-omp` mode 实现（Serial N_Vector + StrictOMP RHS 替换 `MD_rhs_core.cpp:802-811` abort 桩）后真正 close。
+
+## §16 限制与已知问题（per P1c §9 模板）
+
+1. **N≥4 cross-N A3a bitwise + nst Δ=0 SHALL gate FAIL（设计内 PARTIAL CLOSURE）** — `shud_omp` (fast-omp mode) 当前 build 跨 N 不可复现，根因 NVECTOR_OPENMP `N_VDotProd_OpenMP` `reduction(+:sum) schedule(static)` 顺序不固定 + Serial RHS 没真正受益于并行；待 P1e (F 路) `strict-omp` mode 实现真正 close（per master plan §6 P1e + ADR-0002 Path 1 SELECTED）。
+2. **PR-C/D/E steady-state first-touch loops 在 current `shud_omp` build 下无效** — `f.cpp:54` 始终调 `ExecPolicy::Serial`，consumer 是单线程，无 NUMA locality 收益；M10 标 DEPRECATED + 保留作历史档案。P1e 删除并重新设计为 owner-compute（StrictOMP）配套。**allocation-time first-touch (`Model_Data.cpp::malloc_EleRiv` L251-L346) 仍有效保留**。
+3. **`heihe_x4 N=1` 缺 spec 预写 canonical SHA reference** — spec L123 仅预写 `heihe` 的 canonical；`heihe_x4 N=1 = 55403bef48ee5ad8...` 标记 PARTIAL；P1e 期补 reference baseline（per §15 反向兼容表）。
+4. **Server PR-H wall + speedup 数据有限**（仅 heihe + heihe_x4 各 4-N，无 keliya / qhh / qinyijiang server-side baseline）— 当前 Amdahl 反推 87% / 76% 仅适用 heihe / heihe_x4 mesh；其它 case server-side 加速比待 P1e 2×2 build matrix 因果实验补齐（含 keliya / qhh / heihe / heihe_x4 全 4 case × 4 build × 4 N × 3 reps）。
+5. **PR-L agent §5 historical SHA 表 off-by-one 错位** — PR-L commit 历史含错 SHA 表（5 行 shift by one row）；PR-M（#304）修正 + §5.1 SHA correction note 入档（per `docs/p1d/p1d_tag_and_lock.md`）。本错位不影响 D11 chain immutability，因 P1d-tag 创建命令使用的是 `git rev-parse <baseline/P1d HEAD>` 实测 SHA 而非 PR-L doc 中错位值。
+6. **main 不可 FF 至 baseline/P1d** — main 有 4 个独立 P1c-era commits (`859e8e7` P9→P1d rename / `525d54c` tail fix / `7174ec6` docs/p1c/ 归档 / `d8cc666` p1c_report.md)，不在 `baseline/P1d` 祖先链上 → 不能直接 `git push origin baseline/P1d:main`；通过 #306 merge PR + `--ours` 3 处冲突解决合入 main（master plan / status_matrix / glossary 取 M10 v1.5 一侧）。这是 P1c epic 期间 main 与 baseline/P1c 路由偏离的遗留问题，P1d 期间被动消化；P1e 期间应通过严格 baseline → main FF 协议避免再次出现。
+7. **`openspec/changes/p1e-strict-omp-rhs/` 5 文件 local drafts 未入 git**（per project 约定 `openspec/changes/` 是 gitignored 工作区）— ADR-0002 已合入 main 作 forward handoff，但 p1e openspec change 4 件（proposal/design/tasks/spec）+ capstone spec 仍是 Mac local 待 P1e epic 启动时迁移；不影响 P1d closure 完整性，但若工作机迁移需手动复制保留。
+8. **PR-J (#284) skipped** — 原 plan PR-J 为 "P1d-binary Mac 比对"；E′ closure 后 PR-I + PR-G Mac 9-SHA matrix 已覆盖 Mac reference scope；issue #284 保留 OPEN 状态，可选 close 为 "skipped per E′" 或 retarget 至 P1e 期作 strict-omp mode Mac 验证。
