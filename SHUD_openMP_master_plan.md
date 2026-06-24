@@ -9,6 +9,9 @@
 >
 > 版本：v1.4 | 日期：2026-06-22 | SHUD 源码子模块路径：`SHUD/` (pinned to `78c37a1`，B0-tag `95ddc375`)
 
+> **v1.5 修订要点**（P1d epic capstone 后，按 PR-H 实测 + 两轮独立 GPT Pro 复查 + codebase 事实核查修订）：
+> 10. **M10（§1.1.2 + §3 路线图 + §4.13 + §4.17 + §6 P1c.5 / P2a 启动前置 + §6 新增 P1d / P1e + §7.2 RISK + §7.3 + §8.1）**：P1c PARTIAL CLOSURE 后 P1d epic (#274) 尝试 NUMA env + first-touch + Kahan revert 收尾，PR-H 8-cell 实测 3 SHALL gate FAIL（A3a + nst Δ=0 at N≥4）。事实核查发现：(a) `shud_omp` 当前实际跑的是 **Serial 水文 RHS + OpenMP N_Vector backend**——`SHUD/src/Model/f.cpp:54` 始终调 `ExecPolicy::Serial`，`StrictOMP/ProductionOMP` 在 `MD_rhs_core.cpp:802-811` 是 `std::abort()` 桩；(b) SPGMR 没注册 preconditioner（`cvode_config.cpp:259` `SUNLinSol_SPGMR(udata, 0, 0, sunctx)` 后无 `CVodeSetPreconditioner`）；(c) N≥4 cross-N 散度根因是 SUNDIALS `NVECTOR_OPENMP` 内 `N_VDotProd_OpenMP` / `N_VWSqrSumLocal_OpenMP` 用 `reduction(+:sum) schedule(static)`，跨 N reduction tree 不固定；(d) PR-C/D/E 添加的 steady-state first-touch loops 是为完全没发生的 owner-compute 做的页面预放置（consumer 是单线程），无效优化。M10 修订：P1d 以 **E′ containment closure** 收尾——production 默认 `NUM_OPENMP=1`、`shud_omp` 标 `fast-omp experimental, non-production`、3 SHALL gate 重写为 **4-mode spec**（serial / strict-omp / det-omp / fast-omp）strict 承诺保留在 strict-omp mode 内、PR-C/D/E steady-state first-touch 标 deprecated（allocation-time first-touch 保留）；新增 **P1e epic (F 路)** = Serial N_Vector + StrictOMP RHS（替换 abort 桩 + 真正并行水文 RHS + 复用 deterministic_gather），启动前必须做 **2×2 build 因果实验**（A/B/C/D × N∈{1,2,4,8} × 3 reps）验证 NVECTOR reduction 是主因；P2a 启动前置链路从 P1c → P2a 改为 P1c → P1d → P1e → P2a；KLU 推到 `docs/adr/0001-solver-path.md` 作 4 路对比，不阻塞 F 路。§3 路线图 figures M10 修订仍保留 v1.3 版本 caveat。
+
 > **v1.4 修订要点**（P1 epic capstone 后，按 PR-K2 #223 实测数据 + design D5 NG3 反馈修订）：
 > 9. **M9（§1.1.2 + §3 路线图 + §6 P1c 新增 + §6 P7 精简 + §7.2 RISK-04 + §7.3 + §8.1）**：P1 epic 实测发现 `NUM_OPENMP ∈ {4, 8}` 下 CVODE `nst` 漂移 (heihe nst N=1/2/4/8 = 6773 / 6773 / 6585 / 6684)，根因在 B1b 阶段 S2 P3–P5 已并行 owner-local gather 的 tree-reduction depth N > 2 跃迁。M9 修订将 v1.3 §6 P7.3.5 的 deterministic-reduction tree-shape 固化工作整体迁出 P7、独立为新阶段 **P1c**（位于 P1 与 P2a 之间，走 design D9 fast-path + master plan C8 forward-compat stacking，产物为 `P1c-tag` + `baseline/P1c`），使 P2 起所有 P-strict 子阶段均可 claim A3a strict。原 §6 P7 精简为 fork-join fusion + `OMP_CUTOFF` cutoff，deterministic-reduction 改由 P1c 前置满足；§1.1.2 加 P1c 一档；§7.2 RISK-04 重新归类至 P1c；§7.3 加 P1c 行；§8.1 strict 模式 P 列表加 P1c。§3 路线图 figures 暂保留 v1.3 版本，加 caveat 说明 M10 重画。
 
@@ -117,6 +120,8 @@ SHUD 是一个全耦合水文模型，核心求解由 SUNDIALS/CVODE 驱动。�
 - strict 阶段精度等级 (按 P 子阶段分级，M9 修订)：
   - **P1**（first parallel candidate baseline；2026-06-22 已实测）：`NUM_OPENMP=1` vs B1b/B1-tag bitwise **强制** (master plan §2.2 A0 / A1 + design `p1-update-omp` D5 NG3)；`NUM_OPENMP>1` 优先 A3a，若仅满足 A3b 或同时不满足 A3a 与 A3b 均不阻塞 P1 lock，但需在 `docs/p1_perf_baseline.md` 与 spec `p1-state-update-parallel` L205–L209 (PROMOTE 后版本) 记录 CVODE `nst` 漂移证据 + cross-ref P1c deterministic-reduction work scope。
   - **P1c**（deterministic-reduction 前置；M9 新增）：`NUM_OPENMP ∈ {1, 2, 4, 8}` 全部 A3a bitwise **强制**；CVODE `nst` 跨线程数完全相等（修复 P1 实测 N ≥ 4 漂移）；产物为 `P1c-tag` + `baseline/P1c` (forward-compat stacking on `P1-update-omp-tag`)。详 §6 P1c。
+  - **P1d**（NUMA + first-touch + Kahan revert 收尾；M10 新增 PARTIAL CLOSURE）：4-mode spec (serial / strict-omp / det-omp / fast-omp)；`serial` mode N=1 SHALL canonical bitwise vs `P1-update-omp-tag`；`strict-omp` mode 跨 N bitwise + nst Δ=0 + N=1 reverse-compat (待 P1e 实现，本 epic 仅 spec 定义)；`fast-omp` mode (=当前 `shud_omp`) MAY 不可复现，明确 non-production。PR-C/D/E steady-state first-touch 在 owner-compute 实现前为 deprecated 无效优化，下个 epic (P1e) 重新设计。产物：`P1d-tag` + `baseline/P1d` (containment closure narrative + 指向 P1e)。详 §6 P1d。
+  - **P1e**（F 路：Serial N_Vector + StrictOMP RHS；M10 新增）：`ExecPolicy::StrictOMP` 路径替换 `std::abort()` 桩；单 parallel region + phase-based for + `default(none)`；复用 `rhs_deterministic_gather()`（并行 owner 外层 + canonical fold 内层）；`NUM_RHS_THREADS` 与 `NUM_NVECTOR_THREADS` 分离；删 steady-state first-touch，保留 allocation-time first-touch；启动前 2×2 build 因果实验（A: Serial+Serial / B: NVEC+Serial=current shud_omp / C: Serial+StrictOMP=候选 production / D: NVEC+StrictOMP=research）× N∈{1,2,4,8} × 3 reps。验收：C mode 跨 N bitwise + nst Δ=0 + 加速。产物：`P1e-tag` + `baseline/P1e`。详 §6 P1e。
   - **P2 至 P6**：基于 P1c 之上，统一要求 A3a 强制（同线程数 bitwise）；A3b 强制（跨线程数 ULP 上界）；A3c 可选。fallback 路径仅在 reviewer 显式批准时启用，须 cross-ref 新风险登记。
   - **P7 strict 退出门**：A3a + A3b 强制（继承 P1c → P2 → P6 链路）；A3c 可选；fork-join 计数 ≤ 1 / RHS（M2 v1.1 fusion 要求）。
 - production 阶段精度在可解释的工程容差内，水量守恒不恶化
@@ -203,7 +208,7 @@ A4 阈值不能预设，必须在 P7 通过后、进入 P8 前，基于 B1b 实�
 
 ## 3. 阶段路线图
 
-> **M9 caveat (2026-06-22)**：以下两幅 figure (`fig03_full_roadmap.png` / `fig04_simplified_roadmap.png`) 反映 v1.3 阶段顺序 (P1 → P2a → … → P7)，**未包含 M9 新增的 P1c (deterministic-reduction 前置)**。最新阶段顺序以 §6 章节文本为准 (P1 → **P1c** → P2a → P2b → P3 → P4 → P5 → P6 → P7)。Figures 计划在 M10 修订时重画并替换。
+> **M9 + M10 caveat (2026-06-22 / 2026-06-24)**：以下两幅 figure (`fig03_full_roadmap.png` / `fig04_simplified_roadmap.png`) 反映 v1.3 阶段顺序 (P1 → P2a → … → P7)，**未包含 M9 新增的 P1c (deterministic-reduction 前置) + M10 新增的 P1d (NUMA + first-touch + Kahan revert containment closure) / P1e (F 路：Serial N_Vector + StrictOMP RHS)**。最新阶段顺序以 §6 章节文本为准 (P1 → **P1c → P1d → P1e** → P2a → P2b → P3 → P4 → P5 → P6 → P7)。Figures 计划在 M11 修订时重画并替换（M10 仍保留 v1.3 版本）。
 
 ### 3.1 完整路线图
 
@@ -460,6 +465,8 @@ double getACC(){
 
 方案 P8 将"引入 OpenMP N_Vector"列为 production 阶段任务，但**当前代码已经在用**。这意味着 CVODE 内部 norm/dot/reduction 在 OMP 模式下已经是多线程的。方案原则 C4"CVODE 内部并行晚于 RHS 并行"在当前代码中已被违反。P7 strict 阶段如果要用 serial N_Vector 做 bitwise 验证，需**显式改回** `N_VNew_Serial`。
 
+> **M10 修订（2026-06-24）补充事实核查**：P1d epic PR-H 实测 + codebase 事实核查确认：(a) `shud_omp` build target (`SHUD/Makefile`) 硬编码 `-DSHUD_USE_OPENMP_NVECTOR=1 -lsundials_nvecopenmp`；(b) SUNDIALS 6.0.0 `NVECTOR_OPENMP` 内 `N_VDotProd_OpenMP` / `N_VWSqrSumLocal_OpenMP` (WRMS norm 底层) 用 `reduction(+:sum) schedule(static)`，跨 N reduction tree 顺序不固定 → 这是 P1d PR-H 实测 cross-N rivqdown.dat mean rel error 10-25% 的真正根因。详 `docs/p1d/p1d_pr_h_final_run.md` § "Post-verdict 修订" + ADR `docs/adr/0001-solver-path.md`。
+
 ### 4.14 `movePointer()` 非线程安全
 
 **文件**：`src/classes/TimeSeriesData.cpp` L116–L136
@@ -490,6 +497,8 @@ P2b 并行化 RHS element vertical 时，多线程 `printf` 会交错输出。�
 ### 4.17 求解控制参数与线性求解器实际配置
 
 > **历史更正**：本节 v1.0 仅审了 `Model_Control.hpp` 中的标量容差，未审 `cvode_config.cpp`，错误地把基线线性求解器当成 "CVODE 默认 dense solver"。这导致 v1.0 的 P8b/P8c 描述（"替代 dense"、"集成 SPGMR"）方向错误。v1.1 修正。
+
+> **M10 修订（2026-06-24）补充事实核查**：P1d epic 事实核查 `SHUD/src/Equations/cvode_config.cpp:259` `SUNLinSol_SPGMR(udata, 0, 0, sunctx)`，后续**无** `CVodeSetPreconditioner` 调用——确认当前 baseline 是 **matrix-free SPGMR with NO preconditioner**。这修正了 P1d 中间过程的根因误判（"multi-threaded preconditioner 导致 SPGMR 漂移"为错；SPGMR 根本没 precond）。Block-Jacobi physics-based preconditioner 推到 ADR `docs/adr/0001-solver-path.md` 作 P2 后续优化路线之一。
 
 #### 4.17.1 容差与时间步控制
 
@@ -1726,10 +1735,11 @@ B0 → B1a → B1b → B1 → P1-update-omp → P1c
                                         ↑ M9 新增 strict A3a 起点
 ```
 
-#### P1c.5 Go/No-Go → P2
+#### P1c.5 Go/No-Go → P1d（M10 修订，原 → P2）
 
-- P1c.3 A3a 全部通过 (heihe + heihe_x4 各 4-cell strict bitwise)
-- P1 实测 nst 漂移在 P1c.3 复跑中消除 (heihe nst N ∈ {1,2,4,8} 全等 + heihe_x4 同上)
+- P1c.3 A3a 在 PR-K1 #222 Mac 16/16 cell PASS、PR-K2 #223 server 仍残 `|Δ_nst|=84` → P1c **PARTIAL CLOSURE** (per master plan §6 P1c.7 2026-06-23 修订)
+- M10 修订（2026-06-24）：P1c → P2a 链断开；新链 **P1c → P1d → P1e → P2a**
+- P1c → P1d 前置：P1c PARTIAL CLOSURE 已记录 + `P1c-tag` + `baseline/P1c` lock 完成
 - `NUM_OPENMP=1` 与 B1b/B1-tag bitwise 不退化（P1 forced gate 守住）
 - `P1c-tag` 已 push 至 origin + `baseline/P1c` 已 lock
 - OpenSpec change `p1c-deterministic-reduction` 已 PROMOTE 至 `openspec/specs/p1c-deterministic-reduction/spec.md`
@@ -1747,7 +1757,155 @@ B0 → B1a → B1b → B1 → P1-update-omp → P1c
 
 ---
 
+### P1d：NUMA env + first-touch + Kahan revert containment closure（M10 新增）
+
+**Status**: PARTIAL CLOSURE (containment + spec rewrite + tag/lock + 指向 P1e)。Master plan 此章基于 PR-H 实测 + 两轮独立 GPT Pro 复查 + codebase 事实核查的最终修订。
+
+#### P1d.1 设计意图（事后归类）
+
+P1c PARTIAL CLOSURE 后，P1d 原意尝试用 (1) NUMA env standardization (`OMP_PROC_BIND=close` + `OMP_PLACES=cores`) (2) `MD_rhs_core.cpp` 内 steady-state first-touch loops 给 owner-compute 做页面预放置 (3) revert P1c §4.7 conditional Kahan 注入（验证 first-touch 是否能取代 Kahan）来收尾 P1c 残留的 `|Δ_nst|=84`。
+
+#### P1d.2 实测结论（事实核查）
+
+P1d epic 13-PR burst (PR-A → PR-H) 实施后，PR-H server 8-cell 实测 + GPT Pro 双重复查 + codebase 事实核查全部颠覆原 hypothesis：
+
+1. **PR-G Kahan revert 在 N=1 path 完全成功**：Mac + server 双端实测 heihe N=1 SHA byte-identical 到 spec L123 预写 canonical `7f22bd6faa438d50...`；与 pre-Kahan (de9545d) 完全等价
+2. **N≥4 cross-N 散度根因不在我们改造的范围内**：
+   - `SHUD/src/Model/f.cpp:54` `MD->rhs_core(Y, DY, t, ExecPolicy::Serial)` — 始终调用 Serial RHS
+   - `SHUD/src/Model/MD_rhs_core.cpp:802-811` — `StrictOMP` / `ProductionOMP` case 全部 `std::abort()` 桩
+   - `SHUD/Makefile` shud_omp target 硬编码 `-DSHUD_USE_OPENMP_NVECTOR=1`；`SHUD_ENABLE_OPENMP_RHS ?= 0` 默认关
+   - `SHUD/src/Equations/cvode_config.cpp:259` SPGMR 后没 `CVodeSetPreconditioner` — 当前**没有** preconditioner
+   - **真正根因**：SUNDIALS 6.0.0 `NVECTOR_OPENMP` 的 `N_VDotProd_OpenMP` / `N_VWSqrSumLocal_OpenMP` (WRMS norm) 用 `reduction(+:sum) schedule(static)`，跨 N reduction tree 顺序不固定
+3. **当前 `shud_omp` 实际跑的是 `Serial RHS + OpenMP N_Vector backend`**——不是真正的 hydrology RHS 并行。PR-C/D/E 添加的 steady-state first-touch loops 是为**完全没发生的** owner-compute 做的页面预放置（consumer 是单线程，根本无视 NUMA locality），是无效优化
+4. **rivqdown.dat 实测散度（heihe 90-day）**：N=1=N=2 byte-identical；N=4 vs N=1 mean rel error 3.8%（max_rel 1010×）；N=8 vs N=1 mean rel error 10.0%（max_rel 12534×）。heihe_x4 N=4 17.6%、N=8 25.1%。**P1c era (Kahan IN) N=8 散度 10% / 20%，与 PR-H 同量级——Kahan 注入只压住 nst step count，没修水文输出散度**
+5. **并行加速比 8 cores 仅 1.13× (heihe) / 1.27× (heihe_x4)**——Amdahl serial fraction ~87% / 76%（含 serial RHS）；早期 profile heihe_x4 RHS 占 wall 66.55%、理想 8 核 Amdahl 上界 2.39×，当前的瓶颈不是 "Amdahl 已极限"，是**真正应并行的 RHS 还没并行**
+
+详 `docs/p1d/p1d_pr_h_final_run.md` § "Post-verdict 修订"。
+
+#### P1d.3 PR-H 3 SHALL gate verdict
+
+| SHALL gate (spec.md L126-150) | 标准 | PR-H 实测 | Verdict |
+|---|---|---|---|
+| L123 Kahan revert canonical | heihe N=1 SHA == `7f22bd6faa438d50...` | byte-identical 全 64-hex | **PASS** |
+| L130 A3a bitwise cross-N | heihe + heihe_x4 全 N SHA 全等 | heihe 3 distinct / heihe_x4 3 distinct | **FAIL** |
+| L139 nst Δ + ladder | heihe Δ=0 strict + heihe_x4 \|Δ\| ≤ 2 | heihe Δ=80@N=4 / 152@N=8; heihe_x4 Δ=11@N=4 / 4@N=8 | **FAIL** |
+| L145 N=1 reverse-compat | 6-case N=1 SHA == P1-update-omp canonical | server heihe 部分 PASS（spec 预写值）；其它待 P1e | PARTIAL PASS |
+
+#### P1d.4 E′ containment closure decision
+
+用户决策（2026-06-24，两轮独立 GPT Pro 复查支持）：
+
+1. **production 默认 `cfg.para NUM_OPENMP=1`**（serial path 实测仅比 N=8 慢 11%，但可 reproducible）
+2. **`shud_omp` 标 `fast-omp experimental, non-production`**（保留 build + CI；不进入 production cfg.para 默认值）
+3. **3 SHALL gate 4-mode 重写**：
+   - `serial` mode: SHALL N=1 canonical bitwise vs `P1-update-omp-tag`
+   - `strict-omp` mode (待 P1e 实现): SHALL 跨 N bitwise + nst Δ=0 + N=1 reverse-compat strict
+   - `det-omp` mode (后续): NVECTOR_REPRO_OMP 或类似 deterministic reduction backend
+   - `fast-omp` mode (=current `shud_omp`): MAY 不可复现，明确 non-production
+4. **PR-C/D/E steady-state first-touch loops 标 deprecated**（owner-compute 未实现，无 consumer 享受 NUMA locality）；allocation-time first-touch 保留；P1e 重新设计为 owner-compute 配套
+5. **PR-G Kahan revert 保留**（事实核查证明 revert 干净 + N=1 byte-identical 到 pre-Kahan canonical；为 P1e 做 baseline 准备）
+6. **PR-K capstone docs 诚实记录** NVECTOR_OPENMP 是当前 cross-N 散度根因 + Serial RHS 是真正 bottleneck + first-touch deprecation
+7. **PR-L `P1d-tag` annotated message** 写 containment closure narrative + 指向 P1e；`baseline/P1d` lock_branch=true
+8. **PR-M PROMOTE 2 specs** 含 4-mode 重写后 spec + P1c carve-out closure narrative；epic #274 close
+
+#### P1d.5 baseline lock + tag (D11 6-tag chain)
+
+| Item | 值 |
+|---|---|
+| Annotated tag | `P1d-tag` (forward-compat stacking on `P1c-tag`，per master plan C8) |
+| Tag message | 必须含：containment closure narrative + 事实核查 5 项 + 4 mode spec + first-touch deprecation + 指向 P1e + SHUD pin 变更（P1c `3a0004c` → P1d `210ac19`）+ PR-C/C0/D/E/F/G/H/I/J/K/L/M 13 PR cross-ref |
+| Baseline 分支 | `baseline/P1d`，D11 protection 同 B1b/B1/P1/P1c (lock_branch=true + enforce_admins) |
+| D11 chain | B0 → B1a → B1b → B1 → P1-update-omp → P1c → **P1d**（6 tag 链） |
+
+#### P1d.6 Go/No-Go → P1e
+
+- E′ closure 全部 7 项动作完成（含 PR-K/L/M）
+- `P1d-tag` 已 push 至 origin + `baseline/P1d` 已 lock
+- ADR `docs/adr/0001-solver-path.md` 已建立（4 路对比：Serial N_Vector + StrictOMP RHS / Deterministic NVECTOR_REPRO_OMP / SPGMR + block-Jacobi precond / KLU sparse direct）
+- openspec `p1e-strict-omp-rhs` change 已 propose（含 2×2 build matrix 因果实验作为 P1e.1 第一里程碑）
+
+#### P1d.7 后续移交（→ P1e）
+
+- P1e 启动前置：P1d 全部 closure + `baseline/P1d` 锁定 + ADR-0001 已建立 + p1e-strict-omp-rhs openspec change 已 propose
+- P2a 启动前置改链：原 "P1c-tag + baseline/P1c 已 lock" 不再充分；新前置 = **P1e (F 路) 完成 strict-omp mode 实现 + 三 SHALL gate 在 strict-omp mode 内通过**
+- 若 P1e 2×2 因果实验 mode C (Serial NVec + StrictOMP RHS) 跨 N 不可达 bitwise，进 ADR-0001 评估转向 NVECTOR_REPRO_OMP / block-Jacobi precond / KLU 之一
+
+### P1e：F 路 — Serial N_Vector + StrictOMP RHS（M10 新增）
+
+**Status**: 待启动 (P1d closure 后)。
+
+#### P1e.1 设计意图
+
+P1d 实测确认当前 `shud_omp` 实际并行的是 NVECTOR (引入 cross-N 散度)，**而不是真正应该并行的 hydrology RHS** (能给 2.39× Amdahl 上限的部分仍是 Serial)。P1e 把这件事反过来做：
+
+- **N_Vector 保持 Serial**（`N_VNew_Serial`）→ CVODE/SPGMR 的 Krylov 点积 + WRMS norm 顺序 deterministic → cross-N reduction order 不再变 → bitwise 跨 N 自然成立
+- **Hydrology RHS 真正并行**（`ExecPolicy::StrictOMP` 替换 abort 桩）→ 真正去吃 RHS 66.55% wall → 理想上界 2.39× 加速可达
+
+这是 master plan v1.4 原 P7 计划的"完整 RHS OpenMP + serial CVODE"思路，只是 P1c → P1d 实测路径绕弯后重新走正路。
+
+#### P1e.2 2×2 build matrix 因果实验（启动前必跑）
+
+P1e 任何代码改造前，必须先用 4 build × N∈{1,2,4,8} × 3 repeats 验证 hypothesis：
+
+| Build | N_Vector | RHS | 目的 |
+|---|---|---|---|
+| A | `N_VNew_Serial` | Serial | canonical reference baseline |
+| B | `N_VNew_OpenMP` | Serial | =当前 `shud_omp`，复现 PR-H 10-25% 散度作 control |
+| C | `N_VNew_Serial` | StrictOMP | **P1e production 候选** |
+| D | `N_VNew_OpenMP` | StrictOMP | research 边界 |
+
+实测条件：heihe + heihe_x4 (server) + keliya + qhh (Mac) 4 case + 90-day cap + 同硬件 + 同 SUNDIALS 6.0.0 build + hash `CV_Y` state vector + `rivqdown.dat` + capture `nst/nfe/nli/nni/netf/ncfn` 15-key set。
+
+判据：
+- **A 同 build 同 N 重复 3 次 bitwise** → solver 本身是 deterministic 的，前提
+- **B 跨 N 不同 而 A 跨 N 相同** → 确认 NVECTOR_OPENMP reduction 是主因（不是 RHS race）
+- **C 跨 N bitwise + nst Δ=0 + 加速** → F 路成立，进入 P1e.3 正式实施
+- **C 跨 N 也分叉** → 查 RHS race / 共享状态 / phase dependency；可能需要更细 owner-compute 分解
+- **C 加速 < 1.5×** → 进入 ADR-0001 评估 (block-Jacobi precond / NVECTOR_REPRO_OMP / KLU)
+
+#### P1e.3 实施要点
+
+1. **`ExecPolicy::StrictOMP` 路径替换 `std::abort()` 桩**（`MD_rhs_core.cpp:802` 当前 case）
+2. **单 parallel region + phase-based for + `default(none)`** + 隐式 barrier：每次 RHS 只创建一个 parallel region，phase 间用 OpenMP 隐式 barrier 同步；不为每个小循环单独 fork-join
+3. **复用现有 `rhs_deterministic_gather()` 基础设施**：并行 owner 外层（每个 element/river/lake 一个 thread）+ canonical fold 内层（owner 的 fixed B0 顺序 left-fold 不变 — 这正是当前 spec 已经设计好的 deterministic gather）
+4. **配置项拆**：`NUM_RHS_THREADS` (RHS 并行度) + `NUM_NVECTOR_THREADS` (默认 1 = Serial NVector)；`omp_set_num_threads` 调用从 `SHUD_USE_OPENMP_NVECTOR` 条件内移出，因为 Serial NVector + RHS OpenMP 同样需要线程配置
+5. **删 PR-C/D/E steady-state first-touch loops**（M10 deprecated）；保留 allocation-time first-touch (`Model_Data.cpp::malloc_EleRiv` L251-L346 的 first-touch 模式仍正确，因为它是 page fault 一次性触发)
+6. **`rivqdown.dat` 输出缓存 audit**：确认输出代码是从 `tout` 状态重算 flux，而不是直接写 solver 内部最后一次 RHS 留下的 `FluxRiv` 缓存（per Pro2 警示——CVODE `CV_NORMAL` 模式下 internal step 可能超过 output time）
+
+#### P1e.4 验收（3 SHALL gate 严格 in strict-omp mode）
+
+- A3a bitwise: heihe + heihe_x4 + Mac case 跨 N∈{1,2,4,8} `rivqdown.dat` SHA256 全等 (strict 内 strict-omp mode)
+- nst Δ=0: heihe `nst` 跨 N 全等 + heihe_x4 |Δ_nst| ≤ 2 (per D4 ladder)
+- N=1 reverse-compat: 6 case × N=1 strict-omp mode SHA == `P1-update-omp-tag` canonical (server heihe + heihe_x4 + Mac 4 case = 6)
+- 加速比: heihe + heihe_x4 × N=8 ≥ 1.5× wall vs N=1（量化目标待 §1.1.1 加 strict-omp 行）
+
+#### P1e.5 baseline lock + tag (D11 7-tag chain)
+
+| Item | 值 |
+|---|---|
+| Annotated tag | `P1e-tag` (forward-compat stacking on `P1d-tag`) |
+| Tag message | 必须含: 2×2 因果实验结论 + F 路实施详情 + 3 SHALL gate strict-omp mode verdict + 加速比实测 + SHUD pin 变更 |
+| Baseline 分支 | `baseline/P1e`，D11 protection 同前 |
+| D11 chain | ... → P1d → **P1e**（7 tag 链） |
+
+#### P1e.6 Go/No-Go → P2a
+
+- P1e 3 SHALL gate strict-omp mode 全 PASS
+- 加速比 ≥ 1.5× (heihe + heihe_x4) at N=8
+- `P1e-tag` 已 push + `baseline/P1e` lock
+- ADR-0001 (solver-path) 已 close out (4 路对比结论入档)
+
+#### P1e.7 风险与 fallback
+
+- 若 mode C 跨 N 不可达 strict bitwise：fallback 到 ADR-0001 评估的 4 路选项之一（最大概率是 NVECTOR_REPRO_OMP custom backend = serial-order left-fold reduction）
+- 若加速比 < 1.5×：进 P1e.8 加 block-Jacobi physics-based preconditioner（per Pro2 推荐，element/river/lake 各 3×3 小块独立 setup + solve）
+- KLU 仍然不是 P1e 必选——只在 ADR-0001 评估 fill ratio + memory peak + factor wall 后单独决策
+
+---
+
 ### P2a：并行 pre-CVODE forcing / ET loop
+
+> **M10 修订（2026-06-24）启动前置更新**：原 P2a 启动前置是 "P1c-tag 已 push + baseline/P1c lock + P1c.3 A3a 全部通过"。P1c PARTIAL CLOSURE + P1d E′ closure + 事实核查发现真正应并行的 RHS 还没并行（StrictOMP 桩）后，P2a 启动前置改为：**P1e (F 路) 完成 strict-omp mode 实现 + 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥ 1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0001 (solver-path) close out**。详 §6 P1e + §7.3 stage go/no-go 表。
 
 **目标**：并行化 CVODE 调用**之前**的 forcing 读取和 ET 状态更新。这些代码在主循环 `while (t < tnext)` 中、`CVode()` 之前执行（`shud.cpp` L92–L94：`updateforcing(t)` → `ET(t, tnext)`），不属于 RHS。
 
@@ -2399,7 +2557,9 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | RISK-01 | 继续维护两套 RHS 路径 | R3 | `f.cpp` L7–L26 | 建立唯一 RHS core | S1 前 |
 | RISK-02 | lake/ET/river DY 语义未对齐 | R2/R3 | §4.2–4.4 | B1a 继承 serial 语义（bitwise = B0）；B1b 含 bug fix 差异单独记录 | S2 前 |
 | RISK-03 | shared floating accumulation | R3 | `PassValue()`、`fun_Seg_*`、`Flux_RiverDown` | compute/gather 拆分 | P4/P5 前 |
-| RISK-04 | OpenMP reduction 顺序不确定 | R3(strict)/R1(prod) | OpenMP §2.19.5.4 | strict 禁止；prod 用 deterministic reduction；**P1 已观测 (2026-06-22, PR-K2 #223)**：B1b S2 P3–P5 owner-local gather tree-reduction 在 N > 2 触发 depth 跃迁 → CVODE `nst` 漂移；M9 修订独立为 P1c 前置阶段集中处置，详 §6 P1c | P1c 前 |
+| RISK-04 | OpenMP reduction 顺序不确定 (owner-gather 层) | R3(strict)/R1(prod) | OpenMP §2.19.5.4 | strict 禁止；prod 用 deterministic reduction；**P1 已观测 (2026-06-22, PR-K2 #223)**：B1b S2 P3–P5 owner-local gather tree-reduction 在 N > 2 触发 depth 跃迁 → CVODE `nst` 漂移；M9 修订独立为 P1c 前置阶段集中处置；P1c PARTIAL CLOSURE + P1d 实测确认 owner-gather Kahan 注入只压住 nst 不修水文输出散度；详 §6 P1c / P1d | P1c → P1d closure (M10) |
+| RISK-NEW1 (M10) | SUNDIALS NVECTOR_OPENMP reduction 顺序不确定 (solver 层) | R3(strict)/R1(prod) | SUNDIALS 6.0.0 `nvector_openmp.c` `N_VDotProd_OpenMP` `reduction(+:sum) schedule(static)`；OpenMP §2.19.5.4 | strict 禁止；M10 修订独立为 P1e (F 路) 前置阶段集中处置：**Serial N_Vector + StrictOMP RHS** 把 N_Vector reduction 排除出并行 path，RHS 自身用 owner-local deterministic gather；fallback ADR-0001 评估 NVECTOR_REPRO_OMP custom backend | P1e 前 |
+| RISK-NEW2 (M10) | StrictOMP/ProductionOMP `ExecPolicy` 路径是 `std::abort()` 桩 | R3(strict) | `MD_rhs_core.cpp:802-811` | P1d 事实核查发现；当前 `shud_omp` 实际跑 Serial RHS + NVECTOR_OPENMP，PR-C/D/E first-touch loops 无 consumer 是无效优化；P1e 替换 abort 桩 + 实施真正 RHS 并行；M10 修订把这归类为 P1d-revealed risk + P1e 主要工作 | P1e 完成时 |
 | RISK-05 | forcing cache 改变时间采样语义 | R2 | `TimeSeriesData.cpp` L45–L89 | 先保持 B0 语义；插值独立进入精度路线 | S5 前 |
 | RISK-06 | CVODE 改造项叠加引入不可定位的 regression | R1/R2 | SUNDIALS docs | P8 子阶段（P8-precond → P8-tune → P8-NVector → P8-KLU）严格串行，每步独立验收；Opt-Tol / Opt-Root 独立于速度主线；先完成 P7 再进入 P8-precond | P7 前 |
 | RISK-07 | 编译器优化改变浮点行为 | R2/R3 | fast-math/FMA/版本差异 | 固定工具链；禁止 fast-math；compile manifest | 全程 |
@@ -2434,7 +2594,9 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | → S6b (B1b) | B1a 已锁定；所有待修 bug 清单已确定 |
 | → P1 | B1b 已锁定；strict 编译选项确定；不存在共享浮点 `+=`；**`OMP_PROC_BIND=close OMP_PLACES=cores` 已写入 manifest** |
 | → P1c (M9) | P1 已锁定 + P1-update-omp-tag 已 push；P1 实测 `nst` 漂移证据已归档 (`docs/p1_perf_baseline.md` §2)；reduction 站点 grep 清单已完成（含 S2 P3–P5 gather + 候选其他 RHS reduction） |
-| → P2a | P1c 已锁定 + `P1c-tag` 已 push + `baseline/P1c` D11 protection 已 set；P1c.3 验收 A3a 全部通过；P1 实测 `nst` 漂移在 P1c 复跑中**消除** (heihe + heihe_x4 各 4-cell N 跨线程 `nst` 完全相等) |
+| → P1d (M10) | P1c PARTIAL CLOSURE 已记录 (PR-K2 #223 server 仍残 `|Δ_nst|=84`)；`P1c-tag` 已 push + `baseline/P1c` D11 protection set；P1d epic #274 已开 |
+| → P1e (M10) | P1d E′ containment closure 全部 7 项动作完成 (production 默认 `NUM_OPENMP=1` + 4-mode spec rewrite + `shud_omp` 标 fast-omp experimental + PR-C/D/E first-touch deprecation + Kahan revert 保留 + PR-K capstone + PR-L `P1d-tag` + PR-M PROMOTE)；`P1d-tag` 已 push + `baseline/P1d` lock；ADR `docs/adr/0001-solver-path.md` 已建立；openspec `p1e-strict-omp-rhs` change 已 propose；2×2 build matrix 因果实验 mode C (Serial NVec + StrictOMP RHS) 验收 PASS（跨 N bitwise + nst Δ=0 + 加速 ≥ 1.5×） |
+| → P2a (M10 改) | P1e 全部完成: 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥ 1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0001 close out |
 | → P4/P5 | P2a–P2b–P3 bitwise 通过；segment flux 函数只写 `Qseg*`；gather list 排序与 B1c 一致 |
 | → P7 | P2–P6 每阶段 RHS snapshot 均 bitwise identical (基于 P1c deterministic-reduction) |
 | → P8-precond | P7 通过 A3a + A3b（A3c 加分不强制）；**`grep -c '#pragma omp parallel' MD_rhs_core.cpp` == 1**（fork-join 验证）；P7 性能验收 M 列通过 |
@@ -2447,7 +2609,18 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 
 ## 8. 编译与运行规则
 
-### 8.1 strict 模式（S0 → P1 → P1c → P2 → P7；M9 修订）
+### 8.1 strict 模式（S0 → P1 → P1c → P1d → P1e → P2 → P7；M10 修订）
+
+> **M10 修订（2026-06-24）4-mode 分离**：P1d closure 后，strict 模式按 N_Vector backend × RHS execution policy 拆为 4 mode（per `docs/p1d/p1d_pr_h_final_run.md` § "E′ 路具体动作"）：
+>
+> | Mode | N_Vector | RHS | Bitwise gate | Build 选项 | Production status |
+> |---|---|---|---|---|---|
+> | `serial` | Serial | Serial | N=1 vs `P1-update-omp-tag` canonical strict | `make shud` | **production default** |
+> | `strict-omp` | Serial | StrictOMP | 跨 N∈{1,2,4,8} bitwise + nst Δ=0 + N=1 reverse-compat **strict** | `make shud SHUD_ENABLE_OPENMP_RHS=1` (待 P1e 实现) | **production candidate** (P1e 验收后) |
+> | `det-omp` | NVECTOR_REPRO_OMP (custom) | StrictOMP | 跨 N∈{1,2,4,8} bitwise + nst Δ=0 (same toolchain) | fallback if `strict-omp` 加速不够 | P2 后续优化 |
+> | `fast-omp` | NVECTOR_OPENMP (stock) | StrictOMP (or Serial) | MAY 不可复现，明确 non-production | `make shud_omp` (current default) | **research artifact only** |
+>
+> 当前 (P1d E′ closure 时) 只有 `serial` mode 通过 strict 验收；`strict-omp` 待 P1e 实现；`fast-omp` 明确标 non-production。
 
 | 类别 | 规则 |
 |---|---|
