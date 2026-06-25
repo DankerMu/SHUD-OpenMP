@@ -6,7 +6,7 @@
 - **修复**：新增 `Model_Data::recompute_for_output(N_Vector udata, double t)` member，在 `shud.cpp` MainLoop 内 `MD->summary(udata)` 与 `MD->CS.ExportResults(t)` 之间调用；helper 重新跑 `rhs_update + rhs_flux + rhs_apply` 全链（Phase 6 fix per Phase 4.5 verifier）从 `Y(udata)` 派生所有 PCtrl-aliased output cache，含 `QeleSubTot` / `QeleSurfTot`。
 - **设计**：design D5 option 1 的 broadest deterministic implementation — 一次 RHS chain 重算覆盖 river + lake + element 所有 sibling cache，避免按 channel 手写 recompute 路径漏覆盖
 - **覆盖**：QrivDown 主目标 + 全部 sibling caches (QrivUp / QrivSurf / QrivSub / QLake* / qLake* / qEle* / Qe2r_*) — 见下方 §"sibling-cache enumeration"
-- **状态**：Mac local mode A 验收通过 — keliya N=1 × 3 reps SHA byte-identical；4 case × N∈{1,2,4,8} SHA per case all-equal；format preserved；perf delta +9.3% (超 ±5% budget，已 explicit documented per task §1.7.1c)。Phase 6 fix post-fix wall delta vs pre-Phase6 = **-1.51%**（rhs_apply 加上后实测略快，noise 内）。
+- **状态**：Mac local mode A 验收通过 — keliya N=1 × 3 reps SHA byte-identical；4 case × N∈{1,2,4,8} SHA per case all-equal；format preserved；perf delta **+7.7% (post-Phase6 fix supersedes pre-Phase6 +9.35%)**（30.08s vs pre-fix baseline 27.93s；超 ±5% budget，已 explicit documented per task §1.7.1c）。Phase 6 fix post-fix wall delta vs pre-Phase6 = **-1.51%**（rhs_apply 加上后实测略快，noise 内）。
 
 ## Scope: coupled mode only
 
@@ -34,7 +34,7 @@ Per outer #323 Phase 4.5 verifier cand-1 (CONFIRMED).
 | `qEleETP` | 323 | RHS-cache | recomputed |
 | `qEleETA` | 325 | RHS-cache | recomputed |
 | `qEleRecharge` | 327 | RHS-cache | recomputed |
-| `QeleSubTot` | 329 | RHS-cache (`rhs_update` zero + `rhs_apply` accumulate L647-649) | **recomputed (rhs_apply Phase 6 fix)** |
+| `QeleSubTot` | 329 | RHS-cache (`rhs_update` zero + `rhs_apply` accumulate L648-649) | **recomputed (rhs_apply Phase 6 fix)** |
 | `QeleSub_flat[0..2]` | 338-340 | RHS-cache (flux loops) | recomputed |
 | `QeleSurfTot` | 343 | RHS-cache (same pattern as QeleSubTot) | **recomputed (rhs_apply Phase 6 fix)** |
 | `QeleSurf_flat[0..2]` | 347-349 | RHS-cache (flux loops) | recomputed |
@@ -81,7 +81,7 @@ Per outer #323 Phase 4.5 verifier cand-1 (CONFIRMED).
 
 **当前实现**：helper 调用 `rhs_apply(DY_scratch.data(), t)` 作为链尾步（Phase 6 fix per Phase 4.5 verifier cand-2 CONFIRMED）。`QeleSubTot[i]` / `QeleSurfTot[i]` 因此在每个 tout 边界被 Y(tout)-derived 重算。
 
-`QeleSubTot[i]` 与 `QeleSurfTot[i]` 在 `rhs_apply` L647-655 内被显式重写：
+`QeleSubTot[i]` 与 `QeleSurfTot[i]` 在 `rhs_apply` L648-655 内被显式重写：
 ```cpp
 QeleSurfTot[i] = Qe2r_Surf[i];
 QeleSubTot[i] = Qe2r_Sub[i];
@@ -94,7 +94,7 @@ for (int j = 0; j < 3; j++) {
 }
 ```
 
-**idempotency 证明（Phase 4.5 verifier）**：L647-648（前两行 `QeleSurfTot[i] = Qe2r_Surf[i]; QeleSubTot[i] = Qe2r_Sub[i];`）是 leading `=` 赋值（不是 `+=`），先 reset buffer 再 accumulate；j 循环内 `+=` over `j ∈ [0, 3)` 是固定形状 per-i leftfold，无并行 / 无随机性。Y(tout) 一致 → `Qe2r_*` 与 `QeleSubAt(i, j)` 一致 → 任意次数 `rhs_apply` 调用产生的 `QeleSubTot` / `QeleSurfTot` 完全一致。结论：rhs_apply IS idempotent at fixed (Y, t)。
+**idempotency 证明（Phase 4.5 verifier）**：L648-649（前两行 `QeleSurfTot[i] = Qe2r_Surf[i]; QeleSubTot[i] = Qe2r_Sub[i];`）是 leading `=` 赋值（不是 `+=`），先 reset buffer 再 accumulate；j 循环内 `+=` over `j ∈ [0, 3)` 是固定形状 per-i leftfold，无并行 / 无随机性。Y(tout) 一致 → `Qe2r_*` 与 `QeleSubAt(i, j)` 一致 → 任意次数 `rhs_apply` 调用产生的 `QeleSubTot` / `QeleSurfTot` 完全一致。结论：rhs_apply IS idempotent at fixed (Y, t)。
 
 **为什么 MUST 调用（refuted prior skip rationale）**：未调用 `rhs_apply` 时，`QeleSubTot[i]` / `QeleSurfTot[i]` 保持 `rhs_update` 写入的零值（`MD_rhs_core.cpp:91 / :104`）。下游 `PrintData` tau-averaging 会对零值做时间平均 → PCtrl-aliased `*.eleQsubTot.dat` / `*.eleQsurfTot.dat` 在 `DT_QE_SUB > 0` 或 `DT_QE_SURF > 0` 配置下会 silently emit 全零数据。这是 silent corruption defect，不只是数值精度问题。
 
@@ -102,7 +102,7 @@ for (int j = 0; j < 3; j++) {
 
 **cost**：实测 keliya N=1 mode A wall median 30.08s vs pre-Phase6 30.54s = **-1.51%**（在 ±1% noise 内，post-fix 反而略快）。理论上 rhs_apply 在 OMP 路径下 per-i loop 比 rhs_flux 轻量得多，~ms 级 overhead 被 noise 吞没。
 
-**历史 note（Pre-fix-only known limitation）**：本 PR 早期版本基于 "rhs_apply is non-idempotent += accumulator" 的误读，跳过 rhs_apply 并以 "PrintData buffer 累加 + tau-averaging 自然汇总" 作为兜底论证。Phase 4.5 verifier (outer #323) 通过 line-level 审 L647-649 推翻该论证：leading `=` 才是首要语义，inner `+=` 是 idempotent fold。本节保留为历史记录，避免未来 reader 误以为 "skip rhs_apply" 是仍然有效的设计选项。
+**历史 note（Pre-fix-only known limitation）**：本 PR 早期版本基于 "rhs_apply is non-idempotent += accumulator" 的误读，跳过 rhs_apply 并以 "PrintData buffer 累加 + tau-averaging 自然汇总" 作为兜底论证。Phase 4.5 verifier (outer #323) 通过 line-level 审 L648-649 推翻该论证：leading `=` 才是首要语义，inner `+=` 是 idempotent fold。本节保留为历史记录，避免未来 reader 误以为 "skip rhs_apply" 是仍然有效的设计选项。
 
 ### Validators / NaN guards (cand-9 PLAUSIBLE doc-only)
 
@@ -161,7 +161,7 @@ MD->CS.ExportResults(t);
 - 边界条件 / source-sink 调整
 
 helper **调用 rhs_apply(DY_scratch, t)**（Phase 6 fix per Phase 4.5 verifier cand-2 CONFIRMED）。理由：
-1. **idempotent 已证（L647-649 leading `=` reset + inner `+=` per-i fold over `j∈[0,3)`）**：rhs_apply 在 fixed (Y, t) 下产物确定，不污染。详见上方 §"rhs_apply Phase 6 fix rationale"。
+1. **idempotent 已证（L648-649 leading `=` reset + inner `+=` per-i fold over `j∈[0,3)`）**：rhs_apply 在 fixed (Y, t) 下产物确定，不污染。详见上方 §"rhs_apply Phase 6 fix rationale"。
 2. **silent-zero defect**：未调用 rhs_apply 时，`QeleSubTot[i]` / `QeleSurfTot[i]` 留在 rhs_update 写入的零值（`MD_rhs_core.cpp:91 / :104`），PrintData tau-averaging 会将 `*.eleQsubTot.dat` / `*.eleQsurfTot.dat` 在 `DT_QE_SUB > 0` 或 `DT_QE_SURF > 0` 配置下 silently 输出全零数据。
 3. **DY[] 写入无害**：DY_scratch 是 stack-local，在 helper return 时析构；rhs_apply 不修改 solver state，不污染 `nFCall` counter。
 4. **cost ≤ +1%**：实测 keliya N=1 wall median 从 30.54s (pre-Phase6) 变 30.08s (post-Phase6) = **-1.51%**，在 noise 内。
@@ -220,15 +220,18 @@ $ diff /tmp/pr_b0_pre_format.hex /tmp/pr_b0_post_format.hex
 
 ### Acceptance §6 — perf budget (keliya N=1 mode A wall median ±5%)
 
-| Rep | Pre-fix `real` | Pre-fix `user` | Post-fix `real` | Post-fix `user` |
+> **Final delta (post-Phase6 fix vs pre-fix baseline) = +7.7%** — supersedes the pre-Phase6 +9.35% reported in the snapshot table below. See the "Final number after Phase 6 fix" callout under §"Phase 6 fix wall delta" for the math.
+
+| Rep | Pre-fix `real` | Pre-fix `user` | Post-fix (pre-Phase6) `real` | Post-fix (pre-Phase6) `user` |
 |---|---|---|---|---|
 | 1 | 28.90s | 27.08s | 31.25s | 29.57s |
 | 2 | 27.85s | 27.14s | 30.52s | 29.55s |
 | 3 | 27.93s | 27.07s | 30.54s | 29.59s |
 | **median** | **27.93s** | **27.08s** | **30.54s** | **29.57s** |
 
-- `real` delta：(30.54 - 27.93) / 27.93 = **+9.35%**
-- `user` delta：(29.57 - 27.08) / 27.08 = **+9.19%**
+- `real` delta (pre-Phase6 helper, no rhs_apply call): (30.54 - 27.93) / 27.93 = **+9.35%**
+- `user` delta (pre-Phase6 helper, no rhs_apply call): (29.57 - 27.08) / 27.08 = **+9.19%**
+- **Final `real` delta (post-Phase6, with rhs_apply): (30.08 - 27.93) / 27.93 = +7.7%** — this is the authoritative number for PR-B0 acceptance; +9.35% / +9.19% above are kept only as the pre-Phase6 reference point so the -1.51% callout below has visible context.
 
 **超 ±5% budget** — explicit explanation per task §1.7.1c:
 
@@ -238,10 +241,10 @@ $ diff /tmp/pr_b0_pre_format.hex /tmp/pr_b0_post_format.hex
 3. `rhs_flux` 内 `rhs_deterministic_gather` 全跑（覆盖 sibling caches），不只是 `Flux_RiverDown` per-channel
 
 **escalation 决策**：本 PR ship as-is，理由：
-- 9.3% 远低于 P1e §1.1.1 量化目标的 baseline 阈值（B0 vs B1b vs P1d cross-tag 漂移 budget 远大于此）
+- **+7.7% (post-Phase6 final)** 远低于 P1e §1.1.1 量化目标的 baseline 阈值（B0 vs B1b vs P1d cross-tag 漂移 budget 远大于此）；pre-Phase6 snapshot 是 +9.35%，Phase 6 fix 后实测下降到 +7.7%
 - 修复是 **correctness fix**（解 cache nondeterminism） — perf hit 是接收的 cost
-- 升级路径已 documented + 已落地（Phase 6 fix 添加 rhs_apply 实测 **-1.51%**，远低于早期预估的 "+~10%"）。详见下方 §"Phase 6 fix wall delta"。
-- master plan §6 P1e.4 加速比 ≥ 1.5× target 是 mode C vs mode A baseline 比较，本 PR 的 +9.3% 已包含进 mode A baseline，下游 mode C 加速比测量自动包含该 overhead，不污染验收
+- 升级路径已 documented + 已落地（Phase 6 fix 添加 rhs_apply 实测 **-1.51%** vs pre-Phase6，远低于早期预估的 "+~10%"）。详见下方 §"Phase 6 fix wall delta" 的 "Final number after Phase 6 fix" 小节。
+- master plan §6 P1e.4 加速比 ≥ 1.5× target 是 mode C vs mode A baseline 比较，本 PR 的 +7.7% 已包含进 mode A baseline，下游 mode C 加速比测量自动包含该 overhead，不污染验收
 
 如下游 P1e PR-I 实测发现该 overhead 影响 strict-omp 加速比验证（e.g. 让 mode C 加速从 1.6× 跌到 1.4×），届时回退到 design D5 选项 2（snapshot buffer 路径）作为 fallback。本 PR 设计已为该 fallback 留接口（helper 可改写为 per-channel snapshot 而不动 `shud.cpp` 调用点）。
 
@@ -259,6 +262,17 @@ $ diff /tmp/pr_b0_pre_format.hex /tmp/pr_b0_post_format.hex
 - Phase 6 delta：(30.08 - 30.54) / 30.54 = **-1.51%**（post-Phase6 略快 / noise 内，远低于 ≤+1% budget 的容忍上界）
 
 rhs_apply per-i 循环 OMP 路径下比 rhs_flux gather 路径轻量得多，~ms 级 overhead 被 noise 吞没。SHA byte-equality `b769e327…028bd` × 3 reps 与 pre-Phase6 相同 — 符合预期，因 QrivDown 不受 rhs_apply 影响，rhs_apply 只写 QeleSubTot/QeleSurfTot（在 rivqdown gate 下游）。
+
+##### Final number after Phase 6 fix
+
+Both deltas below use the **same pre-fix baseline** `27.93s` (keliya N=1 mode A `real` median, no helper call at all):
+
+| Stage | Helper state | `real` median | Delta vs pre-fix baseline (27.93s) |
+|---|---|---|---|
+| Pre-Phase6 | helper present, rhs_apply NOT called | 30.54s | **+9.35%** |
+| Post-Phase6 (this PR) | helper present, rhs_apply called (cand-2 fix) | 30.08s | **+7.7%** |
+
+The **+7.7% is the authoritative number for PR-B0 acceptance**. The +9.35% is kept in §"Acceptance §6" only so the -1.51% Phase 6 callout (post-Phase6 vs pre-Phase6) has visible context — it is not a separate regime. PR body / Test plan / Risks §1 cite +7.7%; this doc's §"摘要" / §"Acceptance §6" headline / §"escalation 决策" all now cite +7.7% as primary with +9.35% explicitly tagged as the pre-Phase6 reference point.
 
 ## SHUD submodule pin
 
@@ -342,10 +356,21 @@ Items below were surfaced by Phase 4.5 verifier (outer #323) as legitimate impro
 
 ### Per-call `DY_scratch` allocation (cand-3 PLAUSIBLE)
 
-`std::vector<double> DY_scratch(NumY, 0.0)` is allocated + zero-init'd on every helper call (= once per SolverStep tick = ~2160 calls for keliya 90-day run). Phase 4.5 verifier confirmed this is a real micro-inefficiency. Per author's own attribution in §"Acceptance §6", the +9.3% delta (vs zero-helper baseline) is dominated by **first-touch + rhs_flux gather**, not allocation (~5ms total over the full run for keliya).
+`std::vector<double> DY_scratch(NumY, 0.0)` is allocated + zero-init'd on every helper call (= once per SolverStep tick = ~2160 calls for keliya 90-day run). Phase 4.5 verifier confirmed this is a real micro-inefficiency. Per author's own attribution in §"Acceptance §6", the +9.35% pre-Phase6 delta (final post-Phase6 = +7.7%; both vs zero-helper baseline 27.93s) is dominated by **first-touch + rhs_flux gather**, not allocation (~5ms total over the full run for keliya).
 
 **Forward optimization issue**: preallocate `DY_scratch` as a `Model_Data` member (size = `NumY`), and skip the `(NumY, 0.0)` zero-init since `rhs_update` L218-220 unconditionally zeros DY before use. Expected wall savings: ≤ 0.1% (below noise), but cleans up the per-tick allocation churn for valgrind / heap-profiling cleanliness.
 
 ### `CheckNANi` lift out of DEBUG (cand-9 deferral)
 
 See §"Validators / NaN guards" above for the full discussion. Forward issue: either lift `CheckNANi(QrivDown[i], ...)` out of `#ifdef DEBUG`, or add `assert(Riv[i].Length > 0)` at `Model_Data::initialize()` to make the contract enforced even when the input loader's exit path is bypassed (e.g., programmatic init for unit tests).
+
+### Post-merge: manual close of issue #323 (orchestrator-owned)
+
+PR #324 base = `baseline/P1e` (not `main`), so GitHub close-keywords are inert per CLAUDE.md project rule. After PR-B0 merges, the orchestrator runs:
+
+```bash
+gh issue close 323 --reason completed \
+  --comment "Closed via PR #324 (PR base = baseline/P1e ≠ main, close-keyword inert per CLAUDE.md)"
+```
+
+This is **not** in any subagent's edit scope; captured here only so the post-merge action is not lost from the audit trail.
