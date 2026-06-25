@@ -124,7 +124,7 @@ int f(double t, N_Vector CV_Y, N_Vector CV_Ydot, void *DS){
 
 ## 数据源分析
 
-1. `QrivDown[]` 唯一被写位置：`Flux_RiverDown` (MD_RiverFlux.cpp)。
+1. `QrivDown[]` 主要写位置 = `Flux_RiverDown` (`MD_RiverFlux.cpp:23,38,53,57`)，即唯一以 Manning 方程结果更新 cache 的路径。另有两处共享写：(a) `MD_update.cpp:40` 在 `f_update` 路径下零-reset (`QrivDown[i] = 0.`，split-RHS uncoupled path 才执行；本审计主路径 `f()` → `rhs_core` 不经此分支)，(b) `Model_Data.cpp:427` 经 `flood->InitPointer(yRivStg, QrivDown)` 把指针别名给 FloodWarning pipeline。两者均不引入 tout-aware recompute，因此 internal cache 分类与 PR-B0 trigger 结论不变。
 2. `Flux_RiverDown` 唯一被调位置：`rhs_core` (MD_rhs_core.cpp:437)。
 3. `rhs_core` 由 `f()` callback (f.cpp:8) 调用，`f()` 注册为 CVode RHS 函数。
 4. CVode 在 `CV_NORMAL` 模式下 internal step pattern：可能 take internal steps that overshoot `tout = tnext`，然后用 BDF interpolant 返回 `udata = Y(tnext)`。**但 `f()` 最后一次被调用时的 `t` 参数是 `t_internal ≥ tnext`，不是 `tnext` 本身**。
@@ -150,7 +150,7 @@ int f(double t, N_Vector CV_Y, N_Vector CV_Ydot, void *DS){
 
 ## 影响下游 PR
 
-- **PR-B (2×2 driver script)**：driver 假定 `.rivqdown.dat` 是 deterministic（同 build / 同 N × 3 reps SHA256 一致）。**若 PR-B0 未先落地**，PR-C/D mode A 自一致性守门可能 spurious FAIL（即使 RHS 本身比特正确，rivqdown 缓存因 RHS 内部 reschedule 微变）。
+- **PR-B (2×2 driver script)**：driver 假定 `.rivqdown.dat` 是 deterministic（同 build / 同 N × 3 reps SHA256 一致 + 跨 N 同 case + 跨 mode bitwise 等价）。**mode A 内 reps-only 守门**仍 deterministic（串行 CVode 在固定 binary 下 `t_internal` 序列由 method order + state 唯一决定），cache 路由问题不在此处显化。**若 PR-B0 未先落地，PR-C/D 跨 mode (A vs C/D) 比特一致性审可能 spurious FAIL**（mode C/D 引入 OMP 线程后 RHS 调用序列变化 → `QrivDown` 缓存与 mode A baseline 不一致；即使 mode C/D 各自 reps 守门通过）。
 - **PR-F (StrictOMP RHS 实施)**：strict OMP RHS 改变 RHS 求值序列 → 进一步放大 internal cache 漂移。**必须 PR-B0 先落地，才能保证 PR-F 上线时 mode C/D rivqdown 与 mode A 比特一致**。
 - **PR-G (build flag + Makefile -fopenmp wiring)**：与本 audit 无直接耦合，但 PR-B0 修复 routing 时需注意 `Flux_RiverDown` 路径若也被纳入 StrictOMP for 循环，需保证 `QrivDown_out` recompute buffer 不参与 OMP 并行（避免重复跑同样的数据竞争问题）。
 
