@@ -463,6 +463,13 @@ Expected wall budgets per cell on Xeon 5318Y:
 The main batch (job IDs 9126-9173) submitted 48 sbatch jobs chained via
 `-d singleton`. Two failed mid-batch:
 
+Job-ID-to-cell mapping pattern: the 9126-9173 range maps in
+chained-singleton submission order — for each stream (heihe first, then
+heihe_x4), cells iterate A→B × N∈{1,2,4,8} × rep∈{1,2,3} alphabetically.
+So job 9126 = `Aheihe_N1_rep1`, 9127 = `Aheihe_N1_rep2`, …,
+9149 = `Bheihe_N8_rep3`, 9150 = `Aheihe_x4_N1_rep1`, …,
+9173 = `Bheihe_x4_N8_rep3`. Reruns 9197/9198 sit outside the range.
+
 | Job ID | Cell                 | Outcome    | Notes |
 |-------:|----------------------|------------|-------|
 | 9127   | Aheihe_N1_rep2       | FAILED 2:0 | wall ~509s |
@@ -516,5 +523,16 @@ the case sets, and (c) one server-only intra-N speedup table in AC5.
 Extracting the shared core would require a third helper script + breaking
 the established PR-C name; the maintenance cost of two near-identical
 scripts is currently lower than the cost of touching PR-C's already-merged
-artifacts. **Deferred to PR-G or later** once the per-platform divergence
-stabilises.
+artifacts. **Deferred to PR-K (capstone docs, tasks §7.A)** — rationale:
+PR-K's `p1e_2x2_experiment.md` will already need to weave Mac and server
+data into a single narrative, which is the natural motivating context
+for a unified aggregator; refactoring earlier (PR-G is the StrictOMP RHS
+impl with no aggregator scope) would be a premature touch on PR-C/PR-D
+artifacts.
+
+- **`docs/p1e/INDEX.md`** — also deferred from PR-C; with PR-D adding a
+  third evidence doc the drift risk is real. Track explicitly as a
+  capstone task: **PR-K §7.3** (`p1e_2x2_experiment.md` is the natural
+  index host since it spans both platforms). Listed here to prevent the
+  repeat-deferral pattern from continuing into PR-E/PR-F without a
+  named owner.

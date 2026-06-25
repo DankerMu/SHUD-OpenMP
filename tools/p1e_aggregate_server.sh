@@ -68,7 +68,10 @@ REPS=(1 2 3)
 # Server cell layout: <build><case>_N<N>_rep<rep> (concatenated build+case,
 # no underscore between). Build is one capital letter; case may contain
 # underscores (e.g. heihe_x4).
-cell_dir() { echo "$RUNS/${1}${2}_N${3}_rep${4}"; }
+cell_dir() {
+    [[ "$1" =~ ^[AB]$ ]] || { echo "cell_dir: build arg must be A|B, got '$1'" >&2; return 2; }
+    echo "$RUNS/${1}${2}_N${3}_rep${4}"
+}
 
 rivq_sha() {
     local f="$(cell_dir "$1" "$2" "$3" "$4")/${2}.rivqdown.sha256"
@@ -309,6 +312,8 @@ mean_wall() {
 # --------------------------------------------------------------------------
 
 emit_ac6() {
+    local expected=6480
+    local fails=0
     echo "| build | case | N | rep | cv_y_lines |"
     echo "|:-----:|------|--:|--:|-----------:|"
     for b in "${BUILDS[@]}"; do
@@ -324,16 +329,31 @@ emit_ac6() {
     echo
     echo "Per-case unique line-count set across all 24 (build,N,rep) cells:"
     for c in "${CASES[@]}"; do
-        local uniq
-        uniq=$(for b in "${BUILDS[@]}"; do
+        local uniq_vals
+        uniq_vals=$(for b in "${BUILDS[@]}"; do
             for n in "${NS[@]}"; do
                 for r in "${REPS[@]}"; do
                     cv_y_count "$b" "$c" "$n" "$r"
                 done
             done
-        done | sort -u | tr '\n' ',' )
-        echo "  $c: {${uniq%,}}"
+        done | sort -u)
+        local uniq_csv
+        uniq_csv=$(echo "$uniq_vals" | tr '\n' ',' )
+        echo "  $c: {${uniq_csv%,}}"
+        local card
+        card=$(echo "$uniq_vals" | wc -l | tr -d ' ')
+        if [[ "$card" != "1" || "$uniq_vals" != "$expected" ]]; then
+            fails=$((fails+1))
+        fi
     done
+    echo
+    if [[ $fails -eq 0 ]]; then
+        echo "AC6 result: PASS (all cases have unique line-count cardinality 1 at expected $expected)"
+        return 0
+    else
+        echo "AC6 result: **FAIL** ($fails case(s) deviated from {$expected})"
+        return 1
+    fi
 }
 
 # --------------------------------------------------------------------------
@@ -368,6 +388,6 @@ case "$MODE" in
         emit_ac5
         echo
         echo "### AC6 — cv_y_hash line count consistency"; echo
-        emit_ac6
+        emit_ac6 || true
         ;;
 esac
