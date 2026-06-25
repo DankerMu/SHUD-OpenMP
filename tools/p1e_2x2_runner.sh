@@ -404,7 +404,9 @@ echo "cv_y_count:     ${#cv_y_files[@]}" >> "$OUT_DIR/cell.meta"
 # -----------------------------------------------------------------------------
 
 if [[ "$KEEP_CV_Y" -eq 0 ]]; then
-    rm -f "$OUTPUT_DIR_ABS"/cv_y_*.bin
+    # find -delete instead of rm glob: cv_y_*.bin can be 6480+ files →
+    # Mac BSD ARG_MAX ~256KB will overflow on long $OUTPUT_DIR_ABS prefixes
+    find "$OUTPUT_DIR_ABS" -maxdepth 1 -name 'cv_y_*.bin' -delete
 fi
 
 echo "[p1e_2x2_runner] DONE cell=${BUILD}_${CASE}_N${NTHREADS}_rep${REP}"
