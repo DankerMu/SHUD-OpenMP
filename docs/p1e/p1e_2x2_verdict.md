@@ -122,9 +122,12 @@ Phase 1 PASS holds across two OMP runtimes.
 ### 3.1 Why mode A is thread-invariant by construction
 
 Mode A is built with `NVECTOR_SERIAL` + the serial RHS (the current
-SHUD `RhsLoopExecutor::Serial` path on `MD_rhs_core.cpp:802-811`'s
-`std::abort()` stub for `ExecPolicy::StrictOMP`, but never reaching it
-because the dispatch falls through to the serial loop). With no
+SHUD `RhsLoopExecutor::Serial` path). The `ExecPolicy::StrictOMP` case
+label at `MD_rhs_core.cpp:802-811` (per PR-A audit against SHUD pin
+9a422e5; PR-F implementer to re-verify before stubbing) is
+`#ifdef SHUD_ENABLE_OPENMP_RHS`-guarded and excluded from mode A/B
+binaries; dispatch reaches only `ExecPolicy::Serial`. PR-F will
+replace the stub once the flag is wired. With no
 `#pragma omp parallel for reduction(+:…)` in the integration hot path,
 the floating-point sum order is fixed; bit pattern of every state
 update is identical across runs and across `OMP_NUM_THREADS`.
@@ -179,12 +182,12 @@ useful prior to the StrictOMP RHS work.
 
 ### 4.1 Combined 4-case synthesis
 
-| Case      | NumEle | Platform | B/A @ N=1 | Best B speedup (B N=1 → B N=k) | Best N | Notes |
-|-----------|-------:|----------|----------:|-------------------------------:|-------:|-------|
-| keliya    |    484 | Mac      | **6.64×** overhead | 1.07× (N=8)              |   N=8  | NVEC dead at this scale |
-| qhh       |   4773 | Mac      | 1.18× overhead     | 1.00× (essentially flat) |    —   | near-neutral |
-| heihe     |   6335 | server   | 1.02× overhead     | 1.06× (N=2; saturates)   |   N=2  | neutral |
-| heihe_x4  | ~25000 | server   | 1.03× overhead     | **1.151× (N=2; saturates)** | **N=2** | first OMP win in P1e |
+| Case      | NumEle | Platform | B/A @ N=1 | Best B speedup (B N=1 → B N=k) | Best N | Speedup at SHALL-gate N=8 | Notes |
+|-----------|-------:|----------|----------:|-------------------------------:|-------:|--------------------------:|-------|
+| keliya    |    484 | Mac      | **6.64×** overhead | 1.07× (N=8)              |   N=8  | 1.07× | NVEC dead at this scale |
+| qhh       |   4773 | Mac      | 1.18× overhead     | 1.00× (essentially flat) |    —   | ≈ 1.00× | near-neutral |
+| heihe     |   6335 | server   | 1.02× overhead     | 1.06× (N=2; saturates)   |   N=2  | ≈ 1.06× | neutral |
+| heihe_x4  | ~25000 | server   | 1.03× overhead     | **1.15× (N=2; saturates)** | **N=2** | **1.149×** | first OMP win in P1e |
 
 ### 4.2 Key insight — NVEC overhead size-dependence cliff
 
@@ -202,16 +205,20 @@ in NVECTOR_OPENMP usefulness:
   (`B/A = 1.02×`) at N=1 with a weak 1.06× intra-N speedup at N=2 that
   saturates.
 - At ~25 000 cells (heihe_x4) mode B finally produces a **first OMP
-  win**: **1.151× speedup from N=1 → N=2**, then immediate saturation
-  (N=4 and N=8 are within run-to-run noise of N=2).
+  win**: **1.15× speedup from N=1 → N=2**, then immediate saturation
+  (N=4 and N=8 are within run-to-run noise of N=2). The 1.15× ceiling
+  is already reached by N=2 and held at N=8 (the SHALL-gate measurement
+  point per design.md D7 L266-267); heihe_x4 N=8 = 1.149× is the prior
+  that PR-I's mode D must materially exceed to satisfy the D7 SHALL.
 
 The N=2 saturation has a clear physical reading: NVECTOR_OPENMP wraps
 **only the vector-op fraction** of the integrator's per-step cost; in
 heihe_x4 that fraction is ≈ 15 % of total wall. Once two threads
 amortise the parallel-region overhead, the remaining 85 % serial RHS
-clamps the speedup. **The 1.15× ceiling is far below the 2× target
-from spec design D1**; therefore RHS parallelism (modes C/D via
-PR-F/G) is **essential, not optional**, for any meaningful speedup.
+clamps the speedup. **The 1.15× ceiling is far below the per-case
+speedup SHALL in design D7 (heihe ≥1.3×, heihe_x4 ≥1.5× at N=8)**;
+therefore RHS parallelism (modes C/D via PR-F/G) is **essential, not
+optional**, for any meaningful speedup.
 
 ### 4.3 Cross-build CVODE stat drift (informational)
 
@@ -249,25 +256,26 @@ tasks §2.7 last bullet.
 
 | branch | spec criterion | Phase 1 data availability | PR-E status |
 |--------|----------------|---------------------------|-------------|
-| **D12.1 (happy path)** | mode C cross-N bitwise PASS + mode C nst Δ = 0 vs mode A + per-case speedup ≥ 1.5× | mode C not yet built (requires PR-G `-fopenmp` wiring + PR-F StrictOMP impl) | **NOT verifiable yet** — placeholder for PR-I amend; phase 1 mode A SHALL ref established |
+| **D12.1 (happy path)** | mode C cross-N bitwise PASS + mode C nst Δ = 0 vs mode A + per-case speedup SHALL (heihe ≥1.3×, heihe_x4 ≥1.5× at N=8, per design D7) | mode C not yet built (requires PR-G `-fopenmp` wiring + PR-F StrictOMP impl) | **NOT verifiable yet** — placeholder for PR-I amend; phase 1 mode A SHALL ref established |
 | **D12.2 (Path 2 fallback)** | mode C cross-N FAIL | contingency, not triggered | placeholder — only relevant if PR-I observes cross-N divergence |
-| **D12.3 (Path 3 fallback)** | mode C cross-N PASS but speedup < 1.5× | contingency, would trigger PR-N block-Jacobi precond | placeholder — only relevant if PR-I observes weak speedup |
+| **D12.3 (Path 3 fallback)** | mode C cross-N PASS but BOTH cases < own threshold (heihe<1.3× AND heihe_x4<1.5× at N=8, per design D7 / tasks §4.6 AND-gate) | contingency, would trigger PR-N block-Jacobi precond | placeholder — only relevant if PR-I observes weak speedup on both cases |
 | **D12.4 (Path 4 deferred)** | none of the above pass | contingency, would trigger ADR-0003 KLU pattern spike | placeholder — only relevant if PR-I observes total failure |
 
 PR-E's role: lock in the framework so PR-I's amend has a stable
 structure to fill against. The mode B data already collected provides
 the **expected upper-bound prior** for PR-I — if mode C delivers less
-than mode B's 1.151× speedup on heihe_x4 at N=2 the work has gone
-backwards; if mode C scales past N=2 the basin is the RHS not the
-solver (master plan §6 D2-D3 anticipated outcome).
+than mode B's 1.149× heihe_x4 N=8 speedup the work has gone backwards;
+if mode C scales past N=2 the basin is the RHS not the solver (master
+plan §6 D2-D3 anticipated outcome).
 
 ### 5.2 Default assumption per spec design D12
 
 Per spec design.md L489 the **default working assumption is that PR-N
 block-Jacobi precond (D12.3) will be triggered**. PR-E does not contest
 this assumption — Phase 2 mode C/D data will either reinforce it (if
-speedup < 1.5×) or override it (if happy path holds). PR-I owns the
-override decision.
+BOTH cases < own threshold: heihe<1.3× AND heihe_x4<1.5× at N=8 per
+design D7 / tasks §4.6 AND-gate) or override it (if happy path holds).
+PR-I owns the override decision.
 
 ### 5.3 Phase 2 amend ownership
 
@@ -284,9 +292,11 @@ This section is intentionally a **placeholder** for PR-I (#317) to
 amend. The structure mirrors §2 / §3 / §5 above so PR-I's amend can
 slot into the existing skeleton:
 
-### 6.1 Phase 2 SHALL gate target (per spec design D1)
+### 6.1 Phase 2 SHALL gate target (matrix per D1; per-case speedup SHALL per D7)
 
-PR-I shall produce a mode C / mode D analogue of §2.1 / §2.2:
+PR-I shall produce a mode C / mode D analogue of §2.1 / §2.2 (D1 owns
+the 2×2 matrix experiment design only; the speedup SHALL itself lives
+in D7):
 
 - **Phase 2 AC1**: mode C produces bitwise-identical
   `<case>.rivqdown.sha256` across all 3 reps of every (case, N) cell
@@ -296,7 +306,10 @@ PR-I shall produce a mode C / mode D analogue of §2.1 / §2.2:
   stability).
 - **Phase 2 AC3**: mode C CVODE nst Δ vs mode A = 0 (strict-mode
   reproduces serial solver path bit-for-bit).
-- **Phase 2 AC4**: mode C wall-time speedup ≥ 1.5× on heihe_x4 at N≥2.
+- **Phase 2 AC4**: mode C wall-time per-case speedup SHALL at N=8 per
+  design D7 — heihe ≥ 1.3× **and** heihe_x4 ≥ 1.5×; D12.3 triggers only
+  when BOTH cases fall below their own threshold (heihe<1.3× AND
+  heihe_x4<1.5×) per tasks §4.6 AND-gate.
 
 ### 6.2 Phase 2 decision routing (PR-I fills)
 
@@ -305,8 +318,10 @@ PR-I shall declare which D12 branch fires:
 - [ ] **D12.1** triggered: ship — proceed to PR-J / PR-K capstone path.
 - [ ] **D12.2** triggered: cross-N FAIL — escalate to user (epic P1e'
       scope decision per design.md L326).
-- [ ] **D12.3** triggered: speedup < 1.5× — open new PR for block-Jacobi
-      precond within P1e (P1e.8 per design.md L327).
+- [ ] **D12.3** triggered: BOTH cases < own threshold (heihe<1.3× AND
+      heihe_x4<1.5× at N=8 per design D7 / tasks §4.6 AND-gate) —
+      open new PR for block-Jacobi precond within P1e (P1e.8 per
+      design.md L327).
 - [ ] **D12.4** triggered: total failure — defer to ADR-0003 KLU spike
       epic.
 
@@ -317,8 +332,9 @@ PR-I shall declare which D12 branch fires:
   serial bottleneck. If mode D shows the same N=2 plateau, the next
   bottleneck is the SUNDIALS linear solve (SPGMR) and the path forward
   is preconditioner / matrix-free RHS fusion (master plan §6 D2-D3).
-- **Mode B at heihe_x4 = 1.151× ceiling** is the prior; mode C/D must
-  exceed this materially to be net-positive.
+- **Mode B at heihe_x4 = 1.149× at SHALL-gate N=8** (≈ 1.15× ceiling
+  also held at N=2) is the prior; mode C/D must exceed this materially
+  to satisfy the D7 per-case SHALL (heihe_x4 ≥ 1.5×).
 - **NVEC overhead size-dependence cliff** (§4.2) suggests StrictOMP RHS
   parallelism may show the same cliff — mode C may be useless at
   keliya/qhh and only net-positive at heihe / heihe_x4 scale. PR-I
@@ -326,20 +342,14 @@ PR-I shall declare which D12 branch fires:
 
 ---
 
-## 7. PR-F readiness checklist (gating downstream work)
+## 7. PR-F readiness
 
-PR-F (`ExecPolicy::StrictOMP` implementation, #314) requires the
-following Phase 1 deliverables before it can begin replacing the
-`std::abort()` stub at `SHUD/src/Model/MD_rhs_core.cpp:802-811`:
-
-- [x] Mode A SHALL bitwise PASS (Mac + server) — PR-E §2.1 (16/16 groups PASS)
-- [x] Mode A cross-N stable (Mac + server) — PR-E §2.2 (4/4 cases PASS)
-- [x] Mode A vs B SHA diff confirms NVEC perturbation is **design-expected**, NOT a bug — PR-E §2.3 (AC4 PASS-as-designed) + §4.3 (CVODE stat drift within ±1-2 % envelope)
-- [x] Mac runtime + server runtime symmetry on mode A determinism (libomp + libgomp both PASS AC2) — PR-E §3.2
-- [x] Forward bounds documented for PR-I amend (D12 framework + Phase 2 placeholder + Mode B upper-bound prior) — PR-E §5 + §6
-- [ ] **PR-F may begin** `ExecPolicy::StrictOMP` impl per spec design D2 (single `#pragma omp parallel` enclosing `rhs_update` / `rhs_flux` / `rhs_apply` 3-phase fan-out)
-
-All blocking items are checked. PR-F is **unblocked**.
+Phase 1 SHALL gates satisfied per §2 + §3; PR-F unblocked — may begin
+`ExecPolicy::StrictOMP` impl per spec design D2 (single
+`#pragma omp parallel` enclosing `rhs_update` / `rhs_flux` /
+`rhs_apply` 3-phase fan-out), replacing the `std::abort()` stub at
+`SHUD/src/Model/MD_rhs_core.cpp:802-811` (per PR-A audit against SHUD
+pin 9a422e5; PR-F implementer to re-verify before stubbing).
 
 ---
 
@@ -350,7 +360,9 @@ The PR sequence for P1e past this verdict, in dependency order:
 - **PR-F (#314)**: implement `ExecPolicy::StrictOMP` per spec design D2
   (single `#pragma omp parallel` + 3-phase `rhs_update` / `rhs_flux` /
   `rhs_apply` fan-out). Replaces `std::abort()` stub at
-  `SHUD/src/Model/MD_rhs_core.cpp:802-811`. Unblocked by PR-E.
+  `SHUD/src/Model/MD_rhs_core.cpp:802-811` (per PR-A audit against SHUD
+  pin 9a422e5; PR-F implementer to re-verify before stubbing).
+  Unblocked by PR-E.
 - **PR-G (#315)**: Makefile `-fopenmp` wiring + per-thread split for
   mode C / mode D builds. Required to compile the StrictOMP path.
 - **PR-H (#316)**: steady-state first-touch removal per spec design D7
