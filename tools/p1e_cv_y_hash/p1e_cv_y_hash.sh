@@ -37,7 +37,7 @@
 #   stdout         "<tout-as-printed>  <sha256>" (two spaces between tout
 #                  and sha, matching `sha256sum` / `shasum -a 256` style)
 #                  sorted by filename (natural lexicographic order since
-#                  tout is zero-padded to 15.6f by the SHUD dump)
+#                  tout is zero-padded to 20.6f by the SHUD dump)
 #
 # Exit codes:
 #   0  success (and, if --expected given, all matches)

@@ -233,6 +233,7 @@ echo "[p1e_2x2_runner]   project=$PROJECT_NAME bin=$BIN_NAME out_dir=$OUT_DIR"
 # -----------------------------------------------------------------------------
 
 NEED_BUILD=1
+SENTINEL_FILE="$SHUD_ROOT/.last_build_mode_${BIN_NAME}"
 if [[ -x "$BIN_PATH" ]]; then
     # Find newest src file mtime; bash portable approach with find -newer
     newest_src=$(find "$SHUD_ROOT/src" -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) -newer "$BIN_PATH" -print -quit 2>/dev/null || true)
@@ -242,6 +243,20 @@ if [[ -x "$BIN_PATH" ]]; then
             NEED_BUILD=0
             echo "[p1e_2x2_runner]   binary fresh; skipping rebuild"
         fi
+    fi
+fi
+
+# F-R2-1 (Phase 4.5 verifier): A↔C share `shud` binary, B↔D share `shud_omp`.
+# mtime-only freshness check misses build-flag changes (SHUD_ENABLE_OPENMP_RHS),
+# so a cell silently runs the WRONG binary across A↔C / B↔D rotations. The
+# sentinel records which build mode last produced the binary; mismatch forces
+# a rebuild. Sentinel lives under SHUD/ (alongside the binary) and is excluded
+# via SHUD/.git/info/exclude pattern `.last_build_mode_*`.
+if [[ "$NEED_BUILD" -eq 0 ]]; then
+    LAST_BUILD=$(cat "$SENTINEL_FILE" 2>/dev/null || echo "")
+    if [[ "$LAST_BUILD" != "$BUILD" ]]; then
+        NEED_BUILD=1
+        echo "[p1e_2x2_runner]   build mode changed (${LAST_BUILD:-<none>} -> ${BUILD}); forcing rebuild"
     fi
 fi
 
@@ -255,6 +270,9 @@ if [[ "$NEED_BUILD" -eq 1 ]]; then
         tail -30 "$OUT_DIR/build.log" >&2 || true
         exit 2
     fi
+    # F-R2-1 (Phase 4.5 verifier): record which build mode produced this
+    # binary so the next invocation can detect A↔C / B↔D flag changes.
+    echo "$BUILD" > "$SENTINEL_FILE"
 fi
 
 if [[ ! -x "$BIN_PATH" ]]; then
@@ -266,6 +284,16 @@ fi
 # Prepare clean output directory in the case tree
 # -----------------------------------------------------------------------------
 
+# F-R1-4 (Phase 4.5 verifier): defensive guard. PROJECT_NAME parse failure
+# would leave OUTPUT_DIR_ABS at <case_dir>/output/.out — refusing to wipe
+# protects against silent destruction of unrelated SHUD output trees.
+if [[ -z "$PROJECT_NAME" ]] || [[ "$OUTPUT_DIR_ABS" == */output/.out ]]; then
+    echo "error: refusing to clear suspicious OUTPUT_DIR_ABS=$OUTPUT_DIR_ABS" >&2
+    exit 1
+fi
+# F-R2-4 (Phase 4.5 verifier): wipes per-cell SHUD output tree. --keep only
+# preserves cv_y_*.bin until the NEXT cell run wipes this directory; cell-local
+# copies under $OUT_DIR are the durable artifacts.
 rm -rf "$OUTPUT_DIR_ABS"
 mkdir -p "$OUTPUT_DIR_ABS"
 
@@ -349,7 +377,7 @@ CV_Y_OUT="$OUT_DIR/cv_y_hash.txt"
 : > "$CV_Y_OUT"
 
 # Use python-style globbing: list cv_y_*.bin sorted by name (numeric tout in
-# filename gives natural lexicographic order because we zero-pad to 15.6f).
+# filename gives natural lexicographic order because we zero-pad to 20.6f).
 shopt -s nullglob
 cv_y_files=("$OUTPUT_DIR_ABS"/cv_y_*.bin)
 shopt -u nullglob

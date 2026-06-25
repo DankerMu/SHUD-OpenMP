@@ -39,10 +39,16 @@
 
 #SBATCH --job-name=p1e_2x2___BUILD____CASE___N__N___rep__REP__
 #SBATCH --partition=CPU
+# F-R2-2 (Phase 4.5 verifier): Single-node pin (cn05) intentional — keeps wall-time
+# comparable across 192 cells (avoids cross-node CPU SKU variance). PR-D wrapper may
+# parameterize as __NODE__ placeholder if pool-spread variance is acceptable for that batch.
 #SBATCH --nodelist=cn05
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=__N__
 #SBATCH --time=01:00:00
+# F-R1-2 (Phase 4.5 verifier): PR-D wrapper SHALL `mkdir -p
+# /scratch/frd_muziyao/SHUD-OpenMP/.p1e-runs/2x2/logs/` BEFORE
+# `sbatch <rendered>.sbatch`. Slurm fails-open on missing log parent dir.
 #SBATCH --output=/scratch/frd_muziyao/SHUD-OpenMP/.p1e-runs/2x2/logs/p1e_2x2___BUILD____CASE___N__N___rep__REP__.out
 #SBATCH --error=/scratch/frd_muziyao/SHUD-OpenMP/.p1e-runs/2x2/logs/p1e_2x2___BUILD____CASE___N__N___rep__REP__.err
 
@@ -79,14 +85,20 @@ date -u +"[p1e_2x2_sbatch] start_utc=%Y-%m-%dT%H:%M:%SZ"
 # Cell execution (delegates to driver script)
 # ----------------------------------------------------------------------------
 
+# F-R1-1 (Phase 4.5 verifier): `set -euo pipefail` above would abort BEFORE
+# RC capture on driver non-zero exit, making the report below dead code.
+# Bracket with `set +e ... set -e` so the wrapper always logs driver_exit_code
+# (cell triage relies on this line in the .out log).
+set +e
 tools/p1e_2x2_runner.sh \
     --case __CASE__ \
     --build __BUILD__ \
     --N __N__ \
     --rep __REP__ \
     --out-dir "/scratch/frd_muziyao/SHUD-OpenMP/.p1e-runs/2x2/__BUILD____CASE___N__N___rep__REP__"
-
 RC=$?
+set -e
+
 date -u +"[p1e_2x2_sbatch] end_utc=%Y-%m-%dT%H:%M:%SZ"
 echo "[p1e_2x2_sbatch] driver_exit_code=$RC"
 exit $RC
