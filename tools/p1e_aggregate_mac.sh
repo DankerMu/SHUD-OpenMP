@@ -94,8 +94,8 @@ cvode_field() {
 # --------------------------------------------------------------------------
 
 emit_roster() {
-    echo "| cell | build | case | N | rep | wall_sec | cvode_nst | cvode_nfe | cvode_nje | rivqdown_sha12 | cv_y_h0_sha12 |"
-    echo "|------|:-----:|------|--:|--:|---------:|----------:|----------:|----------:|----------------|---------------|"
+    echo "| cell | build | case | N | rep | wall_sec | cvode_nst | cvode_nfe | cvode_netf | rivqdown_sha12 | cv_y_h0_sha12 |"
+    echo "|------|:-----:|------|--:|--:|---------:|----------:|----------:|-----------:|----------------|---------------|"
     for b in "${BUILDS[@]}"; do
         for c in "${CASES[@]}"; do
             for n in "${NS[@]}"; do
@@ -104,12 +104,12 @@ emit_roster() {
                     local w=$(wall_sec "$b" "$c" "$n" "$r")
                     local nst=$(cvode_field "$b" "nst" "$c" "$n" "$r")
                     local nfe=$(cvode_field "$b" "nfe" "$c" "$n" "$r")
-                    # SHUD's cvode_stats.txt has no nje key (KLU disabled here);
-                    # netf is the closest "Jacobian-evaluation-class" proxy.
-                    local nje=$(cvode_field "$b" "netf" "$c" "$n" "$r")
+                    # CVODE error-test failure count; SHUD's cvode_stats.txt has
+                    # no separate nje key under the diagonal SPGMR setup.
+                    local netf=$(cvode_field "$b" "netf" "$c" "$n" "$r")
                     local rsha=$(rivq_sha "$b" "$c" "$n" "$r")
                     local csha=$(cv_y_first_hash "$b" "$c" "$n" "$r")
-                    echo "| $cell | $b | $c | $n | $r | $w | $nst | $nfe | $nje | \`${rsha:0:12}\` | \`${csha:0:12}\` |"
+                    echo "| $cell | $b | $c | $n | $r | $w | $nst | $nfe | $netf | \`${rsha:0:12}\` | \`${csha:0:12}\` |"
                 done
             done
         done
