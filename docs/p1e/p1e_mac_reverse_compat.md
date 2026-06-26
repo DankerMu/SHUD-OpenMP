@@ -240,7 +240,7 @@ Per-run lake river-network sanity log entries (`/tmp/run_C_qhh_N1_rep1.log`):
 
 `heihe` (6335 cells) and `heihe_x4` (~25k cells) are server-only production
 cases per CLAUDE.md "本地（Apple Silicon Mac）：开发 + Small/Medium baseline".
-PR-I (`docs/p1e/p1e_pr_i_server_shall.md` §3.2 AC-S2) verified mode C N=1
+PR-I (`docs/p1e/p1e_pr_i_strict_omp_verification.md` §3.2 AC-S2) verified mode C N=1
 bitwise-equality vs PR-D mode A reference on the server libgomp runtime
 at production scale:
 
@@ -356,7 +356,7 @@ done
 ```
 
 heihe + heihe_x4 transitive cite reproduction: see PR-I
-`docs/p1e/p1e_pr_i_server_shall.md` §6 reproducibility footprint.
+`docs/p1e/p1e_pr_i_strict_omp_verification.md` §6 reproducibility footprint.
 
 ---
 

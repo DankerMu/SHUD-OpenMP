@@ -291,7 +291,7 @@ matrix and amends this verdict with the actual D12 outcome.
 **Amend status**: This section was a PR-E placeholder; PR-I (#317)
 amends it with the actual mode C 24-cell server data + D12 routing
 decision per tasks §4.6.3 [PR-I 必做]. Source data:
-[`docs/p1e/p1e_pr_i_server_shall.md`](p1e_pr_i_server_shall.md) §2-§3.
+[`docs/p1e/p1e_pr_i_strict_omp_verification.md`](p1e_pr_i_strict_omp_verification.md) §2-§3.
 Aggregator: `tools/p1e_aggregate_pr_i_shall.sh`. Mode D 96-cell amend
 (per tasks §2.5.1 + §2.6.1) deferred to PR-C-phase2 / PR-D-phase2 once
 PR-G post-merge work runs; PR-I scope is mode C 24-cell only.
@@ -313,7 +313,7 @@ Run window 2026-06-25 16:41Z → 20:52Z (~4h10m parallel streams).
 
 **AC-S2 — mode C SHA == mode A reference SHA per case** (cross-mode
 bitwise equality vs PR-D #312 LOCKED mode A reference per §1.1 of
-`p1e_pr_i_server_shall.md`):
+`p1e_pr_i_strict_omp_verification.md`):
 
 | case      | mode C SHA (N=1,rep=1) | mode A reference SHA (PR-D) | match | verdict |
 |-----------|------------------------|-----------------------------|:-----:|:-------:|
@@ -404,7 +404,7 @@ small-mesh OMP overhead floor that the design D7 asymmetric thresholds
   cliff is a documented limitation, not a defect.
 
 **Cross-ref**: Full PR-I data + verdict detail in
-[`docs/p1e/p1e_pr_i_server_shall.md`](p1e_pr_i_server_shall.md):
+[`docs/p1e/p1e_pr_i_strict_omp_verification.md`](p1e_pr_i_strict_omp_verification.md):
 - §1 identity (commit / SHUD pin / binary sha256 / job IDs)
 - §2 24-cell roster (per-cell wall + nst + nfe + SHA12)
 - §3.1-3.3 AC-S1 / AC-S2 / AC-S3 verdicts
