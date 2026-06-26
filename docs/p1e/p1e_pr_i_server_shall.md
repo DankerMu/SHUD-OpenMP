@@ -348,21 +348,22 @@ The four-way D12 decision tree from tasks §2.7 / §10.4:
 
 > 4.6.2 单 case 不达 threshold（另一 case 已达）：进 partial closure 决策点（用户决策 ship vs fallback；倾向 ship 当 heihe_x4 达 1.5× 时）
 
-heihe_x4 achieves 1.729×, exceeding 1.5×. Per spec default, **PR-I recommends ship**.
+heihe_x4 achieves 1.729×, exceeding 1.5×. **SHIPPED per §4.6.2 spec preference + user confirmation** — user reviewed PR-I data and selected ship (heihe_x4 production target hits 1.5× threshold; heihe small-case 1.066× shortfall documented as design-expected OMP overhead floor per design D7 asymmetric thresholds).
 
-### 8.3 Recommended next steps
+### 8.3 Next steps (post-ship)
 
-1. **PR-I PR body** flags this as the D12 routing data point and **requests user decision** on §4.6.2 ship-vs-fallback per spec.
-2. If user confirms ship: PR-J (Mac SHALL closure) inherits the PARTIAL verdict; PR-K capstone closes P1e epic with explicit "heihe small-case overhead floor" as a known limitation (documented in p1e_summary.md per tasks §6 capstone scope).
-3. If user opts fallback: PR-N P1e.8 block-Jacobi precond is built to amortize Newton solve serial overhead and re-test heihe specifically (cost: ~1-2 weeks added P1e scope; speedup improvement uncertain because heihe Newton step is already short).
-4. **Reverse-compat warning**: PR-I confirms strict-omp RHS does not break serial path determinism (mode C SHA == mode A SHA); this guarantees PR-J `OMP_NUM_THREADS=1` reverse-compat will trivially pass.
+1. **PR-I PR body** records this as the D12 routing data point with §4.6.2 partial-closure SHIP decision (user confirmed); no fallback gate triggered.
+2. **PR-J (Mac SHALL closure)** inherits the PARTIAL verdict; PR-K capstone closes P1e epic with explicit "heihe small-case overhead floor" as a known limitation (documented in `docs/p1e/p1e_summary.md` per tasks §6 capstone scope).
+3. **Fallback NOT pursued**: PR-N P1e.8 block-Jacobi precond is NOT triggered (D12.3 AND-gate requires BOTH cases < threshold; heihe_x4 already at 1.729×). Per tasks §7.10.2 PR-K SHALL create `docs/p1e/p1e_pr_n_block_jacobi.md` placeholder note documenting non-trigger.
+4. **Reverse-compat guarantee**: PR-I confirms strict-omp RHS does not break serial path determinism (mode C SHA == mode A SHA); this guarantees PR-J `OMP_NUM_THREADS=1` reverse-compat will trivially pass.
 
 ### 8.4 amend `docs/p1e/p1e_2x2_verdict.md` Phase 2 (per tasks §4.6.3)
 
 This PR-I doc establishes the data; the actual amend of `p1e_2x2_verdict.md`
-Phase 2 chapter happens in the same PR (per tasks §4.6.3) **after** user confirms
-the D12 routing decision in §8.3 above. PR-I body explicitly asks for that
-confirmation before the merge.
+Phase 2 chapter is **completed in this PR** (per tasks §4.6.3 [PR-I 必做])
+post-user SHIP confirmation. The amend fills §6.1 (mode C 24-cell data),
+§6.2 (D12 routing — §4.6.2 partial-closure SHIP path), and §6.3 (SHIP
+rationale + heihe small-case carve-out + cross-ref to this document).
 
 ---
 

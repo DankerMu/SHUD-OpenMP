@@ -178,6 +178,8 @@ emit_acs1() {
                 all_shas+="$(rivq_sha "$c" "$n" "$r")"$'\n'
             done
         done
+        # Strip trailing empty line from heredoc accumulator; without grep -v,
+        # identical SHAs report as 2 unique instead of 1 (bash here-string adds \n)
         local uniq=$(echo "$all_shas" | grep -v '^$' | sort -u | wc -l | tr -d ' ')
         local s11=$(rivq_sha "$c" 1 1)
         local s12=$(rivq_sha "$c" 1 2)
