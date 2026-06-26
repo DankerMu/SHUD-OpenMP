@@ -107,7 +107,7 @@ the D9 fast-path eligibility is **gated only by S6b.2's outcome**.
 - design.md D8 / D9: "每个 fix 独立 commit" + "B1a/B1b 快速路径"
 - master plan §S6b L1495: "若 fix 不影响任何 benchmark 输出 ... 标记
   为'zero-impact fix'"
-- `docs/s6b3_candidates.md` (S6b.3 audit roster): single-row entry
+- `docs/b1b/s6b3_candidates.md` (S6b.3 audit roster): single-row entry
   for this candidate
 - `SHUD/B1b_CHANGELOG.md` S6b.3.1 section (this PR): mirrored
   disposition row in the single-source-of-truth changelog

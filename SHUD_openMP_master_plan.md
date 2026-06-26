@@ -113,13 +113,13 @@ SHUD 是一个全耦合水文模型，核心求解由 SUNDIALS/CVODE 驱动。�
 >
 > - **heihe**：M7 forcing trim 工具 (PR-A #212) 投产后，trimmed forcing 重测 (PR-G) 实测 `t_forcing_io = 1.90%` (远低于原 79%)，IO 主导假设解除；但 P1 实测 sp@8 = 1.08×，归因变更为 NumEle = 6335 这一 Medium 偏小规模下 OMP fork-join overhead 与 Amdahl serial fraction (B1b S2 P3–P5 owner-local gather 起点 serial) 主导。"不独立验收"条款字面保留，归因更新为 fork-join + serial-fraction 双重约束。
 > - **heihe_x4**：P1 实测 sp@8 = 1.14×，远低于 P7 strict M = 1.8×；P1 为 first OMP candidate (仅 `MD_update.cpp` 三处 owner loop)，未引入 S5d SoA、owner-local gather 并行、`OMP_CUTOFF`、N_Vector 并行；当前数据为 P1 起点报告 (master plan §1.1.2 + design D5 NG3 允许)，预期由 P2+/P7 阶段闭合至 M 列。
-> - 详见 `docs/p1_perf_baseline.md` §2、`docs/p1_summary.md` §5.2、`docs/profile_decision.md` 更新段。
+> - 详见 `docs/p1/p1_perf_baseline.md` §2、`docs/p1_summary.md` §5.2、`docs/profile_decision.md` 更新段。
 
 #### 1.1.2 约束条件
 
 - 串行与并行路径物理方程等价（同一套 RHS core）
 - strict 阶段精度等级 (按 P 子阶段分级，M9 修订)：
-  - **P1**（first parallel candidate baseline；2026-06-22 已实测）：`NUM_OPENMP=1` vs B1b/B1-tag bitwise **强制** (master plan §2.2 A0 / A1 + design `p1-update-omp` D5 NG3)；`NUM_OPENMP>1` 优先 A3a，若仅满足 A3b 或同时不满足 A3a 与 A3b 均不阻塞 P1 lock，但需在 `docs/p1_perf_baseline.md` 与 spec `p1-state-update-parallel` L205–L209 (PROMOTE 后版本) 记录 CVODE `nst` 漂移证据 + cross-ref P1c deterministic-reduction work scope。
+  - **P1**（first parallel candidate baseline；2026-06-22 已实测）：`NUM_OPENMP=1` vs B1b/B1-tag bitwise **强制** (master plan §2.2 A0 / A1 + design `p1-update-omp` D5 NG3)；`NUM_OPENMP>1` 优先 A3a，若仅满足 A3b 或同时不满足 A3a 与 A3b 均不阻塞 P1 lock，但需在 `docs/p1/p1_perf_baseline.md` 与 spec `p1-state-update-parallel` L205–L209 (PROMOTE 后版本) 记录 CVODE `nst` 漂移证据 + cross-ref P1c deterministic-reduction work scope。
   - **P1c**（deterministic-reduction 前置；M9 新增）：`NUM_OPENMP ∈ {1, 2, 4, 8}` 全部 A3a bitwise **强制**；CVODE `nst` 跨线程数完全相等（修复 P1 实测 N ≥ 4 漂移）；产物为 `P1c-tag` + `baseline/P1c` (forward-compat stacking on `P1-update-omp-tag`)。详 §6 P1c。
   - **P1d**（NUMA + first-touch + Kahan revert 收尾；M10 新增 PARTIAL CLOSURE）：4-mode spec (serial / strict-omp / det-omp / fast-omp)；`serial` mode N=1 SHALL canonical bitwise vs `P1-update-omp-tag`；`strict-omp` mode 跨 N bitwise + nst Δ=0 + N=1 reverse-compat (待 P1e 实现，本 epic 仅 spec 定义)；`fast-omp` mode (=当前 `shud_omp`) MAY 不可复现，明确 non-production。PR-C/D/E steady-state first-touch 在 owner-compute 实现前为 deprecated 无效优化，下个 epic (P1e) 重新设计。产物：`P1d-tag` + `baseline/P1d` (containment closure narrative + 指向 P1e)。详 §6 P1d。
   - **P1e**（F 路：Serial N_Vector + StrictOMP RHS；M10 新增）：`ExecPolicy::StrictOMP` 路径替换 `std::abort()` 桩；单 parallel region + phase-based for + `default(none)`；复用 `rhs_deterministic_gather()`（并行 owner 外层 + canonical fold 内层）；`NUM_RHS_THREADS` 与 `NUM_NVECTOR_THREADS` 分离；删 steady-state first-touch，保留 allocation-time first-touch；启动前 2×2 build 因果实验（A: Serial+Serial / B: NVEC+Serial=current shud_omp / C: Serial+StrictOMP=候选 production / D: NVEC+StrictOMP=research）× N∈{1,2,4,8} × 3 reps。验收：C mode 跨 N bitwise + nst Δ=0 + 加速。产物：`P1e-tag` + `baseline/P1e`。详 §6 P1e。
@@ -1658,7 +1658,7 @@ heihe_x4 上 forcing init 占 wall **60%**，CVODE 实测仅 40%。若不解决�
 
 - **`NUM_OPENMP=1` 强制门**：P1 RHS snapshot 与 B1b bitwise identical；完整 run 与 B1b bitwise identical；CVODE stats identical（全部 15 个 canonical key 字面相等）。
 - **`NUM_OPENMP>1` 允许 fallback**：优先 A3a（同线程数 bitwise）；若仅满足 A3b（ULP ≤ 4 且 `max_abs_diff < 1e-12`）不阻塞 P1 lock；若同时不满足 A3a 与 A3b，仍允许进入 P1 lock，但 SHALL 记录 CVODE `nst` 漂移证据 + cross-ref P7 final-fusion deterministic-reduction 工作范围（依据 spec `p1-state-update-parallel` L205–L209 PROMOTE 后版本 + design D5 NG3）。
-- **P1 实测 (2026-06-22)**：`NUM_OPENMP=1` 强制门 24 / 24 PASS (3 anchor)；`NUM_OPENMP>1` 在 N = 2 全 PASS bitwise，在 N ∈ {4, 8} dual-FAIL with CVODE `nst` 漂移 (heihe nst N=1/2/4/8 = 6773 / 6773 / 6585 / 6684)。详见 `docs/p1_summary.md` §5、`docs/p1_perf_baseline.md` §2。
+- **P1 实测 (2026-06-22)**：`NUM_OPENMP=1` 强制门 24 / 24 PASS (3 anchor)；`NUM_OPENMP>1` 在 N = 2 全 PASS bitwise，在 N ∈ {4, 8} dual-FAIL with CVODE `nst` 漂移 (heihe nst N=1/2/4/8 = 6773 / 6773 / 6585 / 6684)。详见 `docs/p1_summary.md` §5、`docs/p1/p1_perf_baseline.md` §2。
 
 **风险**：`Ele[i].updateElement()`/`Riv[i].updateRiver()`/`lake[i].update()` 若内部写共享对象，会破坏并行安全。需先审查。
 
@@ -2653,7 +2653,7 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | RISK-22 | `_Element` fat AoS + jagged `double**` 拖垮 cache | R1 | `Element.hpp` L63–L67, `Model_Data.hpp` L121–L122（§4.22.1, §4.22.2） | S5d.1 抽 SoA `ElementHotData`；S5d.2 jagged → 一维；保持 bitwise = B1a | S5d |
 | RISK-23 | 串行 first-touch + 无线程绑定导致 NUMA 跨节点访问 | R1 | `Model_Data::malloc_EleRiv()`, `LoadIC()`（§4.22.3, §4.22.4） | S5d.3 parallel first-touch；S5d.4 `OMP_PROC_BIND=close OMP_PLACES=cores` 写入 manifest 和 run script | S5d |
 | RISK-24 | v1.0 P8 设计基于错误的 solver 假设 | R2 | §4.17 修正：基线是 matrix-free SPGMR 非 dense | v1.1 P8 重排为 precond → tune → NVector → KLU；P8-KLU 改为评估性子阶段 | P8 |
-| RISK-25 | profile 前盲目并行 RHS，Amdahl 上限低 | R2 | RHS 占 wall-clock 比例未实测 | S0.12 强制门控：占比 < 50% 触发优先级重排；< 30% 触发战略暂停；**P1 已观测 (2026-06-22, PR-G #214 + PR-K2 #223)**：M7 forcing trim 解除 heihe IO 79% 阻塞后，新主导约束变为 NumEle = 6335 这一 Medium 偏小规模的 fork-join overhead + Amdahl serial fraction (B1b owner-local gather 起点 serial)；详 `docs/p1_perf_baseline.md` §2 | S1 前 |
+| RISK-25 | profile 前盲目并行 RHS，Amdahl 上限低 | R2 | RHS 占 wall-clock 比例未实测 | S0.12 强制门控：占比 < 50% 触发优先级重排；< 30% 触发战略暂停；**P1 已观测 (2026-06-22, PR-G #214 + PR-K2 #223)**：M7 forcing trim 解除 heihe IO 79% 阻塞后，新主导约束变为 NumEle = 6335 这一 Medium 偏小规模的 fork-join overhead + Amdahl serial fraction (B1b owner-local gather 起点 serial)；详 `docs/p1/p1_perf_baseline.md` §2 | S1 前 |
 | RISK-26 | 本地 Mac profile 数字误当目标平台承诺 | R2 | Apple Silicon 异构核心 + UMA + libomp 弱绑定，与 Linux 多 socket 集群性能特征差异大 | `docs/profile_platform.md` 强制声明两平台角色；P7/P8 量化加速比验收**只认目标平台**；两平台占比差 > 10% 触发决策复审；S5d NUMA 验收在 Apple Silicon 上 N/A，目标平台必须全验 | P7 验收前 |
 
 ### 7.3 阶段 go/no-go 汇总
@@ -2666,7 +2666,7 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | → S6a (B1a) | compute/gather 拆分完成；topology manifest 可用；**S5d 全 4 子项 bitwise = B1a 验证通过**；B1a == B0 bitwise identical |
 | → S6b (B1b) | B1a 已锁定；所有待修 bug 清单已确定 |
 | → P1 | B1b 已锁定；strict 编译选项确定；不存在共享浮点 `+=`；**`OMP_PROC_BIND=close OMP_PLACES=cores` 已写入 manifest** |
-| → P1c (M9) | P1 已锁定 + P1-update-omp-tag 已 push；P1 实测 `nst` 漂移证据已归档 (`docs/p1_perf_baseline.md` §2)；reduction 站点 grep 清单已完成（含 S2 P3–P5 gather + 候选其他 RHS reduction） |
+| → P1c (M9) | P1 已锁定 + P1-update-omp-tag 已 push；P1 实测 `nst` 漂移证据已归档 (`docs/p1/p1_perf_baseline.md` §2)；reduction 站点 grep 清单已完成（含 S2 P3–P5 gather + 候选其他 RHS reduction） |
 | → P1d (M10) | P1c PARTIAL CLOSURE 已记录 (PR-K2 #223 server 仍残 `|Δ_nst|=84`)；`P1c-tag` 已 push + `baseline/P1c` D11 protection set；P1d epic #274 已开 |
 | → P1e (M10) | P1d E′ containment closure 全部 7 项动作完成 (production 默认 `NUM_OPENMP=1` + 4-mode spec rewrite + `shud_omp` 标 fast-omp experimental + PR-C/D/E first-touch deprecation + Kahan revert 保留 + PR-K capstone + PR-L `P1d-tag` + PR-M PROMOTE)；`P1d-tag` 已 push + `baseline/P1d` lock；ADR `docs/adr/0002-solver-path.md` 已建立；openspec `p1e-strict-omp-rhs` change 已 propose；2×2 build matrix 因果实验 mode C (Serial NVec + StrictOMP RHS) 验收 PASS（跨 N bitwise + nst Δ=0 + 加速 ≥ 1.5×） |
 | → P2a (M10 改 / M11 verified) | P1e 全部完成: 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥ 1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0002 close out。**(M11 实测 verified, 2026-06-25)**：heihe 1.066× FAIL <1.3× / heihe_x4 1.729× PASS ≥1.5×；AC-S1 + AC-S2 + 6/6 cross-platform SHA matrix all PASS；`P1e-tag` annotated `25023eff32d1` / deref `11687b75` / SHUD pin `3341368d`；`baseline/P1e` D11 locked (lock_branch=true + enforce_admins=true)；ADR-0002 Status: Implemented (2026-06-25)；OpenSpec `p1e-strict-omp-rhs` + `p1e-capstone` 共 21 reqs PROMOTE 完成 |

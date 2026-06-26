@@ -1,4 +1,4 @@
-# docs/s5d_hot_fields.yaml — S5d.1 (#178) ElementHotData SoA field schema.
+# docs/b1b/s5d_hot_fields.yaml — S5d.1 (#178) ElementHotData SoA field schema.
 #
 # Source-of-truth for the ElementHotData field set. Consumed by:
 #   - SHUD/src/ModelData/MD_layout.hpp (struct declaration mirror)

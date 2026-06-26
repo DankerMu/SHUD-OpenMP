@@ -158,7 +158,7 @@ Server heihe / heihe_x4: deferred to PR-12 capstone per D10 cross-platform split
 
 ## Form (record-only)
 
-PR-3 is the rare "record-only" PR in this epic: 0 SHUD source diff + 0 SHUD pointer bump + 1 outer-repo docs commit. Differs from PR-7a / PR-7b (also record-only) which ALSO write `docs/s2_semantic_diff_report.md` entries. PR-3 currently has only this evidence file (S2.8 defer details belong here, not in the eventual `s2_semantic_diff_report.md` which is record-of-decision rather than implementation-evidence).
+PR-3 is the rare "record-only" PR in this epic: 0 SHUD source diff + 0 SHUD pointer bump + 1 outer-repo docs commit. Differs from PR-7a / PR-7b (also record-only) which ALSO write `docs/b1b/s2_semantic_diff_report.md` entries. PR-3 currently has only this evidence file (S2.8 defer details belong here, not in the eventual `s2_semantic_diff_report.md` which is record-of-decision rather than implementation-evidence).
 
 ## R10 unblock confirmation for PR-4
 

@@ -182,10 +182,10 @@ spec `p1c-deterministic-reduction` L154-157 定义 SHALL Scenario "Mac N=1 反�
   - xinanjiang_upstream N=1 = `90eeb9c6...` (L44)
   - qinyijiang N=1 = `0f8c3fec...` (L48)
   - qhh N=1 = `8a6d9b2c...` (L52)
-- P1-update-omp-tag Mac canonical **rivqdown.dat** SHA 未直接 archived 在 P1 era docs (`docs/p1_summary.md` §"§4 Mac canonical SHA" 表 + `docs/p1_fullrun_bitwise.md` §3 表均报告的是 archive_b0_output.sh **summary SHA**, 非单文件 rivqdown.dat SHA — file artifact 不同)。
+- P1-update-omp-tag Mac canonical **rivqdown.dat** SHA 未直接 archived 在 P1 era docs (`docs/p1_summary.md` §"§4 Mac canonical SHA" 表 + `docs/p1/p1_fullrun_bitwise.md` §3 表均报告的是 archive_b0_output.sh **summary SHA**, 非单文件 rivqdown.dat SHA — file artifact 不同)。
 - 已知架构等式 (server PR-J §2 实证): 8-site helper-wrap 在 NUM_OPENMP=1 (serial) bitwise-equivalent (P1 era rivqdown SHA == P1c pre-Kahan rivqdown SHA at server)。**理论上** Mac 同样应满足此等式, 但缺乏 P1 era Mac N=1 rivqdown.dat SHA 直接 reference, 不能字面验证。
 - **决定**: 将 spec L154-157 Mac SHALL Scenario 标 DEFERRED, 推 P1d stage 同时:
-  1. 在 P1d stage 重 P1-update-omp-tag binary 回 Mac 跑 NUM_OPENMP=1 → 4 case rivqdown.dat SHA, archive 进 `docs/p1_perf_baseline.md` 或 `docs/p1d/p1d_*.md`;
+  1. 在 P1d stage 重 P1-update-omp-tag binary 回 Mac 跑 NUM_OPENMP=1 → 4 case rivqdown.dat SHA, archive 进 `docs/p1/p1_perf_baseline.md` 或 `docs/p1d/p1d_*.md`;
   2. P1d NUMA 治理后, 用 P1c Kahan binary OR pre-Kahan binary 跑同 4 case → 与 step (1) 比对;
   3. 若 pre-Kahan PASS (期望, 同 server PR-J §2): 证 Mac architecture 同 server bit-equivalent at serial; spec L154-157 Scenario 闭。
 

@@ -18,7 +18,7 @@
 
 ### Requirement: P1.0 pre-audit — updateElement / updateRiver / lake.update 共享写审查
 
-audit-only PR SHALL 产 `docs/p1_audit_update_funcs.md`，逐函数列 read/write set：
+audit-only PR SHALL 产 `docs/p1/p1_audit_update_funcs.md`，逐函数列 read/write set：
 
 - `_Element::updateElement(double Ysurf, double Yunsat, double Ygw)` (`SHUD/src/classes/Element.cpp:257`) — callee 形参 Ysurf/Yunsat/Ygw 对应 caller 实参 uYsf[i]/uYus[i]/uYgw[i]；element-local read/write 是否触及任何全局 / 共享对象
 - `_River::updateRiver(double newY)` (`SHUD/src/classes/River.cpp:49`) — callee 形参 newY 对应 caller 实参 uYriv[i]；river-local read/write 是否触及任何全局 / 共享对象
@@ -35,12 +35,12 @@ audit 输出 SHALL 引用具体行号 + variable 名 + read/write 类型（如 `
 #### Scenario: safe 路径 sign-off
 
 - **WHEN** audit 三函数均 owner-local
-- **THEN** `docs/p1_audit_update_funcs.md` 结论 = (a) safe；P1.1/P1.2/P1.3 PR 可启动
+- **THEN** `docs/p1/p1_audit_update_funcs.md` 结论 = (a) safe；P1.1/P1.2/P1.3 PR 可启动
 
 #### Scenario: unsafe 路径 sign-off（D9 分类）
 
 - **WHEN** audit 发现共享写
-- **THEN** `docs/p1_audit_update_funcs.md` 结论 = (b) unsafe，且 SHALL 按 design D9 明确分类 (b.1) bitwise-stable fix（in-scope 新增第 15 sub-issue + PR-Cfix）或 (b.2) non-bitwise-stable fix（推迟 B1c-tag stacking）；本 change 据分类增加 fix sub-issue 或推迟相关 owner loop PR
+- **THEN** `docs/p1/p1_audit_update_funcs.md` 结论 = (b) unsafe，且 SHALL 按 design D9 明确分类 (b.1) bitwise-stable fix（in-scope 新增第 15 sub-issue + PR-Cfix）或 (b.2) non-bitwise-stable fix（推迟 B1c-tag stacking）；本 change 据分类增加 fix sub-issue 或推迟相关 owner loop PR
 
 #### Scenario: f_updatei audit 覆盖
 
@@ -135,7 +135,7 @@ P1 SHALL 同时验 (a) ≡ "P1 authoritative" 列；(b) 在 tag chain 一致 cas
 
 #### Scenario: per-case baseline 表对齐
 
-- **WHEN** 检查 `docs/p1_fullrun_bitwise.md` / `docs/p1_rhs_snapshot_bitwise.md`
+- **WHEN** 检查 `docs/p1/p1_fullrun_bitwise.md` / `docs/p1/p1_rhs_snapshot_bitwise.md`
 - **THEN** 每 case 验收节明确写出 baseline tag（默认 B1b-tag canonical）+ tag chain 一致性脚注
 
 ---
@@ -179,7 +179,7 @@ P1 候选 commit 上 NUM_OPENMP=1 SHALL 跑完整 90 天截断 run，4 Mac case 
 
 ### Requirement: NUM_OPENMP 1/2/4/8 scaling 测试 + A3a/A3b 报告
 
-P1 候选 commit 上 SHALL 跑 NUM_OPENMP=1/2/4/8 scaling 测试，产 `docs/p1_perf_baseline.md`，含每 case × 每 NUM_OPENMP 的：
+P1 候选 commit 上 SHALL 跑 NUM_OPENMP=1/2/4/8 scaling 测试，产 `docs/p1/p1_perf_baseline.md`，含每 case × 每 NUM_OPENMP 的：
 - wall-clock (s)
 - speedup vs NUM_OPENMP=1
 - canonical summary SHA + 与 NUM_OPENMP=1 baseline 的 bitwise/ULP 比较
@@ -190,22 +190,22 @@ scaling 测试 SHALL 覆盖：Mac 4 case 开发期参考（不计入 §1.1.1 go/
 #### Scenario: Mac scaling 报告
 
 - **WHEN** Mac 本地 4 case × 4 N（1/2/4/8）跑完
-- **THEN** `docs/p1_perf_baseline.md` 含 16 行表（case × N），每行 wall + speedup + A3a/A3b verdict
+- **THEN** `docs/p1/p1_perf_baseline.md` 含 16 行表（case × N），每行 wall + speedup + A3a/A3b verdict
 
 #### Scenario: server scaling 报告
 
 - **WHEN** server cn0X heihe + heihe_x4 × 4 N 跑完
-- **THEN** `docs/p1_perf_baseline.md` 含 8 行 server 表 + Slurm jobid 记录
+- **THEN** `docs/p1/p1_perf_baseline.md` 含 8 行 server 表 + Slurm jobid 记录
 
 #### Scenario: A3b 兜底允许通过（A3a FAIL but A3b PASS 单路径）
 
 - **WHEN** 某 NUM_OPENMP>1 配置 RHS snapshot 不通过 A3a (bitwise) 但通过 A3b (ULP≤4 + max_abs_diff < 1e-12)
-- **THEN** P1 lock 不阻塞；`docs/p1_perf_baseline.md` 标 A3b verdict + 注 "P7 final fusion 阶段调试"
+- **THEN** P1 lock 不阻塞；`docs/p1/p1_perf_baseline.md` 标 A3b verdict + 注 "P7 final fusion 阶段调试"
 
 #### Scenario: A3a + A3b dual-FAIL 状态（per F-K2-1 PROMOTE upgrade #226）
 
 - **WHEN** 某 NUM_OPENMP>1 配置（如 server N≥4 实测）RHS snapshot **同时** 不通过 A3a (bitwise) 与 A3b (max_abs_diff 远超 1e-12 threshold + max_ulp 远超 4 threshold + n_diff > 90%) — 实测案例：PR-K2 #223 server N=4/N=8 vs N=1 same-binary baseline heihe + heihe_x4 共 4-cell dual-FAIL（max_abs_diff 4-20e5 / max_ulp ~9e18 / n_diff 98.4-98.7%）
-- **THEN** P1 lock **不阻塞** per design D5 NG3 + master plan §6 P7 final-fusion deterministic-reduction debt；`docs/p1_perf_baseline.md` SHALL：(a) 标 dual-FAIL verdict（不掩饰为单 A3b fallback）；(b) 记录 CVODE `nst` drift evidence（如 heihe N=1/2/4/8 = 6773/6773/6585/6684 = 跨 N 步数 bifurcation 实证）；(c) cross-ref P7 final-fusion deterministic-reduction work scope（master plan §6 P7：fork-join 最小化 + chunk-fixed `schedule(static)` 消除 N-dependent reduction tree depth transition）；(d) 显式声明根因不在 PR-D/E/F 三 pragma 的 owner-local 设计（同一 binary 在 N=2 vs N=1 是 A3a bitwise PASS 的，dichotomy 在 N≥4 reduction-tree depth 增长时出现），后续 root-cause framing 走 F-K2-2 post-promote
+- **THEN** P1 lock **不阻塞** per design D5 NG3 + master plan §6 P7 final-fusion deterministic-reduction debt；`docs/p1/p1_perf_baseline.md` SHALL：(a) 标 dual-FAIL verdict（不掩饰为单 A3b fallback）；(b) 记录 CVODE `nst` drift evidence（如 heihe N=1/2/4/8 = 6773/6773/6585/6684 = 跨 N 步数 bifurcation 实证）；(c) cross-ref P7 final-fusion deterministic-reduction work scope（master plan §6 P7：fork-join 最小化 + chunk-fixed `schedule(static)` 消除 N-dependent reduction tree depth transition）；(d) 显式声明根因不在 PR-D/E/F 三 pragma 的 owner-local 设计（同一 binary 在 N=2 vs N=1 是 A3a bitwise PASS 的，dichotomy 在 N≥4 reduction-tree depth 增长时出现），后续 root-cause framing 走 F-K2-2 post-promote
 
 ---
 

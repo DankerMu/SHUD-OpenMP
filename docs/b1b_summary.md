@@ -128,7 +128,7 @@ Per-file SHA 与 `benchmarks/<case>/B0_output/<file>` 交叉核对：**13 个文
 | qhh (lake) | `qhh.lakqrivout.dat` | `1a9db7388316213650ebd5157ce54556172f247f8c7264c32e4d97b7d575ab2d` | `1a9db738…d575ab2d` | YES |
 | qhh (lake) | `cvode_stats.txt` | `91df2bcf9b4aa48cbafa50dfde15983a0f7b797083f82e3416454494a8a957f9` | `91df2bcf…8a957f9` | YES |
 
-合计：2 (keliya) + 3 (xinanjiang) + 2 (qinyijiang) + 5 (qhh) + 1 (heihe cvode in T2) = **13 个 byte-identical 文件**（cvode_stats 算法每 case 各一份）。详见 `docs/B0_vs_B1b_water_balance_report.md` 中进一步 6/6 closure-error PASS。
+合计：2 (keliya) + 3 (xinanjiang) + 2 (qinyijiang) + 5 (qhh) + 1 (heihe cvode in T2) = **13 个 byte-identical 文件**（cvode_stats 算法每 case 各一份）。详见 `docs/b0_vs_b1b_water_balance_report.md` 中进一步 6/6 closure-error PASS。
 
 **服务器 2-case 3-run SHA-identical（cn03 节点，遵守 Slurm 三项强制约束）**：
 
@@ -137,7 +137,7 @@ Per-file SHA 与 `benchmarks/<case>/B0_output/<file>` 交叉核对：**13 个文
 | heihe | 8662 / 8663 / 8664 (cn03) | 480 / 479 / 480 | `675c927c9f7195166a0ea10cfa246173978ca40c608860e8f0a9065b95ba8a67` | YES (`55abad28…`) |
 | heihe_x4 | 8665 / 8666 / 8667 (cn03) | 1196 / 1192 / 1191 | `3fbcbd5c0c572c8877013e3eb519f68add2281f60ea329834c8473efea646c06` | YES (`f90601ef…`) |
 
-**水量平衡（`docs/B0_vs_B1b_water_balance_report.md`）**：bitwise identity 蕴含 closure-error delta = 0（逐 bit 比较）于全部 6 个案例（4 Mac + 2 Server），远低于 spec 0.1% 相对容差门限。
+**水量平衡（`docs/b0_vs_b1b_water_balance_report.md`）**：bitwise identity 蕴含 closure-error delta = 0（逐 bit 比较）于全部 6 个案例（4 Mac + 2 Server），远低于 spec 0.1% 相对容差门限。
 
 **Go/No-Go 7 项 checklist（spec b1b-capstone）**：
 
@@ -155,9 +155,9 @@ PROMOTE 时点 7/7 PASS。
 
 ## B1b ship status — CONDITIONAL → UNCONDITIONAL (PR-19 #210 PI E2 sign-off + #205 cleared)
 
-B1b 整体已由 CONDITIONAL ship 升级为 **UNCONDITIONAL ship**（PR-19 #210 合入后生效）。caveat 清单与处置（详 `SHUD/B1b_CHANGELOG.md` S6b.2/S6b.4/S6b.5 + `docs/s217_lake_formula_audit.md` §E）：
+B1b 整体已由 CONDITIONAL ship 升级为 **UNCONDITIONAL ship**（PR-19 #210 合入后生效）。caveat 清单与处置（详 `SHUD/B1b_CHANGELOG.md` S6b.2/S6b.4/S6b.5 + `docs/b1b/s217_lake_formula_audit.md` §E）：
 
-1. **#185（S2.17 lake formula PI 审查）— RESOLVED (E2 signed)**：DankerMu 作为 `SHUD-System/SHUD` upstream organization owner 在 PR-19 #210 中签署 E2 "formula correct, no change"。design.md Open Q1 同步关闭（PI delegate qualification = upstream-org ownership；three-surface sign-off pattern = issue comment + audit doc §E + SHUD CHANGELOG addendum row）。详 `docs/s217_lake_formula_audit.md` §E.1 verdict statement 与 §E.2 Open Q1 resolution。
+1. **#185（S2.17 lake formula PI 审查）— RESOLVED (E2 signed)**：DankerMu 作为 `SHUD-System/SHUD` upstream organization owner 在 PR-19 #210 中签署 E2 "formula correct, no change"。design.md Open Q1 同步关闭（PI delegate qualification = upstream-org ownership；three-surface sign-off pattern = issue comment + audit doc §E + SHUD CHANGELOG addendum row）。详 `docs/b1b/s217_lake_formula_audit.md` §E.1 verdict statement 与 §E.2 Open Q1 resolution。
 2. **#186（S6b.2）— CLOSED-via-PI-E2 (retroactively consistent)**：PR-15 #206 的 SKIP path 在 #185 E2 sign-off 后，由"FORECAST per C8 forward-compat"升级为"consistent with signed PI E2 directive"，等价于 spec.md L29-31 Scenario "审查结论已签字跳过修改"的事后满足。
 3. **#205（`rhs_flux` lake pass-1 中 SoA/AoS sync drift）— RESOLVED (post-B1b cleanup before P1)**：SHUD commit `de75743`（fix）+ `9a376f7`（CHANGELOG 行）落于 `openmp-baseline`；外层 PR-18 #209（pointer bump `71b3a1a` → `9a376f7` + docs sync）已合入 `main`；4-case Mac（keliya / xinanjiang_upstream / qinyijiang / qhh）2-run canonical SHA 与 B1b-tag baseline 逐字节一致（bitwise-neutral on B1b benchmarks）；P-strict 前置条件清除。此 fix 同时增强了 #185 E2 verdict —— audit doc §A.4/§B.4 中 strict-reading 之忧由 SoA-sync 修复而消解（lake-side `u_effKH` 当前 SoA/AoS-coherent，正确 reflect 由 `updateLakeElement` 写入的 `KsatH` 意图）。依据 D11，此项不追溯纳入 B1b（B1b-tag annotated message 创建于 #189 immutable 时刻；本节"B1b ship status"为 post-tag doc surface 权威）。
 4. **D9 fast-path trigger #2**（S2.17 审查为 'no change' 跳过 fix）— **TRIGGERED（本 PR PR-19 #210）**。在 #205 RESOLVED + #185 E2 sign-off 后双门均通：`B1-tag` annotated tag 已创建并 alias 至 `main` HEAD（含 #205 cleanup + PI E2 sign-off）；`B1a-tag`（`f7f992c…`）与 `B1b-tag`（`18a0c908…`）保持 immutable per D11，不作 force-update；下游 P1+ 工作 SHOULD 以 `B1-tag` 作为 canonical "B1 baseline" 引用。

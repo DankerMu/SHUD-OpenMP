@@ -8,7 +8,7 @@
 
 ## §1 P1-update-omp-tag canonical reference
 
-P1 era reference SHA from `docs/p1_perf_baseline.md:209-216` (SHUD@07c677f canonical, server cn0X 90d run):
+P1 era reference SHA from `docs/p1/p1_perf_baseline.md:209-216` (SHUD@07c677f canonical, server cn0X 90d run):
 
 | case | N=1 | N=2 (=N=1) | N=4 | N=8 |
 |---|---|---|---|---|

@@ -158,7 +158,7 @@ Issue #159 将在 PR 合入时关闭，遵循 PR-12 收尾约定 ("Closes #N" �
 
 ### 2026-06-22 update — D9 fast-path chain RESOLVED
 
-- **#185 PI review CLOSED** — PR-19 #210 capstone delivered S2.17 lake formula PI E2 sign-off (`docs/s217_lake_formula_audit.md` §E final verdict) + B1-tag annotated tag created aliasing main HEAD at fast-path trigger #2.
+- **#185 PI review CLOSED** — PR-19 #210 capstone delivered S2.17 lake formula PI E2 sign-off (`docs/b1b/s217_lake_formula_audit.md` §E final verdict) + B1-tag annotated tag created aliasing main HEAD at fast-path trigger #2.
 - **#186 RESOLVED** — see PR-19 #210 / s217 audit §E disposition.
 - **D9 fast-path triggers #1/#2/#3 全部 resolved**: B1b-tag (PR-16 #207) + B1-tag (PR-19 #210) + this S6b.3 audit (PR merge time) 全部 successful。
 - **S6b.3 itself**: candidate #159 verdict NOT-A-BUG auto-resolved + #159 closed on PR-12 #156 merge time per closing convention.

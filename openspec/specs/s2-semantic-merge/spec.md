@@ -206,22 +206,22 @@ Qe2r_Sub[iEle] += -QsegSub[i];
 
 ### Requirement: S2.12 uncoupled 路径 clamp 差异记录
 
-工程 SHALL 在 `docs/s2_semantic_diff_report.md` 记录 `f_updatei()`（uncoupled 路径，`SHUD/src/ModelData/MD_update.cpp:3-59`）与 `f_update()`（coupled 路径，L60-147）之间 `max(0, Y)` clamp 差异；当前方案以 coupled 路径为并行主线，uncoupled 暂不纳入并行改造（master plan §5 S2.12 原则）。
+工程 SHALL 在 `docs/b1b/s2_semantic_diff_report.md` 记录 `f_updatei()`（uncoupled 路径，`SHUD/src/ModelData/MD_update.cpp:3-59`）与 `f_update()`（coupled 路径，L60-147）之间 `max(0, Y)` clamp 差异；当前方案以 coupled 路径为并行主线，uncoupled 暂不纳入并行改造（master plan §5 S2.12 原则）。
 
 #### Scenario: uncoupled clamp 差异 record-only
 
 - **WHEN** S2.12 record 在 PR-7a 中 merge
-- **THEN** `docs/s2_semantic_diff_report.md` SHALL 包含一节 "S2.12 uncoupled 路径 clamp 差异" 按 schema 字段写明（详见 `docs/s2_semantic_diff_report.md` schema Requirement）
+- **THEN** `docs/b1b/s2_semantic_diff_report.md` SHALL 包含一节 "S2.12 uncoupled 路径 clamp 差异" 按 schema 字段写明（详见 `docs/b1b/s2_semantic_diff_report.md` schema Requirement）
 - **THEN** SHUD 源码 `MD_update.cpp` `f_updatei()` 函数 body SHALL 未被本 change 改动
 
 ### Requirement: S2.13 全局变量裸指针记录
 
-工程 SHALL 在 `docs/s2_semantic_diff_report.md` 记录 `uYsf` / `uYus` / `uYgw` / `uYriv` / `uYlake` / `timeNow` 6 个全局变量裸指针的当前使用模式（读/写时机），不做迁移；迁移延迟到 P8+ / LibSHUD / Reentrant RHS 阶段（master plan §5 S2.13 原则）。
+工程 SHALL 在 `docs/b1b/s2_semantic_diff_report.md` 记录 `uYsf` / `uYus` / `uYgw` / `uYriv` / `uYlake` / `timeNow` 6 个全局变量裸指针的当前使用模式（读/写时机），不做迁移；迁移延迟到 P8+ / LibSHUD / Reentrant RHS 阶段（master plan §5 S2.13 原则）。
 
 #### Scenario: 全局变量裸指针 record-only
 
 - **WHEN** S2.13 record 在 PR-7a 中 merge
-- **THEN** `docs/s2_semantic_diff_report.md` SHALL 包含一节 "S2.13 全局变量裸指针" 按 schema 字段写明每个变量的 `读 by:` / `写 by:` / `赋值时机:` + 处置决策 "推迟到 P8+ Reentrant RHS"
+- **THEN** `docs/b1b/s2_semantic_diff_report.md` SHALL 包含一节 "S2.13 全局变量裸指针" 按 schema 字段写明每个变量的 `读 by:` / `写 by:` / `赋值时机:` + 处置决策 "推迟到 P8+ Reentrant RHS"
 - **THEN** SHUD 源码 `shud.cpp` / `Macros.hpp` 全局变量定义 SHALL 未被本 change 改动
 
 ### Requirement: S2.14 `ET()` 孤立 `#pragma omp for` 移除 + 16 个标量移入循环体
@@ -237,27 +237,27 @@ Qe2r_Sub[iEle] += -QsegSub[i];
 
 ### Requirement: S2.15 `AccTemperature.getACC()` 除零 record + B1b 修复占位
 
-工程 SHALL 在 `docs/s2_semantic_diff_report.md` 记录 `AccTemperature.hpp:60-62` 的 `que.size()==0` 时除零 → NaN 风险；本 change（B1a 阶段）**不**修复（修会改输出违反 B1a==B0）；修复推迟到 B1b S6a 阶段（master plan §5 S2.15 原则）。
+工程 SHALL 在 `docs/b1b/s2_semantic_diff_report.md` 记录 `AccTemperature.hpp:60-62` 的 `que.size()==0` 时除零 → NaN 风险；本 change（B1a 阶段）**不**修复（修会改输出违反 B1a==B0）；修复推迟到 B1b S6a 阶段（master plan §5 S2.15 原则）。
 
 #### Scenario: AccTemperature 除零 record-only
 
 - **WHEN** S2.15 record 在 PR-7a 中 merge
-- **THEN** `docs/s2_semantic_diff_report.md` SHALL 包含一节 "S2.15 AccTemperature 除零" 按 schema 字段写明 file:line + 风险描述 + 处置决策 "B1b/S6a 修复（加 guard `que.empty() ? 0.0 : ACC/que.size()`）"
+- **THEN** `docs/b1b/s2_semantic_diff_report.md` SHALL 包含一节 "S2.15 AccTemperature 除零" 按 schema 字段写明 file:line + 风险描述 + 处置决策 "B1b/S6a 修复（加 guard `que.empty() ? 0.0 : ACC/que.size()`）"
 - **THEN** SHUD 源码 `AccTemperature.hpp` `getACC()` 函数 body SHALL 未被本 change 改动
 
 ### Requirement: S2.16 OpenMP N_Vector 当前使用已由 S1d.3–S1d.5 解决
 
-工程 SHALL 在 `docs/s2_semantic_diff_report.md` 确认 `shud.cpp:58-59` 的 `N_VNew_OpenMP` 使用已由 S1d.3 (`SHUD_USE_OPENMP_NVECTOR` 宏) + S1d.4 (`N_VGetArrayPointer` 统一) + S1d.5 (`N_VDestroy` generic) 三个步骤解决；S2 阶段**无需额外处理**（master plan §5 S2.16 原则 + §4.21 + §4.13）。
+工程 SHALL 在 `docs/b1b/s2_semantic_diff_report.md` 确认 `shud.cpp:58-59` 的 `N_VNew_OpenMP` 使用已由 S1d.3 (`SHUD_USE_OPENMP_NVECTOR` 宏) + S1d.4 (`N_VGetArrayPointer` 统一) + S1d.5 (`N_VDestroy` generic) 三个步骤解决；S2 阶段**无需额外处理**（master plan §5 S2.16 原则 + §4.21 + §4.13）。
 
 #### Scenario: N_Vector 当前使用确认零 action
 
 - **WHEN** S2.16 record 在 PR-7a 中 merge
-- **THEN** `docs/s2_semantic_diff_report.md` SHALL 包含一节 "S2.16 OpenMP N_Vector 当前使用" 按 schema 字段写明 "已由 S1d.3-S1d.5 解决，零 action"
+- **THEN** `docs/b1b/s2_semantic_diff_report.md` SHALL 包含一节 "S2.16 OpenMP N_Vector 当前使用" 按 schema 字段写明 "已由 S1d.3-S1d.5 解决，零 action"
 - **THEN** S1 grep gate `N_VDestroy_Serial 0 hits` SHALL 持续生效（B1a 期间 grep gate Requirement 已覆盖）
 
 ### Requirement: S2.17 `fun_Ele_sub()` lake 分支 assert + 公式变更推迟
 
-工程 SHALL 在 `SHUD/src/ModelData/MD_ElementFlux.cpp` `fun_Ele_sub()` 的 lake 分支入口（L107 附近）加 `assert(inabr >= 0)` 防御性检查；SHALL 在 `docs/s2_semantic_diff_report.md` 记录 lake element `u_effKH` 赋值来源和物理意义分析；本 change（B1a 阶段）**不**改公式（master plan §5 S2.17 原则 + §4.18）。
+工程 SHALL 在 `SHUD/src/ModelData/MD_ElementFlux.cpp` `fun_Ele_sub()` 的 lake 分支入口（L107 附近）加 `assert(inabr >= 0)` 防御性检查；SHALL 在 `docs/b1b/s2_semantic_diff_report.md` 记录 lake element `u_effKH` 赋值来源和物理意义分析；本 change（B1a 阶段）**不**改公式（master plan §5 S2.17 原则 + §4.18）。
 
 #### Scenario: S2.17 assert 加入 + DEBUG 6 case 不 trigger + record diff
 
@@ -265,16 +265,16 @@ Qe2r_Sub[iEle] += -QsegSub[i];
 - **AND** 6 case bitwise 集（4-case Mac local + heihe + heihe_x4 server）DEBUG build (`make shud DEBUG=1`) 跑 90-day truncation
 - **THEN** `assert(inabr >= 0)` SHALL **不**在任何 case trigger（验证 `lakenabr[]` 数据流确保 `inabr >= 0`）；若 trigger SHALL 升级为 BLOCKER 阻塞 PR-7b merge，回到 brainstorming 重新决定是否需要在 B1a 内修公式（违反 B1a==B0 → 必须独立 B1b 阶段）
 - **THEN** RELEASE build 6 case `rivqdown.dat` + CVODE 15-key SHALL bitwise = B0-tag
-- **THEN** `docs/s2_semantic_diff_report.md` SHALL 包含一节 "S2.17 fun_Ele_sub lake 分支" 按 schema 字段写明 file:line + 处置决策 "S2 加 assert，公式变更推迟到 B1b/S6a"
+- **THEN** `docs/b1b/s2_semantic_diff_report.md` SHALL 包含一节 "S2.17 fun_Ele_sub lake 分支" 按 schema 字段写明 file:line + 处置决策 "S2 加 assert，公式变更推迟到 B1b/S6a"
 
-### Requirement: `docs/s2_semantic_diff_report.md` schema
+### Requirement: `docs/b1b/s2_semantic_diff_report.md` schema
 
-工程 SHALL 新建 `docs/s2_semantic_diff_report.md` markdown 文件，包含 S2.12 / S2.13 / S2.15 / S2.16 / S2.17 共 5 项 record-only 子项的处置决策。每项 SHALL 按以下 7 字段 schema 写入。
+工程 SHALL 新建 `docs/b1b/s2_semantic_diff_report.md` markdown 文件，包含 S2.12 / S2.13 / S2.15 / S2.16 / S2.17 共 5 项 record-only 子项的处置决策。每项 SHALL 按以下 7 字段 schema 写入。
 
 #### Scenario: schema 字段完整 + 5 项齐全
 
 - **WHEN** PR-7a (record-only 4 项) + PR-7b (S2.17 补完) merge
-- **THEN** `docs/s2_semantic_diff_report.md` 顶层 SHALL 包含 5 个 markdown section: `## S2.12 ...` / `## S2.13 ...` / `## S2.15 ...` / `## S2.16 ...` / `## S2.17 ...`
+- **THEN** `docs/b1b/s2_semantic_diff_report.md` 顶层 SHALL 包含 5 个 markdown section: `## S2.12 ...` / `## S2.13 ...` / `## S2.15 ...` / `## S2.16 ...` / `## S2.17 ...`
 - **THEN** 每个 section SHALL 包含以下 7 字段（按顺序）:
   1. `**Master plan reference:**` — verbatim 引用 master plan §5 S2.x 段落开头一句话
   2. `**File:line(s):**` — 涉及代码的精确 file:line（如 `SHUD/src/ModelData/MD_update.cpp:3-59`）
@@ -299,4 +299,4 @@ Qe2r_Sub[iEle] += -QsegSub[i];
 - **THEN** `grep -n 'LEGACY_RHS' SHUD/Makefile` SHALL = 0 hits
 - **THEN** `.github/workflows/serial-baseline.yml` matrix SHALL 只跑 `LEGACY_RHS=0` 单轴（不再有 `LEGACY_RHS=1` 配置）+ 新增 `MD_f_omp.cpp 0 hits` grep gate step
 - **THEN** 6 case bitwise 集 `rivqdown.dat` + CVODE 15-key SHALL bitwise = B0-tag
-- **THEN** `docs/s2_semantic_diff_report.md` SHALL 完整（5 项 record-only + S2 capstone 时间线 section 追加）
+- **THEN** `docs/b1b/s2_semantic_diff_report.md` SHALL 完整（5 项 record-only + S2 capstone 时间线 section 追加）

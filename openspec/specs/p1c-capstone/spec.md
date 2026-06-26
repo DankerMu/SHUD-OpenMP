@@ -78,7 +78,7 @@ P1c capstone SHALL 产 3 个 docs (位置 / 模板 / 必要内容如下表)：
 | 文档 | 模板锚 | 必要内容 |
 |---|---|---|
 | `docs/p1c/p1c_summary.md` | `docs/p1_summary.md` ≥7 topic 结构 (per F-M-2 upgrade) | **必备 ≥7 topic**：(1) 完成定义 / (2) 旧版错误复盘 [P1c 无独立旧版时写一行 "不适用 — P1c 为 P1 后置新阶段"] / (3) P1c-tag 处理 / (4) 时间线 / (5) hand-off → P2a / (6) capstone 验证结果 / (7) 验证 P1c-tag；实际写作可深至 9–12 节 (deeper sub-section inline 在所属 topic 内) |
-| `docs/p1c/p1c_perf_baseline.md` | `docs/p1_perf_baseline.md` §2 服务器 scaling | PR-K2 复跑 8-cell A3a + nst 跨 N 表 + wall 数据 + 与 P1 实测的对比 + Kahan 引入与否说明 + Mac 辅助预筛节 (若执行) |
+| `docs/p1c/p1c_perf_baseline.md` | `docs/p1/p1_perf_baseline.md` §2 服务器 scaling | PR-K2 复跑 8-cell A3a + nst 跨 N 表 + wall 数据 + 与 P1 实测的对比 + Kahan 引入与否说明 + Mac 辅助预筛节 (若执行) |
 | `docs/p1c/p1c_a3a_root_cause.md` | 新文档 (吸收 F-K2-2 reviewer finding) | 4 项必备字段 (per "p1c_a3a_root_cause 吸收 F-K2-2 + 量化数据" Scenario)：(a) pre-fix DY divergence first-occurrence step + element ID + bit-level diff；(b) post-fix same probe showing zero divergence；(c) per-site ULP delta table (8 站点 × N {2,4,8})；(d) 显式 confirm/refute tree-reduction-depth N>2 hypothesis with data |
 
 #### Scenario: 三 docs 存在且填好

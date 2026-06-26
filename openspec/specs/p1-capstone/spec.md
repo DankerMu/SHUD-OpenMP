@@ -23,7 +23,7 @@ P1 capstone PR squash-merge 到 `main` 后，SHALL 创建 annotated tag `P1-upda
 - 7-bullet P1 fix 列表（element loop / river loop / lake loop / P1.0 audit clear / RHS snapshot vs B1b PASS / full-run vs B1b PASS / CVODE stats identical）
 - Mac 4 case canonical SHA + server 2 case rivqdown SHA 表
 - M7 forcing trim 状态（6-case trim PASS + kashigeer N/A + Opt-IO 决策结果引用）
-- scaling 实测概要（NUM_OPENMP=1/2/4/8 加速比 + A3a/A3b verdict 引用 `docs/p1_perf_baseline.md`）
+- scaling 实测概要（NUM_OPENMP=1/2/4/8 加速比 + A3a/A3b verdict 引用 `docs/p1/p1_perf_baseline.md`）
 
 tag 创建后 SHALL 立即 push 到 origin。
 

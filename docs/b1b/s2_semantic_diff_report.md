@@ -2,7 +2,7 @@
 
 ## 背景与定义
 
-本文档依据 `openspec/changes/b1a-finalization/specs/s2-semantic-merge/spec.md` 中"`docs/s2_semantic_diff_report.md` schema" Requirement 的规定编写。S2 阶段对 SHUD 源码进行语义合并 (semantic merge) 审计，其中部分子项属于"仅记录 (record-only)"类别——即识别出差异但暂不在 B1a 阶段实施代码修改，理由是相关改动可能破坏 B1a 与 B0 之间的按位一致 (bitwise identical) 约束，或属于跨阶段决策耦合 (cross-stage decision coupling) 范畴，应推迟至 B1b 或更后续阶段处理。
+本文档依据 `openspec/changes/b1a-finalization/specs/s2-semantic-merge/spec.md` 中"`docs/b1b/s2_semantic_diff_report.md` schema" Requirement 的规定编写。S2 阶段对 SHUD 源码进行语义合并 (semantic merge) 审计，其中部分子项属于"仅记录 (record-only)"类别——即识别出差异但暂不在 B1a 阶段实施代码修改，理由是相关改动可能破坏 B1a 与 B0 之间的按位一致 (bitwise identical) 约束，或属于跨阶段决策耦合 (cross-stage decision coupling) 范畴，应推迟至 B1b 或更后续阶段处理。
 
 每个 record-only 子项依统一的 7 字段 schema 描述：master plan 引用、文件行号、风险与观测、处置决策、推迟理由、验证手段、关联未来 issue。
 

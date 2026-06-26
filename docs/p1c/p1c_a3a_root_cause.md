@@ -185,7 +185,7 @@ patch 再生于 `git apply` 失败前 SHALL 重新 rebase 到当前 HEAD (helper
 
 ### (a) pre-fix DY divergence first-occurrence
 
-**Server PR-K2 #223 实测 reference** (heihe nst 数据见 `docs/p1_summary.md` + `docs/p1_perf_baseline.md` + `docs/build_manifest.md`; heihe_x4 nst 数据见 `docs/p1_perf_baseline.md`; F-K2-2 reviewer finding tracking in P1 fullrun review): heihe `nst` 跨 N ∈ {1,2,4,8} = 6773/6773/**6585**/**6684**, heihe_x4 `nst` = 6571/6571/**6570**/**6572**; PR-H 二跑 success gate 要求 spec L172 Δ=0 强制 (heihe) + heihe_x4 Δ=0 with optional SPGMR-noise ladder (per design D6).
+**Server PR-K2 #223 实测 reference** (heihe nst 数据见 `docs/p1_summary.md` + `docs/p1/p1_perf_baseline.md` + `docs/build_manifest.md`; heihe_x4 nst 数据见 `docs/p1/p1_perf_baseline.md`; F-K2-2 reviewer finding tracking in P1 fullrun review): heihe `nst` 跨 N ∈ {1,2,4,8} = 6773/6773/**6585**/**6684**, heihe_x4 `nst` = 6571/6571/**6570**/**6572**; PR-H 二跑 success gate 要求 spec L172 Δ=0 强制 (heihe) + heihe_x4 Δ=0 with optional SPGMR-noise ladder (per design D6).
 
 **PR-H 首跑实测 (2026-06-22, SHUD@de9545d, post-PR-E HEAD)** (per `docs/p1c/p1c_pr_h_server_first_run.md` §3-§6):
 - heihe nst {N=1,2,4,8} = {6773, 6773, **6682**, **6548**}, |Δ_max|=225 (≫ §4.5 D9 ≤2 阈值)

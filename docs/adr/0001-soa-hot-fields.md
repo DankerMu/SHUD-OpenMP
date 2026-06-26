@@ -10,9 +10,9 @@
 
 `SHUD/src/classes/Element.hpp` 中的 `_Element` 是一个多继承 fat-AoS 容器(继承 `Triangle` / `Soil_Layer` / `Geol_Layer` / `Landcover` / `AttriuteIndex` 五层),`sizeof(_Element) = 688 bytes` (Apple clang 17 macOS / Linux GCC 13.3 Ubuntu 24.04 on cn05,实测见 `tools/check_sizeof`,跨平台一致)。Master plan §4.22.1 给出 600-1000 字节估算,实测 688 B 落在估算下沿。
 
-RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读取的字段集是 30-40 个标量(`grep -nE 'Ele\[.*\]\.<field>'` 审计结果 = 32 个,见 `docs/s5d_hot_fields.yaml`)。这些字段的物理 footprint 约 300 B / element(2 个 int[3] + 7 个 int 标量 + 4 个 double[3] + 19 个 double 标量,详细见 ADR 末附录或 `tools/check_sizeof/check_sizeof.cpp` 内 `N_INT3` / `N_INT1` / `N_DOUBLE3` / `N_DOUBLE1` 常量)。
+RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读取的字段集是 30-40 个标量(`grep -nE 'Ele\[.*\]\.<field>'` 审计结果 = 32 个,见 `docs/b1b/s5d_hot_fields.yaml`)。这些字段的物理 footprint 约 300 B / element(2 个 int[3] + 7 个 int 标量 + 4 个 double[3] + 19 个 double 标量,详细见 ADR 末附录或 `tools/check_sizeof/check_sizeof.cpp` 内 `N_INT3` / `N_INT1` / `N_DOUBLE3` / `N_DOUBLE1` 常量)。
 
-`_Element` 的另外 ~390 B 是 init / IO / calibration / 上游 rSHUD R 端 serializer 协议需要的字段(见 `docs/s5d_hot_fields.yaml` `non_hot_fields_in_Element` 列表 38 个),RHS 不读,但 AoS 一旦扫描就会把整 cache line 拉进 L1/L2,污染 cache。
+`_Element` 的另外 ~390 B 是 init / IO / calibration / 上游 rSHUD R 端 serializer 协议需要的字段(见 `docs/b1b/s5d_hot_fields.yaml` `non_hot_fields_in_Element` 列表 38 个),RHS 不读,但 AoS 一旦扫描就会把整 cache line 拉进 L1/L2,污染 cache。
 
 设计选项:
 
@@ -24,7 +24,7 @@ RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读
 **采纳选项 B**。具体形态:
 
 1. `SHUD/src/ModelData/MD_layout.hpp` 提供 `struct ElementHotData` 指针容器(每字段一个 `T*` 或 `T*_flat`,32 字段),由 `Model_Data::malloc_EleRiv()` 一次 contiguous 分配。
-2. 字段集源于 `docs/s5d_hot_fields.yaml` schema(name / type / size_per_ele / AoS_source_field),CI grep gate `tools/check_manifest/check_hot_fields.py` 保证 yaml ↔ MD_layout.hpp ↔ RHS 3 TU 三方对齐,任一漂移阻断 PR。
+2. 字段集源于 `docs/b1b/s5d_hot_fields.yaml` schema(name / type / size_per_ele / AoS_source_field),CI grep gate `tools/check_manifest/check_hot_fields.py` 保证 yaml ↔ MD_layout.hpp ↔ RHS 3 TU 三方对齐,任一漂移阻断 PR。
 3. `_Element` AoS 容器零修改。
 4. RHS hot path 三个 TU 全部改读 `hot.<field>[<idx>]` 或 `hot.<field>_flat[3*i + j]`;CI grep gate 0 `Ele[<expr>].<hot-field>` 命中。
 5. 四个 `_Element` 成员方法(`updateElement` / `updateLakeElement` / `Flux_Infiltration` / `Flux_Recharge`)仍走 AoS dispatch,调用点后立即 `Model_Data::sync_hot_dynamic(i)` 把 4 个动态字段(`u_qi` / `u_qex` / `u_effKH` / `u_satn`)从 AoS 同步到 SoA。
@@ -38,14 +38,14 @@ RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读
 - **R 端 rSHUD 协议不破**:init / IO 仍读 AoS,R 端 serializer 字段映射不需要任何修改。
 - **可演化**:若未来决定单 SoA 化,本 ADR Triggers 节给出明确触发条件,届时新增 ADR-NNNN 接力。
 - **DEBUG assertion 网**:漏字段时 DEBUG 构建立即 abort,而非 release 静默差异。
-- **机器可读 schema**:`docs/s5d_hot_fields.yaml` 是 source-of-truth;若 hot path 后续触发新字段,审计流程 = 改 yaml + 再跑 CI grep gate (`check_hot_fields.py` yaml↔layout↔RHS 三方对齐),新人也能上手。**注**:`tools/check_sizeof` 标量 sizeof 报告 tool 目前是 standalone(local + ad-hoc sbatch),尚未 wire 进 CI workflow;若未来 sizeof gate (B) 阈值降到 PASS,可考虑加入 `serial-baseline.yml`。
+- **机器可读 schema**:`docs/b1b/s5d_hot_fields.yaml` 是 source-of-truth;若 hot path 后续触发新字段,审计流程 = 改 yaml + 再跑 CI grep gate (`check_hot_fields.py` yaml↔layout↔RHS 三方对齐),新人也能上手。**注**:`tools/check_sizeof` 标量 sizeof 报告 tool 目前是 standalone(local + ad-hoc sbatch),尚未 wire 进 CI workflow;若未来 sizeof gate (B) 阈值降到 PASS,可考虑加入 `serial-baseline.yml`。
 
 ### Negative
 
 - **双写代价**:四个动态字段(`u_qi` / `u_qex` / `u_effKH` / `u_satn`)每次 `_Element` 方法调用后必须 sync 到 SoA。sync 点是 inline 函数 `Model_Data::sync_hot_dynamic(i)` (4 个 `double` 赋值),per RHS evaluation 触发 ~NumEle 次。开销可忽略(< 0.1% wall time),但代码维护成本是真的(忘加 sync 会产生 stale read)。
 - **sizeof gate 未达 < 0.20 阈值**:S5d 汇总验收 #183 Task 8.1 实测 `sizeof(ElementHotData) / sizeof(_Element) = 256 / 688 = 0.3721`(指针容器解读),`per_ele_soa_bytes / sizeof(_Element) = 300 / 688 = 0.4360`(每元素 cache footprint 解读)。两者均高于 spec L149 + master plan L1432 "< 0.20" 阈值。原因:`_Element` 实际占 688 B(估算下沿),hot field 集 ~300 B 已是 _Element 的 43.6%。这是真实的物理上界——不是 SoA 设计缺陷。详 docs/b1b_summary.md S5d 段。
 - **PR scope 膨胀**:S5d 拆 4 个 sub-step(.1 SoA 抽取 / .2 jagged flatten / .3 first-touch / .4 run_omp wrapper),review 工作量 4×;但 master plan §S5d 已分 4 节,与设计 D1 对齐。
-- **维护双源风险**:如未来有人新增 hot 字段时只改 AoS 没改 SoA,CI grep gate 会捕获 `Ele[.].<hot-field>` 0-hit 违规;若新增 SoA 字段时漏改 yaml,CI gate 同样 fail。但**新增 _Element 字段时也需要决策"这是 hot field 吗"**——这个决策点必须文档化(目前依赖 docs/s5d_hot_fields.yaml `non_hot_fields_in_Element` 节列举)。
+- **维护双源风险**:如未来有人新增 hot 字段时只改 AoS 没改 SoA,CI grep gate 会捕获 `Ele[.].<hot-field>` 0-hit 违规;若新增 SoA 字段时漏改 yaml,CI gate 同样 fail。但**新增 _Element 字段时也需要决策"这是 hot field 吗"**——这个决策点必须文档化(目前依赖 docs/b1b/s5d_hot_fields.yaml `non_hot_fields_in_Element` 节列举)。
 
 ### Risks
 
@@ -71,7 +71,7 @@ RHS hot path 三个 TU(`MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp`)实际读
 - **Master plan**:`SHUD_openMP_master_plan.md` §4.22 数据布局 L613-L691 + §S5d.1 SoA 抽取 L1385-L1402
 - **Design**:`openspec/changes/b1b-baseline-completion/design.md` D2 (SoA + AoS 双轨) + Open Q5 (单轨化触发条件)
 - **Spec**:`openspec/changes/b1b-baseline-completion/specs/s5d-data-layout-soa-numa/spec.md` Requirement "ElementHotData SoA 容器抽取" + "S5d 汇总验收 cache miss + NUMA 加速比"
-- **Schema source of truth**:`docs/s5d_hot_fields.yaml`
+- **Schema source of truth**:`docs/b1b/s5d_hot_fields.yaml`
 - **CI grep gate**:`tools/check_manifest/check_hot_fields.py`
 - **sizeof tool**:`tools/check_sizeof/check_sizeof.cpp` + `tools/check_sizeof/check_sizeof.sh`
 - **Implementation**:`SHUD/src/ModelData/MD_layout.hpp` (struct decl) + `SHUD/src/ModelData/Model_Data.cpp` `malloc_EleRiv()` (alloc + first-touch) + `SHUD/src/ModelData/Model_Data.cpp` `initialize_hot()` + `sync_hot_dynamic(i)` (sync points)

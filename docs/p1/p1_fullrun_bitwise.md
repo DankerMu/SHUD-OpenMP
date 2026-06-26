@@ -73,7 +73,7 @@ CVODE 全部 15 个规范键 (`nfe / nfeLS / nni / nli / nsetups / netf / nst / 
 
 ## 交叉链接 — A0 / A1 验证三股独立证据流
 
-1. **PR-H 规范 RHS 快照按位一致**（中段状态，`docs/p1_rhs_snapshot_bitwise.md`）— Mac 4 案例在 NUM_OPENMP=1 下对标 B1b RHS dumps 取得 12 / 12 PASS（以 `SHUD_DUMP_RHS=1` 编入的 `shud_omp`）。
+1. **PR-H 规范 RHS 快照按位一致**（中段状态，`docs/p1/p1_rhs_snapshot_bitwise.md`）— Mac 4 案例在 NUM_OPENMP=1 下对标 B1b RHS dumps 取得 12 / 12 PASS（以 `SHUD_DUMP_RHS=1` 编入的 `shud_omp`）。
 2. **PR-I 全运行规范汇总 SHA 按位一致**（本文档）— Mac 4 案例在 NUM_OPENMP=1 下对标 B1b 归档 `sha256_run1` 取得 4 / 4 PASS（串行 `shud`，经 `tools/archive_b0_output.sh` 调用）。
 3. **CI `serial-baseline / build-and-compare(keliya)`** — 在 PR-D / PR-E / PR-F / PR-H 历次合并上保持 GREEN（≥ 7 次 GREEN 运行），采用同一 `make shud` 编译路径与逐 `*.dat` SHA256 门控（`.github/workflows/serial-baseline.yml` L905-L955）。
 

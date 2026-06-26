@@ -341,7 +341,7 @@ B1b ship 状态: **PASS (UNCONDITIONAL ship)**。CONDITIONAL → UNCONDITIONAL �
 
 ### E.5 原 "纯证据包 (evidence-pack-only)" 表述 — 历史保留
 
-PR-19 #210 签字之前, 本文档为纯证据包, 不含 verdict (依 Phase-1 审计起草人惯例, 不自我主张 PI 权威)。该早期表述保留于本文档的版本历史中 (`docs/s217_lake_formula_audit.md` 的 git log); 当前 §E 反映签字后的状态, 自此为权威 (authoritative going forward)。
+PR-19 #210 签字之前, 本文档为纯证据包, 不含 verdict (依 Phase-1 审计起草人惯例, 不自我主张 PI 权威)。该早期表述保留于本文档的版本历史中 (`docs/b1b/s217_lake_formula_audit.md` 的 git log); 当前 §E 反映签字后的状态, 自此为权威 (authoritative going forward)。
 
 ### B1b ship 状态 — 由 CONDITIONAL 升级为 UNCONDITIONAL
 

@@ -5,7 +5,7 @@
 **Audit issue**: [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185) (S2.17 lake formula PI review) — **OPEN, no PI sign-off received**
 **Implementation issue**: [#186](https://github.com/DankerMu/SHUD-OpenMP/issues/186) (S6b.2 conditional fix-or-skip)
 **Follow-up issue**: [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205) (SoA/AoS sync drift surfaced during the audit — out of scope for B1b; queued for P-strict pre-req)
-**Evidence pack**: [`docs/s217_lake_formula_audit.md`](../s217_lake_formula_audit.md) (merged at PR #204)
+**Evidence pack**: [`docs/b1b/s217_lake_formula_audit.md`](../s217_lake_formula_audit.md) (merged at PR #204)
 **Status**: **zero-impact (no code change) — CONDITIONAL ship per master plan §S6b L1497 + C8 forward-compatibility**
 
 This report fulfils the spec.md L61-63 Scenario "S6b.2 跳过时 diff report 仍存在" literal contract:
@@ -21,7 +21,7 @@ Master plan §S6b L1497 reads (verbatim):
 
 > 快速路径：…S6b.1（AccTemperature 除零）只在 cryosphere 启用且前 1440 分钟触发，S6b.2（lake 公式）**可能审查后不需要改**。
 
-The evidence pack [`docs/s217_lake_formula_audit.md`](../s217_lake_formula_audit.md) §E (merged at PR #204) explicitly defers the E1/E2 verdict to the SHUD-upstream PI per `specs/s6b-bugfix-application/spec.md` L23. The Phase-1 audit author is **not** a PI delegate; design.md Open Q1 (delegate qualification governance) remains open. Absent a PI directive `S2.17: formula needs fix` arriving on #185 before the S6c (#188-#190) capstone, the de-facto path is **SKIP** — no patch is applied to `SHUD/src/ModelData/MD_ElementFlux.cpp:147` and the bitwise contract against `B1a-tag` on `qhh / heihe / heihe_x4` is preserved by construction.
+The evidence pack [`docs/b1b/s217_lake_formula_audit.md`](../s217_lake_formula_audit.md) §E (merged at PR #204) explicitly defers the E1/E2 verdict to the SHUD-upstream PI per `specs/s6b-bugfix-application/spec.md` L23. The Phase-1 audit author is **not** a PI delegate; design.md Open Q1 (delegate qualification governance) remains open. Absent a PI directive `S2.17: formula needs fix` arriving on #185 before the S6c (#188-#190) capstone, the de-facto path is **SKIP** — no patch is applied to `SHUD/src/ModelData/MD_ElementFlux.cpp:147` and the bitwise contract against `B1a-tag` on `qhh / heihe / heihe_x4` is preserved by construction.
 
 This ship is **CONDITIONAL** per master plan C8 ("永不 break userspace"): if the PI later directs E1 (formula needs fix), the C8 forward-compatibility convention applies — a follow-up `B1c-tag` would stack the fix on top of B1b without force-updating `B1b-tag` (D11 lock honoured). This is **NOT** a signed-off E2 and does **NOT** satisfy design.md D9 fast-path trigger #2.
 
@@ -49,7 +49,7 @@ Per evidence pack §D.1 the lake-branch formula at `MD_ElementFlux.cpp:147` is r
 
 ## Physical interpretation
 
-Per evidence pack §B (full text in `docs/s217_lake_formula_audit.md`):
+Per evidence pack §B (full text in `docs/b1b/s217_lake_formula_audit.md`):
 
 1. **Physics is standard at the macroscopic level** — the lake branch correctly implements lake-stage-as-aquifer-BC Darcy flux at the lake-bed seepage face, matching MODFLOW LAK7 (Merritt & Konikow 2000), ParFlow Lake, and PIHM 2.x conventions on `dh`, `grad`, `Ymean`, `A` terms.
 2. **Averaging-formula consistency** — the same `0.5 * (hot.u_effKH[i] + hot.u_effKH[inabr])` arithmetic mean is used **byte-for-byte** in the non-lake GW lateral branch at L169 (evidence pack §C). The lake-branch formula is NOT a one-off oddity.
@@ -76,7 +76,7 @@ design.md D9 trigger #2 requires `S6b.2 = "审查为'无修改'" 跳过 fix` wit
 - `openspec/changes/b1b-baseline-completion/specs/s6b-bugfix-application/spec.md` L29-31 (Scenario "审查结论已签字跳过修改" — partial match: text body satisfied, signature path replaced by C8 conditional ship) + L61-63 (Scenario "S6b.2 跳过时 diff report 仍存在" — fully satisfied by this report)
 - `openspec/changes/b1b-baseline-completion/design.md` D8 (S6b 每个 fix 独立 commit + 独立 diff report — satisfied) + D9 (fast-path trigger #2 BLOCKED) + D11 (B1b-tag 不 force-update — honoured by the C8 follow-up plan above)
 - `SHUD_openMP_master_plan.md` §S6b L1497 ("S6b.2 lake 公式可能审查后不需要改" — interpreted as a forecast, not a normative skip permission) + §C8 ("永不 break userspace") + §S2.17 (L1179-L1198) + §4.18 (L523-L541)
-- Evidence pack: [`docs/s217_lake_formula_audit.md`](../s217_lake_formula_audit.md) (merged at PR #204; sections §A live formula citation, §B physics interpretation, §C non-lake-branch comparison, §D affected-cases table, §E verdict-pending evidence summary)
+- Evidence pack: [`docs/b1b/s217_lake_formula_audit.md`](../s217_lake_formula_audit.md) (merged at PR #204; sections §A live formula citation, §B physics interpretation, §C non-lake-branch comparison, §D affected-cases table, §E verdict-pending evidence summary)
 - Issue [#185](https://github.com/DankerMu/SHUD-OpenMP/issues/185) (S2.17 PI review) — remains **OPEN**; this PR does NOT close it
 - Issue [#186](https://github.com/DankerMu/SHUD-OpenMP/issues/186) (S6b.2 fix-or-skip) — SKIP path implemented here
 - Issue [#205](https://github.com/DankerMu/SHUD-OpenMP/issues/205) (SoA/AoS sync drift) — separate scope; tracked for P-strict pre-req

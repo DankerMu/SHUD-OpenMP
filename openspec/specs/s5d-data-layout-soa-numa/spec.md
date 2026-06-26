@@ -12,14 +12,14 @@
 
 ### Requirement: ElementHotData SoA 容器抽取 RHS hot 字段
 
-系统 SHALL 新建 `SHUD/src/MD_layout.hpp` 提供 `ElementHotData` SoA 容器，承载 §4.22.1 列出的 RHS hot path 字段。最小字段集 = `int nabr_flat[NumEle*3]` / `double edge_flat[NumEle*3]` / `double area[NumEle]` / `double u_effKH[NumEle]`（其余按 §4.22.1 表完整覆盖，约 40 字段）。字段集 SHALL 从 `docs/s5d_hot_fields.yaml` 机器可读 schema（每字段：name + type + size_per_ele + AoS_source_field）派生，避免人肉对照漂移。`_Element` AoS 容器 SHALL 保留不动，用于 init / IO / calibration 非 hot path。RHS hot path 文件 `MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp` SHALL 改读 SoA 容器。
+系统 SHALL 新建 `SHUD/src/MD_layout.hpp` 提供 `ElementHotData` SoA 容器，承载 §4.22.1 列出的 RHS hot path 字段。最小字段集 = `int nabr_flat[NumEle*3]` / `double edge_flat[NumEle*3]` / `double area[NumEle]` / `double u_effKH[NumEle]`（其余按 §4.22.1 表完整覆盖，约 40 字段）。字段集 SHALL 从 `docs/b1b/s5d_hot_fields.yaml` 机器可读 schema（每字段：name + type + size_per_ele + AoS_source_field）派生，避免人肉对照漂移。`_Element` AoS 容器 SHALL 保留不动，用于 init / IO / calibration 非 hot path。RHS hot path 文件 `MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp` SHALL 改读 SoA 容器。
 
-#### Scenario: docs/s5d_hot_fields.yaml 是 ElementHotData 字段集 source-of-truth
-- **WHEN** S5d.1 实施前检查 `docs/s5d_hot_fields.yaml` 与 master plan §4.22.1 RHS hot 字段表
+#### Scenario: docs/b1b/s5d_hot_fields.yaml 是 ElementHotData 字段集 source-of-truth
+- **WHEN** S5d.1 实施前检查 `docs/b1b/s5d_hot_fields.yaml` 与 master plan §4.22.1 RHS hot 字段表
 - **THEN** yaml 字段集覆盖 §4.22.1 全部 hot 字段；ElementHotData 声明严格按 yaml 派生
 
 #### Scenario: ElementHotData 字段覆盖 §4.22.1 表全部 RHS hot 字段
-- **WHEN** 比对 `MD_layout.hpp` 中 ElementHotData 字段与 `docs/s5d_hot_fields.yaml` schema
+- **WHEN** 比对 `MD_layout.hpp` 中 ElementHotData 字段与 `docs/b1b/s5d_hot_fields.yaml` schema
 - **THEN** SoA 覆盖率 = 100%（每个 yaml 条目在 SoA 中有对应数组）
 
 #### Scenario: RHS hot path 改读 SoA

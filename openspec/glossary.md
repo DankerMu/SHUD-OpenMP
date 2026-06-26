@@ -138,7 +138,7 @@ _Avoid_: 把 nFCall 和 nfe 当同一指标；把 nFCall 写入 15-key snapshot
 数据布局。热字段从 fat-AoS `_Element` 抽成 SoA 以降 cache miss、提升 prefetch 命中。
 
 **ElementHotData**:
-RHS 热路径只读字段的 SoA 容器，S5d.1 引入，位于 `SHUD/src/ModelData/MD_layout.hpp`。包含 32 个 hot 字段（geometry 6 [Triangle] + topology 7 [AttriuteIndex] + _Element direct 14 + Geol_Layer 1 [Sy] + Landcover 4），覆盖 `MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp` 三个 RHS TU 全部 `Ele[<expr>].<field>` 访问点。字段集 source-of-truth = `docs/s5d_hot_fields.yaml`；与 `_Element` AoS 双轨保留（详 ADR-0001）；`Model_Data::sync_hot_dynamic(i)` inline 同步 4 个动态字段。
+RHS 热路径只读字段的 SoA 容器，S5d.1 引入，位于 `SHUD/src/ModelData/MD_layout.hpp`。包含 32 个 hot 字段（geometry 6 [Triangle] + topology 7 [AttriuteIndex] + _Element direct 14 + Geol_Layer 1 [Sy] + Landcover 4），覆盖 `MD_ElementFlux.cpp` / `MD_f.cpp` / `MD_ET.cpp` 三个 RHS TU 全部 `Ele[<expr>].<field>` 访问点。字段集 source-of-truth = `docs/b1b/s5d_hot_fields.yaml`；与 `_Element` AoS 双轨保留（详 ADR-0001）；`Model_Data::sync_hot_dynamic(i)` inline 同步 4 个动态字段。
 _Avoid_: 直接 `Ele[i].nabr` 访问；hot path 必须 `hot.nabr_flat[3*i+j]`
 
 **RiverHotData**:

@@ -159,7 +159,7 @@ P1c 实施完成后 SHALL 满足 A3a 强制门：
 #### Scenario: Server N=1 反向兼容: heihe + heihe_x4 与 P1-update-omp-tag server canonical SHA bitwise
 
 - **WHEN** Server cn0X P1c 实施完成后 N=1 跑 heihe + heihe_x4
-- **THEN** `sha256sum output/<case>.out/<case>.rivqdown.dat` SHALL 与 `P1-update-omp-tag` 在同 case 同 N=1 下的 server canonical SHA 字面相等 (per `docs/p1_fullrun_bitwise.md` 表)
+- **THEN** `sha256sum output/<case>.out/<case>.rivqdown.dat` SHALL 与 `P1-update-omp-tag` 在同 case 同 N=1 下的 server canonical SHA 字面相等 (per `docs/p1/p1_fullrun_bitwise.md` 表)
 
 ---
 

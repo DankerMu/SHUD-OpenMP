@@ -172,10 +172,10 @@ gh api repos/DankerMu/SHUD-OpenMP/branches/baseline/P1/protection \
 
 ## 详细证据索引
 
-- `docs/p1_audit_update_funcs.md` — PR-C 预审计
-- `docs/p1_rhs_snapshot_bitwise.md` — PR-H snapshot 12 / 12 + diagnostic addendum
-- `docs/p1_fullrun_bitwise.md` — PR-I Mac + PR-J 服务器 canonical SHA
-- `docs/p1_perf_baseline.md` — PR-K1 Mac scaling + PR-K2 服务器 scaling
+- `docs/p1/p1_audit_update_funcs.md` — PR-C 预审计
+- `docs/p1/p1_rhs_snapshot_bitwise.md` — PR-H snapshot 12 / 12 + diagnostic addendum
+- `docs/p1/p1_fullrun_bitwise.md` — PR-I Mac + PR-J 服务器 canonical SHA
+- `docs/p1/p1_perf_baseline.md` — PR-K1 Mac scaling + PR-K2 服务器 scaling
 - `docs/build_manifest.md` §"P1-update-omp-tag" — build provenance
 - `docs/status_matrix.md` 第 P1 行 — 单行汇总
 - `openspec/specs/p1-state-update-parallel/spec.md` + `openspec/specs/p1-capstone/spec.md` — PROMOTE 之后的 canonical spec

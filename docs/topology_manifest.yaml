@@ -442,7 +442,7 @@ s5d2_riv_audit:
   scope_boundary: |
     Other `_Element` `[3]` arrays (`nabr` / `edge` / `lakenabr` / `Dist2Edge`
     / `Dist2Nabor` / `avgRough`) are already in ElementHotData per PR #178
-    `docs/s5d_hot_fields.yaml`; `node` / `nabrToMe` / `slope` are classified
+    `docs/b1b/s5d_hot_fields.yaml`; `node` / `nabrToMe` / `slope` are classified
     init-only in the same manifest's deprecated_fields list. Remaining
     unaudited `_Element` small arrays = {`iupdGW[3]`, `iupdSF[3]`} — this
     audit covers exactly that set.
