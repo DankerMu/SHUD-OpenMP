@@ -21,7 +21,7 @@ P1e 不是简单 "ship strict-omp + 全 case 达 ≥1.5×" 的完美 closure：h
 
 ## §2 Epic scope
 
-13 sub-PR + PR-K capstone consolidation = **14 PR**，于 2026-06-24 → 2026-06-25 两天内完成：
+**14 PR total** (11 base sub-PR `A,B,C,D,E,F,G,H,I,J` + PR-B0 audit-required + PR-K capstone + PR-L tag + PR-M PROMOTE)，于 2026-06-24 → 2026-06-25 两天内完成：
 
 | PR | # | Scope | Status |
 |---|---|---|---|
@@ -36,7 +36,7 @@ P1e 不是简单 "ship strict-omp + 全 case 达 ≥1.5×" 的完美 closure：h
 | PR-H | #316 | SHUD MD_rhs_core.cpp: remove 3 steady-state first-touch loops + convert omp single → omp for schedule(static) per design D4/D2 | MERGED |
 | PR-I | #317 | server SHALL closure: heihe + heihe_x4 × N∈{1,2,4,8} × 3 reps = 24 cell + 3 SHALL gate verdict + D12 routing | MERGED |
 | PR-J | #318/#333 | Mac N=1 reverse-compat closure: 4 case × N=1 raw evidence + spec-canonical doc name | MERGED |
-| PR-K | #319 (本 PR) | capstone docs consolidation: 8 new docs to bring docs/p1e/ to ≥12 + spec L192 amend + ADR-0002 close-out | (本 PR) |
+| PR-K | #319 (本 PR) | capstone docs consolidation: 8 new docs to bring docs/p1e/ to **≥14** (canonical per capstone spec L7; actual count = 17) + spec L192 amend + ADR-0002 close-out | (本 PR) |
 | PR-L | TBD | `P1e-tag` annotated procedure + `baseline/P1e` lock | PENDING |
 | PR-M | TBD | OpenSpec PROMOTE 2 spec + glossary 4 new terms + jsonl entries + epic close | PENDING |
 
@@ -44,7 +44,7 @@ P1e 不是简单 "ship strict-omp + 全 case 达 ≥1.5×" 的完美 closure：h
 
 P1d epic 关闭后 carve-out 是 "真正应并行的 RHS 还没并行" — 当前 `shud_omp` 实测仅 Serial 水文 RHS + OpenMP N_Vector backend，N_Vector 内 reduction 不固定造成跨 N 不 bitwise。P1e (F 路) per ADR-0002 Path 1：
 
-1. **2×2 build matrix 因果实验** (PR-A/B/B0/C/D/E)：4 build × 4 N × 3 reps × 4 case = 192 cell。Mode A (Serial NVec + Serial RHS) 作 canonical reference；Mode B (OpenMP NVec + Serial RHS = 当前 `shud_omp`) 作 control 复现 PR-H 10-25% 散度；Mode C (Serial NVec + StrictOMP RHS) 是 P1e production 候选；Mode D (OpenMP NVec + StrictOMP RHS) 是 research 边界。
+1. **2×2 build matrix 因果实验** (PR-A/B/B0/C/D/E)：4 build × 4 N × 3 reps × 4 case = **192 cell theoretical upper bound** (Phase 1 mode A+B 全跑)；**actually executed 180 cell** (Phase 1 144 cell mode A/B + Phase 2 mode C 36 cell); mode D 96 cell deferred。详 `docs/p1e/p1e_2x2_experiment.md` §5 breakdown。Mode A (Serial NVec + Serial RHS) 作 canonical reference；Mode B (OpenMP NVec + Serial RHS = 当前 `shud_omp`) 作 control 复现 PR-H 10-25% 散度；Mode C (Serial NVec + StrictOMP RHS) 是 P1e production 候选；Mode D (OpenMP NVec + StrictOMP RHS) 是 research 边界。
 2. **rivqdown.dat tout-boundary recompute** (PR-B0)：审计发现 PCtrl-aliased output cache 是 internal cache (CV_NORMAL 模式下内部步可超过 tout)，新增 `Model_Data::recompute_for_output(N_Vector, double)` helper 在 MainLoop 内 `summary` 与 `ExportResults` 之间调 `rhs_update + rhs_flux + rhs_apply` 全链。
 3. **`ExecPolicy::StrictOMP` 实施** (PR-F)：`ExecPolicy::Serial` 之外新增第 2 case，把 `rhs_update / rhs_flux / rhs_apply / rhs_deterministic_gather` 4 个 RHS 方法的 outer call 放到单个 `#pragma omp parallel` region 内，所有线程一起 enter 每个方法。
 4. **`-fopenmp` 自动 wire + `SHUD_RHS_THREADS` env split** (PR-G)：Makefile 内 `SHUD_ENABLE_OPENMP_RHS=1` 自动加 `-fopenmp` + 不要求 user manually pass；shud.cpp startup 单点 read `SHUD_RHS_THREADS` env (`omp_set_num_threads(getenv("SHUD_RHS_THREADS")?:omp_get_max_threads())`) 形成 RHS 并行度 canonical knob，与 `OMP_NUM_THREADS` (NVECTOR 用) 解耦。

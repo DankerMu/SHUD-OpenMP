@@ -10,7 +10,7 @@ executive 层 report，面向项目所有者 + 跨 epic 复盘。详细数据 / 
 | 起 | 2026-06-24 (P1d epic capstone 关闭后 P1e intake) |
 | 止 | 2026-06-25 (PR-K capstone + 全 SHALL gate verdict 关闭) |
 | 跨度 | 2 天 |
-| PR 总数 | 11 + PR-J Phase 6 修订 (#333) + PR-K capstone = **13 PR** (+ PR-L tag + PR-M PROMOTE 待启动) |
+| PR 总数 | **14 PR total** (11 base sub-PR `A,B,C,D,E,F,G,H,I,J` + PR-B0 audit-required + PR-K capstone + PR-L tag + PR-M PROMOTE; PR-J Phase 6 修订 #333 计入 PR-J 不另算) |
 | 平均 wall（含 server Slurm + Mac local + 2×2 实验 4h10m + capstone 文档化） | ~10-12 hours engineer time |
 
 ## §2 Status

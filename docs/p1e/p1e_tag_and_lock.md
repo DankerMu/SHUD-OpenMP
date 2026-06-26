@@ -64,7 +64,7 @@ Production default: SHUD_RHS_THREADS per case (heihe `=1` carve-out / heihe_x4 `
   PR-H #316  first-touch removal + omp single→omp for
   PR-I #317  server SHALL closure (24 cell)
   PR-J #318+#333  Mac N=1 reverse-compat
-  PR-K #319  capstone docs/p1e/ ≥16 + spec amend + ADR-0002 close-out
+  PR-K #319  capstone docs/p1e/ ≥14 + spec amend + ADR-0002 close-out
   PR-L #<TBD>  P1e-tag + baseline/P1e lock (本 PR)
   PR-M #<TBD>  PROMOTE 2 spec + glossary 4 new terms + epic close
 

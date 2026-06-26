@@ -318,7 +318,7 @@ Path 1 (Serial NVec + StrictOMP RHS) 由 P1e epic 13 sub-PR 完整实施 + 验�
 
 ### 4 路 routing 实际触发分支
 
-per Validation Plan §"Decision branches" + `docs/p1e/p1e_2x2_verdict.md` §6.2 + `docs/p1e/p1e_pr_i_server_shall.md` §8.2 + `docs/p1e/p1e_2x2_experiment.md` §6：
+per Validation Plan §"Decision branches" + `docs/p1e/p1e_2x2_verdict.md` §6.2 + `docs/p1e/p1e_pr_i_strict_omp_verification.md` §8.2 + `docs/p1e/p1e_2x2_experiment.md` §6：
 
 | Branch | 触发条件 | P1e 实测 eval | 触发? |
 |---|---|---|:---:|

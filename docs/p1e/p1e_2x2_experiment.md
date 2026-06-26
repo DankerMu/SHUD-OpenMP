@@ -138,7 +138,7 @@ per `docs/p1e/p1e_pr_i_strict_omp_verification.md` §5：
 | **本 epic 实跑** | | | **180** |
 | **本 epic + mode D deferred** | | | **276 (capstone spec 上界)** |
 
-**注**：`openspec/changes/p1e-strict-omp-rhs/specs/p1e-capstone/spec.md` Requirement "docs/p1e/ ≥14 doc" Scenario 提到 "192 cell" 是 Phase 1 + Phase 2 全 4-mode 理想总数；mode D 96-cell deferred 后实跑 180 cell。capstone spec 上界数值 192 + mode D 96 = 288 (Mac 144 + server 144) 若 mode D 全跑；本 epic 实跑 180 cell 是 Phase 2 mode D 全 deferred 后的合规子集 (180 / 288 = 62.5%)。
+**注**：`openspec/changes/p1e-strict-omp-rhs/specs/p1e-capstone/spec.md` Requirement "docs/p1e/ ≥14 doc" Scenario 提到 "192 cell" 是 Phase 1 全 mode A/B × Mac+server 跨平台理想上界（与本 epic 实测 Phase 1 144 cell 区别：server scope=2 case vs Mac scope=4 case）。本 epic 实跑 180 cell = Phase 1 144 + Phase 2 mode C 36；含 mode D Phase 2 96-cell deferred 后 capstone 上界 = 180 actual + 96 deferred = **276** (Mac 132 + server 144 若 mode D 全跑); coverage = 180 / 276 = **65.2%**。
 
 ## §6 D12 routing 实际触发分支
 

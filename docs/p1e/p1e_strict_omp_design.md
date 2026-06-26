@@ -9,7 +9,7 @@ P1e PR-F (#315) + PR-H (#316) 在 `SHUD/src/Model/MD_rhs_core.cpp` 实施的 `Ex
 ```cpp
 enum class ExecPolicy {
     Serial,        // canonical — 单线程,无 #pragma omp 进入,mode A/B 使用
-    StrictOMP,     // PR-F 新增 — 单 #pragma omp parallel region,所有 RHS 方法 omp for share,mode C/D 使用
+    StrictOMP,     // PR-F 新增 — 单 #pragma omp parallel region,所有 RHS 方法 omp for share,mode C/D 使用 (mode C only in P1e; mode D deferred per tasks §2.5.1)
     // 历史 abort 桩 (P1d era ProductionOMP/...) 已删除
 };
 ```
