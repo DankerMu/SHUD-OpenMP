@@ -151,7 +151,7 @@ P2a 前置改链：原 P1c-tag + P1c.3 充分性不足 → 新前置 = `P1e-tag`
 
 ## §10 验证 P1e-tag
 
-_capstone-time SHA: filled by PR-M (#TBD-pending push) per task 5.4 + 7.22_
+_capstone-time SHA: filled by PR-M (#336) per task 5.4 + 7.22_
 
 PR-M post-PR-L-merge amend (per task 5.4 + 7.22 + spec p1e-capstone Scenario "tag 验证章 amend by PR-M")：
 
@@ -169,5 +169,4 @@ PR-M post-PR-L-merge amend (per task 5.4 + 7.22 + spec p1e-capstone Scenario "ta
 P1e-tag annotated tag message body 含 literal `<TBD>` placeholders for PR-L + PR-M PR numbers（per PR-L #335 review-loop-log F-R2-1 deferred）。Tag object immutable per D11 chain discipline；PR numbers 不通过 retagging 修正，而是在本 doc 记录映射：
 
 - PR-L → **#335** (URL: https://github.com/DankerMu/SHUD-OpenMP/pull/335)
-- PR-M → **#TBD-pending-push** (URL: https://github.com/DankerMu/SHUD-OpenMP/pull/TBD-pending-push)
-  - 注：PR-M PR# 在本 commit push + gh pr create 后通过 followup commit 填实（避免循环依赖：PR# 需 push 才能得，doc amend 在 push 前）
+- PR-M → **#336** (URL: https://github.com/DankerMu/SHUD-OpenMP/pull/336)
