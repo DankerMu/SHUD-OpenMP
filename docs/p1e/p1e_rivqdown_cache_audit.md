@@ -158,3 +158,37 @@ int f(double t, N_Vector CV_Y, N_Vector CV_Ydot, void *DS){
 
 - 本审计结论 → **PR-B0 强制要求**，PR-B0 应在 PR-B 之前进入（或 PR-B 阶段同步引入）。
 - spec.md 内 `rivqdown.dat 输出缓存 audit (P1e.0, PR-A + 必要时 PR-B0)` 的 "必要时 PR-B0" 条件 = `internal cache` → **本审计已 trigger，PR-B0 必要**。
+
+## PR-K 终稿 — audit 闭环结果 (2026-06-25)
+
+per tasks §7.6 "[PR-K] (Edit, not Write — PR-A §1.7 已建初稿) audit 结果 + 必要时的修复记录"。本节由 PR-K capstone 编辑追加，闭合本审计的整体 routing 结论 + 后续 PR 实施验证。
+
+### PR-B0 实施落地
+
+per `docs/p1e/p1e_pr_b0_rivqdown_recompute.md`：
+
+- **选项 1 选定 + broadest deterministic implementation**：新增 `Model_Data::recompute_for_output(N_Vector udata, double t)` member，在 `shud.cpp` MainLoop 内 `MD->summary(udata)` 与 `MD->CS.ExportResults(t)` 之间调用；helper 重新跑 `rhs_update + rhs_flux + rhs_apply` 全链（Phase 6 fix per Phase 4.5 verifier）从 `Y(udata)` 派生所有 PCtrl-aliased output cache，含 `QeleSubTot` / `QeleSurfTot`。
+- **覆盖范围**：QrivDown 主目标 + 全部 sibling caches (QrivUp / QrivSurf / QrivSub / QLake* / qLake* / qEle* / Qe2r_*) — 一次 RHS chain 重算覆盖 river + lake + element 所有 sibling cache，避免按 channel 手写 recompute 路径漏覆盖。
+- **scope**：仅 coupled mode (`SHUD()` MainLoop 全 implicit 模式)；uncoupled `SHUD_uncouple()` (-g CLI flag) 5 split CVode 各自 internal-step cache 不受 helper call 影响 (per `docs/p1e/p1e_pr_b0_rivqdown_recompute.md` §"Scope: coupled mode only"，与 P1e StrictOMP RHS 互斥)。
+- **perf cost**：+7.7% wall (per outer #323 Phase 6 fix，超 ±5% budget 已 explicit documented per tasks §1.7.1c)。
+
+### PR-I + PR-J 验证
+
+per `docs/p1e/p1e_pr_i_strict_omp_verification.md` AC-S2 + `docs/p1e/p1e_mac_reverse_compat.md` §3.5 6-case roll-up：
+
+- **mode C SHA == mode A reference SHA** 实测全 6/6 case PASS (heihe / heihe_x4 / keliya / xinanjiang_upstream / qinyijiang / qhh)
+- → PR-B0 helper 真实关闭了原 audit 担心的 "P1e StrictOMP RHS 上线后 rivqdown 漂移" 风险
+- → spec p1e-strict-omp-rhs Requirement "rivqdown.dat 输出缓存 audit" Scenario "internal cache 触发 PR-B0 修复" PASS
+
+### audit 闭环总结
+
+| 阶段 | 结论 |
+|---|---|
+| audit 初稿 (PR-A §1.7) | internal cache → PR-B0 trigger required |
+| PR-B0 实施 (#311) | recompute_for_output helper 落地, broadest deterministic implementation, coupled mode only |
+| 实施验证 (PR-C/D Phase 1 mode A) | mode A 自身 reps-only 守门 PASS (24-cell × 3-rep bitwise) |
+| 实施验证 (PR-I Phase 2 mode C server) | mode C SHA == mode A reference SHA 2/2 case PASS (heihe + heihe_x4) |
+| 实施验证 (PR-J Phase 2 mode C Mac N=1) | mode C SHA == mode A reference SHA 4/4 case PASS (keliya / xinanjiang_upstream / qinyijiang / qhh) |
+| **6-case roll-up** | **6/6 case PASS** → audit + PR-B0 联合 routing 闭环 |
+
+audit 文档闭环 — 本 doc 不再有 open issue。

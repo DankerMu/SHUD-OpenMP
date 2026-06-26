@@ -1,6 +1,6 @@
 # ADR-0002: solver-path — selecting parallel determinism + speedup recipe for SHUD-OpenMP
 
-- **Status**: Accepted (2026-06-24)
+- **Status**: Implemented (P1e epic close, 2026-06-25)
 - **Date**: 2026-06-24
 - **Deciders**: P1d epic team + 2 轮独立 GPT Pro 复查 (per `docs/p1d/p1d_pr_h_final_run.md` § "Post-verdict 修订")
 - **Owner**: SHUD OpenMP 改造工程 / P1d capstone → P1e epic intake
@@ -298,4 +298,53 @@ P1c epic (PARTIAL CLOSURE) + P1d epic (PARTIAL CLOSURE via E′ containment) 两
 
 ### Forthcoming ADRs
 
-- ADR-0002 (forthcoming): KLU pattern-only spike — quantify fill ratio + memory peak + factor wall for heihe + heihe_x4 + heihe_x16
+- ADR-0003 (KLU spike, forthcoming): KLU pattern-only spike — quantify fill ratio + memory peak + factor wall for heihe + heihe_x4 + heihe_x16 (renamed from "ADR-0002 (forthcoming)" by PR-K per spec p1e-capstone Scenario "ADR-0002 与 P1e 实施一致性" L154 to eliminate ADR self-reference)
+
+---
+
+## Implementation closure (P1e epic close, 2026-06-25)
+
+per tasks `p1e-strict-omp-rhs` §7.10.1: PR-K capstone 内 close out ADR-0002 (不延迟到 PR-M)，让 PR-M task 6.7 能 verify ADR 已 closed。
+
+### Path 1 SELECTED 实施成果
+
+Path 1 (Serial NVec + StrictOMP RHS) 由 P1e epic 13 sub-PR 完整实施 + 验收：
+
+- **PR-F (#315)**: `ExecPolicy::StrictOMP` impl in `SHUD/src/Model/MD_rhs_core.cpp` per design D2 (单 `#pragma omp parallel` region + 4 RHS method 调用 + omp single scaffolding)
+- **PR-G (#315)**: `SHUD/Makefile` `SHUD_ENABLE_OPENMP_RHS=1` 自动 wire `-fopenmp` (Linux) / `-Xpreprocessor -fopenmp -lomp` (Darwin) + `shud.cpp` startup 单点 read `SHUD_RHS_THREADS` env (拆为两段守门 form per tasks §3.5.2 允许)
+- **PR-H (#316)**: `MD_rhs_core.cpp` L62-95 / L169-203 / L324-354 三处 inner `#pragma omp parallel for` first-touch loops 删除 (per design D4); PR-F omp single → `omp for schedule(static)` worksharing 改造 (per design D2) + TSan-confirmed nowait 规则
+- **PR-I (#317)**: server SHALL closure — 3 SHALL gate verdict (AC-S1 跨 N bitwise PASS + AC-S2 mode C SHA == mode A reference SHA PASS + AC-S3 PARTIAL per-case threshold)
+- **PR-J (#318/#333)**: Mac N=1 reverse-compat closure — 4 case × N=1 mode C SHA == 各自 mode A reference SHA PASS (6-case roll-up 含 server PR-I 2 case)
+
+### 4 路 routing 实际触发分支
+
+per Validation Plan §"Decision branches" + `docs/p1e/p1e_2x2_verdict.md` §6.2 + `docs/p1e/p1e_pr_i_server_shall.md` §8.2 + `docs/p1e/p1e_2x2_experiment.md` §6：
+
+| Branch | 触发条件 | P1e 实测 eval | 触发? |
+|---|---|---|:---:|
+| **D12.1 (happy path)** | mode C cross-N bitwise PASS + nst Δ=0 + per-case speedup SHALL PASS (BOTH cases meet threshold) | AC-S1+S2+nst PASS, but heihe sp@8 1.066× < 1.3× → per-case SHALL not 全 met | **NOT triggered** |
+| **D12.2 (Path 2 fallback = NVECTOR_REPRO_OMP)** | mode C cross-N FAIL → 切自研 deterministic NVECTOR backend | AC-S1 PASS on both cases (cross-N bitwise) → 不触发 | **NOT triggered** |
+| **D12.3 (Path 3 fallback = SPGMR + block-Jacobi precond, PR-N)** | cross-N PASS + **BOTH cases** < own threshold (AND-gate per tasks §4.6) | heihe FAIL + heihe_x4 PASS → AND-gate **不满足** → 不触发 | **NOT triggered** (placeholder doc `docs/p1e/p1e_pr_n_block_jacobi.md` 已 PR-K 写出) |
+| **D12.4 (Path 4 deferred = ADR-0003 KLU spike)** | D12.3 触发但 fallback 失败 → KLU 深度 refactor | D12.3 未触发, 无递进条件 → 不触发 | **NOT triggered** |
+
+**实际触发**：**§4.6.2 partial-closure → SHIP** (per tasks §4.6.2 + user 决策, 详 `docs/p1e/p1e_2x2_verdict.md` §6.3-§6.4 SHIP rationale + small-case carve-out)。Path 1 实施成功；Path 2/3/4 全部留作 future epic option（per ADR-0002 §"Consequences" Positive 第 2 项 "保留 option value"）。
+
+### Decision Matrix 状态 update
+
+| Path | Status (P1e epic close) |
+|---|---|
+| 1 — Serial NVec + StrictOMP RHS | **SELECTED + Implemented (P1e epic close, 2026-06-25)** — SHIP via §4.6.2 partial-closure |
+| 2 — NVECTOR_REPRO_OMP custom backend | fallback option preserved (not triggered in P1e; future epic if needed) |
+| 3 — SPGMR + block-Jacobi precond | P2 optimization option preserved (not triggered in P1e per D12.3 AND-gate 不满足; placeholder `docs/p1e/p1e_pr_n_block_jacobi.md` documented) |
+| 4 — SPGMR → KLU | deferred to ADR-0003 spike forthcoming (not in P1e scope) |
+
+### Capstone references
+
+- `docs/p1e/p1e_summary.md` (P1e epic capstone summary, §7 verdict + §6 P1d carve-out closure)
+- `docs/p1e/p1e_2x2_verdict.md` (3 SHALL gate verdict + D12 routing decision)
+- `docs/p1e/p1e_2x2_experiment.md` (Phase 1 + Phase 2 综合 + D12 4 branch 实测 eval 表)
+- `docs/p1e/p1e_perf_baseline.md` (server PR-I 24-cell + Mac PR-J 4-cell perf data)
+- `docs/p1e/p1e_strict_omp_design.md` (ExecPolicy::StrictOMP 实现细节 + 单 parallel region rationale)
+- `docs/p1e/p1e_thread_split.md` (SHUD_RHS_THREADS vs OMP_NUM_THREADS runbook)
+- `docs/p1e/p1e_first_touch_removal.md` (PR-H 3 处删除记录 + allocation/load-time first-touch 保留 verify)
+- `docs/p1e/p1e_report.md` (P1e epic executive report)

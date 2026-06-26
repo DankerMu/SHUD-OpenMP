@@ -371,7 +371,7 @@ rationale + heihe small-case carve-out + cross-ref to this document).
 
 | Path | Purpose |
 |---|---|
-| `docs/p1e/p1e_pr_i_server_shall.md` | This document |
+| `docs/p1e/p1e_pr_i_strict_omp_verification.md` | This document |
 | `tools/p1e_aggregate_pr_i_shall.sh` | Idempotent server 24-cell aggregator + AC-S{1,2,3} gates |
 
 Per-cell artifacts live under `/scratch/frd_muziyao/SHUD-OpenMP/.p1e-i-runs/`
