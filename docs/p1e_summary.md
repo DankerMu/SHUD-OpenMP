@@ -92,9 +92,9 @@ D11 强制：tag 一次锁死，禁止 force-update。tag 创建于 PR-L #335；
 | Case | NumEle | N=1 (s) | N=8 (s) | sp@8 | threshold | per-case verdict |
 |---|---:|---:|---:|---:|---:|:---:|
 | heihe | 6335 | 504 | 473 | **1.066×** | ≥1.3× | FAIL |
-| heihe_x4 | ~25000 | 1340 | 775 | **1.729×** | ≥1.5× | PASS |
+| heihe_x4 | 40046 | 1340 | 775 | **1.729×** | ≥1.5× | PASS |
 
-AND-gate semantics (per tasks §4.6 + design D12)：`BOTH FAIL` 才触发 D12.3 block-Jacobi fallback；single case FAIL 走 §4.6.2 partial-closure 决策点。heihe small-case 1.066× 不达 1.3× threshold 不是 implementation bug，是 fork-join overhead vs per-thread workload 比的物理 limit (per `docs/p1e/p1e_perf_baseline.md` §6 三因素分析)；heihe_x4 production-target mesh (~25k cells) 1.729× ≥ 1.5× 是真正的 ROI 收益 site。
+AND-gate semantics (per tasks §4.6 + design D12)：`BOTH FAIL` 才触发 D12.3 block-Jacobi fallback；single case FAIL 走 §4.6.2 partial-closure 决策点。heihe small-case 1.066× 不达 1.3× threshold 不是 implementation bug，是 **OpenMP runtime 固定开销 + cache locality 反转 + NUMA migration 在 6335 cells 规模下的物理 limit**（per `docs/p1e/p1e_perf_baseline.md` §6 v0.2 修正，原 "fork-join event 5e8" 量级写错，实际单 parallel region per RHS，fork-join 仅 ~2e4 量级）；heihe_x4 production-target mesh (NumEle=40046) 1.729× ≥ 1.5× 是真正的 ROI 收益 site。
 
 nst Δ=0 strict ladder：heihe + heihe_x4 各 4 N nst = case-fixed (Δ=0) → `p1d-numa-governance` nst ladder 闭合 (P1d mode B era 跨 N drift → P1e mode C 闭合)。
 

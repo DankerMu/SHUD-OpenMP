@@ -140,7 +140,7 @@ per `docs/p1e/p1e_perf_baseline.md` §6 small-case carve-out：
 
 **建议**：heihe small-case 默认 `SHUD_RHS_THREADS=1`（与 P1d era 默认一致）。8 线程仅 6.6% 收益 + fork-join overhead 不划算。若 user 需要快速 turnaround 接受 ~6% 收益，可设 `SHUD_RHS_THREADS=8`。
 
-### 7.2 heihe_x4 production-target mesh (NumEle ~25k)
+### 7.2 heihe_x4 production-target mesh (NumEle=40046)
 
 per `docs/p1e/p1e_perf_baseline.md` §3.2：
 
