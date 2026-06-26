@@ -490,6 +490,68 @@ PR-L 阶段创建 `P1d-tag` 时 annotated message 必须含（per master plan §
 
 详 `docs/p1d/p1d_tag_and_lock.md`（PR-L 作者创建）+ `docs/p1d/p1d_report.md` §11 forward plan + master plan v1.5 §6 P1d.5。
 
+## P1e-tag preparation（P1e epic capstone via §4.6.2 partial-closure / Issue #283）
+
+P1e epic 走 **§4.6.2 partial-closure → SHIP** 后 `P1e-tag` annotated git tag 将 pin 住 P1d → P1e 阶段 13-PR + PR-J Phase 6 修订 = 14 PR 完成时刻的 `(outer, SHUD submodule)` commit。`P1e-tag` 由 PR-L 创建 + push（PR-K capstone 仅记录 SHUD pin trail + build flag matrix 文档化，tag 创建动作不在 PR-K scope）。本节是 PR-K capstone 阶段的 SHUD pin trail 引用 + 后续 PR-L tag 创建前置 doc。
+
+> **D11 强制**：P1e-tag 一次锁死，**禁止 force-update**（与 B1b-tag / P1-update-omp-tag / P1c-tag / P1d-tag 一致）。任何后续 retroactive 更新走 forward-compat **P2-* stacking** 路径（master plan C8）。
+
+### SHUD pin trail（P1d → P1e）
+
+| 阶段 | SHUD pin | 说明 |
+|---|---|---|
+| P1d capstone (PR-L #301 / `P1d-tag`) | `210ac191...` | Kahan revert + first-touch loops stacked (E′ containment closure), `openmp-baseline` pushed, 全 mode 仍 Serial RHS |
+| P1e PR-B0 (#311) | `7013de0...` → `f883914...` → `cc554cd...` → `9a422e5...` | rivqdown.dat tout-boundary recompute via recompute_for_output helper (Phase 6 add rhs_apply fix QeleSubTot/QeleSurfTot silent-zero + cv_y dump filename pad %015.6f → %020.6f for outer #310 F-R1-3) |
+| P1e PR-F (#315) | `fb3cfe4...` → `226e3ab...` | shud.cpp SHUD_DUMP_CV_Y env-gated udata dump + ExecPolicy::StrictOMP impl per P1e-F design D2 |
+| P1e PR-G (#315) | `85c8215...` | -fopenmp wiring auto + SHUD_RHS_THREADS env split + 拆为两段守门 form per tasks §3.5.2 (NVector branch `#ifdef SHUD_USE_OPENMP_NVECTOR` L132 + StrictOMP branch `#if defined(SHUD_ENABLE_OPENMP_RHS)` L157, 2 个独立 omp_set_num_threads call site) |
+| P1e PR-H (#316, final) | **`3341368d2d0854924d2286925c8575df52cc97a0`** (final P1e SHUD pin) | remove 3 steady-state first-touch loops at MD_rhs_core.cpp L62-95 (element) / L169-203 (lake) / L324-354 (river) per design D4; convert omp single → omp for schedule(static) per design D2 + TSan-confirmed nowait 规则 (末 loop SHALL NOT nowait 守 phase 边界); mode A path bitwise preserved per PR-I §1.2 reproduction |
+| PR-K (本 PR) | (no SHUD change) | capstone docs/p1e/ ≥12 + spec L192 amend + ADR-0002 close-out |
+| PR-L (next, tag-only) | `<post-PR-L merge SHA>` = `P1e-tag` deref | `P1e-tag` annotated + `baseline/P1e` lock |
+| PR-M (final, PROMOTE) | `<post-PR-M merge SHA>` | 2 spec PROMOTE + glossary 4 new terms + jsonl 双追加 + epic close |
+
+### Build flag matrix 文档化（P1e era 新增）
+
+P1e PR-G 后 build matrix 由 P1d era 的 2 build (`shud` + `shud_omp`) 升至 **4 mode**（per `docs/p1e/p1e_perf_baseline.md` §2 + `docs/p1e/p1e_thread_split.md` §3-§4）：
+
+| Mode | 命令 | `SHUD_USE_OPENMP_NVECTOR` | `SHUD_ENABLE_OPENMP_RHS` | NVector backend | RHS path | 用途 |
+|---|---|---|---|---|---|---|
+| A | `make shud` | undef | undef | `N_VNew_Serial` | `ExecPolicy::Serial` | canonical reference baseline (mode A) |
+| B | `make shud_omp` | `=1` | undef | `N_VNew_OpenMP` | `ExecPolicy::Serial` | 历史 prod (P1c/d era), drift control |
+| C | `make shud SHUD_ENABLE_OPENMP_RHS=1` | undef | `=1` | `N_VNew_Serial` | `ExecPolicy::StrictOMP` | **P1e production 候选 (SHIP via §4.6.2)** |
+| D | `make shud_omp SHUD_ENABLE_OPENMP_RHS=1` | `=1` | `=1` | `N_VNew_OpenMP` | `ExecPolicy::StrictOMP` | research 边界 (Phase 2 96-cell deferred) |
+
+`-fopenmp` 自动 wire (PR-G Makefile)：`SHUD_ENABLE_OPENMP_RHS=1` 触发：
+
+- Linux: 自动加 `-fopenmp` (compile + link)
+- Darwin: 自动加 `-Xpreprocessor -fopenmp -I$(brew --prefix libomp)/include` (compile) + `-L$(brew --prefix libomp)/lib -lomp` (link)
+
+binary symbol verification (per `docs/p1e/p1e_thread_split.md` §6 + `openspec/changes/p1e-strict-omp-rhs/specs/p1e-strict-omp-rhs/spec.md` "build C binary symbol" Scenario)：
+
+| 验证 | command | 期望 (mode C) |
+|---|---|---|
+| NVector=Serial | `nm ./shud \| grep N_VNew_Serial` | ≥1 hit |
+| NVector≠OpenMP | `nm ./shud \| grep N_VNew_OpenMP` | 0 hit |
+| Linux OpenMP runtime 真链 | `nm ./shud \| grep GOMP_parallel` | ≥1 hit |
+| Darwin OpenMP runtime 真链 | `nm ./shud \| grep _omp_set_num_threads` | ≥1 hit (Apple Clang 前导 `_`) |
+| 守门形式 (PR-G 实施 = 拆为两段) | `grep -B2 -A2 'omp_set_num_threads' SHUD/src/Model/shud.cpp` | L132 `#ifdef SHUD_USE_OPENMP_NVECTOR` + L157 `#if defined(SHUD_ENABLE_OPENMP_RHS)` (二选一允许 union form, per spec L192 amend by PR-K) |
+
+### P1e-tag annotated message（PR-L 草拟，PR-K 仅引用）
+
+PR-L 阶段创建 `P1e-tag` 时 annotated message 必须含（per master plan §6 P1e.5 + `docs/p1e/p1e_summary.md` §9.PR-L）：
+
+1. SHIP via §4.6.2 partial-closure narrative（不是简单 D12.1 happy path）
+2. 3 SHALL gate verdict（AC-S1 + AC-S2 PASS + AC-S3 PARTIAL with carve-out rationale）
+3. D12 4 branch eval (D12.1/.2/.3/.4 全 NOT triggered) + §4.6.2 active path 引用
+4. 4-mode build matrix 完整 (mode A/B/C/D + binary symbol verify)
+5. `SHUD_RHS_THREADS` per-case 运营建议 (heihe `=1` carve-out / heihe_x4 `=4` 推荐)
+6. 指向 `docs/p1e/p1e_summary.md` + `docs/p1e/p1e_perf_baseline.md` (per tasks §7.A 说明)
+7. SHUD pin 变更（P1d `210ac19` → P1e `3341368`）
+8. PR-A/B/B0/C/D/E/F/G/H/I/J/K/L/M 14 PR cross-ref
+9. D11 historical immutability re-verify (B1-tag / B1a-tag / B1b-tag / P1-update-omp-tag / P1c-tag / P1d-tag SHAs 不变, P1e-tag 新增)
+10. ADR-0002 Status update reference (`Accepted (2026-06-24)` → `Implemented (P1e epic close, 2026-06-25)`)
+
+详 `docs/p1e/p1e_summary.md` §9 forward handoff (PR-L) + `docs/p1e/p1e_report.md` §9 D11 7-tag chain final state + master plan v1.5 §6 P1e.5。
+
 ## CHANGELOG（S0-13 修订）
 
 - S0-13 / #17：kashigeer 在 `benchmarks/INDEX.md` 里从 `local-and-server` 重分类为 `deferred-upstream`；`status-matrix` + `rhs-profile-gate` spec 修订，让 deferred-upstream 单元格成为 N/A 不阻塞；上面新增 `B0-tag` 一节；`docs/profile_decision.md` 由 DankerMu 通过 2026-06-17 的 delegated grant 签字，针对外层 `a860eae5` + SHUD `78c37a1`。

@@ -216,6 +216,7 @@ _Avoid_: 把 Kahan held-in-reserve 与 classic Kahan summation 混淆（Neumaier
 **P1d carve-out (writer noise governance)**:
 P1c epic capstone verdict `PARTIAL CLOSURE` 的 forward debt（原命名 `P9 carve-out`，per master plan §6 P1c.7 2026-06-23 修订重命名为 P1d；术语 key 与 status 述语统一为 P1d；narrative 注明源于 P1c epic forward debt）。Per `docs/p1c_summary.md` §5.2 + `docs/p1c_pr_i_kahan_injection.md` §8 + design D9 decision branch 2 CONFIRMED：drift origin 不在 P1c 8-site reduction 内部 (Kahan 完全注入仍残 heihe |Δ_nst|=84)，而是上游 parallel writer first-touch / NUMA-affinity 异序写入 ULP 噪声 → gather 站点忠实累加放大。P1d stage SHALL：(a) MD_update.cpp 3 #pragma omp parallel for region (hot.soa / QeleSurf_flat / Ele_AoS) 加 `OMP_PROC_BIND=close` + `OMP_PLACES=cores` + `numactl --interleave=all`; (b) 验证 NUMA 治理后 heihe / heihe_x4 4 N SHA 全等 (A3a closure); (c) nst Δ=0 cross-N closure; (d) NUM_OPENMP=1 reverse-compat 恢复 (revert Kahan)。**non-blocking P1c** per master plan §3 fallback option 2 + spec L100-L103 carve-out Scenario。
 **Status (P1d epic close, 2026-06-24)**: PARTIAL CLOSURE via E′ containment path. 原 hypothesis (NUMA writer noise 是 P1c §4.4 A3a + §4.5 nst Δ 漂移根因) 在 P1d PR-H 实测 + 两轮 GPT Pro 复查 + codebase 5/5 事实核查后被颠覆：真正根因是 SUNDIALS 6.0.0 NVECTOR_OPENMP `N_VDotProd_OpenMP` `reduction(+:sum) schedule(static)` reduction tree 顺序不固定。详 master plan v1.5 / M10 §6 P1d + `docs/p1d/p1d_numa_root_cause.md`. **CLOSED via E′ closure (master plan v1.5 / M10 §6 P1d.4): P1d-tag a82bf336 push 完成 + 4-mode spec rewrite + first-touch DEPRECATED note + Kahan revert 保留 + forward handoff to P1e (F 路) per ADR-0002 Path 1 SELECTED.**
+**Status (P1e epic close)**: CLOSED via P1e epic 2026-06-25，参见 docs/p1e/p1e_summary.md §"P1d carve-out closure"
 _Avoid_: 把 P1d carve-out 与 P7 final-fusion deterministic-reduction 混淆（两 forward debt 独立：P7 = fork-join + chunk-fixed schedule；P1d = NUMA + first-touch governance）；把 P1d work scope 误以为可 P2a 阶段解决（master plan §6 显式 P1d 范围）
 
 **P1d-tag**:
@@ -229,3 +230,23 @@ PR-C/D/E 在 `SHUD/src/ModelData/MD_update.cpp` 3 处 `#pragma omp parallel for`
 
 **P1d NUMA env**:
 P1d 引入的标准化 NUMA environment 配置，sbatch template 强制：`OMP_PROC_BIND=close` + `OMP_PLACES=cores`；server PR-F 实证后 drop `numactl --interleave=all`（导致 cross-NUMA cache-line ping-pong）。Mac local 同步 `OMP_PROC_BIND=close`。Per `docs/p1d/p1d_numa_env_runbook.md`. _Avoid_: 加 `numactl --interleave=all`（PR-F 已实证有害）；用 `OMP_PROC_BIND=spread`（不同 NUMA node 之间的 ping-pong 更严重）。
+
+### P1e strict-omp F-path baseline 集合
+
+P1e epic (#308) 完成后由 PR-M (#321) PROMOTE 入册的术语集合。
+
+**P1e-tag**:
+P1e epic capstone annotated git tag (created post-PR-L #335 merge, 2026-06-25). Tag-object SHA 与 deref commit SHA 见 `docs/p1e/p1e_summary.md` §"验证 P1e-tag"（PR-M post-PR-L-merge amend 填实）。Pins 外层 `baseline/P1e` HEAD 至 PR-L 合并 SHA + SHUD submodule pin `3341368`（PR-H StrictOMP + first-touch removal capstone）。D11 7-tag chain extension (6 historical immutable + P1e-tag NEW): B1-tag / B1a-tag / B1b-tag / P1-update-omp-tag / P1c-tag / P1d-tag / P1e-tag. Tag message 记录 P1e SHIP-LOCKED narrative + §4.6.2 partial-closure carve-out (heihe small-case 1.066× < 1.3× threshold per OMP_CUTOFF overhead floor)。
+_Avoid_: 把 P1e-tag 当作 lightweight tag 或允许 force-update；改写 D11 6 historical SHA（永不变 per design D11）。
+
+**baseline/P1e**:
+P1e epic 主分支，从 `baseline/P1d` HEAD 分出 (PR-A 2026-06-24)，PR-M post-merge 由 orchestrator 重新 lock (`lock_branch=true + enforce_admins=true + allow_force_pushes=false + allow_deletions=false`)。HEAD = P1e-tag deref commit。包含 13 PR merge (PR-A..PR-M) cover 2×2 build matrix Phase 1/2 + StrictOMP RHS 实施 + thread split + first-touch removal + 3 SHALL gate verification + capstone docs + PROMOTE。后续 P2a 工作从 `main` fast-forward 后的 `main` 分新分支，不再打 `baseline/P1e`。仅作历史比对参照（vs P1c / vs P1d / vs P-strict）。
+_Avoid_: 在 baseline/P1e lock 后 force-push；从 baseline/P1e 直接分新 P2a epic（应从 main 分）。
+
+**strict-omp mode**:
+master plan §8.1 4-mode 表中的 `strict-omp` 行 = P1e production candidate mode。规范：N_Vector 用 `N_VNew_Serial`（serial N_Vector），RHS 用 `ExecPolicy::StrictOMP`（单 parallel region + 3 phase + implicit barrier + `default(none)` + `schedule(static)`），bitwise gate = server SHALL 跨 N∈{1,2,4,8} bitwise + nst Δ=0 + N=1 reverse-compat strict（Mac SHOULD advisory per libomp 弱保证），Build = `make shud SHUD_ENABLE_OPENMP_RHS=1` (PR-G post-merge: 自动附加 `-fopenmp` + libgomp/libomp)。**与其它 3 mode 区分**：`serial` (B0/B1b baseline，无 OpenMP) / `det-omp` (P1c helper-wrap + Kahan，NVECTOR_OPENMP) / `fast-omp` (NVECTOR_OPENMP + std::abort 桩 RHS，P1d era 现状)。详 `openspec/specs/p1e-strict-omp-rhs/spec.md` Conventions 节。
+_Avoid_: 把 strict-omp mode 与 P1d era 4-mode 表中的其它 3 mode 混淆；误以为 `strict-omp` 走 `N_VNew_OpenMP`（实际走 Serial NVec + RHS 内 OpenMP）。
+
+**2×2 build matrix**:
+P1e.2 因果实验矩阵 = 4 build × 4 N (∈{1,2,4,8}) × 3 repeats × 4 case = 192 cell（Mac 96 + server 96）。4 build = {A: serial / B: NVECTOR_OPENMP + RHS serial / C: NVECTOR_SERIAL + RHS OpenMP (= production candidate) / D: NVECTOR_OPENMP + RHS OpenMP}。Phase 1 (PR-C/D, mode A/B) confirm NVECTOR_OPENMP 是 cross-N 散度主因；Phase 2 (PR-G post-merge, mode C/D) verify mode C bitwise + 加速比。Cell 数据归档 `docs/p1e/p1e_2x2_experiment.md` + `docs/p1e/p1e_2x2_verdict.md`（含 D12.1/.2/.3/.4 routing 实际触发分支判定）。
+_Avoid_: 把 2×2 build matrix 与一般 OpenMP build flag matrix 混淆（本术语专指 P1e.2 因果实验 192 cell scope）；只跑 Phase 1 不跑 Phase 2（PR-G post-merge 必跑 mode C/D 验证 production candidate）。
