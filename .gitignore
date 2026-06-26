@@ -39,3 +39,4 @@ docs/review/
 
 # Python cache
 **/__pycache__/
+.obsidian/
