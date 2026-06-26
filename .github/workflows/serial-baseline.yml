@@ -482,7 +482,7 @@ jobs:
           python3 -m pip install --quiet pyyaml
           python3 tools/cvode_stats_diff/test_15key_excludes_nfcall.py
       # S5d.1 (#178): RHS hot-field grep gate — assert MD_layout.hpp +
-      # RHS 3 files align with docs/s5d_hot_fields.yaml. See spec
+      # RHS 3 files align with docs/b1b/s5d_hot_fields.yaml. See spec
       # s5d-data-layout-soa-numa Scenario "RHS hot path 改读 SoA". The
       # tool fails on any `Ele[<expr>].<hot-field>` hit in the three
       # hot-path TUs (method invocations are excluded per design D2

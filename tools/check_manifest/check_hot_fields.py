@@ -34,7 +34,7 @@ except ImportError:
     sys.exit(2)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-YAML_PATH = REPO_ROOT / "docs" / "s5d_hot_fields.yaml"
+YAML_PATH = REPO_ROOT / "docs" / "b1b" / "s5d_hot_fields.yaml"
 HEADER_PATH = REPO_ROOT / "SHUD" / "src" / "ModelData" / "MD_layout.hpp"
 RHS_FILES = [
     REPO_ROOT / "SHUD" / "src" / "ModelData" / "MD_ElementFlux.cpp",
