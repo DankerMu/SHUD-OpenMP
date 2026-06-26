@@ -10,6 +10,7 @@
 > 版本：v1.4 | 日期：2026-06-22 | SHUD 源码子模块路径：`SHUD/` (pinned to `78c37a1`，B0-tag `95ddc375`)
 
 > **v1.5 修订要点**（P1d epic capstone 后，按 PR-H 实测 + 两轮独立 GPT Pro 复查 + codebase 事实核查修订）：
+> 12. **M12（§6 P2a 重写 NO-GO + §6 P1e.6/.7/.8 改链 + §7.2 RISK-16 → 不触发 + §7.3 P2a 行改 + §P2b 前提条件改写）**：P1e closure 后 P2a profile 前置实测（heihe forcing.trimmed fair-compare + heihe_x4 production target，SHUD pin `7a1dc8f` 含 nested-Timer fix）发现 forcing+ET %wall 全线低位：heihe 13.39% / heihe_x4 7.97%（v0.2 76.91% 是 v0.3 NFS-artifact 误判 → v0.4 dataset size artifact 正解，缩 413× dataset → 缩 75% wall 证明）。Amdahl sp@8 上界 <1.15×（heihe 1.13× / heihe_x4 1.07×），远不及 P1e RHS 1.729×。**P2a NO-GO（不启动）**：原 M11 P2a.1-.8 14-PR 模板全部不实施（设计语汇由 P2b / P5 继承）；M12 修订：§P2a 改写为 NO-GO 决策段（含 fair-compare 数据 + v0.3 → v0.4 解读修订 + 替代路径 P2b/P5 + M7 forcing_trim deployment 副产物）；P1e.6 Go/No-Go 题目 → P2b/P5；P1e.8 后续移交改 → P2b/P5；§7.2 RISK-16 movePointer 风险标 P2a NO-GO 不触发；§7.3 → P2a 行标 NO-GO + 新增 → P2b 行直接由 P1e 后置启动；§P2b 前提条件 "P2a 已验证 pre-CVODE 输入正确" 改为 "pre-CVODE 保持 P1e SHIP-state 串行"。详 `docs/p2a/p2a_profile_baseline.md` v0.4 + `docs/case_deployment_map.md`。
 > 11. **M11（§6 P1e.4/.7/.8 实测回填 + §6 P2a 重梳理 + §8.1 strict-omp SHIP 状态 + §7.3 P2a 启动前置 verified）**：P1e epic (#308) 2026-06-25 closure。14 PR (PR-A..PR-M + PR-B0 audit) 完成 ExecPolicy::StrictOMP 实施 + 2×2 build matrix 因果实验 + 6/6 cross-platform 决定论。AC-S1 + AC-S2 PASS；AC-S3 PARTIAL (heihe 1.066× FAIL <1.3× / heihe_x4 1.729× PASS ≥1.5×) → §4.6.2 partial-closure SHIP。SHUD pin `3341368d` + P1e-tag annotated `25023eff32d1` + baseline/P1e D11 locked。M11 修订：§P1e Status 改 COMPLETE + 验收节回填实测数据 + P1e.7 改写为实测 carve-out + 新增 P1e.8 后续移交；§P2a 基于 P1e 经验重梳理为 P2a.1-.8 子节（2×2 因果实验 + SHUD_PRE_CVODE_THREADS env split + §4.6.2 partial-closure 决策 + D7 AND-gate + D11 forward-compat stacking）；§8.1 strict-omp mode SHIP；§7.3 P2a 启动前置 verified。详 `docs/p1e_summary.md` (顶层) + `docs/p1e/p1e_summary.md` (capstone) + ADR-0002 closure。
 > 10. **M10（§1.1.2 + §3 路线图 + §4.13 + §4.17 + §6 P1c.5 / P2a 启动前置 + §6 新增 P1d / P1e + §7.2 RISK + §7.3 + §8.1）**：P1c PARTIAL CLOSURE 后 P1d epic (#274) 尝试 NUMA env + first-touch + Kahan revert 收尾，PR-H 8-cell 实测 3 SHALL gate FAIL（A3a + nst Δ=0 at N≥4）。事实核查发现：(a) `shud_omp` 当前实际跑的是 **Serial 水文 RHS + OpenMP N_Vector backend**——`SHUD/src/Model/f.cpp:54` 始终调 `ExecPolicy::Serial`，`StrictOMP/ProductionOMP` 在 `MD_rhs_core.cpp:802-811` 是 `std::abort()` 桩；(b) SPGMR 没注册 preconditioner（`cvode_config.cpp:259` `SUNLinSol_SPGMR(udata, 0, 0, sunctx)` 后无 `CVodeSetPreconditioner`）；(c) N≥4 cross-N 散度根因是 SUNDIALS `NVECTOR_OPENMP` 内 `N_VDotProd_OpenMP` / `N_VWSqrSumLocal_OpenMP` 用 `reduction(+:sum) schedule(static)`，跨 N reduction tree 不固定；(d) PR-C/D/E 添加的 steady-state first-touch loops 是为完全没发生的 owner-compute 做的页面预放置（consumer 是单线程），无效优化。M10 修订：P1d 以 **E′ containment closure** 收尾——production 默认 `NUM_OPENMP=1`、`shud_omp` 标 `fast-omp experimental, non-production`、3 SHALL gate 重写为 **4-mode spec**（serial / strict-omp / det-omp / fast-omp）strict 承诺保留在 strict-omp mode 内、PR-C/D/E steady-state first-touch 标 deprecated（allocation-time first-touch 保留）；新增 **P1e epic (F 路)** = Serial N_Vector + StrictOMP RHS（替换 abort 桩 + 真正并行水文 RHS + 复用 deterministic_gather），启动前必须做 **2×2 build 因果实验**（A/B/C/D × N∈{1,2,4,8} × 3 reps）验证 NVECTOR reduction 是主因；P2a 启动前置链路从 P1c → P2a 改为 P1c → P1d → P1e → P2a；KLU 推到 `docs/adr/0002-solver-path.md` 作 4 路对比，不阻塞 F 路。§3 路线图 figures M10 修订仍保留 v1.3 版本 caveat。
 
@@ -1893,12 +1894,14 @@ nst Δ=0 strict ladder：heihe + heihe_x4 各 N∈{1,2,4,8} nst case-fixed（hei
 | Baseline 分支 | `baseline/P1e`，D11 protection 同前 |
 | D11 chain | ... → P1d → **P1e**（7 tag 链） |
 
-#### P1e.6 Go/No-Go → P2a
+#### P1e.6 Go/No-Go → ~~P2a~~ (M12 改: → P2b 或 P5)
 
 - P1e 3 SHALL gate strict-omp mode 全 PASS
 - 加速比 ≥ 1.5× (heihe + heihe_x4) at N=8
 - `P1e-tag` 已 push + `baseline/P1e` lock
 - ADR-0002 (solver-path) 已 close out (4 路对比结论入档)
+
+**(M12, 2026-06-26)**: 原 "→ P2a" 已 NO-GO（详 §P2a M12 决策）。Go 路径改为 → P2b (RHS element vertical 剩余) 或 → P5 (KLU 替换 SPGMR)。
 
 #### P1e.7 实测 carve-out / 遗留事项（M11 回填）
 
@@ -1907,112 +1910,94 @@ nst Δ=0 strict ladder：heihe + heihe_x4 各 N∈{1,2,4,8} nst case-fixed（hei
 | 1 | heihe small-case sp@8 1.066× < 1.3× threshold | PR-I server 24-cell SHALL gate | **§4.6.2 partial-closure SHIP**: 6335 cells 处于 OMP fork-join overhead floor 之上（fork-join cost / per-thread useful work 比物理 limit），非实现 bug；production target heihe_x4 ≥1.5× 已达成。详 `docs/p1e/p1e_perf_baseline.md` §6 三因素分析 |
 | 2 | mode D 96-cell (NVECTOR_OPENMP + StrictOMP RHS) deferred | tasks §2.5.1 + §2.6.1 | mode A/B/C 因果三角形已闭合 ADR-0002 Path 1 SELECTED；mode D 作 research 边界，非 production gate。post-P1e 可单独 epic 启动 |
 | 3 | PR-N D12.3 block-Jacobi precond placeholder | AND-gate semantics per design D7 + tasks §4.6 | **未触发**：D12.3 fallback 仅在 BOTH heihe + heihe_x4 同时 FAIL 时启动；本 epic AND-gate 不满足。Placeholder doc `docs/p1e/p1e_pr_n_block_jacobi.md` 由 PR-K 写出，留 future epic 重启位 |
-| 4 | spec L343 tag-message scenario cross-ref `<TBD>` | PR-M R1 F-R1-1 deferred | P2a era 或独立 docs PR 内 amend；非 P1e closure 阻塞项 |
-| 5 | D12.4 KLU spike (ADR-0003 forthcoming) | ADR-0002 Path 4 | 不在 P1e scope；P2a/P2b/P3 阶段如遇加速比 plateau 再单独启动 ADR-0003 epic |
+| 4 | spec L343 tag-message scenario cross-ref `<TBD>` | PR-M R1 F-R1-1 deferred | ~~P2a era~~ → P2b era 或独立 docs PR 内 amend；非 P1e closure 阻塞项 |
+| 5 | D12.4 KLU spike (ADR-0003 forthcoming) | ADR-0002 Path 4 | 不在 P1e scope；~~P2a/P2b/P3 阶段~~ → **P5 (KLU 替换 SPGMR) 已成 M12 推荐主线**（P2a NO-GO 后 CVODE_internal 25% wall 成为可攻 target），如遇加速比 plateau 单独启动 ADR-0003 epic |
 
-#### P1e.8 后续移交（→ P2a）
+#### P1e.8 后续移交（~~→ P2a~~ M12 改: → P2b 或 P5）
 
-- **P2a 启动前置已满足**（per §6 P1d.7 + §7.3 stage go/no-go）：
+- **后续 epic 启动前置已满足**（per §6 P1d.7 + §7.3 stage go/no-go）：
   - `P1e-tag` 已 push 至 origin（annotated object `25023eff32d1` / deref `11687b75`）
   - `baseline/P1e` D11 locked（`lock_branch=true` + `enforce_admins=true` + no force-push + no delete）
   - ADR-0002 (`docs/adr/0002-solver-path.md`) Status: Implemented (P1e epic close, 2026-06-25)
   - OpenSpec PROMOTE 完成：`p1e-strict-omp-rhs` (11 reqs) + `p1e-capstone` (10 reqs) 共 21 requirements 进 spec base；`openspec/glossary.md` 加 4 canonical terms（P1e-tag / baseline/P1e / strict-omp mode / 2×2 build matrix）
-- **P2a 继承设计语汇**（per §P2a M11 重梳理）：
+- **(M12 修订)** 原"P2a 继承设计语汇" 改为 **P2b / P5 继承**（P2a NO-GO 后 P1e 经验沉淀仍复用）：
   - `ExecPolicy::StrictOMP` 单 parallel region + phase-based for + `default(none)` + `schedule(static)` 模式
-  - `SHUD_RHS_THREADS` env split 模式（forcing/ET 并行度独立 env，与 RHS / N_Vector 解耦）
-  - 2×2 build matrix 因果实验作 P2a 启动前因果证据（A/B/C/D × N × 3 reps）
+  - `SHUD_RHS_THREADS` env split 模式（thread 控制独立 env，与 NVECTOR backend 解耦）
+  - 2×2 build matrix 因果实验作 P2b / P5 启动前因果证据（A/B/C/D × N × 3 reps）
   - §4.6.2 partial-closure 决策框架（small-case 不达 threshold 不阻塞）+ D7 AND-gate semantics（BOTH FAIL 才触发 fallback）+ D12 routing
   - owner-local writes + canonical leftfold / pairwise reduction 保 bitwise determinism
   - allocation-time first-touch (Model_Data.cpp::malloc_EleRiv) + load-time first-touch (MD_initialize.cpp::LoadIC) 保留；**steady-state first-touch 全删**（per D4）
-  - D11 chain forward-compat stacking：P2a-tag stack on P1e-tag
+  - D11 chain forward-compat stacking：P2b-tag 或 P5-tag stack on P1e-tag（**P2a-tag 不创建**）
 - **文档遗产**：`docs/p1e_summary.md` (顶层工程总结) + `docs/p1e/*.md` (17 docs capstone source-of-truth) + ADR-0002 closure narrative
 
 ---
 
-### P2a：并行 pre-CVODE forcing / ET loop（M11 基于 P1e 经验重梳理）
+### P2a：并行 pre-CVODE forcing / ET loop — **M12 NO-GO（不启动）**
 
-> **M11 重梳理（2026-06-25）**：P1e closure 后，基于 P1e 14-PR 经验（2×2 build matrix 因果实验 + StrictOMP single parallel region + SHUD_RHS_THREADS env split + OMP overhead floor 实测 + §4.6.2 partial-closure 决策 + 6/6 cross-platform 决定论）重新组织 P2a 工作。原 M10 启动前置 (P1e-tag pushed + baseline/P1e locked + ADR-0002 closed) 已满足，详 §6 P1e.8。
+> **M12 决策（2026-06-26）**：P2a profile 前置（heihe forcing.trimmed fair-compare + heihe_x4 production target）实测后**不启动 P2a epic**。详 [`docs/p2a/p2a_profile_baseline.md`](docs/p2a/p2a_profile_baseline.md) v0.4 §6。后续转 P2b (RHS element vertical 剩余) / P5 (KLU 替换 SPGMR)。
 
-#### P2a.1 设计意图
+#### P2a.1 决策依据（fair-compare profile 实测）
 
-P1e 已确认 hydrology RHS (66.55% wall) 走 strict-omp mode；剩余 wall 主要在 pre-CVODE 的 forcing 读取 + ET 状态更新（`shud.cpp:92-94`：`updateforcing(t)` → `ET(t, tnext)`）+ post-CVODE 的 summary/output（占比待 P2a.2 profile 量化）。P2a 把 pre-CVODE forcing/ET 并行化，复用 P1e 设计语汇：
-- **单 parallel region per 调用**：`updateforcing()` 与 `ET()` 各一个 `#pragma omp parallel` region 内含若干 `omp for schedule(static)`，避免反复 fork-join overhead（P1e PR-H 教训）
-- **`SHUD_PRE_CVODE_THREADS` env 独立**：与 `SHUD_RHS_THREADS` / `OMP_NUM_THREADS` 解耦，因 forcing/ET 工作量 / 内存 footprint 差异（per P1e PR-G env split 模式）
-- **owner-local writes only**：element-local 状态（snow/interception/PET）写 `Ele[i]` 自身，无 cross-element 写
-- **allocation-time first-touch only**：保留 `malloc_EleRiv` 阶段 first-touch；P2a 不引入 steady-state first-touch loops（per P1e PR-H 删除教训）
+heihe (NumEle=6335) + heihe_x4 (NumEle=40046) server N=1 fair-comparison profile（SHUD pin `7a1dc8f` 含 nested-Timer fix）：
 
-#### P2a.2 2×2 build matrix 因果实验（启动前必跑）
+| Case | wall (s) | forcing+ET %wall | t_CVODE_raw %wall | Amdahl sp@8 上界 (P2a 并行 forcing+ET only) |
+|---|---:|---:|---:|---:|
+| **heihe (forcing.trimmed 29MB local)** | 134.87 | **13.39%** | 66.69% | **1.13×** |
+| **heihe_x4 (basin-local 286MB)** | 1373.23 | **7.97%** | 80.65% | **1.07×** |
 
-借鉴 P1e.2 模板，但因 pre-CVODE 不涉及 NVECTOR backend，矩阵简化为 1×N 单轴 + RHS 配置组合：
+**两 case sp@8 上界均 < 1.15×**，远不及 P1e RHS 实测 sp@8 1.729×（heihe_x4）。P2a 14-PR 模板投入产出比不成立。
 
-| Build | pre-CVODE | RHS | 目的 |
-|---|---|---|---|
-| P2a-A | Serial | strict-omp (P1e mode C) | canonical reference (P1e SHIP-state) |
-| P2a-B | **Parallel (P2a new)** | strict-omp | P2a production 候选 |
-| P2a-C (optional) | Parallel | Serial | 隔离 pre-CVODE 并行效应 |
+#### P2a.2 v0.2 heihe outlier 解读修订（v0.3 → v0.4）
 
-实测条件：4 Mac case + 2 server case + N∈{1,2,4,8} × 3 reps + 90-day cap + 同硬件 + 同 SUNDIALS 6.0.0 build + `<case>.rivqdown.dat` SHA256 + 15-key `cvode_stats`。
+v0.3 doc 一度认为 heihe 76.92% forcing+ET wall 是 "NFS IO 路径配置 artifact"，**REFUTED**。v0.4 用 `tools/forcing_trim/forcing_trim.sh`（M7 落地 bash+awk POSIX 工具）将 heihe forcing 从 CMFD V0200 全 74yr (12 GB) 裁到 90-day window (29 MB)，**dataset size artifact 假设确认**：
 
-判据：
-- **P2a-B 跨 N bitwise + 加速** → P2a 路径成立
-- **P2a-B 跨 N 分叉** → 查 forcing/ET race 或 `tReadForcing` 内 `getX()` 共享状态 race；可能需更细 owner-local 分解
-- **P2a-B 加速 < small/large 各自 threshold** → §4.6.2 partial-closure 决策
+| 指标 | v0.2 (12GB) | v0.4 (29MB) | 比例 |
+|---|---:|---:|---:|
+| forcing dataset size | 12 GB | 29 MB | 0.0024× (缩 413×) |
+| wall_total | 523.05 | 134.87 | 0.258× (缩 75%) |
+| t_forcing_io | 400.99 | 16.78 | 0.042× (缩 95.8%) |
+| forcing+ET %wall | 76.91% | 13.39% | dataset size linear scaling |
 
-#### P2a.3 实施要点
+v0.4 heihe forcing/ 仍 SYMLINK → `/volume/data/nwm/Basins/heihe/forcing`（NFS source 同源），仅 `tsd.forc` 第 2 行切到 `forcing.trimmed/` local 子集 → 证明 NFS 路径不是主因，**dataset 时段长度才是关键变量**。SHUD `updateforcing()` 每 inner step 在 csv 中线性扫描当前时间 row → IO wall ∝ csv 大小。
 
-> **(M11 保留 M10 原始 design intent + 加 P1e 教训补充)**：以下点 1-3 为原 P2a 章 "可并行计算 / 前提条件 / 禁止 / 验收标准 A2-pre" 4 表整合 + 加 P1e 工程经验。
+#### P2a.3 替代路径（M12 转向）
 
-1. **`updateforcing()` 并行化** (`MD_ET.cpp` L26-L105)：element loop 内只读 `getX()`，写 element-local forcing 变量；`movePointer()` 在 parallel region **外**串行完成（per RISK-16 + S2.10/S2.14 已修）
-2. **`ET()` 并行化** (`MD_ET.cpp` L106-L166)：snow/interception/PET 计算，写 `Ele[i]` 自身；16 个循环外局部变量必须 `private` 或循环内重声明（per S2.14 已审）
-3. **`AccT_surf[i].push(T, t)` + `AccT_sub[i].push(T, t)` 审查**：确认 element-owned 对象，无全局统计量 race
-4. **`SHUD_PRE_CVODE_THREADS` env wire**：Makefile + `shud.cpp` startup 加 `getenv("SHUD_PRE_CVODE_THREADS")` 单点 read，fallback 至 `omp_get_max_threads()`；与 `SHUD_RHS_THREADS` 解耦
-5. **`printf` race + NaN check 处理** (`MD_ET.cpp` L130-L133)：改 thread-local buffer，parallel region 后串行 flush（per RISK-17 同模式）
-6. **post-CVODE `summary` / `ExportResults` audit**（per P1e PR-B0 rivqdown cache 教训）：确认 output 写的是当前 `tout` 状态，而非 internal step 缓存；如有歧义 follow P1e `recompute_for_output` helper 模式
+真实 production bottleneck = **CVode 内部** (heihe v0.4 66.69% + heihe_x4 80.65% wall)：
+- `t_RHS_kernel` 41.5% (heihe v0.4) / 55.6% (heihe_x4) wall — P1e strict-omp 已 partial 攻克 (sp@8 1.729×)，剩余空间走 P2b RHS element vertical 剩余优化
+- `t_CVODE_internal` (raw - RHS_total) 约 25% wall — 含 SPGMR + step control，**P5 KLU 替换 SPGMR** 主目标
 
-**禁止**（per M10 原表）：
-- 并行区内不得调用 `movePointer()` 或任何修改 `TimeSeriesData` 共享状态的函数
-- 并行区内不得写跨 element 的共享数组（`QeleSurf[i][j]` 等属于 RHS，不在此阶段处理）
-
-#### P2a.4 验收（4 SHALL gate strict in pre-cvode-parallel mode）
-
-| AC | Gate | 标准 |
+转向选项（待 user 通过 stage-change-pipeline 确认）:
+| 候选 | scope | 预期 ROI |
 |---|---|---|
-| AC-P2a-S1 | cross-N bitwise (rivqdown.dat) | 4 Mac + 2 server case × N∈{1,2,4,8} × 3 reps SHA 全等 |
-| AC-P2a-S2 | mode P2a-B == mode P2a-A | mode P2a-B 任一 N rep SHA == P2a-A reference |
-| AC-P2a-S3 | per-case sp@8 (pre-CVODE wall) | small-case ≥1.2× (forcing/ET 占 wall 比 RHS 低，threshold 调小) AND heihe_x4 production-target ≥1.4× |
-| AC-P2a-S4 | full-run cross-platform determinism | 6-case (4 Mac libomp + 2 server libgomp) mode P2a-B N=1 SHA == mode P2a-A canonical |
+| **P2b** | RHS element vertical processes (`MD_ET.cpp` f_etFlux / `MD_f.cpp` updateElement / `MD_ElementFlux.cpp` fun_Ele_Infiltration) 剩余优化 | 进一步压低 RHS_kernel wall |
+| **P5** | KLU 替换 SPGMR (CVode internal 子模块) | 干掉 25% CVODE_internal wall |
+| P3 | owner-local gather (Σ reduction overhead) | 中等 ROI, 单独 epic |
 
-AND-gate semantics 沿用 P1e D7：BOTH small + large FAIL 才触发 P2a fallback（如 D12 routing 重启 forcing/ET 串行版本）；single case FAIL 走 §4.6.2 partial-closure 决策。
+#### P2a.4 deployment 副产物（M7 forcing_trim 推广）
 
-整合 M10 原 A2-pre 4 bullet：(i) `updateforcing()` 后所有 forcing 数组与 P1e bitwise identical；(ii) `ET()` 后所有 snow/interception 状态、`fu_Surf[i]`/`fu_Sub[i]`、`qEleNetPrep[i]` 等与 P1e bitwise identical；(iii) `AccT_surf[i]`/`AccT_sub[i]` 队列内容与 P1e identical；(iv) 完整 run 与 P1e bitwise identical（确认 pre-CVODE 差异不传播）。
+P2a profile 工作意外验证 `tools/forcing_trim/forcing_trim.sh` (M7 spec `p1-update-omp/m7-forcing-trim`) 在 server NWM case 部署上的显著 wall 节省 (heihe 缩 75%)。建议：
+- **后续 server case baseline 部署默认走 `forcing_trim` 输出 `forcing.trimmed/`**（bitwise-equivalent on 90-day window, per M7 spec `verify_trim_bitwise.sh`）
+- 已落地：server heihe + heihe_x4 已 trimmed，详 [`docs/case_deployment_map.md`](docs/case_deployment_map.md) §2.2
+- 待补：server keliya / qhh / qinyijiang / xinanjiang_upstream forcing.trimmed/
 
-#### P2a.5 baseline lock + tag (D11 8 → 9-tag chain)
+#### P2a.5 M11 原计划归档
+
+M11 (2026-06-25) 设计的 P2a 14-PR 模板（含 2×2 build matrix / `SHUD_PRE_CVODE_THREADS` env / 4 SHALL gate / D11 9-tag chain / `baseline/P2a` lock）**全部不实施**。设计语汇（StrictOMP single parallel region / env split / §4.6.2 partial-closure / owner-local / allocation-time first-touch）由 P2b / P5 继承复用，不浪费 P1e 经验沉淀。
+
+具体保留 / 废弃细节查 git history `git log -p SHUD_openMP_master_plan.md` M11 era commits。
+
+#### P2a.6 决策 metadata
 
 | Item | 值 |
 |---|---|
-| Annotated tag | `P2a-tag` (forward-compat stacking on `P1e-tag`，per master plan C8) |
-| Tag message | 必须含：P2a 4 SHALL gate verdict + 加速比实测 + SHUD pin 变更（P1e `3341368d` → P2a `<TBD>`）+ pre-CVODE wall 占比 + carve-out（若有）|
-| Baseline 分支 | `baseline/P2a`，D11 protection 同前（`lock_branch=true` + `enforce_admins=true`）|
-| D11 chain | B0 → B1a → B1b → B1 → P1-update-omp → P1c → P1d → P1e → **P2a**（9 tag 链） |
-
-#### P2a.6 Go/No-Go → P2b
-
-- P2a 4 SHALL gate 全 PASS 或 §4.6.2 partial-closure SHIP
-- `P2a-tag` 已 push + `baseline/P2a` lock
-- pre-CVODE wall 占比已 profile + 加速比量化
-- forcing/ET race 全部 audit 通过（含 AccT push / printf / NaN check）
-
-P2a 未通过不进入 P2b。
-
-#### P2a.7 实测 carve-out / 遗留事项
-
-待 P2a epic 实施后 M12 回填（参照 §P1e.7 模板）。
-
-#### P2a.8 后续移交（→ P2b）
-
-- P2b 启动前置：P2a 4 SHALL gate 全 PASS + `baseline/P2a` lock + pre-CVODE 并行 race audit 全通过
-- P2b 继承设计语汇：StrictOMP single parallel region + SHUD_RHS_THREADS env + 2×2 因果实验 + §4.6.2 partial-closure + D7 AND-gate + owner-local + allocation-time first-touch
-- 文档遗产预期：`docs/p2a_summary.md` (顶层) + `docs/p2a/p2a_*.md` capstone docs
+| 决策日期 | 2026-06-26 (M12) |
+| Profile 实测 SHUD pin | `7a1dc8f` (含 t_forcing_io nested-Timer fix) |
+| 关键 Slurm job | 9487 (heihe v0.4 fair-compare) + 9483 (heihe_x4 production target) |
+| Profile doc canonical | `docs/p2a/p2a_profile_baseline.md` v0.4 (main `e2b77ca`) |
+| Case 部署 map | `docs/case_deployment_map.md` (main `1edb164`) |
+| 状态 | **NOT 启动 / 不进入 14-PR 模板** |
+| 后续 epic | P2b 或 P5（user 通过 stage-change-pipeline 确认） |
+| D11 chain 状态 | 8-tag (B0 → B1a → B1b → B1 → P1-update-omp → P1c → P1d → P1e) 保持，**不加 P2a-tag** |
 
 ---
 
@@ -2033,7 +2018,7 @@ P2a 未通过不进入 P2b。
 **前提条件**：
 - 每个函数只写 `Ele[i]` 自身字段和 `qEle*[i]`
 - `qLakeEvap[lake] += ...` 已在 S3 拆为 per-element contribution slot
-- P2a 已验证 pre-CVODE 输入正确——P2b 的 RHS snapshot 差异可直接归因于 RHS 并行化
+- ~~P2a 已验证 pre-CVODE 输入正确~~ **(M12 修订)**: P2a NO-GO 后 pre-CVODE forcing/ET 仍是 P1e SHIP-state 串行执行（forcing+ET 13.39%/7.97% wall 不再是优化目标），P2b 的 RHS snapshot 差异可直接归因于 RHS 并行化 vs P1e baseline
 
 **验收标准（A2）**：P2b RHS snapshot 与 B1b bitwise identical（element vertical flux + DY 分量）。
 
@@ -2641,7 +2626,7 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | RISK-13 | 全局变量裸指针阻碍并发 RHS | R2 | `shud.cpp` L18–L24, `Macros.hpp` L100–L108（§4.10） | P1–P7 不需要 reentrant RHS，风险不触发；迁移推迟到 P8+ / LibSHUD | P8 前 |
 | RISK-14 | `AccTemperature.getACC()` 除零 → NaN | R4 | `AccTemperature.hpp` L60–L62（§4.12） | 加 empty guard；cryosphere 算例纳入 B0 | S0 前 |
 | RISK-15 | 当前已用 OpenMP N_Vector，违反 C4 原则 | R2 | `shud.cpp` L58–L59（§4.13） | S1d.5 宏解耦后由 `SHUD_USE_OPENMP_NVECTOR` 独立控制（默认 OFF）；P7 自动用 serial N_Vector | P7 前 |
-| RISK-16 | `movePointer()` 非线程安全 | R3 | `TimeSeriesData.cpp` L116–L136（§4.14） | S5 forcing 改造时处理；并行前 movePointer 必须串行完成 | P2a 前 |
+| RISK-16 | `movePointer()` 非线程安全 | R3 | `TimeSeriesData.cpp` L116–L136（§4.14） | S5 forcing 改造时处理；并行前 movePointer 必须串行完成 | ~~P2a 前~~ **(M12 P2a NO-GO 后此风险不触发** — pre-CVODE forcing 保持 P1e SHIP-state 串行)；若未来重启 forcing 并行 epic 仍需处理 |
 | RISK-17 | `f_etFlux()` 中 `printf` 在并行中交错 | R0 | `MD_ET.cpp` L215–L216（§4.15） | 改为 diagnostic buffer | P2b 前 |
 | RISK-08 | 未初始化数组或旧值残留 | R4 | serial/omp update 覆盖不一致 | 统一 reset；debug 模式 fill NaN/sentinel | P1 前 |
 | RISK-09 | 诊断/日志输出破坏并行确定性 | R1/R3 | RHS 内 debug print | RHS 内只写 buffer；RHS 后串行输出 | P1 起 |
@@ -2669,8 +2654,9 @@ S1d 已完成宏解耦（§4.21）和 `N_VGetArrayPointer` 统一，P8-NVector �
 | → P1c (M9) | P1 已锁定 + P1-update-omp-tag 已 push；P1 实测 `nst` 漂移证据已归档 (`docs/p1/p1_perf_baseline.md` §2)；reduction 站点 grep 清单已完成（含 S2 P3–P5 gather + 候选其他 RHS reduction） |
 | → P1d (M10) | P1c PARTIAL CLOSURE 已记录 (PR-K2 #223 server 仍残 `|Δ_nst|=84`)；`P1c-tag` 已 push + `baseline/P1c` D11 protection set；P1d epic #274 已开 |
 | → P1e (M10) | P1d E′ containment closure 全部 7 项动作完成 (production 默认 `NUM_OPENMP=1` + 4-mode spec rewrite + `shud_omp` 标 fast-omp experimental + PR-C/D/E first-touch deprecation + Kahan revert 保留 + PR-K capstone + PR-L `P1d-tag` + PR-M PROMOTE)；`P1d-tag` 已 push + `baseline/P1d` lock；ADR `docs/adr/0002-solver-path.md` 已建立；openspec `p1e-strict-omp-rhs` change 已 propose；2×2 build matrix 因果实验 mode C (Serial NVec + StrictOMP RHS) 验收 PASS（跨 N bitwise + nst Δ=0 + 加速 ≥ 1.5×） |
-| → P2a (M10 改 / M11 verified) | P1e 全部完成: 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥ 1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0002 close out。**(M11 实测 verified, 2026-06-25)**：heihe 1.066× FAIL <1.3× / heihe_x4 1.729× PASS ≥1.5×；AC-S1 + AC-S2 + 6/6 cross-platform SHA matrix all PASS；`P1e-tag` annotated `25023eff32d1` / deref `11687b75` / SHUD pin `3341368d`；`baseline/P1e` D11 locked (lock_branch=true + enforce_admins=true)；ADR-0002 Status: Implemented (2026-06-25)；OpenSpec `p1e-strict-omp-rhs` + `p1e-capstone` 共 21 reqs PROMOTE 完成 |
-| → P4/P5 | P2a–P2b–P3 bitwise 通过；segment flux 函数只写 `Qseg*`；gather list 排序与 B1c 一致 |
+| → P2a (M10 改 / M11 verified / **M12 NO-GO**) | ~~P1e 全部完成: 3 SHALL gate 在 strict-omp mode 内通过 + 加速比 ≥ 1.5× + `P1e-tag` 已 push + `baseline/P1e` lock + ADR-0002 close out~~。**(M12 NO-GO, 2026-06-26)**：P2a profile fair-compare 实测 heihe 13.39% + heihe_x4 7.97% forcing+ET %wall, sp@8 上界 < 1.15×，P2a 不启动，转 P2b / P5。详 §P2a M12 + [`docs/p2a/p2a_profile_baseline.md`](docs/p2a/p2a_profile_baseline.md) v0.4 |
+| → P2b (M12 改) | P1e 全部完成 (per →P2a 原启动前置) + P2a M12 NO-GO 决策已记录。P2b 继承 P1e 设计语汇 (StrictOMP / env split / 2×2 因果 / §4.6.2 partial-closure / D7 / owner-local / allocation-time first-touch)，可直接由 P1e 后置启动 |
+| → P4/P5 | P2b–P3 bitwise 通过 (P2a NO-GO 跳过)；segment flux 函数只写 `Qseg*`；gather list 排序与 B1c 一致 |
 | → P7 | P2–P6 每阶段 RHS snapshot 均 bitwise identical (基于 P1c deterministic-reduction) |
 | → P8-precond | P7 通过 A3a + A3b（A3c 加分不强制）；**`grep -c '#pragma omp parallel' MD_rhs_core.cpp` == 1**（fork-join 验证）；P7 性能验收 M 列通过 |
 | → P8-tune | P8-precond 通过 A4；`nfeLS / nfe` 下降 ≥ 30% |
