@@ -10,7 +10,7 @@
 > 版本：v1.4 | 日期：2026-06-22 | SHUD 源码子模块路径：`SHUD/` (pinned to `78c37a1`，B0-tag `95ddc375`)
 
 > **v1.5 修订要点**（P1d epic capstone 后，按 PR-H 实测 + 两轮独立 GPT Pro 复查 + codebase 事实核查修订）：
-> 12. **M12（§6 P2a 重写 NO-GO + §6 P1e.6/.7/.8 改链 + §7.2 RISK-16 → 不触发 + §7.3 P2a 行改 + §P2b 前提条件改写）**：P1e closure 后 P2a profile 前置实测（heihe forcing.trimmed fair-compare + heihe_x4 production target，SHUD pin `7a1dc8f` 含 nested-Timer fix）发现 forcing+ET %wall 全线低位：heihe 13.39% / heihe_x4 7.97%（v0.2 76.91% 是 v0.3 NFS-artifact 误判 → v0.4 dataset size artifact 正解，缩 413× dataset → 缩 75% wall 证明）。Amdahl sp@8 上界 <1.15×（heihe 1.13× / heihe_x4 1.07×），远不及 P1e RHS 1.729×。**P2a NO-GO（不启动）**：原 M11 P2a.1-.8 14-PR 模板全部不实施（设计语汇由 P2b / P5 继承）；M12 修订：§P2a 改写为 NO-GO 决策段（含 fair-compare 数据 + v0.3 → v0.4 解读修订 + 替代路径 P2b/P5 + M7 forcing_trim deployment 副产物）；P1e.6 Go/No-Go 题目 → P2b/P5；P1e.8 后续移交改 → P2b/P5；§7.2 RISK-16 movePointer 风险标 P2a NO-GO 不触发；§7.3 → P2a 行标 NO-GO + 新增 → P2b 行直接由 P1e 后置启动；§P2b 前提条件 "P2a 已验证 pre-CVODE 输入正确" 改为 "pre-CVODE 保持 P1e SHIP-state 串行"。详 `docs/p2a/p2a_profile_baseline.md` v0.4 + `docs/case_deployment_map.md`。
+> 12. **M12（§6 P2a 重写 NO-GO + §6 P1e.6/.7/.8 改链 + §7.2 RISK-16 → 不触发 + §7.3 P2a 行改 + §P2b 前提条件改写）**：P1e closure 后 P2a profile 前置实测（heihe forcing.trimmed fair-compare + heihe_x4 production target，SHUD pin `7a1dc8f` 含 nested-Timer fix）发现 forcing+ET %wall 全线低位：heihe 13.39% / heihe_x4 7.97%（v0.2 76.91% 是 v0.3 NFS-artifact 误判 → v0.4 dataset size artifact 正解，缩 413× dataset → 缩 75% wall 证明）。Amdahl sp@8 上界 <1.15×（heihe 1.13× / heihe_x4 1.07×），远不及 P1e RHS 1.729×。**P2a NO-GO（不启动）**：原 M11 P2a.1-.8 14-PR 模板全部不实施（设计语汇由 P2b / P5 继承）；M12 修订：§P2a 改写为 NO-GO 决策段（含 fair-compare 数据 + v0.3 → v0.4 解读修订 + 替代路径 P2b/P8-precond + M7 forcing_trim deployment 副产物）；P1e.6 Go/No-Go 题目 → P2b/P8-precond；P1e.8 后续移交改 → P2b/P8-precond；§7.2 RISK-16 movePointer 风险标 P2a NO-GO 不触发；§7.3 → P2a 行标 NO-GO + 新增 → P2b 行直接由 P1e 后置启动；§P2b 前提条件 "P2a 已验证 pre-CVODE 输入正确" 改为 "pre-CVODE 保持 P1e SHIP-state 串行"。详 `docs/p2a/p2a_profile_baseline.md` v0.4 + `docs/case_deployment_map.md`。
 > 11. **M11（§6 P1e.4/.7/.8 实测回填 + §6 P2a 重梳理 + §8.1 strict-omp SHIP 状态 + §7.3 P2a 启动前置 verified）**：P1e epic (#308) 2026-06-25 closure。14 PR (PR-A..PR-M + PR-B0 audit) 完成 ExecPolicy::StrictOMP 实施 + 2×2 build matrix 因果实验 + 6/6 cross-platform 决定论。AC-S1 + AC-S2 PASS；AC-S3 PARTIAL (heihe 1.066× FAIL <1.3× / heihe_x4 1.729× PASS ≥1.5×) → §4.6.2 partial-closure SHIP。SHUD pin `3341368d` + P1e-tag annotated `25023eff32d1` + baseline/P1e D11 locked。M11 修订：§P1e Status 改 COMPLETE + 验收节回填实测数据 + P1e.7 改写为实测 carve-out + 新增 P1e.8 后续移交；§P2a 基于 P1e 经验重梳理为 P2a.1-.8 子节（2×2 因果实验 + SHUD_PRE_CVODE_THREADS env split + §4.6.2 partial-closure 决策 + D7 AND-gate + D11 forward-compat stacking）；§8.1 strict-omp mode SHIP；§7.3 P2a 启动前置 verified。详 `docs/p1e_summary.md` (顶层) + `docs/p1e/p1e_summary.md` (capstone) + ADR-0002 closure。
 > 10. **M10（§1.1.2 + §3 路线图 + §4.13 + §4.17 + §6 P1c.5 / P2a 启动前置 + §6 新增 P1d / P1e + §7.2 RISK + §7.3 + §8.1）**：P1c PARTIAL CLOSURE 后 P1d epic (#274) 尝试 NUMA env + first-touch + Kahan revert 收尾，PR-H 8-cell 实测 3 SHALL gate FAIL（A3a + nst Δ=0 at N≥4）。事实核查发现：(a) `shud_omp` 当前实际跑的是 **Serial 水文 RHS + OpenMP N_Vector backend**——`SHUD/src/Model/f.cpp:54` 始终调 `ExecPolicy::Serial`，`StrictOMP/ProductionOMP` 在 `MD_rhs_core.cpp:802-811` 是 `std::abort()` 桩；(b) SPGMR 没注册 preconditioner（`cvode_config.cpp:259` `SUNLinSol_SPGMR(udata, 0, 0, sunctx)` 后无 `CVodeSetPreconditioner`）；(c) N≥4 cross-N 散度根因是 SUNDIALS `NVECTOR_OPENMP` 内 `N_VDotProd_OpenMP` / `N_VWSqrSumLocal_OpenMP` 用 `reduction(+:sum) schedule(static)`，跨 N reduction tree 不固定；(d) PR-C/D/E 添加的 steady-state first-touch loops 是为完全没发生的 owner-compute 做的页面预放置（consumer 是单线程），无效优化。M10 修订：P1d 以 **E′ containment closure** 收尾——production 默认 `NUM_OPENMP=1`、`shud_omp` 标 `fast-omp experimental, non-production`、3 SHALL gate 重写为 **4-mode spec**（serial / strict-omp / det-omp / fast-omp）strict 承诺保留在 strict-omp mode 内、PR-C/D/E steady-state first-touch 标 deprecated（allocation-time first-touch 保留）；新增 **P1e epic (F 路)** = Serial N_Vector + StrictOMP RHS（替换 abort 桩 + 真正并行水文 RHS + 复用 deterministic_gather），启动前必须做 **2×2 build 因果实验**（A/B/C/D × N∈{1,2,4,8} × 3 reps）验证 NVECTOR reduction 是主因；P2a 启动前置链路从 P1c → P2a 改为 P1c → P1d → P1e → P2a；KLU 推到 `docs/adr/0002-solver-path.md` 作 4 路对比，不阻塞 F 路。§3 路线图 figures M10 修订仍保留 v1.3 版本 caveat。
 
@@ -1894,14 +1894,14 @@ nst Δ=0 strict ladder：heihe + heihe_x4 各 N∈{1,2,4,8} nst case-fixed（hei
 | Baseline 分支 | `baseline/P1e`，D11 protection 同前 |
 | D11 chain | ... → P1d → **P1e**（7 tag 链） |
 
-#### P1e.6 Go/No-Go → ~~P2a~~ (M12 改: → P2b 或 P5)
+#### P1e.6 Go/No-Go → ~~P2a~~ (M12 改: → P2b 或 P8-precond)
 
 - P1e 3 SHALL gate strict-omp mode 全 PASS
 - 加速比 ≥ 1.5× (heihe + heihe_x4) at N=8
 - `P1e-tag` 已 push + `baseline/P1e` lock
 - ADR-0002 (solver-path) 已 close out (4 路对比结论入档)
 
-**(M12, 2026-06-26)**: 原 "→ P2a" 已 NO-GO（详 §P2a M12 决策）。Go 路径改为 → P2b (RHS element vertical 剩余) 或 → P5 (KLU 替换 SPGMR)。
+**(M12, 2026-06-26)**: 原 "→ P2a" 已 NO-GO（详 §P2a M12 决策）。Go 路径改为 → P2b (RHS element vertical 剩余) 或 → P8-precond (CVODE 物理块对角预条件器，ROI 最高) 或 P8-KLU (sparse direct 替换 SPGMR，ADR-0002 Path 4)。
 
 #### P1e.7 实测 carve-out / 遗留事项（M11 回填）
 
@@ -1911,9 +1911,9 @@ nst Δ=0 strict ladder：heihe + heihe_x4 各 N∈{1,2,4,8} nst case-fixed（hei
 | 2 | mode D 96-cell (NVECTOR_OPENMP + StrictOMP RHS) deferred | tasks §2.5.1 + §2.6.1 | mode A/B/C 因果三角形已闭合 ADR-0002 Path 1 SELECTED；mode D 作 research 边界，非 production gate。post-P1e 可单独 epic 启动 |
 | 3 | PR-N D12.3 block-Jacobi precond placeholder | AND-gate semantics per design D7 + tasks §4.6 | **未触发**：D12.3 fallback 仅在 BOTH heihe + heihe_x4 同时 FAIL 时启动；本 epic AND-gate 不满足。Placeholder doc `docs/p1e/p1e_pr_n_block_jacobi.md` 由 PR-K 写出，留 future epic 重启位 |
 | 4 | spec L343 tag-message scenario cross-ref `<TBD>` | PR-M R1 F-R1-1 deferred | ~~P2a era~~ → P2b era 或独立 docs PR 内 amend；非 P1e closure 阻塞项 |
-| 5 | D12.4 KLU spike (ADR-0003 forthcoming) | ADR-0002 Path 4 | 不在 P1e scope；~~P2a/P2b/P3 阶段~~ → **P5 (KLU 替换 SPGMR) 已成 M12 推荐主线**（P2a NO-GO 后 CVODE_internal 25% wall 成为可攻 target），如遇加速比 plateau 单独启动 ADR-0003 epic |
+| 5 | D12.4 KLU spike (ADR-0003 forthcoming) | ADR-0002 Path 4 | 不在 P1e scope；~~P2a/P2b/P3 阶段~~ → **P8-precond (CVODE 物理块对角预条件器，ROI 最高) 或 P8-KLU (sparse direct 替换 SPGMR，ADR-0002 Path 4) 已成 M12 推荐主线**（P2a NO-GO 后 CVODE_internal 25% wall 成为可攻 target），如遇加速比 plateau 单独启动 ADR-0003 epic |
 
-#### P1e.8 后续移交（~~→ P2a~~ M12 改: → P2b 或 P5）
+#### P1e.8 后续移交（~~→ P2a~~ M12 改: → P2b 或 P8-precond）
 
 - **后续 epic 启动前置已满足**（per §6 P1d.7 + §7.3 stage go/no-go）：
   - `P1e-tag` 已 push 至 origin（annotated object `25023eff32d1` / deref `11687b75`）
@@ -1934,7 +1934,7 @@ nst Δ=0 strict ladder：heihe + heihe_x4 各 N∈{1,2,4,8} nst case-fixed（hei
 
 ### P2a：并行 pre-CVODE forcing / ET loop — **M12 NO-GO（不启动）**
 
-> **M12 决策（2026-06-26）**：P2a profile 前置（heihe forcing.trimmed fair-compare + heihe_x4 production target）实测后**不启动 P2a epic**。详 [`docs/p2a/p2a_profile_baseline.md`](docs/p2a/p2a_profile_baseline.md) v0.4 §6。后续转 P2b (RHS element vertical 剩余) / P5 (KLU 替换 SPGMR)。
+> **M12 决策（2026-06-26）**：P2a profile 前置（heihe forcing.trimmed fair-compare + heihe_x4 production target）实测后**不启动 P2a epic**。详 [`docs/p2a/p2a_profile_baseline.md`](docs/p2a/p2a_profile_baseline.md) v0.4 §6。后续转 P2b (RHS element vertical 剩余) / P8-precond (CVODE 物理块对角预条件器，ROI 最高) 或 P8-KLU (sparse direct 替换 SPGMR，ADR-0002 Path 4)。
 
 #### P2a.1 决策依据（fair-compare profile 实测）
 
@@ -1964,14 +1964,15 @@ v0.4 heihe forcing/ 仍 SYMLINK → `/volume/data/nwm/Basins/heihe/forcing`（NF
 
 真实 production bottleneck = **CVode 内部** (heihe v0.4 66.69% + heihe_x4 80.65% wall)：
 - `t_RHS_kernel` 41.5% (heihe v0.4) / 55.6% (heihe_x4) wall — P1e strict-omp 已 partial 攻克 (sp@8 1.729×)，剩余空间走 P2b RHS element vertical 剩余优化
-- `t_CVODE_internal` (raw - RHS_total) 约 25% wall — 含 SPGMR + step control，**P5 KLU 替换 SPGMR** 主目标
+- `t_CVODE_internal` (raw - RHS_total) 约 25% wall — 含 SPGMR + step control，**P8-precond 物理块对角预条件器** 主目标（per §6 §P8-precond，加 PREC_LEFT 块对角预条件，nfeLS/nfe 降 ≥30% → 等价 wall 降 30%）；若 plateau 再启 **P8-KLU sparse direct**（per ADR-0002 Path 4）
 
 转向选项（待 user 通过 stage-change-pipeline 确认）:
 | 候选 | scope | 预期 ROI |
 |---|---|---|
-| **P2b** | RHS element vertical processes (`MD_ET.cpp` f_etFlux / `MD_f.cpp` updateElement / `MD_ElementFlux.cpp` fun_Ele_Infiltration) 剩余优化 | 进一步压低 RHS_kernel wall |
-| **P5** | KLU 替换 SPGMR (CVode internal 子模块) | 干掉 25% CVODE_internal wall |
-| P3 | owner-local gather (Σ reduction overhead) | 中等 ROI, 单独 epic |
+| **P2b** | RHS element vertical processes (`MD_ET.cpp` f_etFlux / `MD_f.cpp` updateElement / `MD_ElementFlux.cpp` fun_Ele_Infiltration / fun_Ele_Recharge / lake vertical) 纳入 P1e StrictOMP single parallel region | 进一步压低 RHS_kernel wall (heihe_x4 55.6% → 期望 30-40%) |
+| **P8-precond** | CVODE 物理块对角预条件器 (surf/unsat/gw/riv/lake 五块, GW 块用 element-by-element Jacobi 或 ILU(0))，从 PREC_NONE 改 PREC_LEFT | 干掉 25% CVODE_internal wall, nfeLS/nfe ≥30% 下降 → 等价 RHS 调用减 30% → wall 降 30% |
+| P3 / P5 / P6 | RHS 其它 phase 并行 (element horizontal / deterministic gather / DY assembly) | 中等 ROI, 单独 epic 或并入 P2b epic |
+| P8-KLU | sparse direct 替换 SPGMR (ADR-0002 Path 4) | 若 P8-precond 仍 plateau 再评估 |
 
 #### P2a.4 deployment 副产物（M7 forcing_trim 推广）
 
@@ -1996,7 +1997,7 @@ M11 (2026-06-25) 设计的 P2a 14-PR 模板（含 2×2 build matrix / `SHUD_PRE_
 | Profile doc canonical | `docs/p2a/p2a_profile_baseline.md` v0.4 (main `e2b77ca`) |
 | Case 部署 map | `docs/case_deployment_map.md` (main `1edb164`) |
 | 状态 | **NOT 启动 / 不进入 14-PR 模板** |
-| 后续 epic | P2b 或 P5（user 通过 stage-change-pipeline 确认） |
+| 后续 epic | P2b 或 P8-precond（user 通过 stage-change-pipeline 确认） |
 | D11 chain 状态 | 8-tag (B0 → B1a → B1b → B1 → P1-update-omp → P1c → P1d → P1e) 保持，**不加 P2a-tag** |
 
 ---
