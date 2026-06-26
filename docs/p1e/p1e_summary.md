@@ -151,15 +151,23 @@ P2a 前置改链：原 P1c-tag + P1c.3 充分性不足 → 新前置 = `P1e-tag`
 
 ## §10 验证 P1e-tag
 
-_capstone-time SHA: TBD by PR-M post-merge_
+_capstone-time SHA: filled by PR-M (#TBD-pending push) per task 5.4 + 7.22_
 
-PR-M task 5.4 (post-PR-L-merge) 将在此章填实：
+PR-M post-PR-L-merge amend (per task 5.4 + 7.22 + spec p1e-capstone Scenario "tag 验证章 amend by PR-M")：
 
-- **tag-object SHA**: `git rev-parse P1e-tag` → `<TBD>`
-- **deref commit SHA**: `git rev-parse P1e-tag^{}` → `<TBD>`
-- **deref commit 内容覆盖**：pre-PROMOTE HEAD（不含 PR-M PROMOTE diff，per task 5.4 + spec p1e-capstone Scenario "tag 验证章 amend by PR-M"）
+- **tag-object SHA**: `git rev-parse P1e-tag` → `25023eff32d1fa317b045cbc786f379fac9e522c`
+- **deref commit SHA**: `git rev-parse P1e-tag^{}` → `11687b756dd53bb634df391bcbeb64b3cef5c750`
+- **deref commit 内容覆盖**：pre-PROMOTE HEAD（PR-K post-merge log append `chore(p1e): append review-loop-log PR-K entry (post-merge accountability for #334)`，不含 PR-M PROMOTE diff）
 - **annotated tag message 引用文档**：
   - `docs/p1e/p1e_summary.md` (本文件)
   - `docs/p1e/p1e_perf_baseline.md`
-- **annotated tag message verification**：`git tag -v P1e-tag` (若 signed) 或 `git tag -l --format='%(contents)' P1e-tag | grep p1e_summary.md`
+- **annotated tag message verification**：`git tag -l --format='%(contents)' P1e-tag | grep p1e_summary.md`
 - **D11 7-tag chain final state**：B1-tag / B1a-tag / B1b-tag / P1-update-omp-tag / P1c-tag / P1d-tag / **P1e-tag (新增)** — 前 6 tag SHA 不变 (immutable per master plan §6 D11)
+
+### R2 F-R2-1 forward note (PR-L → PR-M PR# 映射)
+
+P1e-tag annotated tag message body 含 literal `<TBD>` placeholders for PR-L + PR-M PR numbers（per PR-L #335 review-loop-log F-R2-1 deferred）。Tag object immutable per D11 chain discipline；PR numbers 不通过 retagging 修正，而是在本 doc 记录映射：
+
+- PR-L → **#335** (URL: https://github.com/DankerMu/SHUD-OpenMP/pull/335)
+- PR-M → **#TBD-pending-push** (URL: https://github.com/DankerMu/SHUD-OpenMP/pull/TBD-pending-push)
+  - 注：PR-M PR# 在本 commit push + gh pr create 后通过 followup commit 填实（避免循环依赖：PR# 需 push 才能得，doc amend 在 push 前）
