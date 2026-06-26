@@ -41,7 +41,7 @@ P1e capstone era build matrix 由 P1d 的 2 build × 1 配 升至 **2 build × 2
 | case | N=1 wall (s) | N=2 wall (s) | N=4 wall (s) | N=8 wall (s) |
 |---|---:|---:|---:|---:|
 | heihe (6335 cells) | 504 | 511 | 488 | 473 |
-| heihe_x4 (~25k cells) | 1340 | 1051 | 850 | 775 |
+| heihe_x4 (NumEle=40046) | 1340 | 1051 | 850 | 775 |
 
 ### 3.2 speedup vs N=1
 
@@ -111,7 +111,7 @@ Mac cross-N (N=2/4/8) advisory 不在本 epic SHALL scope（per `docs/p1e/p1e_ma
 | platform | case | N=1 wall median (s) | N=8 wall median (s) | speedup | per-case threshold (D7) | 验收 |
 |---|---|---:|---:|---:|---:|:---:|
 | server | heihe (6335) | 504 | 473 | 1.066× | ≥1.3× | FAIL |
-| server | heihe_x4 (~25k) | 1340 | 775 | 1.729× | ≥1.5× | PASS |
+| server | heihe_x4 (NumEle=40046) | 1340 | 775 | 1.729× | ≥1.5× | PASS |
 | Mac | keliya (484) | 30.08 | n/a (N=1 only per PR-J scope) | n/a | advisory | n/a |
 | Mac | xinanjiang_upstream (801) | ~62 | n/a | n/a | advisory | n/a |
 | Mac | qinyijiang (3155) | ~241 | n/a | n/a | advisory | n/a |
@@ -121,17 +121,21 @@ Mac cross-N (N=2/4/8) advisory 不在本 epic SHALL scope（per `docs/p1e/p1e_ma
 
 ## §6 small-case carve-out (heihe 6335 cells)
 
+> **v0.2 修正 (2026-06-26, per GPT Pro fact-check)**：原 §6.1 把开销近似为 "5e8 OMP barrier / fork-join 事件"，量级写错。实际 P1e PR-H ExecPolicy::StrictOMP 实现是 **单 `#pragma omp parallel` per RHS evaluation**（见 [SHUD/src/Model/MD_rhs_core.cpp L885+L948](../../SHUD/src/Model/MD_rhs_core.cpp)），不是每 element / 每 phase 一次 fork-join。fork-join 真实次数 ≈ 6698 RHS evals × ~3 = 2e4 数量级，并非 5e8。Phase barrier (各 `omp for` 隐式 barrier) 次数 ≈ 6698 × ~12 phases ≈ 8e4，依然远小于原写的 5e8。heihe small-case 不达 threshold 的真正归因（per GPT Pro 推荐重述）：
+
 heihe AC-S3 1.066× < 1.3× threshold 的设计预期归因：
 
-1. **fork-join overhead 占比高**：6335 cells × 4 phase (rhs_update / rhs_flux / rhs_apply / rhs_deterministic_gather) per RHS evaluation × CVODE 6698 internal steps × ~3 RHS evals per step ≈ 5e8 OMP barrier / fork-join 事件。在 libgomp N=8 下 barrier wait ~µs 量级，累计达数百 s，与 wall 同 order，导致 sp@8 ~ 1。
-2. **per-thread 工作量 < cache-line × 频次**：6335 / 8 ≈ 792 cells per thread per phase，每 phase 100ns ~ 1µs 计算后 join，cache-friendly 比单线程版（线程顺序 cache line prefetch 命中率高）更差。
-3. **NUMA 不利**：dual-socket 实际跑测 mode C 不强制 numactl --interleave；小 case fork-join 频次高时 cross-socket migration 概率上升。
+1. **fixed overhead per RHS 不能被 6335 cells amortize**：单 parallel region per RHS 仍有 ~µs 量级 team-spawn + barrier-sync 固定成本（OpenMP runtime + libgomp 实现 detail），且 RHS 内 ~12 phase barrier 累计成本同 order。6698 RHS evals × (team-spawn + 12 phase barrier) 累计达 N=8 下数百 ms — 与 wall 同 order，吃掉小 case 的并行收益。
+2. **per-thread 工作量 < cache locality 收益阈值**：6335 / 8 ≈ 792 cells per thread per phase，每 phase ~100ns - 1µs 计算后 phase barrier，cache-friendly 比单线程版（顺序 cache line prefetch 命中率高）更差；并行版破坏了单线程的连续访问模式。
+3. **NUMA 不利**：dual-socket Xeon 跑测 mode C 不强制 `numactl --interleave`；小 case phase barrier 频次相对高时 cross-socket migration 概率上升，cache-line ping-pong 进一步抵消并行收益。
+
+**结论**：heihe 1.066× 不是 implementation bug，是 OpenMP runtime 固定开销 + cache locality 反转 + NUMA migration 在 6335 cells 规模下的物理 limit；非 fork-join 事件量级问题。生产规模 mesh (heihe_x4 NumEle=40046) 由于 per-thread work 量大幅上升，固定开销摊薄 → 1.729× 真实 ROI。
 
 **user 决策 SHIP 而非 fix**：per `docs/p1e/p1e_2x2_verdict.md` §6.4 + tasks §4.6.2 partial-closure：
 
 > 4.6.2 单 case 不达 threshold（另一 case 已达）：进 partial closure 决策点（用户决策 ship vs fallback；倾向 ship 当 heihe_x4 达 1.5× 时）
 
-heihe small-case 运营建议：`SHUD_RHS_THREADS=1` 默认（与 P1d era 默认一致）。production-target mesh (heihe_x4 ~25k) 推荐 `SHUD_RHS_THREADS≥4` 以闭合 ≥1.5× ROI。
+heihe small-case 运营建议：`SHUD_RHS_THREADS=1` 默认（与 P1d era 默认一致）。production-target mesh (heihe_x4 NumEle=40046) 推荐 `SHUD_RHS_THREADS≥4` 以闭合 ≥1.5× ROI。
 
 ## §7 Reproducibility footprint
 

@@ -1,8 +1,8 @@
 ---
 title: "P2a profile baseline — pre-CVODE forcing/ET wall 占比量化 (heihe corrected + heihe_x4 production fair-compare)"
 date: 2026-06-26
-version: 0.4 (heihe forcing.trimmed fair-comparison — P2a NO-GO 严谨确认)
-status: "**P2a NO-GO 严谨确认** — heihe corrected (forcing 29MB local via forcing_trim) forcing+ET **13.39%** wall sp@8 上界 **1.13×**；heihe_x4 production (286MB local) forcing+ET **7.97%** wall sp@8 上界 **1.07×**。两 case 上界均 < 1.15×。v0.3 推荐保持但 §6 'heihe outlier 由 NFS IO 路径 artifact' 解读错；实际是 v0.2 heihe basin 用 12GB CMFD V0200 全时段 (1951-2024) forcing dataset 工件 (vs heihe_x4 90-day window 内 csv subset)。corrected 后 heihe 与 heihe_x4 forcing %wall 同量级，CVODE 66.69% / 80.65% wall 才是真瓶颈。建议转 P2b (RHS element vertical) / P3 (owner-local gather) / P5 (KLU 替换 SPGMR)"
+version: 0.5 (GPT Pro fact-check correction — P2b absorbed by P1e PR-H, P5/KLU 命名修正)
+status: "**P2a NO-GO 严谨确认** — heihe corrected (forcing 29MB local via forcing_trim) forcing+ET **13.39%** wall sp@8 上界 **1.13×**；heihe_x4 production (286MB local) forcing+ET **7.97%** wall sp@8 上界 **1.07×**。两 case 上界均 < 1.15×。**v0.5 修正**（per GPT Pro 反馈）：(i) v0.3-v0.4 列的 'P2b RHS element vertical' 候选 5 函数 (`f_etFlux` / `updateElement` / `fun_Ele_Infiltraion` / `fun_Ele_Recharge` / lake vertical) 已被 P1e PR-H StrictOMP `rhs_flux` ET pass 吸收 (见 [SHUD/src/Model/MD_rhs_core.cpp L336-L385](../../SHUD/src/Model/MD_rhs_core.cpp))，不构成独立 epic；(ii) v0.3-v0.4 'P5 (KLU 替换 SPGMR)' 是错命名，master plan §P5 = owner-local deterministic gather，KLU 实际在 §P8-KLU；ROI 最高的 CVODE solver-side 优化 = §P8-precond (物理块对角预条件器, 从 PREC_NONE 改 PREC_LEFT)；(iii) 下一步推荐 = **P8-precond-0 spike** (identity preconditioner + SUNDIALS API 验证 + nfeLS/nfe ROI gate)，视 spike 结果决定是否进入完整 §P8-precond epic。详 §9 v0.5 修正脚注。"
 related_docs:
   - "docs/p1e/p1e_perf_baseline.md (RHS = 66.55% wall reference)"
   - "docs/profile_decision.md (B0 era profile gate, t_RHS_total% baseline)"
@@ -87,13 +87,13 @@ heihe v0.2 job 9475 (cn08 wall 10:10, real 610.30s, NFS-bound)；heihe v0.4 job 
 1. **heihe outlier 已消除**: v0.4 13.39% forcing+ET 与 heihe_x4 7.97% 同量级
 2. **heihe v0.4 wall 缩 74.2%** (523s → 135s) — forcing.trimmed 直接 IO 减负反映
 3. **真实 production bottleneck = CVODE** (heihe v0.4 66.69% + heihe_x4 80.65% wall)
-4. **CVODE 内 RHS_kernel 仅占 41%** (heihe v0.4 56/90 = 62%; heihe_x4 764/1108 = 69%)，**剩余 CVODE_internal 30-40% 是 SPGMR + step control** — 可被 P5 (KLU 替换) 攻克
+4. **CVODE 内 RHS_kernel 仅占 41%** (heihe v0.4 56/90 = 62%; heihe_x4 764/1108 = 69%)，**剩余 CVODE_internal 30-40% 是 SPGMR + step control** — 可被 **P8-precond (物理块对角预条件器, 从 PREC_NONE 改 PREC_LEFT)** 攻克 (v0.5 修正：原写 "P5 KLU" 命名错误, 见 §9)
 5. v0.2 heihe basin /volume NFS 路径其实可工作（heihe v0.4 forcing/ 仍 symlink 到 NFS source，是 forcing_trim 输出本地），路径不是主因 → **v0.3 §6 'NFS-bottleneck' 解读 REFUTED**
 
 **结论 (v0.4 严谨化)**:
 - production target heihe_x4 + small case heihe corrected **两者** forcing+ET 占比都 < 15% wall，sp@8 上界 < 1.15×
 - **P2a 对任意 NumEle production case 几乎无收益** (不仅是 production scale)
-- **CVode (含 RHS + solver internal) 70-80% wall** 才是真瓶颈 → P2b / P5 优先
+- **CVode (含 RHS + solver internal) 70-80% wall** 才是真瓶颈 → **P8-precond 优先**（v0.5 修正：原写 "P2b / P5"，但 P2b scope 已被 P1e PR-H 吸收 + KLU 实际在 P8-KLU 不在 P5）
 
 ## §4 instrumentation bug — **FIXED in SHUD `7a1dc8f`**
 
@@ -150,8 +150,8 @@ v0.3 决策 NO-GO 正确，但 §6 原因解读不准 ("NFS-bottleneck IO 路径
 2. **v0.2 heihe 76.91% 是 forcing dataset 时段长度 artifact**：CMFD V0200 全 74yr (12GB) vs trimmed 90-day window (29MB)，缩 413× → forcing wall 缩 24× (401s → 17s)
 3. **NFS 路径不是主因**：heihe v0.4 forcing/ 仍 symlink 到 /volume NFS source（forcing_trim 输出本地，但读 source 也是 NFS），路径相同但 forcing wall 大幅降 → 证明 dataset size 才是关键变量
 4. **真实 production bottleneck = CVode (heihe v0.4 66.69% + heihe_x4 80.65% wall)**:
-   - RHS_kernel: heihe v0.4 41.5% / heihe_x4 55.6% wall → P2b 已部分攻克 (P1e RHS sp@8 1.729×)，剩余可优化空间
-   - CVODE_internal (raw - RHS): heihe v0.4 25.2% / heihe_x4 25.1% wall → SPGMR + step control，P5 (KLU) 主目标
+   - RHS_kernel: heihe v0.4 41.5% / heihe_x4 55.6% wall → P1e PR-H StrictOMP 已吸收原 P2b scope (sp@8 1.729× heihe_x4)，剩余可优化空间需 **N=8 profile 复测** 确认 (per GPT Pro: N=1 占比 ≠ N=8 后剩余瓶颈，可能是 OMP_CUTOFF / barrier nowait / cache locality / NUMA binding 范畴)
+   - CVODE_internal (raw - RHS): heihe v0.4 25.2% / heihe_x4 25.1% wall → SPGMR + step control，**P8-precond** 主目标（v0.5 修正: 原 "P5 KLU" 命名错误, KLU 实际在 §P8-KLU, ROI 最高的 solver-side 优化是 §P8-precond）
    - `t_other` (init/finalize): heihe v0.4 19.6% / heihe_x4 10.8% wall → 小 case 占比更高 (init overhead 不 amortize)
 
 **对 7 case 综合判断 (v0.4 update)**:
@@ -172,19 +172,41 @@ P2a 对所有 fair-compare case **均无 production ROI** (max sp@8 < 1.4×)，�
 
 | 选项 | 决策 | 理由 |
 |---|---|---|
-| **(a) 跳过 P2a，转 P2b / P5** | **强烈推荐** | CVode 66-80% wall 是真瓶颈。P2b (RHS element vertical 剩 ~30%) + P5 (KLU 替换 SPGMR 干掉 CVODE_internal 25%) |
+| **(a) 跳过 P2a，转 P8-precond-0 spike** | **强烈推荐**（v0.5 修正） | CVode 66-80% wall 是真瓶颈。**v0.3-v0.4 推荐的 P2b 已被 P1e PR-H 吸收** (per GPT Pro fact-check, MD_rhs_core.cpp:336-385)；**"P5 KLU" 是命名错误**, KLU 实际在 §P8-KLU, ROI 最高的是 §P8-precond (CVODE 物理块对角预条件器, 从 PREC_NONE 改 PREC_LEFT, nfeLS/nfe ≥30% 下降 → wall 降 30%)；先做 P8-precond-0 spike (identity precond + SUNDIALS API 验证) 再决定正式 epic |
 | (b) 启动 P2a 但 scope 仅大 case | 不推荐 | 所有 fair-compare case (含 heihe_x4 production) ROI < 1.15×，scope-limit 无意义 |
 | (c) heihe basin 部署 forcing_trim 写入 master plan | **推荐作为单独小修** | tools/forcing_trim 已 M7 落地，但 heihe / 其它 server case 部署 SOP 需文档化。本工作已 prove forcing_trim 显著缩 wall (74.2%)，未来 server baseline 应默认 forcing.trimmed (不影响 SHALL gate, bitwise-equivalent per M7 spec) |
-| (d) Mac 3 case re-run with 7a1dc8f | 可选 | 若 P2b/P5 epic 需要精确 keliya / xinanjiang / qinyijiang 占比 |
+| (d) Mac 3 case re-run with 7a1dc8f | 可选 | 若后续 P8-precond epic 需要精确 keliya / xinanjiang / qinyijiang 占比 |
 
 ## §7 next step
 
 1. ~~**P2a-0 (audit-required prep PR)**: 修 `t_forcing_io` bucket bug + re-run heihe baseline~~ — **DONE** in SHUD `7a1dc8f` + outer pin bump
 2. ~~**P2a-A (epic intake PR)**~~ — **CANCELLED per §6 NO-GO 严谨确认**
-3. **master plan §P2a 重写**: 标 "P2a 不启动 (forcing_trim 已 M7 落地解决 dataset size, P2a parallelization 无 ROI)"，转 P2b / P5 优先
-4. **stage-change-pipeline**: P2b (RHS element vertical 剩余) 或 P5 (KLU 替换 SPGMR) epic intake (待 user 确认转向)
+3. ~~**master plan §P2a 重写**~~ — **DONE** main `f7e8b02` (M12 NO-GO) + `327b52f` (P5/P8 引用修正)
+4. **(v0.5 修正)** ~~**stage-change-pipeline**: P2b 或 P5~~ — **真正的下一步 = P8-precond-0 spike**（per GPT Pro 反馈）：先做 Doc-correction PR (本 v0.5 修正) → Step 1 N=8 Mode C profile 复测 (heihe + heihe_x4, N∈{1,4,8}×3 reps, bucket breakdown + nfe/nfeLS/nli/nni stats) → Step 2 P8-precond-0 spike (identity precond + SUNDIALS API 验证 + nfeLS/nfe ROI gate) → 视 spike 结果决定是否进入完整 §P8-precond epic。stage-change-pipeline 触发针对 P8-precond-0 spike 入 OpenSpec spec
 5. **heihe basin 部署 forcing_trim 写入 deployment SOP**: 本工作已 prove `tools/forcing_trim/forcing_trim.sh heihe 14245 14335` 输出 29MB 本地 trimmed forcing (vs 12GB NFS source)，wall 缩 74.2%。未来 server case baseline 部署默认 forcing.trimmed。**已常驻** SHUD/Basins/heihe/forcing.trimmed (29MB) **禁止重生**
-6. **(optional) Mac 3 case re-run with `7a1dc8f`**: 若后续 P2b/P5 epic 需要精确 keliya / xinanjiang / qinyijiang 占比，可单独 re-run (15 min)
+6. **(optional) Mac 3 case re-run with `7a1dc8f`**: 若后续 P8-precond epic 需要精确 keliya / xinanjiang / qinyijiang 占比，可单独 re-run (15 min)
+
+## §9 v0.5 修正脚注 (GPT Pro fact-check, 2026-06-26)
+
+GPT Pro 审核本 doc v0.4 + master plan §P2a M12 决策后指出三处事实错误：
+
+| # | v0.3-v0.4 错误 | v0.5 修正 |
+|---|---|---|
+| 1 | "P2b RHS element vertical 剩余" 作下个 epic 候选 | **P2b scope 已被 P1e PR-H 吸收**：5 候选函数 (`f_etFlux` / `updateElement` / `fun_Ele_Infiltraion` / `fun_Ele_Recharge` / lake vertical) 全部在 [SHUD/src/Model/MD_rhs_core.cpp L336-L385](../../SHUD/src/Model/MD_rhs_core.cpp) StrictOMP `rhs_flux` ET pass 内 `#pragma omp for schedule(static)` 并行；不构成独立 epic |
+| 2 | "P5 (KLU 替换 SPGMR)" | **命名错误**：master plan §P5 = owner-local deterministic gather (reduction patterns)，KLU 实际在 §P8-KLU (ADR-0002 Path 4)；ROI 最高的 solver-side 优化 = §P8-precond (CVODE 物理块对角预条件器, 从 PREC_NONE 改 PREC_LEFT, nfeLS/nfe ≥30% 下降 → 等价 RHS 调用减 30% → wall 降 30%) |
+| 3 | N=1 profile bucket 比例 → 直接推断 N=8 后剩余瓶颈 | **逻辑陷阱**：N=1 profile 告诉你 serial run 时间分布，但不能推断 StrictOMP N=8 后哪个 RHS sub-bucket 没被并行化。需要 **N=8 Mode C profile 复测** (Step 1) 确认真实剩余 |
+
+**推进顺序更新**（per GPT Pro 推荐）:
+
+| Step | 内容 | 周期 |
+|---|---|---|
+| **Step 0** | Doc-correction PR (本 v0.5 + master plan §P2b absorbed + heihe_x4 NumEle 40046 统一 + small-case overhead 解释修正 + CVode API `CVodeSetLSetupFrequency`) | 半天 |
+| **Step 1** | N=8 Mode C profile 复测：heihe + heihe_x4 × N∈{1,4,8} × 3 reps，bucket breakdown + 15-key CVODE stats (`nfe/nfeLS/nli/nni/nsetups/nps/npe/ncfl/netf/nst`) | 1-2 天 |
+| **Step 2** | P8-precond-0 spike：identity precond + `SUNLinSol_SPGMR(udata, PREC_LEFT, 0, sunctx)` + `CVodeSetPreconditioner` + `CVodeSetLSetupFrequency` wire-up，验证 SUNDIALS API + `nps/npe` stats + wall 不显著恶化 + 无 convergence failure | 3-5 天 |
+| **Step 3** | 若 spike 通过 → 正式 §P8-precond epic (Diagonal/Jacobi → GW element-Jacobi → river bidiagonal → lake dense → 必要时 ILU(0))，A4 容差 gate | 8-12 周 |
+| **保留** | §P8-KLU 留 ADR-0003 后备，不插队 | — |
+
+Step 1+2 走 `/stage-change-pipeline` 入 OpenSpec spec + 建 `baseline/p8pre` 工作分支 from main。
 
 ## §8 引用
 

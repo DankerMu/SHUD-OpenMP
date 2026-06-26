@@ -22,7 +22,7 @@ related_docs:
 
 # Abstract / 摘要
 
-本研究针对 SHUD (Solver for Hydrologic Unstructured Domains) 全耦合水文模型在 SUNDIALS-CVODE 6.0.0 求解框架下的 OpenMP 并行改造，提出并验证一种以 `ExecPolicy::StrictOMP` 为核心的右端项 (RHS) 并行策略。研究背景为：前序 P1c / P1d epic 经两轮 partial-closure 失败后，由 ADR-0002 决策树识别出原 `shud_omp` 构建在结构上的根本错配——CVODE 端启用 `NVECTOR_OPENMP` reduction 但水文 RHS 仍走 Serial path，致使浮点 reduction tree 跨线程数 N 不固定，无法满足跨 N bitwise 与 ≥1.5× 加速比双重要求。本研究采用 ADR-0002 Path 1 (Serial NVector + StrictOMP RHS)，通过 14 个 pull request 完成代码改造、2×2 build 因果实验、双平台 SHALL gate 验收与 capstone 文档化。关键数值结果：(i) 服务器 24-cell mode C 实验在 heihe (6335 cells) 与 heihe_x4 (~25k cells) 两案例上跨 4 N × 3 reps 全部唯一 SHA (`a2023ccd2de4` 与 `b5e4b0a2cf83`)，AC-S1 / AC-S2 bitwise 验收 PASS；(ii) AC-S3 D7 per-case 加速比 AND-gate 仅 heihe_x4 达 1.729× ≥ 1.5×，heihe 1.066× < 1.3× 走 §4.6.2 partial-closure SHIP；(iii) Mac 4-case N=1 (keliya / xinanjiang_upstream / qinyijiang / qhh) + 服务器 2 case 形成 6/6 跨平台确定性 SHA 矩阵，证 libomp 与 libgomp 双工具链等价；(iv) Amdahl 反推 heihe_x4 serial fraction ≈ 63%，实测加速比已贴上界。结论：StrictOMP 方法在生产规模网格 (≥25k cells) 上同时满足强可重现性与 ROI 加速比；heihe 小案例的 1.066× 是 OMP overhead floor 的物理预期，非实现缺陷。本研究为 SHUD-OpenMP 主线解锁 P2a 进一步优化阶段，并将 ADR-0002 Path 2/3/4 作为 future epic option 保留。
+本研究针对 SHUD (Solver for Hydrologic Unstructured Domains) 全耦合水文模型在 SUNDIALS-CVODE 6.0.0 求解框架下的 OpenMP 并行改造，提出并验证一种以 `ExecPolicy::StrictOMP` 为核心的右端项 (RHS) 并行策略。研究背景为：前序 P1c / P1d epic 经两轮 partial-closure 失败后，由 ADR-0002 决策树识别出原 `shud_omp` 构建在结构上的根本错配——CVODE 端启用 `NVECTOR_OPENMP` reduction 但水文 RHS 仍走 Serial path，致使浮点 reduction tree 跨线程数 N 不固定，无法满足跨 N bitwise 与 ≥1.5× 加速比双重要求。本研究采用 ADR-0002 Path 1 (Serial NVector + StrictOMP RHS)，通过 14 个 pull request 完成代码改造、2×2 build 因果实验、双平台 SHALL gate 验收与 capstone 文档化。关键数值结果：(i) 服务器 24-cell mode C 实验在 heihe (NumEle=6335) 与 heihe_x4 (NumEle=40046) 两案例上跨 4 N × 3 reps 全部唯一 SHA (`a2023ccd2de4` 与 `b5e4b0a2cf83`)，AC-S1 / AC-S2 bitwise 验收 PASS；(ii) AC-S3 D7 per-case 加速比 AND-gate 仅 heihe_x4 达 1.729× ≥ 1.5×，heihe 1.066× < 1.3× 走 §4.6.2 partial-closure SHIP；(iii) Mac 4-case N=1 (keliya / xinanjiang_upstream / qinyijiang / qhh) + 服务器 2 case 形成 6/6 跨平台确定性 SHA 矩阵，证 libomp 与 libgomp 双工具链等价；(iv) Amdahl 反推 heihe_x4 serial fraction ≈ 63%，实测加速比已贴上界。结论：StrictOMP 方法在生产规模网格 (NumEle≥40k) 上同时满足强可重现性与 ROI 加速比；heihe 小案例的 1.066× 是 OMP runtime 固定开销 + cache locality 反转 + NUMA migration 物理 limit (per `docs/p1e/p1e_perf_baseline.md` §6 v0.2 GPT Pro fact-check 修正)，非实现缺陷。本研究为 SHUD-OpenMP 主线解锁 P2a 进一步优化阶段，并将 ADR-0002 Path 2/3/4 作为 future epic option 保留。
 
 **Keywords**: SHUD; CVODE; OpenMP; bitwise reproducibility; deterministic reduction; Amdahl's law; first-touch governance; cross-platform determinism
 
@@ -40,7 +40,7 @@ ADR-0002 据此提出四条正交化 candidate path：Path 1 (Serial NVec + Stri
 
 - **H1 (bitwise reproducibility)**：在 build mode C (`shud SHUD_ENABLE_OPENMP_RHS=1`，对应 N_VNew_Serial + ExecPolicy::StrictOMP) 下，对任意给定 case，`<case>.rivqdown.dat` SHA256 跨 `SHUD_RHS_THREADS ∈ {1,2,4,8}` × 3 reps 全部相等 (operational definition：unique SHA count = 1 per case)。验收标准：AC-S1 SHALL gate PASS。
 - **H2 (cross-mode bitwise equivalence)**：mode C 在任意 N 下产出的 SHA 与 mode A (Serial NVec + Serial RHS) reference SHA bitwise 相等 (operational definition：mode_C(N, rep) ≡ mode_A_canonical)。验收标准：AC-S2 SHALL gate PASS。
-- **H3 (production ROI speedup)**：在 production-target mesh density (heihe_x4 ~25k cells) 上，mode C 在 N=8 相对 N=1 的 wall-time 加速比 ≥ 1.5× (operational definition：sp@8 = wall_median(N=1) / wall_median(N=8))。验收标准：AC-S3 D7 per-case threshold heihe_x4 ≥ 1.5× PASS；heihe ≥ 1.3× 作 small-case 副 threshold，AND-gate semantics (per design D7 + tasks §4.6) 要求 BOTH FAIL 才触发 D12.3 block-Jacobi fallback。
+- **H3 (production ROI speedup)**：在 production-target mesh density (heihe_x4 NumEle=40046) 上，mode C 在 N=8 相对 N=1 的 wall-time 加速比 ≥ 1.5× (operational definition：sp@8 = wall_median(N=1) / wall_median(N=8))。验收标准：AC-S3 D7 per-case threshold heihe_x4 ≥ 1.5× PASS；heihe ≥ 1.3× 作 small-case 副 threshold，AND-gate semantics (per design D7 + tasks §4.6) 要求 BOTH FAIL 才触发 D12.3 block-Jacobi fallback。
 
 本节最后小结：P1e epic 在 2026-06-24 至 2026-06-25 两天内通过 14 PR (PR-A through PR-M，含 PR-B0 audit-required) 完成 H1 PASS、H2 PASS、H3 PARTIAL (heihe_x4 PASS / heihe FAIL) 验收，经用户决策走 §4.6.2 partial-closure SHIP 路径关闭 epic [6]。后续章节依次综述 P1c-P1d carve-out chain (§2)、方法论 (§3)、实验设置 (§4)、结果 (§5)、讨论 (§6)、限制 (§7)、结论与未来工作 (§8-§9)。
 
@@ -165,7 +165,7 @@ PR-I 24-cell 实验采用双流并行 (cn14 heihe 12 cell + cn15 heihe_x4 12 cel
 
 ## §4.2 Benchmark cases
 
-实验覆盖 6 case 跨网格规模 (484 → 25k cells)，分布于 Mac 与 server 两端 (per CLAUDE.md 双端实验环境约束)：
+实验覆盖 6 case 跨网格规模 (NumEle 484 → 40046)，分布于 Mac 与 server 两端 (per CLAUDE.md 双端实验环境约束)：
 
 **Tab. 4: P1e benchmark roster** (引自 `docs/p1e/p1e_mac_reverse_compat.md` §1.1)
 
@@ -303,7 +303,7 @@ PR-J (#318/#333) 在 Mac local 跑 4 Mac-native case × N=1 × 3 reps mode C，�
 | heihe | 6335 | (server-native; 不在 Mac) | `a2023ccd2de4` | `a2023ccd2de4` | PR-I §3.2 |
 | heihe_x4 | ~25000 | (server-native) | `b5e4b0a2cf83` | `b5e4b0a2cf83` | PR-I §3.2 |
 
-6/6 case mode C SHA == mode A reference SHA → 验证 `ExecPolicy::StrictOMP` 在 (i) Apple Clang + libomp / GCC + libgomp 双工具链、(ii) ARM64 Apple Silicon / x86_64 Intel Xeon 双 CPU 架构、(iii) 484 → 25000 cells 全 mesh scale 范围内均产 deterministic-by-construction output。这一发现支持 design D2 owner-local gather + reduction pattern 作 robust 跨平台 deterministic 并行策略。
+6/6 case mode C SHA == mode A reference SHA → 验证 `ExecPolicy::StrictOMP` 在 (i) Apple Clang + libomp / GCC + libgomp 双工具链、(ii) ARM64 Apple Silicon / x86_64 Intel Xeon 双 CPU 架构、(iii) NumEle 484 → 40046 全 mesh scale 范围内均产 deterministic-by-construction output。这一发现支持 design D2 owner-local gather + reduction pattern 作 robust 跨平台 deterministic 并行策略。
 
 ## §5.5 性能分析：Amdahl-bounded speedup + OMP_CUTOFF overhead floor
 
@@ -350,7 +350,7 @@ H1 与 H2 在 H3 的 AND-gate 部分失败下仍 PASS，表明 `ExecPolicy::Stri
 
 §4.6.2 partial-closure SHIP rationale (per `docs/p1e/p1e_2x2_verdict.md` §6.3 + tasks §4.6.2)：
 
-1. **strict-omp RHS 在 production-target mesh density (~25k cells) 达 1.729× ≥ 1.5× threshold**——production deployment scenario (heihe_x4 是 NWM real-basin refinement target) ROI 满足。
+1. **strict-omp RHS 在 production-target mesh density (NumEle=40046) 达 1.729× ≥ 1.5× threshold**——production deployment scenario (heihe_x4 是 NWM real-basin refinement target) ROI 满足。
 2. **6/6 case mode C SHA == mode A reference SHA**——bitwise cross-mode 跨平台 strict bitwise 完整闭环。
 3. **heihe small-case 1.066× 不达 1.3× 是 OMP overhead floor 设计预期**——非 implementation bug，per §6 small-case carve-out 物理三因素分析接受。
 4. **nst Δ=0 跨 N strict closure** (mode B era 跨 N \|Δ\| 不闭合 → mode C 闭合 = strict-omp 实质成果)。
@@ -363,7 +363,7 @@ heihe 6335 cells 在 sp@8 = 1.066× 处饱和，与 Amdahl 上界 1.07× (f ≈ 
 
 P1c-era PR-F Mac 16-cell + server PR-H/PR-I 共显 **同** N=1≡N=2 ≠ N=4 ≠ N=8 drift pattern (P1d era 之前 mode B)，证 Mac libomp + server libgomp 均受 OMP overhead 影响相似 [3]。但 P1e mode C 把 reproducibility 从 NVector reduction 转移至 owner-local fold，cutoff 仅影响 speedup 不影响 SHA bitwise——这是 ADR-0002 Path 1 正交化设计的核心收益。
 
-heihe_x4 ~25k cells 远超 cutoff，scaling 表现 (N=1→2 1.291× / N=2→4 1.190× / N=4→8 1.125×) 符合 Amdahl model 预期，已贴 serial-fraction-bounded 上界。
+heihe_x4 NumEle=40046 远超 cutoff，scaling 表现 (N=1→2 1.291× / N=2→4 1.190× / N=4→8 1.125×) 符合 Amdahl model 预期，已贴 serial-fraction-bounded 上界。
 
 ## §6.4 跨编译器决定论可重现性
 
@@ -406,7 +406,7 @@ Mitigation：(i) mode D 跨 N drift 模式预期与 mode B ≈ (NVECTOR_OPENMP r
 
 ## §7.2 External validity：6-case coverage 外推
 
-P1e 实验覆盖 6 case：4 Mac (484-4773 cells) + 2 server (6335-25000 cells)。这是 SHUD-OpenMP 当前 benchmark 集的完整覆盖，但相对 hydrology domain 广义 case 集仍属 narrow sample。external validity threats：
+P1e 实验覆盖 6 case：4 Mac (NumEle 484-4773) + 2 server (NumEle 6335-40046)。这是 SHUD-OpenMP 当前 benchmark 集的完整覆盖，但相对 hydrology domain 广义 case 集仍属 narrow sample。external validity threats：
 
 1. **mesh density 范围**：未覆盖 ≤300 cells (toy case) 与 ≥50000 cells (heihe_x16 推到 P8 stage)。OMP overhead floor 经验值 (~6000-7000 cells cutoff) 在 P8 heihe_x16 (~100k cells) 上可能再次变化。
 2. **case 物理特性**：6 case 多在中国西北/西南内陆流域 (keliya / xinanjiang / qinyijiang / qhh / heihe / heihe_x4)；不同气候带 (亚热带 / 寒带 / 沿海) 与不同 land cover (城市 / 森林 / 灌丛) 的 RHS evaluation 比重可能不同，进而影响 Amdahl serial fraction。
@@ -445,7 +445,7 @@ Mitigation：(i) `docs/p1e/p1e_pr_n_block_jacobi.md` placeholder 已 PR-K 写出
 
 **核心 takeaway 2 (deterministic-by-construction)**: 6/6 case 跨平台 (Mac libomp + server libgomp) 跨 mode (A vs C) 跨 N (1→8) SHA bitwise 全等，证 `ExecPolicy::StrictOMP` 的 owner-local canonical fold + `#pragma omp for schedule(static)` 单 parallel region 设计是 deterministic-by-construction，不依赖 OMP runtime 实现细节。这一发现支持后续 SHUD 学术发表与 forensic debugging 所需的 cross-platform reproducibility chain。
 
-**核心 takeaway 3 (Amdahl-bounded speedup)**: heihe_x4 (~25k cells) sp@8 = 1.729× 已贴 Amdahl 理想上界 (f ≈ 63.4%, 1.73×)，证 mode C 已耗尽 `ExecPolicy::StrictOMP` 在当前 SUNDIALS-CVODE 6.0.0 框架下的可达性能。serial fraction 63% 主要来自 `f.cpp` 单线程入口 + SPGMR 单线程矩阵向量乘 + PR-B0 `recompute_for_output` + `summary/ExportResults`。进一步提升需通过 ADR-0002 Path 3/4 进入 solver 内部优化 (block-Jacobi precond 或 KLU direct solver)。
+**核心 takeaway 3 (Amdahl-bounded speedup)**: heihe_x4 (NumEle=40046) sp@8 = 1.729× 已贴 Amdahl 理想上界 (f ≈ 63.4%, 1.73×)，证 mode C 已耗尽 `ExecPolicy::StrictOMP` 在当前 SUNDIALS-CVODE 6.0.0 框架下的可达性能。serial fraction 63% 主要来自 `f.cpp` 单线程入口 + SPGMR 单线程矩阵向量乘 + PR-B0 `recompute_for_output` + `summary/ExportResults`。进一步提升需通过 ADR-0002 Path 3/4 进入 solver 内部优化 (block-Jacobi precond 或 KLU direct solver)。
 
 **核心 takeaway 4 (AND-gate design philosophy)**: D7 AND-gate (BOTH FAIL 触发 D12.3) 而非 OR-gate (任一 FAIL) 的设计哲学在 P1e 实测中证明其合理性：heihe small-case 1.066× FAIL 但 heihe_x4 PASS，AND-gate 不满足 → 走 §4.6.2 partial-closure SHIP，避免触发 3-5 epic-week D12.3 block-Jacobi precond 实施而未必带来明显增量收益。AND-gate 是承认 small-case OMP overhead floor 物理 limit 的 explicit design choice。
 

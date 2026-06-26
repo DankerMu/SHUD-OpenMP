@@ -1927,7 +1927,7 @@ nst Δ=0 strict ladder：heihe + heihe_x4 各 N∈{1,2,4,8} nst case-fixed（hei
   - §4.6.2 partial-closure 决策框架（small-case 不达 threshold 不阻塞）+ D7 AND-gate semantics（BOTH FAIL 才触发 fallback）+ D12 routing
   - owner-local writes + canonical leftfold / pairwise reduction 保 bitwise determinism
   - allocation-time first-touch (Model_Data.cpp::malloc_EleRiv) + load-time first-touch (MD_initialize.cpp::LoadIC) 保留；**steady-state first-touch 全删**（per D4）
-  - D11 chain forward-compat stacking：P2b-tag 或 P5-tag stack on P1e-tag（**P2a-tag 不创建**）
+  - D11 chain forward-compat stacking：后续 epic-tag (e.g. `P8-precond-tag` per GPT Pro 推荐) stack on P1e-tag（**P2a-tag 不创建** + ~~`P2b-tag` / `P5-tag`~~ 因 P2b scope absorbed by P1e PR-H + P5 命名误用历史已修正）
 - **文档遗产**：`docs/p1e_summary.md` (顶层工程总结) + `docs/p1e/*.md` (17 docs capstone source-of-truth) + ADR-0002 closure narrative
 
 ---
@@ -2002,30 +2002,28 @@ M11 (2026-06-25) 设计的 P2a 14-PR 模板（含 2×2 build matrix / `SHUD_PRE_
 
 ---
 
-### P2b：并行 RHS element vertical processes
+### P2b：并行 RHS element vertical processes — **M12 ABSORBED by P1e PR-H**
 
-**目标**：并行化 CVODE RHS 函数内部的 element-local 垂向过程（ET flux/infiltration/recharge）。这些代码在 CVODE 反复调用 `f()` 时执行，属于 RHS 热路径。
+> **M12 修订（2026-06-26）**：本节原列 5 个候选函数（`f_etFlux` / `updateElement` / `fun_Ele_Infiltraion` / `fun_Ele_Recharge` / lake vertical）**已全部在 P1e PR-H StrictOMP `rhs_flux` element pass 内并行**。事实核查见 [SHUD/src/Model/MD_rhs_core.cpp L336-L385](SHUD/src/Model/MD_rhs_core.cpp#L336) — `#pragma omp for schedule(static)` 内同时调用上述 5 函数 (L360-L370)；ET bucket 注释 L213-L215 同步声明。原 P2b epic scope 不再成立；保留段落作历史记录。
+>
+> **替代命名**：未来真正剩余的 RHS 端优化（profile 后才能确认）应作为 **"P1e RHS residual optimization"** 子任务而非 P2b epic — 目标包括 `OMP_CUTOFF` 调优 / `barrier nowait` 审计 / cache locality / SoA padding / NUMA binding / phase fusion，候选项须先以 **N=8 Mode C profile 复测** 找到（per Step 1 plan）。
+>
+> **原 M11 P2b 段落（已 absorbed）**:
 
-**可并行计算**：
+**~~目标~~**（已 absorbed）：~~并行化 CVODE RHS 函数内部的 element-local 垂向过程（ET flux/infiltration/recharge）。这些代码在 CVODE 反复调用 `f()` 时执行，属于 RHS 热路径。~~
 
-| 计算 | owner | 涉及文件/行号 |
-|---|---|---|
-| `f_etFlux(i, t)` | element | `MD_ET.cpp` L167–L228 |
-| `Ele[i].updateElement(uYsf, uYus, uYgw)` | element | `MD_f.cpp` L21 |
-| `fun_Ele_Infiltraion(i, t)` | element | `MD_ElementFlux.cpp` L30–L33 |
-| `fun_Ele_Recharge(i, t)` | element | `MD_ElementFlux.cpp` L24–L27 |
-| lake element vertical 本地项 | element | `MD_ElementFlux.cpp` L2–L17 |
+**~~可并行计算~~（已在 P1e PR-H 内）**：
 
-**前提条件**：
-- 每个函数只写 `Ele[i]` 自身字段和 `qEle*[i]`
-- `qLakeEvap[lake] += ...` 已在 S3 拆为 per-element contribution slot
-- ~~P2a 已验证 pre-CVODE 输入正确~~ **(M12 修订)**: P2a NO-GO 后 pre-CVODE forcing/ET 仍是 P1e SHIP-state 串行执行（forcing+ET 13.39%/7.97% wall 不再是优化目标），P2b 的 RHS snapshot 差异可直接归因于 RHS 并行化 vs P1e baseline
+| 计算 | owner | 涉及文件/行号 | P1e PR-H 实际 wire-up 位置 |
+|---|---|---|---|
+| ~~`f_etFlux(i, t)`~~ | element | `MD_ET.cpp` L167–L228 | `MD_rhs_core.cpp` L336+L360 (ET pass `omp for`) |
+| ~~`Ele[i].updateElement(uYsf, uYus, uYgw)`~~ | element | `MD_f.cpp` L21 | `MD_rhs_core.cpp` L336+L363 |
+| ~~`fun_Ele_Infiltraion(i, t)`~~ | element | `MD_ElementFlux.cpp` L30–L33 | `MD_rhs_core.cpp` L336+L369 |
+| ~~`fun_Ele_Recharge(i, t)`~~ | element | `MD_ElementFlux.cpp` L24–L27 | `MD_rhs_core.cpp` L336+L370 |
+| ~~lake element vertical 本地项~~ | element | `MD_ElementFlux.cpp` L2–L17 | `MD_rhs_core.cpp` L213-L215 注释 + ET bucket lake 分支 |
 
-**验收标准（A2）**：P2b RHS snapshot 与 B1b bitwise identical（element vertical flux + DY 分量）。
-
-**风险**：
-- `f_etFlux()` 内的 `printf` 警告（`MD_ET.cpp` L215）需在并行中禁用或改为 buffer
-- `updateElement()` 幂等但写 `Ele[i]` 多个字段；需确认无跨 element 写入
+**风险（仍可能存在）**：
+- ~~`f_etFlux()` 内的 `printf` 警告（`MD_ET.cpp` L215）需在并行中禁用或改为 buffer~~ — P1e PR-H 时审过，确认 RISK-17 不阻塞 strict-omp mode；若 N=8 profile 显示该 printf 仍在 hot path 再独立处理
 
 ---
 
@@ -2394,7 +2392,7 @@ P^{-1} = diag( P_surf^{-1}, P_unsat^{-1}, P_gw^{-1}, P_riv^{-1}, P_lake^{-1} )
 | P8-precond.3 | `P_gw` 实现 | `MD_precond.cpp` | 先 element-by-element Jacobi（最简）；若 wall-clock 不达标再升级 ILU(0) |
 | P8-precond.4 | sparsity pattern 复用 | `MD_jacobian.cpp` (新文件) | 从拓扑（element nabr + river up/down + segment 关联）导出 GW 块的 CSC pattern；为 P8-KLU 复用 |
 | P8-precond.5 | 注册 precond | `shud.cpp`, `cvode_config.cpp` | `CVodeSetPreconditioner(cvode_mem, PSetup, PSolve)`；改 `SUNLinSol_SPGMR(udata, PREC_LEFT, 0, sunctx)` |
-| P8-precond.6 | precond setup 频率 | `cvode_config.cpp` | `CVodeSetJacEvalFrequency` 或自定义 lagged update — Jacobian 不必每步重算 |
+| P8-precond.6 | precond setup 频率 | `cvode_config.cpp` | **`CVodeSetLSetupFrequency`**（SUNDIALS 6.0.0 中控制 precond setup 重算间隔的主接口）；`CVodeSetJacEvalFrequency` 是 CVLS Jacobian 评估频率（matrix-based 时用），不应作为 precond setup-frequency 唯一控制 — Jacobian 不必每步重算 |
 | P8-precond.7 | A/B 对比 | — | 对比 `nfe / nfeLS / nni / nli / wall-clock`；目标：`nfeLS / nfe` 降到 < 1.5；wall-clock 降 30%+ |
 
 ##### P8-precond.3 验收（A4 + 预条件器特定门控）
