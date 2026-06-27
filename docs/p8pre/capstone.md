@@ -158,9 +158,9 @@ PR-D 沿用 PR-A 模板 `/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/submit_ide
 | heihe | 1 | 140.797 | 6698 | 6943 | 11933 | 1.719 |
 | heihe | 4 | 95.734 | 6698 | 6943 | 11933 | 1.719 |
 | heihe | 8 | 89.732 | 6698 | 6943 | 11933 | 1.719 |
-| heihe_x4 | 1 | 1412.895 | 6575 | 6741 | 30517 | 4.527 |
-| heihe_x4 | 4 | 849.704 | 6575 | 6741 | 30517 | 4.527 |
-| heihe_x4 | 8 | 743.552 | 6575 | 6741 | 30517 | 4.527 |
+| heihe_x4 | 1 | 1412.895 | 6575 | 6741 | 30509 | 4.527 |
+| heihe_x4 | 4 | 849.704 | 6575 | 6741 | 30509 | 4.527 |
+| heihe_x4 | 8 | 743.552 | 6575 | 6741 | 30509 | 4.527 |
 
 cross-N invariance Δ=0 strict 跨 `{nst, nfe, nfeLS, nni, nsetups}` 5 counter × 2 case = 10/10 PASS; absolute anchor `heihe.nst=6698 / heihe.nfe=6943 / heihe_x4.nst=6575 / heihe_x4.nfe=6741` 4/4 PASS。ROI `r_min = 1.819`, `r_max = 4.526` (per `docs/p8pre/n8_profile_verdict.md` §5)。
 
@@ -231,11 +231,12 @@ H3 假设 identity stub setup cost ≤ 5% wall, 实测 max ratio 1.01×10⁻⁷ 
 
 **这不是纯 reduction-order drift**, 是 PREC_LEFT-with-identity 路径 vs PREC_NONE 路径在 SUNDIALS state machine 内部的**结构性差异**。具体: PREC_LEFT 路径在 SUNDIALS `cvLsSolve` 内部触发额外 `N_VLinearSum` (scale residual by `*P^{-1}*`) + `N_VScale` (right-multiply) ops; 这些 ops 在 fp64 浮点意义上扰动 iterative residual, 旋转 which time-step / Newton iter 跨过 rivqdown.dat truncation threshold (e.g. `qrivdown < some_eps → 0` 阈值在内部判定)。这是 SUNDIALS 内部架构的客观 cost — future preconditioner candidate evaluate 时必须接受这个 baseline drift, 或者其 mode A reference 必须重新固化 (per S5 carve-out 推 #349)。
 
-**§6.4.3 PASS criterion for future P8-precond candidate**。 per `docs/p8pre/identity_spike_verdict.md` §6.2: real preconditioner candidate must satisfy:
+**§6.4.3 PASS criterion for future P8-precond candidate**。 per `docs/p8pre/identity_spike_verdict.md` §6.2: real preconditioner / solver-tune candidate must satisfy:
 
-- `ncfn < 6 (heihe)` AND `ncfn < 47 (heihe_x4)` (压 deterministic floor 下来)
+- `ncfn_candidate ≤ 7 (heihe) ∧ ncfn_candidate ≤ 51 (heihe_x4)` per `docs/p8pre/n8_profile_verdict.md` §3.1 cleaned-PREC_NONE baseline (压 deterministic floor 下来; 6/47 是 `PREC_LEFT + identity` negative-control anchor，**不**作为 production gate)
 - 合并 setup + solve overhead 在 identity-baseline wall 的 ±10% within tolerance
 - 跨 N rivqdown.dat SHA12 family 重新固化 (因 PREC_LEFT structural drift 不可避免, P1e PR-I anchor `a2023ccd2de4 / b5e4b0a2cf83` 不能直接复用作 PREC_LEFT-with-real-preconditioner reference)
+- 对 SPGMR `maxl` 一类 reduction-order-sensitive tune 参数, A3a strict SHA gate 不跨 maxl 适用; 应走 `mode-C-tune` reference-set design (per `openspec/glossary.md` glossary 新增项, 由 capability [`maxl-sweep-verdict`](../../openspec/changes/p8tune-spgmr-maxl/specs/maxl-sweep-verdict/spec.md) 形式化; 决策入口为 ADR-0004 TBD)
 
 ## §6.5 Comparison with prior epics
 
@@ -293,24 +294,27 @@ p8pre-spike epic (SHUD-OpenMP#338) 通过两步实证 spike 完成 ADR-0002 Path
 
 # §9 Future Work / 未来工作
 
-## §9.1 Immediate (deferred to separate cleanup PR or #349 archive)
+## §9.1 Immediate — design D8 cleanup COMPLETED at outer `e442ce8` / SHUD `37be0fe` (2026-06-27)
 
-- design D8 fall-back PREC_NONE 还原:
-  - revert `SHUD/src/Equations/cvode_config.cpp:259` 回 `SUN_PREC_NONE`
-  - 删 `CVodeSetPreconditioner(cvode_mem, PSetupIdentity, PSolveIdentity)` 调用
-  - 删 `CVodeSetLSetupFrequency(cvode_mem, 50)` 调用
-  - 删 `SHUD/src/Model/MD_precond_identity.h` + `SHUD/src/Model/MD_precond_identity.cpp`
-  - unlink from `SHUD/Makefile` `shud` / `shud_omp` target
-  - optional: 删 `t_precond_setup` Timer bucket from `tools/profile/timer.cpp` (或 留 `unused_bucket` for future reuse)
-  - bump outer pointer 从 `5276167` 到新 SHUD HEAD (forward-only descendant; `openmp-baseline` push)
-- close `baseline/p8pre` 分支 (HEAD `df45deb`); future P8-precond epic 应 re-fork from `main` 干净 prior-art base
-- spec L26 wording correction (jok-mirror canonical cite SUNDIALS `cvDiurnal_kry.c` L716/L760) per PR-D #357 review-loop-log F-R2-3 deferred → #349 archive scope
+design D8 fall-back PREC_NONE 还原已 merged via subsequent cleanup pointer-bump PR:
+
+- [x] revert `SHUD/src/Equations/cvode_config.cpp:259` 回 `SUN_PREC_NONE`
+- [x] 删 `CVodeSetPreconditioner(cvode_mem, PSetupIdentity, PSolveIdentity)` 调用
+- [x] 删 `CVodeSetLSetupFrequency(cvode_mem, 50)` 调用
+- [x] 删 `SHUD/src/Model/MD_precond_identity.h` + `SHUD/src/Model/MD_precond_identity.cpp`
+- [x] unlink from `SHUD/Makefile` `shud` / `shud_omp` target
+- [x] bump outer pointer 从 `5276167` 到 SHUD `37be0fe` (forward-only descendant on `openmp-baseline`)
+- pending (non-blocking): 删 `t_precond_setup` Timer bucket from `tools/profile/timer.cpp`（留作 future preconditioner-candidate reuse）
+- pending (non-blocking): close `baseline/p8pre` 分支 (HEAD `df45deb`); future P8-precond epic 应 re-fork from `main` 干净 prior-art base
+- pending (non-blocking): spec L26 wording correction (jok-mirror canonical cite SUNDIALS `cvDiurnal_kry.c` L716/L760) per PR-D #357 review-loop-log F-R2-3 deferred → #349 archive scope（已落 #349 capstone）
+
+**P8-precond 与 P8-tune.C 非永久 reject**: Path 3 remains open for future restart per design pivot; see capability [`clean-prec-none-baseline`](../../openspec/changes/p8tune-spgmr-maxl/specs/clean-prec-none-baseline/spec.md) + [`maxl-sweep-verdict`](../../openspec/changes/p8tune-spgmr-maxl/specs/maxl-sweep-verdict/spec.md) + ADR-0004 (TBD)。
 
 ## §9.2 Medium-term P8-precond formal epic re-evaluation prerequisites
 
 不在 NO-GO 决策影响下推后 epic, 仅 不直接 GO 启动; future re-evaluation 需:
 
-- **Prerequisite 1**: real preconditioner candidate (Diagonal / Jacobi / ILU(0) / block-Jacobi physics-based) 必须 demonstrate `ncfn < 6 (heihe)` AND `ncfn < 47 (heihe_x4)` 在 acceptable setup cost。identity stub 已 establish no-rotation baseline。
+- **Prerequisite 1**: real preconditioner candidate (Diagonal / Jacobi / ILU(0) / block-Jacobi physics-based) 必须 demonstrate `ncfn_candidate ≤ 7 (heihe) ∧ ncfn_candidate ≤ 51 (heihe_x4)` 在 acceptable setup cost (per `docs/p8pre/n8_profile_verdict.md` §3.1 cleaned-PREC_NONE baseline)。`PREC_LEFT + identity` 路径的 `ncfn = 6/47` 是 negative-control anchor 而非 production gate。identity stub 已 establish no-rotation baseline。详 capability [`clean-prec-none-baseline`](../../openspec/changes/p8tune-spgmr-maxl/specs/clean-prec-none-baseline/spec.md) + ADR-0004 (TBD, p8tune-spgmr-maxl 决策入口)。
 - **Prerequisite 2**: 接受 `ncfn > 0` baseline + tune CVODE step controller (`max_step`, `min_step`, `nonlin_conv_coef`) 吸收 retry 进 successful steps。这是 P8-tune path (ADR-0002 Path 1 sub-option)。
 - **Prerequisite 3**: investigate `CVodeSetMaxNonlinIters` 增加是否 reduce deterministic 6/47 floor — floor 可能反映 Newton residual stall 可由更多迭代 resolve at constant work cost。
 - **Prerequisite 4**: investigate SPGMR `maxl` parameter (currently SUNDIALS 默认 5); raise to 10-15 可能 reduce `ncfl=121` restart count + yield wall improvement independent of preconditioner choice。
