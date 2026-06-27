@@ -115,20 +115,22 @@ H1 / H3 / H4 / S6 PASS 仅证 (i) plumbing 已正确接通、(ii) identity stub 
 
 ### Epic + PRs
 
-- Epic: SHUD-OpenMP#338 (p8pre-spike)
-- PR-Step0 (intake doc fix): #339 / merge #350
-- PR-A (Step 1 prep): #340 / merge #352
-- PR-B (Step 1 18-cell run): #341 / merge #353
-- PR-C (Step 1 verdict aggregator): #342 / merge #354
-- PR-D (Step 1 capstone): #343 / merge #355
-- PR-E (Step 2 PR-D impl 实质 = PR for impl, 见 numbering note): #344 / merge #356
-- PR-F (Step 2 PR-D impl SHUD changes): #345 / merge #357
-- PR-G (Step 2 PR-E data capture): #346 / merge #358
-- PR-H (Step 2 PR-F verdict): #347 / merge #359
-- PR-I (Step 2 PR-G capstone — 本 PR): #348 (this PR)
-- PR-J (epic archive): #349 (forthcoming)
+Canonical mapping (consistent with `docs/p8pre/capstone.md` §References + `docs/p8pre_summary.md` + master plan §P8-precond.0 + `docs/review-loop-log.jsonl` epic_summary `prs:[341..349]`):
 
-NB on numbering: epic 内 informal PR letter (Step1: PR-A/B/C, Step2: PR-D/E/F/G) 与 GitHub PR # 之间 1:1 mapping per Step 1 = #341/#342/#343 + Step 2 = #344/#346/#347/#348。intake bookkeeping fix #339 是 Step 0 (precedes Step 1 PR-A)。
+- Epic: SHUD-OpenMP#338 (p8pre-spike)
+- Step 0 (intake doc fix, precedes Step 1): issue #339 / merge PR #350
+- Step 1 (Mode C profile recheck @ SHUD pin `7a1dc8f`):
+  - PR-A (Step 1 prep + 18-cell N=8 Slurm run): issue #341 / merge PR #355
+  - PR-B (aggregator + ROI verdict branch a PROCEED): issue #342
+  - PR-C (academic-paper-style baseline capstone): issue #343
+- Step 2 (identity preconditioner spike @ SHUD pin `5276167`):
+  - PR-D (API verification doc + SHUD source impl `MD_precond_identity.{h,cpp}` + `cvode_config.cpp:259`): issues #344 (preflight `docs/p8pre/api_verification.md`) + #345 (SHUD impl) / merge PRs #356 + #357
+  - PR-E (18-cell server data capture, Slurm JIDs 9531-9548 cn14/cn15): issue #346 / merge PR #358
+  - PR-F (aggregator + 4 hard + 2 soft gate verdict NO-GO): issue #347 / merge PR #359
+  - PR-G (本 PR — ADR-0003 + master plan + epic capstone, doc-only): issue #348 / merge PR #360
+- Step 3 archive (forthcoming): issue #349 (openspec archive + spec L26 wording correction)
+
+NB on issue #340: 在 epic DAG `#339 → #340 → #341 → ...` 内, #340 是 Step 0 跨 Step 1 之间的 bookkeeping issue, 其 scope 在 Step 1 PR-A intake (#341) 启动时被吸收, 不单独 mapping 为 PR-letter。所有其他 epic doc (`docs/p8pre/capstone.md` §References / `docs/p8pre_summary.md` / 本 ADR / master plan §P8-precond.0 / `docs/review-loop-log.jsonl` epic_summary) 一致采用上述 canonical PR-letter ↔ issue # mapping。
 
 ### OpenSpec
 

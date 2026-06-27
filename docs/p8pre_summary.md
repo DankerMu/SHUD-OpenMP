@@ -17,7 +17,7 @@ p8pre-spike epic (SHUD-OpenMP#338) 是 P1e epic close (2026-06-25) 后接续启�
 
 # Step 1 PR-A baseline summary
 
-Step 1 由 PR-A (#341, intake) + PR-A run (#341, 18-cell Slurm Mode C profile execution) + PR-B (#342, aggregator + ROI verdict) + PR-C (#343, academic-paper-style capstone) 4 PR 组成。在 SHUD pin `7a1dc8f` (Step 0 #350 fix doc + .pr-i-runs/→.p1e-i-runs/ rename + profile bucket-sum invariant 修复) 之后, server cn14/cn15 用 `make shud SHUD_ENABLE_OPENMP_RHS=1 SHUD_ENABLE_PROFILE=1` build, 跑 18-cell (2 case heihe + heihe_x4 × 3 N {1,4,8} × 3 rep) 矩阵。aggregator 验证 10/10 cross-N invariance Δ=0 strict (`{nst, nfe, nfeLS, nni, nsetups}` 跨 N1/N4/N8 完全相同), 4/4 P1e absolute baseline anchor 满足 (`heihe.nst=6698 / heihe.nfe=6943 / heihe_x4.nst=6575 / heihe_x4.nfe=6741`)。ROI 量化: `r_min = nfeLS/nfe |_{heihe, N=8} = 1.811`, `r_max = nfeLS/nfe |_{heihe_x4, N=8} = 4.526`, 均超 ADR-0002 Path 3 trigger threshold 1.5 → **branch a (PROCEED Step 2)**。`wall_step1_baseline_median(case, N)` 6-row 表 archived to `docs/p8pre/n8_profile_baseline.md` §5.1 Table 1, 作 Step 2 hard gate 4 wall non-regression 的 anchor。
+Step 1 由 PR-A (#341, intake) + PR-A run (#341, 18-cell Slurm Mode C profile execution) + PR-B (#342, aggregator + ROI verdict) + PR-C (#343, academic-paper-style capstone) 4 PR 组成。在 SHUD pin `7a1dc8f` (Step 0 #350 fix doc + .pr-i-runs/→.p1e-i-runs/ rename + profile bucket-sum invariant 修复) 之后, server cn14/cn15 用 `make shud SHUD_ENABLE_OPENMP_RHS=1 SHUD_ENABLE_PROFILE=1` build, 跑 18-cell (2 case heihe + heihe_x4 × 3 N {1,4,8} × 3 rep) 矩阵。aggregator 验证 10/10 cross-N invariance Δ=0 strict (`{nst, nfe, nfeLS, nni, nsetups}` 跨 N1/N4/N8 完全相同), 4/4 P1e absolute baseline anchor 满足 (`heihe.nst=6698 / heihe.nfe=6943 / heihe_x4.nst=6575 / heihe_x4.nfe=6741`)。ROI 量化: `r_min = nfeLS_median/nfe_median |_{heihe, N=8} = 12632/6943 = 1.819`, `r_max = nfeLS_median/nfe_median |_{heihe_x4, N=8} = 4.526`, 均超 ADR-0002 Path 3 trigger threshold 1.5 → **branch a (PROCEED Step 2)**。`wall_step1_baseline_median(case, N)` 6-row 表 archived to `docs/p8pre/n8_profile_baseline.md` §5.1 Table 1, 作 Step 2 hard gate 4 wall non-regression 的 anchor。
 
 # Step 2 spike outcome (4 hard gate + 2 soft gate mini-table)
 
@@ -42,7 +42,7 @@ PR-G #348 PR 写入 [`docs/adr/0003-precond-spike-decision.md`](adr/0003-precond
 
 1. H2 deterministic FAIL (heihe 6 + heihe_x4 47 floor) 证 identity P⁻¹=I zero ROI
 2. S5 FAIL 揭示 PREC_LEFT 状态机 inherent fp64 drift (5,155/214,252 positions ≈9×10¹⁵ ULP)
-3. `nfeLS/nfe = 1.811` ROI window 存在但需 real preconditioner candidate (not identity)
+3. Step 1 canonical `nfeLS/nfe = 1.819` ROI window 存在但需 real preconditioner candidate (not identity)
 4. KISS / YAGNI 不允许 dead PREC_LEFT codepath 留 production
 5. spec L74-79 hard FAIL → spike NO-GO → formal P8-precond.1-.7 epic NOT to be opened under current data
 
@@ -67,7 +67,7 @@ PR-G #348 PR 写入 [`docs/adr/0003-precond-spike-decision.md`](adr/0003-precond
 - P8-tune.C: SPGMR `maxl` 参数 sweep (SUNDIALS 默认 5; raise to 10-15 压 `ncfl=121` 重启次数)
 - P8-tune.D: ADR-0002 Path 4 KLU direct solver pattern-only spike (per ADR-0002 §References ADR-0003 KLU spike forthcoming; 与本 ADR 是 distinct ADR)
 
-**epic value summary**: 虽然 NO-GO, p8pre-spike epic 价值 = (i) framework readiness (PSetup/PSolve canonical SUNDIALS pattern + Timer instrumentation 已固化, future preconditioner candidate 可直接复用骨架), (ii) ROI ceiling 数据库 (`ncfn` floor 6/47 + `nfeLS/nfe` 比值 1.811/4.526 + S5 drift baseline 5,155/214,252 positions), (iii) Negative result 形式化记录 (avoids future epic 重复试错 identity 路径)。
+**epic value summary**: 虽然 NO-GO, p8pre-spike epic 价值 = (i) framework readiness (PSetup/PSolve canonical SUNDIALS pattern + Timer instrumentation 已固化, future preconditioner candidate 可直接复用骨架), (ii) ROI ceiling 数据库 (`ncfn` floor 6/47 + Step 1 canonical `nfeLS/nfe` 比值 1.819/4.526 + S5 drift baseline 5,155/214,252 positions), (iii) Negative result 形式化记录 (avoids future epic 重复试错 identity 路径)。
 
 # References
 
