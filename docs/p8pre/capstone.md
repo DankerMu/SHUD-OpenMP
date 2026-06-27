@@ -158,9 +158,16 @@ PR-D 沿用 PR-A 模板 `/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/submit_ide
 | heihe | 1 | 140.797 | 6698 | 6943 | 11933 | 1.719 |
 | heihe | 4 | 95.734 | 6698 | 6943 | 11933 | 1.719 |
 | heihe | 8 | 89.732 | 6698 | 6943 | 11933 | 1.719 |
-| heihe_x4 | 1 | 1412.895 | 6575 | 6741 | 30509 | 4.527 |
-| heihe_x4 | 4 | 849.704 | 6575 | 6741 | 30509 | 4.527 |
-| heihe_x4 | 8 | 743.552 | 6575 | 6741 | 30509 | 4.527 |
+| heihe_x4 | 1 | 1412.895 | 6575 | 6741 | 30509 | 4.526 |
+| heihe_x4 | 4 | 849.704 | 6575 | 6741 | 30509 | 4.526 |
+| heihe_x4 | 8 | 743.552 | 6575 | 6741 | 30509 | 4.526 |
+
+<!-- p8tune-spgmr-maxl PR-A bundled fix (PR-0 review-correctness deferred):
+     authoritative ratio per `docs/p8pre/n8_profile_verdict.md` §3.4 L131
+     is `nfeLS/nfe = 30509 / 6741 = 4.526` (header column reads `nfeLS/nfe`,
+     not `nli/nni`). Prior value `4.527` was a propagated rounding error
+     using `nli/nni = 30509 / 6740` denominator. -->
+
 
 cross-N invariance Δ=0 strict 跨 `{nst, nfe, nfeLS, nni, nsetups}` 5 counter × 2 case = 10/10 PASS; absolute anchor `heihe.nst=6698 / heihe.nfe=6943 / heihe_x4.nst=6575 / heihe_x4.nfe=6741` 4/4 PASS。ROI `r_min = 1.819`, `r_max = 4.526` (per `docs/p8pre/n8_profile_verdict.md` §5)。
 
