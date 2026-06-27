@@ -107,6 +107,33 @@ related_docs:
 | heihe (v0.4) | Server cn08 | `7a1dc8f` | 134.87 | `/tmp/.../heihe_v4_N1.yaml` | ✓ canonical fair-compare |
 | heihe_x4 | Server cn08 | `7a1dc8f` | 1373.23 | `/tmp/.../heihe_x4_N1.yaml` | ✓ canonical |
 
+### §5.1 p8pre-spike Step 1 PR-A — N=8 Mode C profile baseline (18-cell SHIP set, 2026-06-27)
+
+p8pre-spike Step 1 PR-A 18-cell 矩阵 (2 case × 3 N × 3 rep), Mode C profile build (`SHUD_ENABLE_OPENMP_RHS=1 SHUD_ENABLE_PROFILE=1`), SHUD pin `7a1dc8f`, server cn14 (heihe) + cn15 (heihe_x4). 详 [`docs/p8pre/n8_profile_baseline.md`](p8pre/n8_profile_baseline.md) §5.1 (gate-4 anchor for PR-F #347)。Wall = profile_B0.yaml `extras.t_wall_total`。状态：✓ canonical (branch a PROCEED Step 2)。
+
+| Case | N | rep | SHUD pin | wall (s) | yaml path |
+|---|---:|---:|---|---:|---|
+| heihe | 1 | 1 | `7a1dc8f` | 141.790 | `/tmp/p8pre_n8_profile/heihe_N1_rep1/profile_B0.yaml` |
+| heihe | 1 | 2 | `7a1dc8f` | 140.797 | `/tmp/p8pre_n8_profile/heihe_N1_rep2/profile_B0.yaml` |
+| heihe | 1 | 3 | `7a1dc8f` | 125.216 | `/tmp/p8pre_n8_profile/heihe_N1_rep3/profile_B0.yaml` |
+| heihe | 4 | 1 | `7a1dc8f` | 96.509 | `/tmp/p8pre_n8_profile/heihe_N4_rep1/profile_B0.yaml` |
+| heihe | 4 | 2 | `7a1dc8f` | 95.734 | `/tmp/p8pre_n8_profile/heihe_N4_rep2/profile_B0.yaml` |
+| heihe | 4 | 3 | `7a1dc8f` | 95.068 | `/tmp/p8pre_n8_profile/heihe_N4_rep3/profile_B0.yaml` |
+| heihe | 8 | 1 | `7a1dc8f` | 89.732 | `/tmp/p8pre_n8_profile/heihe_N8_rep1/profile_B0.yaml` |
+| heihe | 8 | 2 | `7a1dc8f` | 89.744 | `/tmp/p8pre_n8_profile/heihe_N8_rep2/profile_B0.yaml` |
+| heihe | 8 | 3 | `7a1dc8f` | 89.324 | `/tmp/p8pre_n8_profile/heihe_N8_rep3/profile_B0.yaml` |
+| heihe_x4 | 1 | 1 | `7a1dc8f` | 1474.953 | `/tmp/p8pre_n8_profile/heihe_x4_N1_rep1/profile_B0.yaml` |
+| heihe_x4 | 1 | 2 | `7a1dc8f` | 1412.895 | `/tmp/p8pre_n8_profile/heihe_x4_N1_rep2/profile_B0.yaml` |
+| heihe_x4 | 1 | 3 | `7a1dc8f` | 1268.620 | `/tmp/p8pre_n8_profile/heihe_x4_N1_rep3/profile_B0.yaml` |
+| heihe_x4 | 4 | 1 | `7a1dc8f` | 849.704 | `/tmp/p8pre_n8_profile/heihe_x4_N4_rep1/profile_B0.yaml` |
+| heihe_x4 | 4 | 2 | `7a1dc8f` | 849.756 | `/tmp/p8pre_n8_profile/heihe_x4_N4_rep2/profile_B0.yaml` |
+| heihe_x4 | 4 | 3 | `7a1dc8f` | 840.095 | `/tmp/p8pre_n8_profile/heihe_x4_N4_rep3/profile_B0.yaml` |
+| heihe_x4 | 8 | 1 | `7a1dc8f` | 743.556 | `/tmp/p8pre_n8_profile/heihe_x4_N8_rep1/profile_B0.yaml` |
+| heihe_x4 | 8 | 2 | `7a1dc8f` | 743.552 | `/tmp/p8pre_n8_profile/heihe_x4_N8_rep2/profile_B0.yaml` |
+| heihe_x4 | 8 | 3 | `7a1dc8f` | 742.919 | `/tmp/p8pre_n8_profile/heihe_x4_N8_rep3/profile_B0.yaml` |
+
+Server source mirror: `/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/<case>_N<n>_rep<r>/`。`wall_step1_baseline_median(case, N)` (gate-4 anchor) = [`docs/p8pre/n8_profile_baseline.md`](p8pre/n8_profile_baseline.md) §5.1 Table 1。
+
 ## §6 已知缺陷 / 待补 (carve-out)
 
 1. **Mac heihe_x4 broken** (no forcing/, cfg.para 3yr 不 truncate) — 不能 Mac 跑。fix: 从 server rsync `SHUD/Basins/heihe_x4/forcing/` (286 MB) + cfg.para truncate

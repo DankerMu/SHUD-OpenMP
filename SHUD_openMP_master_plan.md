@@ -2353,6 +2353,18 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 
 **目标**：在不动 SPGMR 本身的前提下，加入**左预条件器**（CVODE 默认 PREC_LEFT），把 `ratio_nfeLS_over_nfe`（S0.12 测得）显著降低。
 
+##### P8-precond.0 prep — p8pre-spike profile baseline + identity API spike
+
+**前置 epic**: [`openspec/changes/p8pre-spike`](openspec/changes/p8pre-spike/proposal.md) (Epic #338), 两步:
+
+- **Step 1 (PR-A/B/C, #341-#343)**: N=8 Mode C profile recheck (18-cell 2×3×3 矩阵, SHUD pin `7a1dc8f`, server cn14/cn15). 输出 `nfeLS / nfe` ROI 量化 + `wall_step1_baseline_median(case, N)` gate-4 anchor for Step 2.
+  - PR-A execution log: [`docs/p8pre/n8_profile_run.md`](docs/p8pre/n8_profile_run.md) (#341)
+  - PR-B verdict aggregator: [`docs/p8pre/n8_profile_verdict.md`](docs/p8pre/n8_profile_verdict.md) (#342) — `r_min = 1.819 ≥ 1.5`, `r_max = 4.526`, **branch a (PROCEED Step 2)**.
+  - PR-C capstone (本节 anchor): [`docs/p8pre/n8_profile_baseline.md`](docs/p8pre/n8_profile_baseline.md) §5.1 — gate-4 wall baseline anchor (6-row table).
+- **Step 2 (PR-D/E/F/G, #344-#347+)**: identity precond stub + cvode_config PREC_LEFT wire + 4-hard-gate + 2-soft-gate verdict + ADR-0003. 触发本 P8-precond.1-.7 实施需 PR-F (#347) 4 hard gate PASS + ADR-0003 GO 决策。
+
+**Step 1 verdict**: branch a (PROCEED) — `nfeLS / nfe` 实测 heihe 1.819 / heihe_x4 4.526 @ N=8, 满足 ADR-0002 Path 3 trigger (`r_min ≥ 1.5`); P8-precond.1-.7 formal epic 在 Step 2 ADR-0003 GO 后 unlock.
+
 ##### P8-precond.1 — 物理分块结构设计
 
 SHUD 状态向量按物理过程分五块：
