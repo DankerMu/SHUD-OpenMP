@@ -413,6 +413,54 @@ which expands to `maxl = 5`) anchor cell at SHUD `37be0fe`, and is the
 authoritative input for all downstream `maxl ∈ {5, 10, 15, 20, 30}` per-cell
 cross-comparison cells produced by PR-D's 60-cell server sweep.
 
+## §verdict
+
+(Authored by PR-B per `openspec/changes/p8tune-spgmr-maxl/tasks.md` §4.1-§4.2 + spec `maxl-sweep-verdict/spec.md` Requirement "Sweep entry condition", scenario "Full sweep GO triggered by hard evidence" L11-15.)
+
+### Decision
+
+**Sweep mode: FULL 60-cell sweep GO.**
+
+Applies spec scenario "Full sweep GO triggered by hard evidence" decision tree branch — `ncfl > 0 in ANY (case, N) cell` predicate is satisfied at this baseline. The probe-only 12-cell fallback (spec scenario L16-22) and the NO-GO branches (spec scenarios L24-35) are NOT exercised for the current case set.
+
+### Decision-input evidence (cross-ref §decision-input-table above)
+
+| Case | N=8 ncfl (median) | Predicate `ncfl > 0` | Source |
+|---|---:|---|---|
+| heihe | 85 | TRUE | §3.1 → §decision-input-table |
+| heihe_x4 | 3620 | TRUE | §3.1 → §decision-input-table |
+
+Both rows satisfy `ncfl > 0` → the disjunctive "ANY (case, N)" predicate fires immediately on the heihe row alone; the heihe_x4 row strengthens the signal by a factor of ~43×.
+
+Saturation confirmatory evidence (independent of the hard-evidence gate):
+- heihe_x4 `nli/nni ≈ 4.527` (at SUNDIALS default `maxl=5` cap → saturation_ratio ≈ 0.91 ≥ 0.8 threshold)
+- heihe `nli/nni ≈ 1.820` (below saturation; documented for case-asymmetric ROI structure per design D13, not consumed by this decision branch)
+
+### Branch decision adjudication (spec L7-35 decision tree)
+
+| Scenario | Predicate | Result | This baseline state |
+|---|---|---|---|
+| Full sweep GO (L11-15) | `ncfl > 0` in ANY cell | full 60-cell sweep at `/scratch/.../p8tune-runs/maxl_sweep/` | **MATCH** (both rows TRUE) |
+| Probe-only fallback (L16-22) | `ncfl = 0` in ALL cells AND heihe_x4 `nli/nni ≥ 4.5` | 12-cell probe first | NOT MATCH (both `ncfl > 0`) |
+| NO-GO no-entry (L24-29) | `ncfl = 0` in ALL cells AND heihe_x4 `nli/nni < 4.5` | skip sweep; ADR-0004 close | NOT MATCH (both `ncfl > 0`) |
+| Residual fallback (L31-35) | any state not covered above | default NO-GO branch | NOT MATCH (Full sweep GO predicate fires first) |
+
+Decision tree closure verified: input state ∈ {Full sweep GO scenario} → unambiguous matching branch with no overlap. No default-NO-GO fallback needed.
+
+### Downstream PR-D contract
+
+PR-D (`maxl-sweep-verdict` capability + tasks §4.3-§4.6) inherits this verdict and:
+- SHALL execute the full 60-cell matrix: `maxl ∈ {5, 10, 15, 20, 30}` × `case ∈ {heihe, heihe_x4}` × `N ∈ {1, 8}` × `rep ∈ {1, 2, 3}` = 60 cells
+- SHALL NOT execute the probe-only 12-cell fallback (this branch is structurally retained per spec L22 for future-case fallback but not triggered here)
+- SHALL place outputs at `/scratch/frd_muziyao/SHUD-OpenMP/.p8tune-runs/maxl_sweep/<case>_N<n>_maxl<m>_rep<r>/` per Slurm 三铁律 (sbatch from `/scratch/`, output paths under `/scratch/`)
+- SHALL require PR-C (`spgmr-maxl-env-hook`) merged BEFORE submission (each cell sets `SHUD_SPGMR_MAXL=<k>` env var per the env-var hook)
+
+### Cross-ref
+
+- Spec authority: `openspec/changes/p8tune-spgmr-maxl/specs/maxl-sweep-verdict/spec.md` "Sweep entry condition" Requirement L7-35
+- Task: `openspec/changes/p8tune-spgmr-maxl/tasks.md` §4.1-§4.2 (PR-B verdict gate) → §4.3-§4.6 (PR-D sweep)
+- ADR-0004 forward dependency: PR-E will author `docs/adr/0004-maxl-sweep-decision.md` with G1-G8 gate adjudication on PR-D sweep data; this §verdict is the entry-condition input only, NOT the GO/NO-GO/Optional-knob/Diagnostic adjudication
+
 ## References
 
 - spec: `openspec/changes/p8tune-spgmr-maxl/specs/clean-prec-none-baseline/spec.md` (5 Requirements + Scenarios L3-92)
