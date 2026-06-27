@@ -17,9 +17,10 @@ p8pre-spike epic (SHUD-OpenMP#338) 在 P1e epic close 后立项，目的是回�
 
 **Step 1 (PR-A/B/C, #341-#343, #353-#355)** — N=8 Mode C profile recheck (18-cell 2×3×3 矩阵, SHUD pin `7a1dc8f`, server cn14/cn15)：
 
-- 实测 ROI 比 `r = nfeLS / nfe`:
-  - heihe N=8: 12120 / 6696 = **1.811** (基本贴近 ADR-0002 Path 3 trigger threshold 1.5)
+- 实测 ROI 比 `r = nfeLS_median / nfe_median` @ N=8 (Step 1 PREC_NONE baseline, canonical per `docs/p8pre/n8_profile_verdict.md` §5):
+  - heihe N=8: 12632 / 6943 = **1.819** (超 ADR-0002 Path 3 trigger threshold 1.5)
   - heihe_x4 N=8: 30518 / 6741 = **4.526** (远超 trigger threshold)
+  - NB: Step 2 PR-E PREC_LEFT identity-precond cvode_stats 在同 case 报 `nfeLS=12120/nfe=6696=1.811` — 不同 condition (Step 1 PREC_NONE vs Step 2 PREC_LEFT identity, CVODE step controller path differs nst 6698→6599), 仅在 Step 2 spike 实测描述时引用
 - `wall_step1_baseline_median(case, N)` (gate-4 anchor) 6-row 表落地于 `docs/p8pre/n8_profile_baseline.md` §5.1 Table 1
 - 4 baseline counter anchor 全部满足 (`heihe.nst=6698 / heihe.nfe=6943 / heihe_x4.nst=6575 / heihe_x4.nfe=6741`)
 - **Step 1 verdict**: branch a (PROCEED Step 2) — Path 3 ROI trigger 第一个条件 PASS
@@ -55,7 +56,7 @@ H1 / H3 / H4 / S6 PASS 仅证 (i) plumbing 已正确接通、(ii) identity stub 
 
 1. **Hard gate 2 deterministic FAIL**：`ncfn` 跨 18 cell 完全不变 (heihe 6/6/6 跨 N1/N4/N8 × 3rep, heihe_x4 47/47/47 跨 N1/N4/N8 × 3rep), 证明 identity P⁻¹=I 对 SHUD stiff Jacobian 上的 Newton 收敛失败完全无作用——这与理论一致 (identity 不旋转 residual)。任何 future preconditioner candidate (Diagonal / Jacobi / ILU(0) / block-Jacobi) 必须把 `ncfn` 压到这两个 floor 以下才有 ROI ground，identity 路径不提供这种 ground (实际是 PREC_NONE 等价数学行为)。
 2. **Soft gate 5 FAIL 揭示 PREC_LEFT 状态机 inherent cost**：仅仅启用 `SUN_PREC_LEFT` 即在 SUNDIALS 内部触发额外 N_VLinearSum + N_VScale ops, 扰动 90 天积分轨迹 ≈9×10¹⁵ ULP, 远超 A4 阈值 1024。这是 SUNDIALS 内部架构的客观 cost — future preconditioner candidate 在 evaluate 时必须接受这个 baseline drift, 或者其 mode A reference 必须重新固化 (per S5 carve-out 推 PR-G + #349 archive)。
-3. **`nfeLS/nfe = 1.811` ROI 仍然 promising 但 identity stub 无法 unlock**：实测比值贴 ADR-0002 Path 3 1.5 trigger threshold, 证明 SHUD stiff Jacobian 上 SPGMR 工作量充足 → real preconditioner ROI window 存在 — 但 identity 不是真的 preconditioner, 不能用 identity gate 推断 real candidate 行为。结论是 ROI window 存在但需要不同实现路径 (per Consequences §3 alternative path 候选)。
+3. **Step 1 canonical `nfeLS/nfe = 1.819` ROI 仍然 promising 但 identity stub 无法 unlock**：Step 1 PREC_NONE baseline 实测比值 ≥ ADR-0002 Path 3 1.5 trigger threshold, 证明 SHUD stiff Jacobian 上 SPGMR 工作量充足 → real preconditioner ROI window 存在 — 但 identity 不是真的 preconditioner, 不能用 identity gate 推断 real candidate 行为。结论是 ROI window 存在但需要不同实现路径 (per Consequences §3 alternative path 候选)。
 4. **KISS / YAGNI 不允许携带 dead PREC_LEFT codepath**：如果留 identity 在 production 路径, 必然产生未来 maintainer 误读 "已有 preconditioner" 的语义陷阱; 而留 PREC_NONE + Timer 占位的 dead bucket 同样违反 YAGNI。design D8 fall-back 是 clean 还原, 与 ADR-0002 Path 3 `weak alone` 标注 (which assumes future paired Path 1) 一致。
 5. **形式 P8-precond epic 不应在当前数据下开**：spec L74-79 + design D8 写明 hard FAIL → spike NO-GO → 不进 formal epic。Step 1 PR-C capstone (`docs/p8pre/n8_profile_baseline.md` §5.5 + §8) 已 anchor branch a PROCEED 条件, 但 Step 2 PR-F 在 branch a 内部走到 sub-branch NO-GO; 不撤销 Step 1 PROCEED, 只关 Step 2 + 推后 P8-precond epic 触发条件。
 
@@ -66,7 +67,7 @@ H1 / H3 / H4 / S6 PASS 仅证 (i) plumbing 已正确接通、(ii) identity stub 
 ### Positive
 
 - **plumbing 已验证可用 + canonical SUNDIALS pattern 已固化**: PR-D 的 PSetup/PSolve 实现遵循 SUNDIALS canonical `cvDiurnal_kry.c` L716/L760 jok-mirror + memcpy pattern, 当 future preconditioner candidate (Diagonal / Jacobi / ILU(0)) 启动时可直接复用骨架——不必重新发现 jok 旗语 + ier 三档 return code contract。
-- **ROI ceiling 实测落地**: `ncfn = {6 (heihe), 47 (heihe_x4)}` floor 与 `nfeLS/nfe = {1.811, 4.526}` 比值是任何 future preconditioner candidate 必须超越的 baseline。这些数字 + Step 1 PR-A `wall_step1_baseline_median` 共同形成 future iterative-solver tuning 的 anchor (per `docs/p8pre/identity_spike_verdict.md` §6.2 PASS criterion: `ncfn < 6 ∧ ncfn < 47 ∧ wall_overhead ≤ 10%`).
+- **ROI ceiling 实测落地**: `ncfn = {6 (heihe), 47 (heihe_x4)}` floor (Step 2 spike 数据) 与 Step 1 PREC_NONE canonical `nfeLS/nfe = {1.819, 4.526}` 比值是任何 future preconditioner candidate 必须超越的 baseline。这些数字 + Step 1 PR-A `wall_step1_baseline_median` 共同形成 future iterative-solver tuning 的 anchor (per `docs/p8pre/identity_spike_verdict.md` §6.2 PASS criterion: `ncfn < 6 ∧ ncfn < 47 ∧ wall_overhead ≤ 10%`).
 - **SUNDIALS PREC_LEFT 状态机 drift 量化**: S5 carve-out 揭示 PREC_LEFT vs PREC_NONE 在 fp64 意义上结构差异 = 5,155/214,252 positions (2.4%), 这是 ADR-0002 Path 3 future epic 在 cross-mode SHA verification 时不可忽略的实证 baseline。Path 3 实施时不能假设 bitwise neutrality with Mode C strict-omp 当前 baseline.
 - **ADR-0002 Path 3 不被否决, 仅 trigger 第三个条件 NO-GO**: ADR-0002 Path 3 trigger 三条件 (ROI + spike + ADR-0003 GO) 中前两个仍然客观存在 (ROI 量化 + plumbing 验证), 仅 ADR-0003 GO 不发出。Path 3 在 ADR-0002 内保留 `P2 optimization` 标位; 但 P8-precond formal epic 重新启动需要新的 design 输入 (per Consequences §3)。
 
