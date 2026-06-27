@@ -3,7 +3,7 @@ title: p8pre Step 2 PR-E — identity-precond 18-cell spike execution log
 epic: SHUD-OpenMP#338
 issue: SHUD-OpenMP#346
 SHUD_pin: 5276167
-outer_pin: f800bb21d92daaf81d1cbe18cdfddc0a9649eb9e
+outer_pin: 2eb5d0fb68edf07482d3c7a45ff954b4c1c933c6
 date: 2026-06-27
 spike_phase: Step 2 PR-E (data capture)
 verdict_adjudication: PR-F SHUD-OpenMP#347 (not in scope here)
@@ -27,8 +27,8 @@ per spec L74-113 hard/soft gate criteria is owned by PR-F #347.
   - `libgomp.so.1 => /lib/x86_64-linux-gnu/libgomp.so.1`
 - Build flags: `make shud SHUD_ENABLE_OPENMP_RHS=1 SHUD_ENABLE_PROFILE=1`
 - SHUD pin: `5276167` (PR-D impl, identity precond stub + cvode_config PREC_LEFT)
-- Outer pin: `f800bb21d92daaf81d1cbe18cdfddc0a9649eb9e`
-  (feat/issue-346-p8pre-pr-e-server-spike)
+- Outer pin: `2eb5d0fb68edf07482d3c7a45ff954b4c1c933c6`
+  (feat/issue-346-p8pre-pr-e-server-spike, doc-introducing commit)
 
 Provenance log archived at `/tmp/p8pre_identity_spike/server_build_provenance.log`.
 
