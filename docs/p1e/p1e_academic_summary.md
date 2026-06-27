@@ -216,7 +216,7 @@ for s in sbatch/Cheihe_N{1,2,4,8}_rep{1,2,3}.sbatch; do
 done
 ```
 
-Mac PR-J 4-cell 流程见 `docs/p1e/p1e_mac_reverse_compat.md` §5。Artifact 存放于 `/scratch/frd_muziyao/SHUD-OpenMP/.pr-i-runs/` (server) 与 `/Users/danker/.../openMP/.pr-j-runs/` (Mac)，per project rule 不入 repo。
+Mac PR-J 4-cell 流程见 `docs/p1e/p1e_mac_reverse_compat.md` §5。Artifact 存放于 `/scratch/frd_muziyao/SHUD-OpenMP/.p1e-i-runs/` (server) 与 `/Users/danker/.../openMP/.pr-j-runs/` (Mac)，per project rule 不入 repo。
 
 本节小结：实验设置满足双平台异构验证、production-scale mesh 覆盖、deployment 铁律合规三项前提，为 §5 results 提供可重现的实验底座。
 
