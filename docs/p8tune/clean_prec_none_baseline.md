@@ -300,7 +300,7 @@ PR-F** (those latter values are negative-control anchors only per ADR-0003
 | Build flags | `make shud SHUD_ENABLE_PROFILE=1 -j 8` |
 | Slurm job ID | `9620` (cn14, ExitCode 0:0, Elapsed 00:01:47) |
 
-**Run command**: `unset SHUD_SPGMR_MAXL && ./build/shud keliya`
+**Run command**: `unset SHUD_SPGMR_MAXL && ./shud keliya` (serial-only smoke; OMP build `make shud_omp` is separately validated via PR-C G1 build gate, not by this anchor)
 
 **Wall time**: 88s (build + 484-NumEle keliya run inside sbatch job).
 
