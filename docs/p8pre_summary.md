@@ -69,6 +69,10 @@ PR-G #348 PR 写入 [`docs/adr/0003-precond-spike-decision.md`](adr/0003-precond
 
 **epic value summary**: 虽然 NO-GO, p8pre-spike epic 价值 = (i) framework readiness (PSetup/PSolve canonical SUNDIALS pattern + Timer instrumentation 已固化, future preconditioner candidate 可直接复用骨架), (ii) ROI ceiling 数据库 (`ncfn` floor 6/47 + Step 1 canonical `nfeLS/nfe` 比值 1.819/4.526 + S5 drift baseline 5,155/214,252 positions), (iii) Negative result 形式化记录 (avoids future epic 重复试错 identity 路径)。
 
+# Forward note (post-cleanup 2026-06-27)
+
+design D8 fall-back PREC_NONE 还原已 completed at outer `e442ce8` / SHUD `37be0fe` (cleanup pointer bump merged to `main` 2026-06-27)。`PREC_LEFT + identity` 路径的 `ncfn = 6 (heihe) / 47 (heihe_x4)` floor 仅作 negative-control anchor 保留; 任何 future preconditioner / solver-tune candidate 的 PASS gate 应使用 cleaned-PREC_NONE baseline `ncfn_candidate ≤ 7 (heihe) ∧ ncfn_candidate ≤ 51 (heihe_x4)` per `docs/p8pre/n8_profile_verdict.md` §3.1。下一步 P8-tune.C SPGMR `maxl` sweep 在 change [`p8tune-spgmr-maxl`](../openspec/changes/p8tune-spgmr-maxl/proposal.md) (4 capabilities: `p8pre-doc-state-correction` / `clean-prec-none-baseline` / `spgmr-maxl-env-hook` / `maxl-sweep-verdict`) 中形式化, 决策入口 ADR-0004 (TBD, by PR-E)。
+
 # References
 
 ## Internal docs

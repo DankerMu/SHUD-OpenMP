@@ -2391,7 +2391,56 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 
 **Alternative P8-tune 候选 (per ADR-0003 §Forward action recommendations §3 + spec §9 Future Work)**: 若 P8-precond formal epic 推迟启动, 替代路径含 (P8-tune.A) CVODE step controller (`max_step` / `min_step` / `nonlin_conv_coef`) 调优; (P8-tune.B) `CVodeSetMaxNonlinIters` 增加测 6/47 floor 可否由 more iterations resolve; (P8-tune.C) SPGMR `maxl` sweep (默认 5; raise to 10-15 压 `ncfl=121` 重启次数); (P8-tune.D) ADR-0002 Path 4 KLU pattern-only spike (per forthcoming ADR)。
 
-**Outcome**: design D8 fall-back PREC_NONE 还原 推 #349 archive 或 separate cleanup PR (PR-G #348 doc-only, 不动 SHUD 源码). p8pre-spike epic 价值 = (i) framework readiness (PSetup/PSolve canonical pattern + Timer instrumentation 已固化), (ii) ROI ceiling 数据库 (`ncfn` floor + `nfeLS/nfe` 比值 + S5 drift baseline), (iii) Negative result 形式化记录避免后续 epic 重复试错。SHUD pin 暂留 `5276167` 含 unused identity code 直到 cleanup PR 执行; baseline/p8pre 分支 (HEAD `df45deb`) 同期处理。
+**Outcome**: design D8 fall-back PREC_NONE 还原已 COMPLETED at outer `e442ce8` / SHUD `37be0fe` (cleanup pointer bump merged 2026-06-27). p8pre-spike epic 价值 = (i) framework readiness (PSetup/PSolve canonical pattern + Timer instrumentation 已固化), (ii) ROI ceiling 数据库 (`ncfn` floor + `nfeLS/nfe` 比值 + S5 drift baseline), (iii) Negative result 形式化记录避免后续 epic 重复试错。SHUD pin `5276167` 含 unused identity code 已由 cleanup PR 消化, 当前 outer pointer 指向 SHUD `37be0fe` clean baseline; baseline/p8pre 分支 (HEAD `df45deb`) close 留作 non-blocking 后续处理。下一步 P8-tune.C SPGMR `maxl` sweep 形式化在 §P8-tune.C (下一节)。
+
+##### P8-tune.C — SPGMR maxl sweep epic (openspec change `p8tune-spgmr-maxl`)
+
+**Epic scope (revised 2026-06-27)**: 4 capabilities × 6 PR (PR-0 → PR-A → PR-B → PR-C → PR-D → PR-E + conditional PR-F) 形式化 ADR-0003 §Forward action §3 列出的 P8-tune.C 候选 (SPGMR `maxl` sweep)。openspec change [`p8tune-spgmr-maxl`](openspec/changes/p8tune-spgmr-maxl/proposal.md) 4 capabilities:
+
+- **`p8pre-doc-state-correction`** (PR-0, 本节 anchor PR): 修正 4 doc-state issues (future-gate 6/47 → 7/51 / `nfeLS` typo 30518/30517 → 30509 / cleanup deferred → completed at outer `e442ce8` / SHUD `37be0fe` / 新增 `mode-C-tune` + `SHUD_SPGMR_MAXL` glossary 术语)
+- **`clean-prec-none-baseline`** (PR-A): 锚定 cleaned-PREC_NONE 15-canonical-counter baseline (Plan A: 复用 `docs/p8pre/n8_profile_verdict.md` §3.1 数据 + codepath-equivalence proof; Plan B fallback: 18-cell 重跑) + keliya cleaned-PREC_NONE smoke anchor (for spgmr-maxl-env-hook G3 default-compat gate)
+- **`spgmr-maxl-env-hook`** (PR-C): 在 `SHUD/src/Equations/cvode_config.cpp:259` 加 `SHUD_SPGMR_MAXL` env var runtime knob (values `{unset, "", 0, 5, 10, 15, 20, 30}`; NEVER opens PREC_LEFT; default-unset bit-identical to current SHUD `37be0fe`; 4-way default-compat CI gate)
+- **`maxl-sweep-verdict`** (PR-B verdict gate + PR-D 60-cell sweep + PR-E aggregator+ADR-0004): 60-cell server matrix (5 maxl × 2 case × 2 N × 3 rep) + 8-gate verdict (G1-G8) + ADR-0004 decision
+
+**Entry condition (hard-evidence already satisfied)**: per `docs/p8pre/n8_profile_verdict.md` §3.1 Step 1 PREC_NONE data, both cases have `ncfl > 0` — heihe `ncfl=85`, heihe_x4 `ncfl=3620`, both `netf=0`。SPGMR Krylov restart count materially nonzero → maxl sweep 有 ROI window。`ncfn` cleaned floor (heihe 7 / heihe_x4 51) 也 nonzero — Newton-loop convergence retry 实际发生于 production codepath。无需独立 probe 即可启动 full 60-cell sweep。
+
+**6-PR sequence**:
+
+| PR | Capability | Scope | Depends on |
+|---|---|---|---|
+| PR-0 | `p8pre-doc-state-correction` | doc-only (4 docs + glossary + master plan section) | none |
+| PR-A | `clean-prec-none-baseline` | `docs/p8tune/clean_prec_none_baseline.md` + keliya smoke anchor + Plan A 15-key extract | PR-0 (corrected gate wording) |
+| PR-B | `maxl-sweep-verdict` (verdict gate doc) | apply decision-input table from PR-A baseline → sweep mode选择 | PR-A baseline |
+| PR-C | `spgmr-maxl-env-hook` | SHUD source (`cvode_config.cpp:259` env var helper) + 4-way default-unset bit-identical CI gate | PR-A keliya smoke anchor |
+| PR-D | `maxl-sweep-verdict` (sweep run) | 60-cell server matrix Slurm submit (5 maxl × 2 case × 2 N × 3 rep) | PR-B GO + PR-C merged |
+| PR-E | `maxl-sweep-verdict` (aggregator + ADR-0004) | `tools/p8tune/aggregate_maxl_sweep.sh` + `docs/p8tune/maxl_sweep_verdict.md` + `docs/adr/0004-maxl-sweep-decision.md` | PR-D complete |
+| PR-F | (conditional, GO branch only) | bump `cvode_config.cpp:259` default constant to chosen maxl + new SHA baseline lock | PR-E ADR-0004 GO + default-bump 决议 |
+
+**8-gate verdict (G1-G8, per PR-E aggregator output)**:
+
+| Gate | Criterion | Source |
+|---|---|---|
+| G1 | Build: `make shud && make shud_omp` exit 0 + `nm` shows SPGMR symbols | PR-C |
+| G2 | No-PREC_LEFT-regression: `grep -rE 'PREC_LEFT\|CVodeSetPreconditioner\|MD_precond_identity' SHUD/src/Equations/` returns 0 matches | PR-C |
+| G3 | Default-compat (4-way): `unset / "" / "0" / "5"` 4 keliya invocations 全产生 bit-identical `rivqdown.dat` SHA12 + 15-key snapshot vs PR-A baseline | PR-C CI |
+| G4 | Solver-work: per (case, maxl), `nfeLS / nli / ncfl / nps / nps_per_solve` 改善 vs cleaned-PREC_NONE baseline | PR-D + PR-E |
+| G5 | Wall: per (case, N, maxl), median wall 改善 vs cleaned-baseline；阈值 case-asymmetric (heihe ≥5% / heihe_x4 ≥3% optional, 详 PR-E spec) | PR-D + PR-E |
+| G6 | No-solver-regression: per (case, maxl), `ncfn + ncfl + netf` 不上升 vs cleaned-baseline; 单 counter 上升 ≤ small tolerance 即视为 PASS | PR-D + PR-E |
+| G7 | Hydrology-A4: per (case, N, maxl), `rivqdown.dat` max_ulp ≤1024 cross-N within same (case, maxl) tuple + water-balance threshold (TBD by PR-E) | PR-D + PR-E |
+| G8 | Deterministic-repeatability: per (case, N, maxl), 3 reps `rivqdown.dat` SHA12 一致 | PR-D + PR-E |
+
+**ADR-0004 verdict branches (per PR-E aggregator decision)**:
+
+| Branch | Trigger | Action |
+|---|---|---|
+| GO + default-bump | G1-G3 PASS + G4/G5 wall ≥10% improvement + G6/G7/G8 PASS | conditional PR-F bumps `cvode_config.cpp:259` default constant to chosen maxl + new SHA baseline lock under `mode-C-tune` reference set |
+| Optional-knob | G1-G3 PASS + G4/G5 wall 5-10% improvement + G6/G7/G8 PASS | per-case recommended-maxl table in `docs/p8tune/maxl_sweep_verdict.md` §production-tune-guidance; keep env-var hook as documented prod option; no source change |
+| Diagnostic | G4 counter improvement but G5 wall <5% / mixed | document counter-vs-wall asymmetry; formal P8-tune.D KLU intake checklist |
+| NO-GO-hydrology | G7 FAIL | revert env-var hook; investigate physics-layer drift |
+| NO-GO-solver | G6 FAIL | revert env-var hook; investigate solver-regression root cause |
+| NO-GO-no-improvement | G4/G5 no improvement | transition to P8-tune.D KLU pattern-only spike (per ADR-0002 Path 4) |
+
+详 [`openspec/changes/p8tune-spgmr-maxl/proposal.md`](openspec/changes/p8tune-spgmr-maxl/proposal.md) + [`design.md`](openspec/changes/p8tune-spgmr-maxl/design.md) D0-D11 + [`tasks.md`](openspec/changes/p8tune-spgmr-maxl/tasks.md) §1-§4 + 4 spec deltas under [`openspec/changes/p8tune-spgmr-maxl/specs/`](openspec/changes/p8tune-spgmr-maxl/specs/)。
 
 ##### P8-precond.1 — 物理分块结构设计
 
