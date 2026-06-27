@@ -56,10 +56,15 @@ set -euo pipefail
 
 REPO=/scratch/frd_muziyao/SHUD-OpenMP
 SHUD_DIR="$REPO/SHUD"
+CASE_DIR="$SHUD_DIR/Basins/__CASE__"
 CELL_DIR="$REPO/.p8pre-runs/__CASE___N__N___rep__REP__"
 
 mkdir -p "$CELL_DIR"
-cd "$SHUD_DIR"
+# Per P1e PR-B convention (tools/p1e_2x2_runner.sh L331): SHUD binary is
+# invoked from the case's basin dir so it finds input/<case>/<case>.cfg.para
+# at the expected relative path. heihe_x4 does NOT have a demo
+# SHUD/input/<case>/ shortcut — only heihe does — so cwd MUST be the basin dir.
+cd "$CASE_DIR"
 
 # Determinism guards: deterministic NUMA + thread binding so cross-N
 # bitwise comparisons aren't subject to placement noise (per CLAUDE.md
@@ -75,22 +80,24 @@ export SHUD_RHS_THREADS=__N__
 echo "[p8pre_n8_profile] cell=__CASE___N__N___rep__REP__"
 echo "[p8pre_n8_profile] host=$(hostname) numa=$(numactl --show 2>/dev/null | head -1 || echo n/a)"
 echo "[p8pre_n8_profile] outer_git=$(cd "$REPO" && git rev-parse --short HEAD 2>/dev/null || echo n/a)"
-echo "[p8pre_n8_profile] SHUD pin=$(git rev-parse --short HEAD)"
+echo "[p8pre_n8_profile] SHUD pin=$(cd "$SHUD_DIR" && git rev-parse --short HEAD 2>/dev/null || echo n/a)"
 echo "[p8pre_n8_profile] OMP_NUM_THREADS=$OMP_NUM_THREADS SHUD_RHS_THREADS=$SHUD_RHS_THREADS"
 echo "[p8pre_n8_profile] OMP_PROC_BIND=$OMP_PROC_BIND OMP_PLACES=$OMP_PLACES"
 date -u +"[p8pre_n8_profile] start_utc=%Y-%m-%dT%H:%M:%SZ"
 
 # ----------------------------------------------------------------------------
-# Cell execution: ./shud __CASE__ from SHUD/ working dir (binary is the
-# Mode C build prepared in PR-A pre-flight task §1.2 by a separate one-shot
+# Cell execution: $SHUD_DIR/shud __CASE__ from Basins/__CASE__/ working dir
+# (Mode C build prepared in PR-A pre-flight task §1.2 by a separate one-shot
 # `make shud SHUD_ENABLE_OPENMP_RHS=1 SHUD_ENABLE_PROFILE=1`; this template
 # does NOT rebuild per-cell to keep wall comparable across cells).
+# Binary path is absolute since cwd is the basin dir; matches the P1e
+# tools/p1e_2x2_runner.sh L329-335 convention.
 # ----------------------------------------------------------------------------
 
 # Bracket with `set +e ... set -e` so the wrapper always logs run_exit_code
 # (cell triage relies on this line in slurm.out).
 set +e
-./shud __CASE__
+"$SHUD_DIR/shud" __CASE__
 RC=$?
 set -e
 
@@ -99,18 +106,17 @@ echo "[p8pre_n8_profile] run_exit_code=$RC"
 
 # ----------------------------------------------------------------------------
 # Artifact harvest into per-cell dir (Slurm 三铁律: under /scratch)
-# Source layout (Mode C profile build): SHUD/Basins/<case>/output/__CASE__/
-# - profile.yaml          (timer.cpp emits at SHUD_ENABLE_PROFILE=1 build)
+# Source layout: SHUD writes to <cwd>/output/<project_name>.out/ where cwd is
+# the basin dir and project_name == case name for heihe / heihe_x4 (per
+# CLAUDE.md case-deployment-map §2.2 — no aliasing).
+# - profile_B0.yaml       (shud.cpp L352/579 emits at SHUD_ENABLE_PROFILE=1 build)
 # - cvode_stats.txt       (PrintFinalStats — SHUD canonical 15 keys)
-# - rivqdown.dat          (river discharge — gate-1 of Step 2 SHA12 baseline)
+# - <case>.rivqdown.dat   (river discharge — gate-1 of Step 2 SHA12 baseline)
 # ----------------------------------------------------------------------------
 
-# Per CLAUDE.md case-deployment-map §2.2: SHUD project name == basin folder
-# name for heihe and heihe_x4 (no aliasing). Output dir convention follows
-# SHUD/src/Model/shud.cpp output prefix.
-OUTPUT_DIR="$SHUD_DIR/Basins/__CASE__/output/__CASE__"
+OUTPUT_DIR="$CASE_DIR/output/__CASE__.out"
 
-for f in profile.yaml cvode_stats.txt rivqdown.dat; do
+for f in profile_B0.yaml cvode_stats.txt __CASE__.rivqdown.dat; do
     if [ -f "$OUTPUT_DIR/$f" ]; then
         cp "$OUTPUT_DIR/$f" "$CELL_DIR/$f"
     else
