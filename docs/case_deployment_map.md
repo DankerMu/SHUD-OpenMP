@@ -134,6 +134,35 @@ p8pre-spike Step 1 PR-A 18-cell 矩阵 (2 case × 3 N × 3 rep), Mode C profile 
 
 Server source mirror: `/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/<case>_N<n>_rep<r>/`。`wall_step1_baseline_median(case, N)` (gate-4 anchor) = [`docs/p8pre/n8_profile_baseline.md`](p8pre/n8_profile_baseline.md) §5.1 Table 1。
 
+### §5.2 p8pre-spike Step 2 PR-E — identity-precond 18-cell spike (NO-GO data archive, 2026-06-27)
+
+p8pre-spike Step 2 PR-E 18-cell 矩阵 (2 case × 3 N × 3 rep), Mode C + PREC_LEFT identity stub build (`make shud SHUD_ENABLE_OPENMP_RHS=1 SHUD_ENABLE_PROFILE=1`), SHUD pin `5276167` (PR-D #357 forward-only descendant 含 `MD_precond_identity.{h,cpp}` + `cvode_config.cpp:259` PREC_NONE→PREC_LEFT + `CVodeSetPreconditioner` + `CVodeSetLSetupFrequency(50)`), server cn14 (heihe) + cn15 (heihe_x4)。详 [`docs/p8pre/identity_spike_run.md`](p8pre/identity_spike_run.md) §4 + [`docs/p8pre/identity_spike_verdict.md`](p8pre/identity_spike_verdict.md) §3。Wall = `profile_B0.yaml extras.t_wall_total`; t_precond_setup = `profile_B0.yaml extras.t_precond_setup` (new PR-D §6.2 Timer bucket)。
+
+**状态**: NO-GO 数据 archive (per [`docs/adr/0003-precond-spike-decision.md`](adr/0003-precond-spike-decision.md), gate 2 ncfn FAIL + gate 5 max_ulp ≈9×10¹⁵ FAIL)。`baseline/p8pre` 分支 + identity code revert 推 #349 archive 或 separate cleanup PR。
+
+| Case | N | rep | SHUD pin | wall (s) | yaml path |
+|---|---:|---:|---|---:|---|
+| heihe | 1 | 1 | `5276167` | 137.079 | `/tmp/p8pre_identity_spike/heihe_N1_rep1/profile_B0.yaml` |
+| heihe | 1 | 2 | `5276167` | 137.274 | `/tmp/p8pre_identity_spike/heihe_N1_rep2/profile_B0.yaml` |
+| heihe | 1 | 3 | `5276167` | 121.619 | `/tmp/p8pre_identity_spike/heihe_N1_rep3/profile_B0.yaml` |
+| heihe | 4 | 1 | `5276167` | 94.049 | `/tmp/p8pre_identity_spike/heihe_N4_rep1/profile_B0.yaml` |
+| heihe | 4 | 2 | `5276167` | 93.846 | `/tmp/p8pre_identity_spike/heihe_N4_rep2/profile_B0.yaml` |
+| heihe | 4 | 3 | `5276167` | 93.499 | `/tmp/p8pre_identity_spike/heihe_N4_rep3/profile_B0.yaml` |
+| heihe | 8 | 1 | `5276167` | 88.216 | `/tmp/p8pre_identity_spike/heihe_N8_rep1/profile_B0.yaml` |
+| heihe | 8 | 2 | `5276167` | 87.621 | `/tmp/p8pre_identity_spike/heihe_N8_rep2/profile_B0.yaml` |
+| heihe | 8 | 3 | `5276167` | 88.038 | `/tmp/p8pre_identity_spike/heihe_N8_rep3/profile_B0.yaml` |
+| heihe_x4 | 1 | 1 | `5276167` | 1491.050 | `/tmp/p8pre_identity_spike/heihe_x4_N1_rep1/profile_B0.yaml` |
+| heihe_x4 | 1 | 2 | `5276167` | 1428.287 | `/tmp/p8pre_identity_spike/heihe_x4_N1_rep2/profile_B0.yaml` |
+| heihe_x4 | 1 | 3 | `5276167` | 1273.800 | `/tmp/p8pre_identity_spike/heihe_x4_N1_rep3/profile_B0.yaml` |
+| heihe_x4 | 4 | 1 | `5276167` | 858.281 | `/tmp/p8pre_identity_spike/heihe_x4_N4_rep1/profile_B0.yaml` |
+| heihe_x4 | 4 | 2 | `5276167` | 858.297 | `/tmp/p8pre_identity_spike/heihe_x4_N4_rep2/profile_B0.yaml` |
+| heihe_x4 | 4 | 3 | `5276167` | 847.850 | `/tmp/p8pre_identity_spike/heihe_x4_N4_rep3/profile_B0.yaml` |
+| heihe_x4 | 8 | 1 | `5276167` | 748.337 | `/tmp/p8pre_identity_spike/heihe_x4_N8_rep1/profile_B0.yaml` |
+| heihe_x4 | 8 | 2 | `5276167` | 747.720 | `/tmp/p8pre_identity_spike/heihe_x4_N8_rep2/profile_B0.yaml` |
+| heihe_x4 | 8 | 3 | `5276167` | 749.529 | `/tmp/p8pre_identity_spike/heihe_x4_N8_rep3/profile_B0.yaml` |
+
+Server source mirror: `/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/<cell>/`。Slurm JID 9531-9548 全 ExitCode 0; aggregator verdict: gate 2 ncfn deterministic FAIL (heihe ncfn=6, heihe_x4 ncfn=47 跨 18/18); gate 5 max_ulp ≈9×10¹⁵ ≫ A4 1024 阈值 (5,155/214,252 positions structurally diverge)。
+
 ## §6 已知缺陷 / 待补 (carve-out)
 
 1. **Mac heihe_x4 broken** (no forcing/, cfg.para 3yr 不 truncate) — 不能 Mac 跑。fix: 从 server rsync `SHUD/Basins/heihe_x4/forcing/` (286 MB) + cfg.para truncate
