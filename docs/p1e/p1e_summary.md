@@ -110,7 +110,7 @@ nm ./shud | grep N_VNew_OpenMP      # SHALL 0 hit
 nm ./shud | grep GOMP_parallel      # SHALL ≥1 hit (Linux libgomp)
 
 # run heihe N=8 (one of 24 cells)
-sbatch --array=0-23 .pr-i-runs/run_pr_i_24cell.sbatch
+sbatch --array=0-23 .p1e-i-runs/run_pr_i_24cell.sbatch
 # 见 docs/p1e/p1e_pr_i_strict_omp_verification.md §6
 ```
 
