@@ -80,7 +80,7 @@ per `docs/p1e/p1e_pr_i_strict_omp_verification.md` §5 nst ladder：
 
 per `docs/p1e/p1e_pr_i_strict_omp_verification.md` §6.1 raw archive paths：
 
-- `nst / nfe / nli / nfeLS / nps / npe / nlcf / ncfn / netf / nni / nsetups / nfevals / hcur / qcur / hin` 15-key 完整 archived per (case, N, rep) 至 `/scratch/frd_muziyao/SHUD-OpenMP/.pr-i-runs/<case>_N<n>_rep<r>/cvode_stats.txt`
+- SHUD canonical 15-key (per `tools/cvode_stats_diff/canonical_15_keys.yaml`) `nfe / nfeLS / nni / nli / nsetups / netf / nst / npe / nps / ncfn / ncfl / lenrw / leniw / lenrwLS / leniwLS` 完整 archived per (case, N, rep) 至 `/scratch/frd_muziyao/SHUD-OpenMP/.p1e-i-runs/<case>_N<n>_rep<r>/cvode_stats.txt`
 - aggregator: `tools/p1e_aggregate_pr_i_shall.sh`（未 unified，per PR-I deferral；考虑 PR-L/M 内 unification）
 
 ## §4 Mac PR-J 4-cell raw data
@@ -153,8 +153,8 @@ nm ./shud | grep N_VNew_OpenMP      # SHALL 0
 nm ./shud | grep GOMP_parallel      # SHALL ≥1
 
 # 24-cell submit (12 cell heihe + 12 cell heihe_x4)
-sbatch --array=0-11 /scratch/frd_muziyao/SHUD-OpenMP/.pr-i-runs/run_pr_i_heihe.sbatch
-sbatch --array=0-11 /scratch/frd_muziyao/SHUD-OpenMP/.pr-i-runs/run_pr_i_heihe_x4.sbatch
+sbatch --array=0-11 /scratch/frd_muziyao/SHUD-OpenMP/.p1e-i-runs/run_pr_i_heihe.sbatch
+sbatch --array=0-11 /scratch/frd_muziyao/SHUD-OpenMP/.p1e-i-runs/run_pr_i_heihe_x4.sbatch
 
 # aggregate
 bash tools/p1e_aggregate_pr_i_shall.sh
@@ -180,7 +180,7 @@ done
 
 | platform | path | scope |
 |---|---|---|
-| server | `/scratch/frd_muziyao/SHUD-OpenMP/.pr-i-runs/` | 24-cell mode C raw |
+| server | `/scratch/frd_muziyao/SHUD-OpenMP/.p1e-i-runs/` | 24-cell mode C raw |
 | server | `/scratch/frd_muziyao/SHUD-OpenMP/.pr-d-runs/` | PR-D mode A reference SHA archive |
 | Mac | `/Users/danker/.../openMP/.pr-j-runs/` | 4-cell mode C N=1 raw |
 | Mac | `/Users/danker/.../openMP/.pr-c-runs/` | PR-C mode A reference SHA archive |
