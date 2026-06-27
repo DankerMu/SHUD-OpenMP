@@ -2361,9 +2361,37 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
   - PR-A execution log: [`docs/p8pre/n8_profile_run.md`](docs/p8pre/n8_profile_run.md) (#341)
   - PR-B verdict aggregator: [`docs/p8pre/n8_profile_verdict.md`](docs/p8pre/n8_profile_verdict.md) (#342) — `r_min = 1.819 ≥ 1.5`, `r_max = 4.526`, **branch a (PROCEED Step 2)**.
   - PR-C capstone (本节 anchor): [`docs/p8pre/n8_profile_baseline.md`](docs/p8pre/n8_profile_baseline.md) §5.1 — gate-4 wall baseline anchor (6-row table).
-- **Step 2 (PR-D/E/F/G, #344-#347+)**: identity precond stub + cvode_config PREC_LEFT wire + 4-hard-gate + 2-soft-gate verdict + ADR-0003. 触发本 P8-precond.1-.7 实施需 PR-F (#347) 4 hard gate PASS + ADR-0003 GO 决策。
+- **Step 2 (PR-D/E/F/G, #344-#348)**: identity precond stub + cvode_config PREC_LEFT wire + 4-hard-gate + 2-soft-gate verdict + ADR-0003.
+  - PR-D #357: `MD_precond_identity.{h,cpp}` + `cvode_config.cpp:259` `PREC_NONE→PREC_LEFT` + `CVodeSetPreconditioner` + `CVodeSetLSetupFrequency(50)`; SHUD pin `7a1dc8f→5276167` (forward-only descendant). RAII Timer `t_precond_setup` + jok-mirror PSetup pattern per SUNDIALS `cvDiurnal_kry.c` L716/L760 canonical.
+  - PR-E #358: 18-cell Slurm identity spike (cn14 heihe + cn15 heihe_x4 × N∈{1,4,8} × 3rep, JID 9531-9548 全 ExitCode 0); [`docs/p8pre/identity_spike_run.md`](docs/p8pre/identity_spike_run.md) neutral data + provenance.
+  - PR-F #359: aggregator `tools/p8pre/aggregate_identity_spike.sh` (569 lines POSIX bash+awk+sha256sum+uv-python numpy) + verdict adjudication; [`docs/p8pre/identity_spike_verdict.md`](docs/p8pre/identity_spike_verdict.md) verdict **NO-GO** per spec L74-79 hard gate 2 FAIL + L106-108 soft gate 5 A4 fall-back FAIL.
+  - PR-G #348: ADR-0003 + master plan + epic capstone (doc-only; design D8 fall-back SHUD revert NOT in scope, deferred to separate cleanup PR or #349 archive).
 
-**Step 1 verdict**: branch a (PROCEED) — `nfeLS / nfe` 实测 heihe 1.819 / heihe_x4 4.526 @ N=8, 满足 ADR-0002 Path 3 trigger (`r_min ≥ 1.5`); P8-precond.1-.7 formal epic 在 Step 2 ADR-0003 GO 后 unlock.
+**Step 1 verdict**: branch a (PROCEED) — `nfeLS / nfe` 实测 heihe 1.819 / heihe_x4 4.526 @ N=8, 满足 ADR-0002 Path 3 trigger (`r_min ≥ 1.5`); P8-precond.1-.7 formal epic 第一个 trigger 条件 PASS。
+
+**Step 2 verdict (本节当前 outcome 2026-06-27)**: **NO-GO** per [`docs/adr/0003-precond-spike-decision.md`](docs/adr/0003-precond-spike-decision.md):
+
+| # | Gate | Result | 关键证据 |
+|---|---|---|---|
+| H1 | Build (3-symbol nm) | **PASS** | `PSetupIdentity` + `PSolveIdentity` + `CVodeSetPreconditioner` 同时 resolved |
+| H2 | `ncfn = 0` 跨 18 cell | **FAIL** | heihe `ncfn=6` × 9/9 + heihe_x4 `ncfn=47` × 9/9 deterministic 不随 N 或 rep 变 |
+| H3 | `nps > 0 ∧ npe > 0` per cell | **PASS** | min_nps=18163, min_npe=77 |
+| H4 | wall non-regression vs Step 1 baseline | **PASS** | 6/6 (case, N) within ε (max heihe 2.64% < 10%; max heihe_x4 1.09% < 5%) |
+| S5 | cross-N tolerance (strict SHA OR max_ulp ≤ 1024) | **FAIL** | strict 18/18 violate; A4 fall-back 18/18 violate (max_ulp ≈ 9×10¹⁵; 5,155/214,252 positions structurally diverge) |
+| S6 | setup overhead ratio ≤ 0.05 | **PASS** | max 1.01×10⁻⁷ (6 数量级 below threshold) |
+
+**实测 ROI 量化** (heihe N=8 representative): `nst=6599 / nfe=6696 / nfeLS=12120 / nps=18163 / npe=77 / ncfn=6 / ncfl=121` → `nfeLS/nfe = 1.811` 贴近 trigger threshold；但 identity P⁻¹=I 不旋转 residual → `ncfn` 完全不降 (deterministic floor 6/47), 证明 identity 路径 zero SPGMR convergence 加速 ROI。soft gate 5 FAIL 揭示 PREC_LEFT 状态机 inherent cost — 即 PREC_LEFT 仅仅 wire 通即在 SUNDIALS `cvLsSolve` 内部触发额外 `N_VLinearSum` / `N_VScale` op (per SUNDIALS-CVODE 6.0.0 `cvode_spils.c`), 在 fp64 浮点意义上扰动 90 天积分轨迹 5,155/214,252 = 2.4% 位置发生 nonzero-zero rotation — 结构性差异 (非纯 reduction-order drift)。
+
+**P8-precond.1-.7 formal epic unlock 条件 (revised 2026-06-27)**: NOT triggered under current spike data。Identity stub 提供 framework readiness + ROI ceiling 实证 (`ncfn ≥ 6, 47 floor`), 但不构成 GO 触发条件。future P8-precond formal epic 重新启动 (per ADR-0003 §Forward action recommendations §2-§3) 需:
+
+- Real preconditioner candidate (Diagonal / Jacobi / ILU(0) / block-Jacobi physics-based) 选定 + pre-spike 量化对 `ncfn` floor 降幅预期
+- Re-evaluate cost/risk (原 ADR-0002 Path 3 2-3 epic-week 估算含 identity 路径 ROI 不为零假设; ROI 实测=0 后需重估)
+- Accept S5 PREC_LEFT vs PREC_NONE structural drift baseline (≈9×10¹⁵ ULP); 设计 mode C-precond reference SHA 重新固化路径
+- 不直接复用 identity stub 进入 production (per design D8 fall-back PREC_NONE 还原)
+
+**Alternative P8-tune 候选 (per ADR-0003 §Forward action recommendations §3 + spec §9 Future Work)**: 若 P8-precond formal epic 推迟启动, 替代路径含 (P8-tune.A) CVODE step controller (`max_step` / `min_step` / `nonlin_conv_coef`) 调优; (P8-tune.B) `CVodeSetMaxNonlinIters` 增加测 6/47 floor 可否由 more iterations resolve; (P8-tune.C) SPGMR `maxl` sweep (默认 5; raise to 10-15 压 `ncfl=121` 重启次数); (P8-tune.D) ADR-0002 Path 4 KLU pattern-only spike (per forthcoming ADR)。
+
+**Outcome**: design D8 fall-back PREC_NONE 还原 推 #349 archive 或 separate cleanup PR (PR-G #348 doc-only, 不动 SHUD 源码). p8pre-spike epic 价值 = (i) framework readiness (PSetup/PSolve canonical pattern + Timer instrumentation 已固化), (ii) ROI ceiling 数据库 (`ncfn` floor + `nfeLS/nfe` 比值 + S5 drift baseline), (iii) Negative result 形式化记录避免后续 epic 重复试错。SHUD pin 暂留 `5276167` 含 unused identity code 直到 cleanup PR 执行; baseline/p8pre 分支 (HEAD `df45deb`) 同期处理。
 
 ##### P8-precond.1 — 物理分块结构设计
 
