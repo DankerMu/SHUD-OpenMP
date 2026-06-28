@@ -1927,7 +1927,7 @@ nst Δ=0 strict ladder：heihe + heihe_x4 各 N∈{1,2,4,8} nst case-fixed（hei
   - §4.6.2 partial-closure 决策框架（small-case 不达 threshold 不阻塞）+ D7 AND-gate semantics（BOTH FAIL 才触发 fallback）+ D12 routing
   - owner-local writes + canonical leftfold / pairwise reduction 保 bitwise determinism
   - allocation-time first-touch (Model_Data.cpp::malloc_EleRiv) + load-time first-touch (MD_initialize.cpp::LoadIC) 保留；**steady-state first-touch 全删**（per D4）
-  - D11 chain forward-compat stacking：后续 epic-tag (e.g. `P8-precond-tag` per GPT Pro 推荐) stack on P1e-tag（**P2a-tag 不创建** + ~~`P2b-tag` / `P5-tag`~~ 因 P2b scope absorbed by P1e PR-H + P5 命名误用历史已修正）
+  - D11 chain forward-compat stacking：后续 epic-tag stack on P1e-tag；实际 stacking 自 2026-06-28 起为 `p8pre-tag` (epic p8pre-spike ADR-0003 NO-GO capstone, baseline/p8pre HEAD `e442ce8`) + `p8tune-tag` (epic #362 p8tune-spgmr-maxl ADR-0004 Optional-knob capstone, baseline/p8tune HEAD `c8b2ef7`)（**P2a-tag 不创建** + ~~`P2b-tag` / `P5-tag`~~ 因 P2b scope absorbed by P1e PR-H + P5 命名误用历史已修正）
 - **文档遗产**：`docs/p1e_summary.md` (顶层工程总结) + `docs/p1e/*.md` (17 docs capstone source-of-truth) + ADR-0002 closure narrative
 
 ---
@@ -1998,7 +1998,7 @@ M11 (2026-06-25) 设计的 P2a 14-PR 模板（含 2×2 build matrix / `SHUD_PRE_
 | Case 部署 map | `docs/case_deployment_map.md` (main `1edb164`) |
 | 状态 | **NOT 启动 / 不进入 14-PR 模板** |
 | 后续 epic | P2b 或 P8-precond（user 通过 stage-change-pipeline 确认） |
-| D11 chain 状态 | 8-tag (B0 → B1a → B1b → B1 → P1-update-omp → P1c → P1d → P1e) 保持，**不加 P2a-tag** |
+| D11 chain 状态 (M12 P2a NO-GO 时) | 8-tag (B0 → B1a → B1b → B1 → P1-update-omp → P1c → P1d → P1e) 保持，**不加 P2a-tag**；post-2026-06-28 update：`p8pre-tag` + `p8tune-tag` 已 stack on P1e-tag → 10-tag (... → P1e → p8pre → p8tune) |
 
 ---
 
