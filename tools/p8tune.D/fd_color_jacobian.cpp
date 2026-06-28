@@ -50,6 +50,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <unistd.h>  // _exit
 #include <vector>
 
 #include <omp.h>
@@ -456,8 +457,17 @@ int main(int argc, char **argv) {
     std::printf("[fd_color] J binary written: %s  total_nnz=%llu n_zero=%d  |v|_min=%.3e |v|_max=%.3e\n",
                 out_path.c_str(), (unsigned long long)csc.total_nnz, n_zero, abs_min, abs_max);
 
-    delete MD;
-    delete fout;
-    delete fin;
-    return 0;
+    // SHUD's Model_Data destructor chain (~Model_Data → FreeData → ~SubClass)
+    // contains uninit-pointer UB that triggers `free(): invalid pointer` at
+    // NumEle > ~30k on Linux + glibc. The FloodAlert::~FloodAlert() instance
+    // was fixed in SHUD 710c00a, but bisecting heihe_x4 (NumEle=40046) on
+    // cn-node (jobid 9793 + 9792) confirms ANOTHER uninit pointer surfaces
+    // in the destructor chain at large NumEle. Spike binaries are one-shot
+    // and the process exit reclaims all memory regardless, so `_exit(0)`
+    // safely sidesteps the destructor without changing the spike's verdict
+    // semantics (fill_ratio + RSS + wall are already written to stdout +
+    // J binary already flushed). Root-cause SHUD fix tracked as issue #386.
+    std::fflush(stdout);
+    std::fflush(stderr);
+    _exit(0);
 }

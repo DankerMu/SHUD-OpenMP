@@ -56,6 +56,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <unistd.h>  // _exit
 #include <vector>
 
 #include "CommandIn.hpp"
@@ -430,9 +431,10 @@ int main(int argc, char **argv) {
     std::string out_path = out_prefix + "_adjacency.csc";
     bool ok = write_csc(out_path, B);
 
-    delete MD;
-    delete fout;
-    delete fin;
-
-    return ok ? 0 : 1;
+    // See fd_color_jacobian.cpp main exit comment + issue #386: SHUD's
+    // Model_Data destructor chain has uninit-pointer UB at NumEle > ~30k
+    // on Linux + glibc. Spike is one-shot, OS reclaims on exit.
+    std::fflush(stdout);
+    std::fflush(stderr);
+    _exit(ok ? 0 : 1);
 }
