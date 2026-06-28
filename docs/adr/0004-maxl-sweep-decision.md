@@ -100,7 +100,7 @@ NumY = 3·NumEle + NumRiv + NumLake
        NumEle   NumEle    NumEle  NumRiv   NumLake
 ```
 
-(per master plan §P8-precond.1 L2450-2453 state-vector layout)
+(per master plan §P8-precond.1 L2525-2531 state-vector layout)
 
 Arnoldi 正交化 (Modified Gram-Schmidt) 在每次 inner iter 需访问已存的所有 V[i] 计算 `dot(V[i], w)` + `w -= dot * V[i]` (per `sunlinsol_spgmr.c` `SPGMRSolve`)。**Working set per Arnoldi iter ≈ maxl × NumY × 8B**。
 
