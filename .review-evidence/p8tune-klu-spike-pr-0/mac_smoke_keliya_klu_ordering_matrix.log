@@ -1,0 +1,48 @@
+=== keliya klu_analyze_factor ordering matrix (PR-0 round 2 G1 verification) ===
+=== Built on: 2026-06-28T11:03:20Z ===
+=== klu_analyze_factor SHA: 58b0f9e7b20e830662a21f15a97be9e58c17af95 ===
+
+==================== ordering=amd btf=1 ====================
+[klu] loaded numeric J: NumY=1785 total_nnz=10255 n_colors=16
+[klu] test matrix M = I - 1.000000 * J  (diagonal set on 1785 / 1785 cols)
+[klu] PREFLIGHT_HINT pattern_est_bytes=770560 (advisory only; decisive check after klu_analyze)
+[klu] PREFLIGHT_AFTER_ANALYZE symbolic_lnz+unz=33088 est_bytes=1191168 rss_budget=129869709311
+[klu] cell_summary
+  case=keliya ordering=amd btf=1
+  NumY=1785 Anz=10255
+  symbolic_lnz_est=16544 symbolic_unz_est=16544 est_flops=5.568e+05
+  nblocks=1 maxblock=1785 nzoff=0 symmetry=1.000000
+  numeric_lnz=16544 numeric_unz=16544 max_lnz_block=16544 max_unz_block=16544
+  fill_ratio=3.2265 (numeric_lnz+unz)/Anz
+  symbolic_wall_sec=0.001357 numeric_factor_wall_sec=0.000539
+  peak_rss_bytes=3145728 (CN_NODE_RAM_BYTES=185528156160)
+
+==================== ordering=colamd btf=1 ====================
+[klu] loaded numeric J: NumY=1785 total_nnz=10255 n_colors=16
+[klu] test matrix M = I - 1.000000 * J  (diagonal set on 1785 / 1785 cols)
+[klu] PREFLIGHT_HINT pattern_est_bytes=770560 (advisory only; decisive check after klu_analyze)
+[klu] PREFLIGHT_AFTER_ANALYZE skipped (ordering=colamd lnz=-1 unz=-1; AMD-only); relying on post-factor RSS check
+[klu] cell_summary
+  case=keliya ordering=colamd btf=1
+  NumY=1785 Anz=10255
+  symbolic_lnz_est=-1 symbolic_unz_est=-1 est_flops=-1.000e+00
+  nblocks=1 maxblock=1785 nzoff=0 symmetry=-1.000000
+  numeric_lnz=23799 numeric_unz=23799 max_lnz_block=23799 max_unz_block=23799
+  fill_ratio=4.6414 (numeric_lnz+unz)/Anz
+  symbolic_wall_sec=0.001173 numeric_factor_wall_sec=0.000680
+  peak_rss_bytes=3555328 (CN_NODE_RAM_BYTES=185528156160)
+
+==================== ordering=natural btf=0 ====================
+[klu] loaded numeric J: NumY=1785 total_nnz=10255 n_colors=16
+[klu] test matrix M = I - 1.000000 * J  (diagonal set on 1785 / 1785 cols)
+[klu] PREFLIGHT_HINT pattern_est_bytes=770560 (advisory only; decisive check after klu_analyze)
+[klu] PREFLIGHT_AFTER_ANALYZE skipped (ordering=natural lnz=-1 unz=-1; AMD-only); relying on post-factor RSS check
+[klu] cell_summary
+  case=keliya ordering=natural btf=0
+  NumY=1785 Anz=10255
+  symbolic_lnz_est=-1 symbolic_unz_est=-1 est_flops=0.000e+00
+  nblocks=1 maxblock=1785 nzoff=0 symmetry=0.000000
+  numeric_lnz=1055998 numeric_unz=1055998 max_lnz_block=1055998 max_unz_block=1055998
+  fill_ratio=205.9479 (numeric_lnz+unz)/Anz
+  symbolic_wall_sec=0.000019 numeric_factor_wall_sec=0.345711
+  peak_rss_bytes=35700736 (CN_NODE_RAM_BYTES=185528156160)

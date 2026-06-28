@@ -163,7 +163,7 @@ Per cell:
 
 OOM-as-data-point (per spec REQ-5 Scenario "OOM-as-data-point") — exit code 0, single line:
 ```
-KLU_OOM_DETECTED case=<C> ordering=<O> btf=<B> peak_rss_bytes=<N> reason=<preflight_estimate | klu_factor_OOM | post_factor_rss_exceeds_cn_ram>
+KLU_OOM_DETECTED case=<C> ordering=<O> btf=<B> peak_rss_bytes=<N> reason=<preflight_after_analyze | klu_factor_OOM | post_factor_rss_exceeds_cn_ram>
 ```
 
 ### Pinned thresholds (PR-0)

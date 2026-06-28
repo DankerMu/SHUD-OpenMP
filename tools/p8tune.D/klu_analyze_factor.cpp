@@ -235,8 +235,6 @@ int main(int argc, char **argv) {
     const size_t est_pre_factor_hint_bytes = static_cast<size_t>(j.total_nnz) * 64ULL + n * 64ULL;
     std::printf("[klu] PREFLIGHT_HINT pattern_est_bytes=%zu (advisory only; decisive check after klu_analyze)\n",
                 est_pre_factor_hint_bytes);
-    std::printf("[klu] pre-flight: A nnz=%llu est_bytes=%zu cn_ram=%zu\n",
-                (unsigned long long)j.total_nnz, est_pre_factor_hint_bytes, (size_t)CN_NODE_RAM_BYTES);
 
     // --- 4. klu_analyze (symbolic) ---
     auto t0_sym = std::chrono::steady_clock::now();
@@ -263,19 +261,34 @@ int main(int argc, char **argv) {
     // safety multiplier accounts for working-set + permutation arrays.
     // If exceeds 0.7 × CN_NODE_RAM_BYTES, emit OOM-as-data-point per REQ-5
     // and exit 0. (PR-0 reviewer round 1 finding c04 / F4 fix.)
-    {
+    //
+    // CRITICAL: per KLU 7.12.2, Symbolic->lnz and Symbolic->unz are only
+    // populated when the AMD ordering is chosen (ordering_id==0). For
+    // COLAMD (id=1) and natural-via-given (id=2), KLU leaves both fields
+    // at the EMPTY sentinel (-1). Casting -2.0 to size_t is undefined
+    // behavior and was triggering spurious OOM emissions / spurious PASS
+    // verdicts across the 8/16 non-AMD PR-A cells. Skip the preflight for
+    // non-AMD orderings; rely on the post-factor RSS check at L303+.
+    // (PR-0 reviewer round 2 finding e01 / G1 fix.)
+    if (ordering_id == 0 && Symbolic->lnz > 0 && Symbolic->unz > 0) {
         const size_t est_after_analyze_bytes =
             static_cast<size_t>(Symbolic->lnz + Symbolic->unz) * 24ULL * 3ULL / 2ULL;
         const size_t rss_budget = static_cast<size_t>(
             static_cast<double>(CN_NODE_RAM_BYTES) * 0.7);
-        std::printf("[klu] PREFLIGHT_AFTER_ANALYZE symbolic_lnz+unz=%.0f est_bytes=%zu rss_budget=%zu\n",
-                    Symbolic->lnz + Symbolic->unz, est_after_analyze_bytes, rss_budget);
+        std::printf("[klu] PREFLIGHT_AFTER_ANALYZE symbolic_lnz+unz=%zu est_bytes=%zu rss_budget=%zu\n",
+                    static_cast<size_t>(Symbolic->lnz + Symbolic->unz),
+                    est_after_analyze_bytes, rss_budget);
         if (est_after_analyze_bytes > rss_budget) {
             std::printf("KLU_OOM_DETECTED case=%s ordering=%s btf=%d peak_rss_bytes=%zu reason=preflight_after_analyze\n",
                         case_name.c_str(), ordering_name.c_str(), btf_flag, est_after_analyze_bytes);
             klu_free_symbolic(&Symbolic, &common);
             return 0;
         }
+    } else {
+        std::printf("[klu] PREFLIGHT_AFTER_ANALYZE skipped (ordering=%s lnz=%lld unz=%lld; AMD-only); relying on post-factor RSS check\n",
+                    ordering_name.c_str(),
+                    static_cast<long long>(Symbolic->lnz),
+                    static_cast<long long>(Symbolic->unz));
     }
 
     // --- 5. klu_factor (numeric) ---
