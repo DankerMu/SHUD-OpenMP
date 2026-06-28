@@ -19,7 +19,7 @@ p8pre-spike epic (SHUD-OpenMP#338) 在 P1e epic close 后立项，目的是回�
 
 - 实测 ROI 比 `r = nfeLS_median / nfe_median` @ N=8 (Step 1 PREC_NONE baseline, canonical per `docs/p8pre/n8_profile_verdict.md` §5):
   - heihe N=8: 12632 / 6943 = **1.819** (超 ADR-0002 Path 3 trigger threshold 1.5)
-  - heihe_x4 N=8: 30518 / 6741 = **4.526** (远超 trigger threshold)
+  - heihe_x4 N=8: 30509 / 6741 = **4.526** (远超 trigger threshold; authoritative source per `docs/p8pre/n8_profile_verdict.md` §3.1)
   - NB: Step 2 PR-E PREC_LEFT identity-precond cvode_stats 在同 case 报 `nfeLS=12120/nfe=6696=1.811` — 不同 condition (Step 1 PREC_NONE vs Step 2 PREC_LEFT identity, CVODE step controller path differs nst 6698→6599), 仅在 Step 2 spike 实测描述时引用
 - `wall_step1_baseline_median(case, N)` (gate-4 anchor) 6-row 表落地于 `docs/p8pre/n8_profile_baseline.md` §5.1 Table 1
 - 4 baseline counter anchor 全部满足 (`heihe.nst=6698 / heihe.nfe=6943 / heihe_x4.nst=6575 / heihe_x4.nfe=6741`)
@@ -50,7 +50,7 @@ H1 / H3 / H4 / S6 PASS 仅证 (i) plumbing 已正确接通、(ii) identity stub 
 
 ## Decision
 
-**采纳 NO-GO option (b)** per `openspec/changes/p8pre-spike/specs/p8precond-zero-identity-spike/spec.md` L74-79 strict + L106-108 fall-back：**identity precond 不进入 production，PR-G 关闭 p8pre-spike epic，并在 future cleanup PR 执行 design D8 fall-back PREC_NONE 还原**。
+**采纳 NO-GO option (b)** per `openspec/changes/p8pre-spike/specs/p8precond-zero-identity-spike/spec.md` L74-79 strict + L106-108 fall-back：**identity precond 不进入 production，PR-G 关闭 p8pre-spike epic，design D8 fall-back PREC_NONE 还原已 completed at outer `e442ce8` / SHUD `37be0fe` (cleanup pointer bump merged to `main` on 2026-06-27)**。完成的 cleanup 删除项包括：(i) revert `SHUD/src/Equations/cvode_config.cpp:259` PREC_LEFT → PREC_NONE，(ii) 删除 `SHUD/src/Model/MD_precond_identity.{h,cpp}` + Makefile unlink，(iii) 移除 `CVodeSetPreconditioner(cvode_mem, PSetupIdentity, PSolveIdentity)` 注册，(iv) 移除 `CVodeSetLSetupFrequency(cvode_mem, 50)` 注册。后续 P8-tune.C maxl sweep 复用本 ADR 的 cleaned-PREC_NONE baseline anchor，详 capability [`clean-prec-none-baseline`](../../openspec/changes/p8tune-spgmr-maxl/specs/clean-prec-none-baseline/spec.md)（forward link，正在 PR-A 启动）。
 
 **Rationale**：
 
@@ -67,14 +67,14 @@ H1 / H3 / H4 / S6 PASS 仅证 (i) plumbing 已正确接通、(ii) identity stub 
 ### Positive
 
 - **plumbing 已验证可用 + canonical SUNDIALS pattern 已固化**: PR-D 的 PSetup/PSolve 实现遵循 SUNDIALS canonical `cvDiurnal_kry.c` L716/L760 jok-mirror + memcpy pattern, 当 future preconditioner candidate (Diagonal / Jacobi / ILU(0)) 启动时可直接复用骨架——不必重新发现 jok 旗语 + ier 三档 return code contract。
-- **ROI ceiling 实测落地**: `ncfn = {6 (heihe), 47 (heihe_x4)}` floor (Step 2 spike 数据) 与 Step 1 PREC_NONE canonical `nfeLS/nfe = {1.819, 4.526}` 比值是任何 future preconditioner candidate 必须超越的 baseline。这些数字 + Step 1 PR-A `wall_step1_baseline_median` 共同形成 future iterative-solver tuning 的 anchor (per `docs/p8pre/identity_spike_verdict.md` §6.2 PASS criterion: `ncfn < 6 ∧ ncfn < 47 ∧ wall_overhead ≤ 10%`).
+- **ROI ceiling 实测落地**: `ncfn = {6 (heihe), 47 (heihe_x4)}` floor (Step 2 spike 数据) 是 `PREC_LEFT + identity` 路径的 deterministic floor，作为 negative-control anchor 保留，**NOT 作为 future-candidate PASS gate**。Future preconditioner / solver-tune candidates must satisfy `ncfn_candidate ≤ 7 (heihe) ∧ ncfn_candidate ≤ 51 (heihe_x4)` (i.e., `≤ ncfn_PREC_NONE_cleaned_baseline` per `docs/p8pre/n8_profile_verdict.md` §3.1) for each case, while reducing `nfeLS/nfe`, `nli/nni`, or wall by the declared threshold. The identity floor 6/47 is retained ONLY as a `PREC_LEFT + identity` negative-control anchor, NOT as a production gate. Step 1 PREC_NONE canonical `nfeLS/nfe = {1.819, 4.526}` 比值与 Step 1 PR-A `wall_step1_baseline_median` 共同形成 future iterative-solver tuning 的 anchor。cleaned-PREC_NONE baseline 的权威数据 + extraction 路径详 capability [`clean-prec-none-baseline`](../../openspec/changes/p8tune-spgmr-maxl/specs/clean-prec-none-baseline/spec.md)（PR-A）。
 - **SUNDIALS PREC_LEFT 状态机 drift 量化**: S5 carve-out 揭示 PREC_LEFT vs PREC_NONE 在 fp64 意义上结构差异 = 5,155/214,252 positions (2.4%), 这是 ADR-0002 Path 3 future epic 在 cross-mode SHA verification 时不可忽略的实证 baseline。Path 3 实施时不能假设 bitwise neutrality with Mode C strict-omp 当前 baseline.
 - **ADR-0002 Path 3 不被否决, 仅 trigger 第三个条件 NO-GO**: ADR-0002 Path 3 trigger 三条件 (ROI + spike + ADR-0003 GO) 中前两个仍然客观存在 (ROI 量化 + plumbing 验证), 仅 ADR-0003 GO 不发出。Path 3 在 ADR-0002 内保留 `P2 optimization` 标位; 但 P8-precond formal epic 重新启动需要新的 design 输入 (per Consequences §3)。
 
 ### Negative
 
 - **p8pre-spike epic 7 PR (PR-A through PR-G) + cleanup PR 全部投入未带来直接 production speedup**: epic 总投入 ~3 epic-weeks (intake + Step 1 + Step 2 + capstone), `wall_step1_baseline_median` 是唯一 production-usable artifact (gate-4 anchor for future tuning experiments); 主要价值在 (i) framework readiness + (ii) ROI ceiling 数据库 + (iii) Negative result 形式化记录避免后续重复试错。
-- **SHUD pin 暂留 `5276167` 含 identity 代码**: 直到 design D8 fall-back PR 执行前, `5276167` 含未使用的 `MD_precond_identity.{h,cpp}` + `cvode_config.cpp:259` PREC_LEFT 行。short-term cosmetic debt, 但 PR-G 已 doc-only 不动 SHUD 源码; cleanup 推迟到 separate PR 或 #349 archive 完成时。
+- **SHUD pin `5276167` 含 identity 代码 cleanup 已完成**: 截至 2026-06-27, design D8 fall-back PREC_NONE 还原 PR 已 merged at outer `e442ce8` / SHUD `37be0fe`, `MD_precond_identity.{h,cpp}` + `cvode_config.cpp:259` PREC_LEFT 行 + `CVodeSetPreconditioner` / `CVodeSetLSetupFrequency` 注册全部删除. PR-G 当时 doc-only scope 不动 SHUD 源码 (短暂 cosmetic debt 已由后续 cleanup PR 消化)。
 - **baseline/p8pre 分支未关**: 与 SHUD pin 同 reason 推迟; baseline/p8pre 仍指向 `df45deb` (含 PR-D 后续 commit). PR-G 仅 doc, 不动 branch state.
 
 ### Neutral
@@ -86,15 +86,15 @@ H1 / H3 / H4 / S6 PASS 仅证 (i) plumbing 已正确接通、(ii) identity stub 
 
 ## Forward action recommendations (NOT executed in PR-G — out of scope per issue #348 "不动 SHUD 源码")
 
-1. **Execute design D8 PREC_NONE fall-back in separate cleanup PR or #349 archive 完成时**:
-   - Revert `SHUD/src/Equations/cvode_config.cpp:259` from `SUN_PREC_LEFT` 回 `SUN_PREC_NONE`
-   - Remove the `CVodeSetPreconditioner(cvode_mem, PSetupIdentity, PSolveIdentity)` call
-   - Remove the `CVodeSetLSetupFrequency(cvode_mem, 50)` call
-   - Delete `SHUD/src/Model/MD_precond_identity.h` + `SHUD/src/Model/MD_precond_identity.cpp`
-   - Unlink them from the `SHUD/Makefile` `shud` / `shud_omp` target
-   - Optional: delete the `t_precond_setup` Timer bucket from `tools/profile/timer.cpp` (or 留 `unused_bucket` for future reuse)
-   - Bump outer pointer from `5276167` to new SHUD HEAD (forward-only descendant; `openmp-baseline` push)
-   - Close `baseline/p8pre` branch (future P8-precond epic 应 re-fork from `main` with clean prior-art base)
+1. **Execute design D8 PREC_NONE fall-back — COMPLETED at outer `e442ce8` / SHUD `37be0fe` (2026-06-27)**:
+   - [x] Reverted `SHUD/src/Equations/cvode_config.cpp:259` from `SUN_PREC_LEFT` 回 `SUN_PREC_NONE`
+   - [x] Removed the `CVodeSetPreconditioner(cvode_mem, PSetupIdentity, PSolveIdentity)` call
+   - [x] Removed the `CVodeSetLSetupFrequency(cvode_mem, 50)` call
+   - [x] Deleted `SHUD/src/Model/MD_precond_identity.h` + `SHUD/src/Model/MD_precond_identity.cpp`
+   - [x] Unlinked them from the `SHUD/Makefile` `shud` / `shud_omp` target
+   - [x] Bumped outer pointer from `5276167` to SHUD `37be0fe` (forward-only descendant on `openmp-baseline` branch)
+   - Pending: optional delete of `t_precond_setup` Timer bucket from `tools/profile/timer.cpp` (left in tree for future preconditioner-candidate reuse — non-blocking)
+   - Pending: close `baseline/p8pre` branch (future P8-precond epic 应 re-fork from `main` with clean prior-art base — non-blocking)
 
 2. **P8-precond formal epic NOT to be opened under current design assumptions**: 任何 future P8-precond epic intake 必须先做以下 design pivot:
    - Diagonal / Jacobi / ILU(0) / block-Jacobi physics-based candidate selection (NOT identity)
