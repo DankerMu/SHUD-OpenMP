@@ -1,0 +1,33 @@
+block_row	block_col	n_nonzero	n_zero	max_abs_dut	n_finite_viol	max_rel_err	verdict
+surf	surf	314	1554	2.788e+00	0	0.000e+00	PASS
+surf	unsat	0	484	0.000e+00	0	0.000e+00	PASS
+surf	gw	0	484	0.000e+00	0	0.000e+00	PASS
+surf	river	0	534	0.000e+00	0	0.000e+00	PASS
+surf	lake	0	0	0.000e+00	0	0.000e+00	PASS
+unsat	surf	397	87	6.732e+01	0	2.041e-07	PASS
+unsat	unsat	397	87	2.023e+01	0	2.139e-08	PASS
+unsat	gw	397	87	6.733e+01	0	2.128e-07	PASS
+unsat	river	0	0	0.000e+00	0	0.000e+00	PASS
+unsat	lake	0	0	0.000e+00	0	0.000e+00	PASS
+gw	surf	0	484	0.000e+00	0	0.000e+00	PASS
+gw	unsat	31	453	1.020e-05	0	0.000e+00	PASS
+gw	gw	60	1808	8.327e-02	0	0.000e+00	PASS
+gw	river	29	505	1.039e-09	0	0.000e+00	PASS
+gw	lake	0	0	0.000e+00	0	0.000e+00	PASS
+river	surf	0	534	0.000e+00	0	0.000e+00	PASS
+river	unsat	0	0	0.000e+00	0	0.000e+00	PASS
+river	gw	0	534	0.000e+00	0	0.000e+00	PASS
+river	river	873	122	5.624e-02	0	0.000e+00	PASS
+river	lake	0	0	0.000e+00	0	0.000e+00	PASS
+lake	surf	0	0	0.000e+00	0	0.000e+00	PASS
+lake	unsat	0	0	0.000e+00	0	0.000e+00	PASS
+lake	gw	0	0	0.000e+00	0	0.000e+00	PASS
+lake	river	0	0	0.000e+00	0	0.000e+00	PASS
+lake	lake	0	0	0.000e+00	0	0.000e+00	PASS
+
+NumY	1785						
+total_nnz	10255						
+n_colors_dut	16						
+n_colors_ref_dense	1785						
+threshold	1.0e-06						
+overall	PASS						

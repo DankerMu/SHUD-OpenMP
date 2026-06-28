@@ -2444,7 +2444,7 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 
 **P8-tune.C status (post-merge 2026-06-28)**: 6-PR sequence MERGED (PR-0 #369 + PR-A #370 + PR-B #371 + PR-C #372 + PR-D #373 + PR-E #368) + follow-up PR-376 G7 split-gate spec amendment (2026-06-28) + 本 PR `chore/p8tune-doc-correction` (NumY 口径修正 + maxl=30 wording softening per GPT Pro 2026-06-28 review). ADR-0004 adopted **Optional-knob** branch with G7-attested (mechanism). Production opt-in `SHUD_SPGMR_MAXL=30` for heihe N=1 is **Performance opt-in tier (NOT A5-certified)**, pending future P9-A5 hydrology-equivalence epic for promotion. heihe_x4 全 maxl ≥10 wall REGRESS — SPGMR Krylov-vector path saturated per NumY ~120K × 8 × 10 ≈ 9.6 MB > L2 cache analysis (per ADR-0004 §Discussion NumY 口径). Triggers **P8-tune.D KLU pattern-only spike epic** (next section).
 
-##### P8-tune.D — KLU pattern-only spike epic (trigger ACTIVE per 2026-06-28)
+##### P8-tune.D — KLU pattern-only spike epic ([OPEN, executing PR-0 #380] per 2026-06-28)
 
 **Trigger condition** (per ADR-0004 §Discussion forward-implication + GPT Pro 2026-06-28 review):
 

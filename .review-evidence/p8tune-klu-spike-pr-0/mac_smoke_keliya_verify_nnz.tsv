@@ -1,0 +1,35 @@
+block_row	block_col	ref_nnz	dut_nnz	match
+surf	surf	1868	1868	PASS
+surf	unsat	484	484	PASS
+surf	gw	484	484	PASS
+surf	river	534	534	PASS
+surf	lake	0	0	PASS
+unsat	surf	484	484	PASS
+unsat	unsat	484	484	PASS
+unsat	gw	484	484	PASS
+unsat	river	0	0	PASS
+unsat	lake	0	0	PASS
+gw	surf	484	484	PASS
+gw	unsat	484	484	PASS
+gw	gw	1868	1868	PASS
+gw	river	534	534	PASS
+gw	lake	0	0	PASS
+river	surf	534	534	PASS
+river	unsat	0	0	PASS
+river	gw	534	534	PASS
+river	river	995	995	PASS
+river	lake	0	0	PASS
+lake	surf	0	0	PASS
+lake	unsat	0	0	PASS
+lake	gw	0	0	PASS
+lake	river	0	0	PASS
+lake	lake	0	0	PASS
+
+case	keliya			
+NumEle	484			
+NumRiv	333			
+NumLake	0			
+NumY	1785			
+total_nnz_ref	10255			
+total_nnz_dut	10255			
+total_match	PASS			
