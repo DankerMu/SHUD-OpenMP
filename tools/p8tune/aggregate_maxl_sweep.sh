@@ -317,17 +317,27 @@ for r in G7["rows"]:
     kv_lines.append(f"G7_{r['case']}_N{r['N']}_max_ulp_5v{r['maxl_b']}={r['max_ulp']}")
     kv_lines.append(f"G7_{r['case']}_N{r['N']}_nz_diff_5v{r['maxl_b']}={r['nz_diff']}")
 kv_lines.append(f"G8_verdict={G8['verdict']}")
-# ADR branch decision
-adr_branch = "Optional-knob"  # set explicitly per analysis
-if G7["verdict"] == "PASS" and "GO" in G5["verdict"]:
+# ADR branch decision (spec-amended G7 split: G7-strict for GO+default-bump; G7-attested for Optional-knob/Diagnostic)
+adr_branch = "Optional-knob"  # default: assumes G7-strict FAIL is ADR-attestable as solver-tunable-sensitivity
+g7_strict_pass = G7["verdict"] == "PASS"
+if g7_strict_pass and "GO" in G5["verdict"]:
+    # GO+default-bump requires G7-strict (never break userspace for default users)
     adr_branch = "GO+default-bump"
 elif G6["verdict"] == "FAIL":
     adr_branch = "NO-GO solver"
 elif G5["verdict"] == "NO-GO uniform" and G4["verdict"] != "PASS":
     adr_branch = "NO-GO no-improvement"
-elif G7["verdict"] != "PASS" and G4["verdict"] == "PASS":
-    adr_branch = "Optional-knob"  # explicit case-asymmetric per-case maxl
+elif not g7_strict_pass and G4["verdict"] == "PASS":
+    # G7-strict FAIL + G4 PASS → Optional-knob branch
+    # IMPORTANT: ADR-0004 (or successor ADR for future maxl-like sweeps) MUST document the
+    # violation as solver-tunable-sensitivity with mechanism chain (see spec G7-attested scenario).
+    # Aggregator cannot verify ADR existence; orchestrator (PR-E phase) is responsible for the
+    # ADR write + spec G7-attested cross-reference. If no such ADR is authored, branch should be
+    # reclassified to NO-GO hydrology (corruption) by the orchestrator.
+    adr_branch = "Optional-knob"  # explicit case-asymmetric per-case maxl + ADR-mechanism-attested
 kv_lines.append(f"ADR_0004_branch={adr_branch}")
+kv_lines.append(f"G7_strict_pass={g7_strict_pass}")
+kv_lines.append(f"G7_attested_required={not g7_strict_pass and adr_branch == 'Optional-knob'}")
 with open(f"{SWEEP_ROOT}/aggregate_verdict.txt", "w") as f:
     f.write("\n".join(kv_lines) + "\n")
 
