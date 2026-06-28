@@ -1,0 +1,4 @@
+[verify_adjacency_keliya] reference: NumEle=484 NumRiv=333 NumLake=0 NumY=1785 total_nnz=10255
+[verify_adjacency_keliya] CSC dut:     NumEle=484 NumRiv=333 NumLake=0 NumY=1785 total_nnz=10255
+[verify_adjacency_keliya] TSV written: /Users/danker/Desktop/Hydro-SHUD/openMP/.review-evidence/p8tune-klu-spike-pr-0/mac_smoke_keliya_verify_nnz.tsv
+[verify_adjacency_keliya] PASS: per-5-block nnz exact-match (ZERO off-by-one)
