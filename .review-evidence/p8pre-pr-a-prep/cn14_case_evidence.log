@@ -1,0 +1,17 @@
+=== heihe forcing.trimmed (SHALL: 29M, basin-local) ===
+29M	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe/forcing.trimmed/
+
+=== heihe tsd.forc (second line is forcing path SHUD reads) ===
+/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe/input/heihe/heihe.tsd.forc
+1709 19510101
+/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe/forcing.trimmed
+
+=== heihe_x4 basin-local (SHALL: ~286M) ===
+2.3G	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x4/
+
+=== heihe_x4 project name discovery (basin folder != project name per CLAUDE.md L41) ===
+tsd.forc path: /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x4/input/heihe_x4/heihe_x4.tsd.forc
+tsd.forc head -2:
+1693 20030101
+/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x4/forcing
+286M	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x4/forcing/

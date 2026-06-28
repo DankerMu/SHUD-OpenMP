@@ -1,0 +1,16 @@
+=== cvode.h: CVodeSetLSetupFrequency (expect >= 1 hit, e.g. L132) ===
+132:SUNDIALS_EXPORT int CVodeSetLSetupFrequency(void *cvode_mem, long int msbp);
+
+=== cvode_ls.h: CVodeSetJacEvalFrequency (expect >= 1 hit, e.g. L91) ===
+91:SUNDIALS_EXPORT int CVodeSetJacEvalFrequency(void *cvode_mem,
+
+=== cvode_ls.h: CVLsPrecSetupFn typedef (expect >= 1 hit) ===
+57:typedef int (*CVLsPrecSetupFn)(realtype t, N_Vector y, N_Vector fy,
+99:                                           CVLsPrecSetupFn pset,
+
+=== cvode_ls.h: CVLsPrecSolveFn typedef (expect >= 1 hit) ===
+61:typedef int (*CVLsPrecSolveFn)(realtype t, N_Vector y, N_Vector fy,
+100:                                           CVLsPrecSolveFn psolve);
+
+=== REJECT check - cvode.h: CVodeSetMaxConvFails (NOT setup frequency, controls nonlinear conv-fail threshold) ===
+133:SUNDIALS_EXPORT int CVodeSetMaxConvFails(void *cvode_mem, int maxncf);

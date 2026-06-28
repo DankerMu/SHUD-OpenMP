@@ -1,0 +1,38 @@
+================================================================
+p8pre-spike Step 2 PR-F identity-spike aggregator (issue #347)
+================================================================
+Identity dir: /tmp/p8pre_identity_spike/
+Baseline dir: /tmp/p8pre_n8_profile/
+
+Pre-flight: 18 cell dirs present + server_nm.log + cell_stats.txt OK
+
+Phase C: parsed 18 cells from cell_stats.txt
+Phase D: computed 6 (case, N) medians (wall + nps + npe + ncfn_max)
+Phase E: SHA12 + max_ulp computed for 18 cells (baseline_avail=1)
+
+================================================================
+Gate evaluation
+================================================================
+Gate 1 (build PASS): PASS — PSetupIdentity=1 PSolveIdentity=1 CVodeSetPreconditioner=1
+Gate 2 (ncfn = 0): FAIL — violations=18 / 18 cells, max_ncfn=47
+  heihe: total ncfn across 9 cells = 54 (avg 6.00)
+  heihe_x4: total ncfn across 9 cells = 423 (avg 47.00)
+Gate 3 (nps>0 AND npe>0): PASS — violations=0 / 18, min_nps=18163 min_npe=77
+Gate 4 heihe N=1: wall_id=137.079454928s wall_bs=140.797s delta=2.64% (eps=10.0%) — PASS
+Gate 4 heihe N=4: wall_id=93.846238023s wall_bs=95.734s delta=1.97% (eps=10.0%) — PASS
+Gate 4 heihe N=8: wall_id=88.037626219s wall_bs=89.732s delta=1.89% (eps=10.0%) — PASS
+Gate 4 heihe_x4 N=1: wall_id=1428.286663562s wall_bs=1412.895s delta=1.09% (eps=5.0%) — PASS
+Gate 4 heihe_x4 N=4: wall_id=858.281215947s wall_bs=849.704s delta=1.01% (eps=5.0%) — PASS
+Gate 4 heihe_x4 N=8: wall_id=748.337365513s wall_bs=743.552s delta=0.64% (eps=5.0%) — PASS
+Gate 4 (wall non-regression): PASS — violations=0 / 6 (case, N) groups
+Soft Gate 5 (cross-N SHA12 / max_ulp): FAIL — strict_violations=18 fallback_violations=18 deferred=0 (threshold=1024 ulp)
+Soft Gate 6 (t_precond_setup / wall <= 0.05): PASS — violations=0 / 18, max_ratio=1.01e-07 (threshold=0.05)
+
+================================================================
+Spike verdict: NO-GO
+ADR-0003 recommendation: NO-GO (gate failure forces fall-back to PREC_NONE per design D8; ADR-0003 NO-GO with rationale; revert cvode_config.cpp:259 + delete MD_precond_identity.{h,cpp}; close baseline/p8pre)
+================================================================
+
+Structured verdict written to: /tmp/p8pre_identity_spike/aggregate_verdict.txt
+Cell count: 18
+Done.

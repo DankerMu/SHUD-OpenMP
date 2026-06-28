@@ -1,0 +1,35 @@
+==================== p8pre-pr-a-run 18-cell verification ====================
+RUNS_DIR=/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs
+host=xnode
+date_utc=2026-06-27T02:48:57Z
+
+Legend: ART = 5 artifacts present; CANON15 = exactly 15 canonical keys present;
+        REJECT = REJECT set absent; EXTRAS = t_CVODE_raw + t_wall_total present;
+        BSUM%  = bucket-sum relative err (exclude t_RHS_kernel) vs t_wall_total;
+        RC0    = slurm.out contains 'run_exit_code=0'
+
+cell                   | ART | CANON15 | REJECT | EXTRAS |   BSUM% | RC0
+-----------------------+-----+---------+--------+--------+---------+----
+heihe_N1_rep1          |  OK |      OK |     OK |     OK | -0.0000 |  OK
+heihe_N1_rep2          |  OK |      OK |     OK |     OK | -0.0000 |  OK
+heihe_N1_rep3          |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_N4_rep1          |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_N4_rep2          |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_N4_rep3          |  OK |      OK |     OK |     OK | -0.0000 |  OK
+heihe_N8_rep1          |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_N8_rep2          |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_N8_rep3          |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_x4_N1_rep1       |  OK |      OK |     OK |     OK | -0.0000 |  OK
+heihe_x4_N1_rep2       |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_x4_N1_rep3       |  OK |      OK |     OK |     OK | -0.0000 |  OK
+heihe_x4_N4_rep1       |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_x4_N4_rep2       |  OK |      OK |     OK |     OK | -0.0000 |  OK
+heihe_x4_N4_rep3       |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_x4_N8_rep1       |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_x4_N8_rep2       |  OK |      OK |     OK |     OK | +0.0000 |  OK
+heihe_x4_N8_rep3       |  OK |      OK |     OK |     OK | +0.0000 |  OK
+
+==================== Summary ====================
+all_pass=1 block_count=0
+worst_bsum_abs_err=0% at cell=
+VERDICT: ALL 18 CELLS PASS

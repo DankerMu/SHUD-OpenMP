@@ -1,0 +1,45 @@
+diff --git a/src/Equations/cvode_config.cpp b/src/Equations/cvode_config.cpp
+index 6e774fd..a6d1ba6 100644
+--- a/src/Equations/cvode_config.cpp
++++ b/src/Equations/cvode_config.cpp
+@@ -256,12 +256,12 @@ void SetCVODE(void * &cvode_mem, CVRhsFn f, Model_Data *MD,  N_Vector udata, SUN
+     check_flag(&flag, "CVodeSStolerances", 1);
+     
+     //    LS = SUNSPGMR(udata, 0, 0); //v3.x
+-    LS = SUNLinSol_SPGMR(udata, 0, 0, sunctx);
++    LS = SUNLinSol_SPGMR(udata, PREC_NONE, 0, sunctx);
+     check_flag((void *)LS, "SUNLinSol_SPGMR", 0);
+-    
++
+     flag = CVodeSetLinearSolver(cvode_mem, LS, NULL);
+     check_flag(&flag, "CVSpilsSetLinearSolver", 1);
+-    
++
+     flag = CVodeSetMinStep(cvode_mem, 1E-6); //Minimum time interval in cvode.dt = t(i) - t(i - 1);
+     check_flag(&flag, "CVodeSetMinStep", 1);
+     
+
+# ---- Evidence interpretation (Plan A verdict) ----
+#
+# git diff 7a1dc8f..37be0fe -- src/Equations/cvode_config.cpp src/Equations/*precond* src/Equations/*spgmr*
+# (above) shows ONLY:
+#   - src/Equations/cvode_config.cpp line 259: SUNLinSol_SPGMR(udata, 0, ...) -> SUNLinSol_SPGMR(udata, PREC_NONE, ...)
+#     (the `0` literal is the integer-form of PREC_NONE constant; this is a cosmetic
+#     revert restoring the named constant after PR-D had inlined it back to literal `0`
+#     during PREC_LEFT staging then restored to PREC_NONE in cleanup tail commit)
+#   - Two trailing-whitespace-only hunks at lines 260, 262 (cosmetic)
+#
+# The MD_precond_identity.{h,cpp} files NEVER existed at 7a1dc8f and NEVER exist at
+# 37be0fe (verified via `git ls-tree 7a1dc8f src/Equations/` vs
+# `git ls-tree 37be0fe src/Equations/` — identical file rosters, no MD_precond_identity*
+# in either tree). They lived transiently in intermediate commit 5276167
+# ("feat(p8pre): identity preconditioner stub + cvode_config PREC_LEFT wire")
+# and were removed by 37be0fe ("revert(p8pre): design D8 PREC_NONE fall-back per
+# ADR-0003 NO-GO"). The net diff is therefore "revert of PR-D state to PR-B state".
+#
+# Verdict: Plan A revert-of-PR-D-only PASS. Bit-identical CVODE codepath at
+# both pins; the PREC_NONE label (vs literal 0) is a no-op at the SUNDIALS
+# 6.0.0 ABI level since PREC_NONE is defined as 0.
+#
+# Therefore Step 1 PR-B verdict §3.1 data (gathered on 7a1dc8f) is reusable
+# verbatim as the cleaned-PREC_NONE baseline reference set on 37be0fe.

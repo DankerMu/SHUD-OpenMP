@@ -1,0 +1,59 @@
+=== p8pre PR-A prep — 18-cell render sanity ===
+generated 2026-06-27T01:09:51Z
+
+=== raw stdout (18 sbatch lines, ordered by case x N x rep) ===
+sbatch --job-name=p8pre_heihe_N1_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N1_rep1.sbatch
+sbatch --job-name=p8pre_heihe_N1_singleton --dependency=afterany:__PREV_JID_heihe_N1_rep1__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N1_rep2.sbatch
+sbatch --job-name=p8pre_heihe_N1_singleton --dependency=afterany:__PREV_JID_heihe_N1_rep2__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N1_rep3.sbatch
+sbatch --job-name=p8pre_heihe_N4_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N4_rep1.sbatch
+sbatch --job-name=p8pre_heihe_N4_singleton --dependency=afterany:__PREV_JID_heihe_N4_rep1__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N4_rep2.sbatch
+sbatch --job-name=p8pre_heihe_N4_singleton --dependency=afterany:__PREV_JID_heihe_N4_rep2__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N4_rep3.sbatch
+sbatch --job-name=p8pre_heihe_N8_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N8_rep1.sbatch
+sbatch --job-name=p8pre_heihe_N8_singleton --dependency=afterany:__PREV_JID_heihe_N8_rep1__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N8_rep2.sbatch
+sbatch --job-name=p8pre_heihe_N8_singleton --dependency=afterany:__PREV_JID_heihe_N8_rep2__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N8_rep3.sbatch
+sbatch --job-name=p8pre_heihe_x4_N1_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N1_rep1.sbatch
+sbatch --job-name=p8pre_heihe_x4_N1_singleton --dependency=afterany:__PREV_JID_heihe_x4_N1_rep1__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N1_rep2.sbatch
+sbatch --job-name=p8pre_heihe_x4_N1_singleton --dependency=afterany:__PREV_JID_heihe_x4_N1_rep2__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N1_rep3.sbatch
+sbatch --job-name=p8pre_heihe_x4_N4_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N4_rep1.sbatch
+sbatch --job-name=p8pre_heihe_x4_N4_singleton --dependency=afterany:__PREV_JID_heihe_x4_N4_rep1__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N4_rep2.sbatch
+sbatch --job-name=p8pre_heihe_x4_N4_singleton --dependency=afterany:__PREV_JID_heihe_x4_N4_rep2__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N4_rep3.sbatch
+sbatch --job-name=p8pre_heihe_x4_N8_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N8_rep1.sbatch
+sbatch --job-name=p8pre_heihe_x4_N8_singleton --dependency=afterany:__PREV_JID_heihe_x4_N8_rep1__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N8_rep2.sbatch
+sbatch --job-name=p8pre_heihe_x4_N8_singleton --dependency=afterany:__PREV_JID_heihe_x4_N8_rep2__ /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N8_rep3.sbatch
+[render_n8_profile] rendered 18 cells; write_rendered=0; out_dir=/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered
+
+=== summary checks ===
+[1] total sbatch lines : 18 (SHALL=18)
+[2] N=2 cells          : 0 (SHALL=0)
+[3] heihe_ N[1|4|8] _rep cells (NOT heihe_x4) : 9 (SHALL=9)
+[4] heihe_x4 cells     : 9 (SHALL=9)
+[5] unique (case, N) groups : 6 (SHALL=6)
+[6] first-rep cells (no --dependency)      : 6 (SHALL=6)
+[7] dependent-rep cells (--dependency=...) : 12 (SHALL=12)
+
+=== node-pin spot-check (case → node) ===
+rendered files write cn14/cn15 inline via __NODE__ substitution; on Mac
+dry-run no files written (no /scratch) — simulate substitution for one
+heihe + one heihe_x4 cell to prove wrapper hands awk the right node:
+heihe   N=8 rep=1: #SBATCH --nodelist=cn14
+heihe_x4 N=8 rep=1: #SBATCH --nodelist=cn15
+
+=== full matrix dump (case x N x rep, ordered) ===
+heihe_N1_rep1
+heihe_N1_rep2
+heihe_N1_rep3
+heihe_N4_rep1
+heihe_N4_rep2
+heihe_N4_rep3
+heihe_N8_rep1
+heihe_N8_rep2
+heihe_N8_rep3
+heihe_x4_N1_rep1
+heihe_x4_N1_rep2
+heihe_x4_N1_rep3
+heihe_x4_N4_rep1
+heihe_x4_N4_rep2
+heihe_x4_N4_rep3
+heihe_x4_N8_rep1
+heihe_x4_N8_rep2
+heihe_x4_N8_rep3

@@ -1,0 +1,39 @@
+SHUD new HEAD: 5276167eea67184d801905f54dc805d2cd61db2d
+merge-base with 7a1dc8f: 7a1dc8f6ea9e5496f516255406ee3563d397959b
+7a1dc8f rev-parse: 7a1dc8f6ea9e5496f516255406ee3563d397959b
+VERDICT: PASS forward-only descendant of 7a1dc8f
+
+Files in commit:
+commit 5276167eea67184d801905f54dc805d2cd61db2d
+Author: DankerMu <mumzy@mail.ustc.edu.cn>
+Date:   Sat Jun 27 00:44:26 2026 -0400
+
+    feat(p8pre): identity preconditioner stub + cvode_config PREC_LEFT wire
+    
+    - Add MD_precond_identity.{h,cpp} implementing PSetupIdentity (jok-mirror
+      convention from SUNDIALS 6.0.0 cvDiurnal_kry.c canonical example so
+      CVodeGetNumPrecEvals counter accumulates) + PSolveIdentity (P^{-1} = I,
+      N_VScale 1.0 r → z) matching SUNDIALS 6.0.0 CVLsPrecSetupFn
+      (cvode_ls.h:57) + CVLsPrecSolveFn (cvode_ls.h:61) signatures.
+    - RAII Timer 't_precond_setup' inside PSetupIdentity for soft-gate-6
+      setup-overhead evidence (per spec p8precond-zero-identity-spike Scenario
+      L108-113 + tools/profile/timer.cpp catch-all auto-emit to extras:).
+      Timer include + RAII guarded under SHUD_ENABLE_PROFILE to match the
+      project convention in src/Model/f.cpp (PROFILE=0 builds carry no
+      tools/profile include path).
+    - Edit cvode_config.cpp:259: SUNLinSol_SPGMR PREC_NONE → PREC_LEFT;
+      insert CVodeSetPreconditioner + CVodeSetLSetupFrequency(50) AFTER
+      CVodeSetLinearSolver check_flag (CVLS preconditioner registration
+      requires linear-solver memory attached first).
+    
+    Mac smoke (keliya, 484 cells, 90-day window, PROFILE=1):
+      exit 0; nps=209227 npe=1232 nst=101042
+      profile_B0.yaml extras: t_precond_setup=37.944us
+    
+    Part of p8pre-spike Step 2 P8-precond-0 identity spike
+    (DankerMu/SHUD-OpenMP #338, #345).
+
+ src/Equations/MD_precond_identity.cpp | 73 +++++++++++++++++++++++++++++++++++
+ src/Equations/MD_precond_identity.h   | 40 +++++++++++++++++++
+ src/Equations/cvode_config.cpp        | 27 +++++++++++--
+ 3 files changed, 137 insertions(+), 3 deletions(-)

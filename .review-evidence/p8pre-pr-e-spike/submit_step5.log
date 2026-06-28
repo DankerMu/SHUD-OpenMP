@@ -1,0 +1,133 @@
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+
+[33m███████ ██   ██ ██    ██ ██████      ██   ██ ██████   ██████ [0m
+[33m██      ██   ██ ██    ██ ██   ██     ██   ██ ██   ██ ██      [0m
+[33m███████ ███████ ██    ██ ██   ██     ███████ ██████  ██      [0m
+[33m     ██ ██   ██ ██    ██ ██   ██     ██   ██ ██      ██      [0m
+[33m███████ ██   ██  ██████  ██████      ██   ██ ██       ██████ [0m
+ [33m欢迎使用SHUD高性能计算集群 @2024 [0m
+
+ System information as of Sat Jun 27 01:06:10 PM CST 2026
+
+  System load:  4.39              Temperature:              46.9 C
+  Usage of /:   24.6% of 1.72TB   Processes:                932
+  Memory usage: 16%               Users logged in:          3
+  Swap usage:   100%              IPv4 address for eno1np0: 210.77.77.22
+
+  => There is 1 zombie process.
+
+[0;36m======================== [ shudHPC 资源状态 ] ========================[0m
+ 集群负载: [0;32m9[0m / 25 节点可用 (CPU)
+ 核时余额: [0;32m100000.0[0m / 100000 小时
+ 并发限制: [0;36m8[0m 最大作业数
+[0;36m======================== [ 存储目录说明 ] ============================[0m
+[0;35m - 用户主目录：/users/frd_muziyao (10.5GB/20GB, [0;32m剩余 9.5GB[0;35m)[0m
+[0;35m - 高速计算磁盘：/scratch/frd_muziyao (不限额，计算目录)[0m
+[0;35m - Repo长期冷数据：/volume/repo/frd_muziyao (不限额，数据归档目录)[0m
+[0;31m
+ ！！！禁止将超算账号借给他人！！！！
+ ！！！禁止用户将目录/文件改为 777 权限！！！！
+ ！！！首次登录后请主动修改密码 (passwd) ！！！！
+ ！！！密码长度 8 以上，包含字母、数字、符号！！！
+ ！！！至少每 12 个月修改一次密码！！！
+ ！！！超30天未活跃账户会被自动冻结！！！
+[0m
+[0;36m======================== [ 使用守则 ] ================================[0m
+ 1. 非必要，不在主节点进行大规模计算；大规模计算使用 Slurm 任务调度。
+ 2. 计算任务请在 /scratch/frd_muziyao 存储空间 下进行。
+ 3. /scratch 空间中超过 180 天的文件将被自动删除，且不可逆，请及时备份至 /volume/repo/frd_muziyao/
+ 4. 禁止在用户主目录 /users/frd_muziyao 进行计算任务，否则将被封号。
+ 5. 非必要，不使用 Slurm 节点独占任务 (exclusive 选项)。
+ 6. 登录异常时，请先检查主目录容量 (/users/frd_muziyao 容量 (quota -u frd_muziyao) 是否超额。
+[0;36m======================================================================[0m
+ 常用工具: [0;34mastat[0m (查核时余额), [0;34mtstat[0m (查任务状态), [0;34msqueue[0m (查slurm队列), pestat(查节点负载)
+
+=== invoke run_identity_spike.sh ===
+[run_identity_spike] cwd=/scratch/frd_muziyao/SHUD-OpenMP
+[run_identity_spike] host=xnode
+[run_identity_spike] outer_git=f800bb2
+[run_identity_spike] SHUD pin=5276167
+[run_identity_spike] Phase B: pre-flight nm Mode C verify
+[verify_mode_c] N_VNew_Serial=1 (need>=1)
+[verify_mode_c] N_VNew_OpenMP=0 (need==0)
+[verify_mode_c] GOMP_parallel=1 (need>=1)
+[run_identity_spike] pre-flight PASS: existing Mode C binary
+[run_identity_spike] Phase B.2: identity 3-symbol nm gate-1 evidence
+[verify_identity_symbols] PSetupIdentity=1 (need>=1)
+[verify_identity_symbols] PSolveIdentity=1 (need>=1)
+[verify_identity_symbols] CVodeSetPreconditioner=1 (need>=1)
+[run_identity_spike] identity nm gate PASS
+[run_identity_spike] gate-1 evidence: /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/server_nm.log
+[run_identity_spike] Phase C: mkdir per-cell artifact dirs
+[run_identity_spike] mkdir cells=18
+[run_identity_spike] Phase D: render 18 cells
+[render_identity_spike] rendered 18 cells; write_rendered=1; out_dir=/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered
+[run_identity_spike] render emitted 18 sbatch lines
+[run_identity_spike] rendered .sbatch files=18
+[run_identity_spike] Phase E: submit 18 cells with JID substitution
+[run_identity_spike] submit cell=heihe_N1_rep1 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N1_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N1_rep1.sbatch
+[run_identity_spike] submit cell=heihe_N1_rep2 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N1_singleton --dependency=afterany:9531 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N1_rep2.sbatch
+[run_identity_spike] submit cell=heihe_N1_rep3 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N1_singleton --dependency=afterany:9532 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N1_rep3.sbatch
+[run_identity_spike] submit cell=heihe_N4_rep1 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N4_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N4_rep1.sbatch
+[run_identity_spike] submit cell=heihe_N4_rep2 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N4_singleton --dependency=afterany:9534 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N4_rep2.sbatch
+[run_identity_spike] submit cell=heihe_N4_rep3 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N4_singleton --dependency=afterany:9535 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N4_rep3.sbatch
+[run_identity_spike] submit cell=heihe_N8_rep1 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N8_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N8_rep1.sbatch
+[run_identity_spike] submit cell=heihe_N8_rep2 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N8_singleton --dependency=afterany:9537 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N8_rep2.sbatch
+[run_identity_spike] submit cell=heihe_N8_rep3 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_N8_singleton --dependency=afterany:9538 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_N8_rep3.sbatch
+[run_identity_spike] submit cell=heihe_x4_N1_rep1 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N1_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N1_rep1.sbatch
+[run_identity_spike] submit cell=heihe_x4_N1_rep2 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N1_singleton --dependency=afterany:9540 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N1_rep2.sbatch
+[run_identity_spike] submit cell=heihe_x4_N1_rep3 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N1_singleton --dependency=afterany:9541 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N1_rep3.sbatch
+[run_identity_spike] submit cell=heihe_x4_N4_rep1 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N4_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N4_rep1.sbatch
+[run_identity_spike] submit cell=heihe_x4_N4_rep2 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N4_singleton --dependency=afterany:9543 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N4_rep2.sbatch
+[run_identity_spike] submit cell=heihe_x4_N4_rep3 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N4_singleton --dependency=afterany:9544 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N4_rep3.sbatch
+[run_identity_spike] submit cell=heihe_x4_N8_rep1 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N8_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N8_rep1.sbatch
+[run_identity_spike] submit cell=heihe_x4_N8_rep2 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N8_singleton --dependency=afterany:9546 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N8_rep2.sbatch
+[run_identity_spike] submit cell=heihe_x4_N8_rep3 cmd: sbatch --parsable --job-name=p8pre_identity_heihe_x4_N8_singleton --dependency=afterany:9547 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/rendered/submit_heihe_x4_N8_rep3.sbatch
+[run_identity_spike] submit summary: submit_count=18 fail_count=0
+[run_identity_spike] jid_table.txt lines=18 (path=/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/jid_table.txt)
+[run_identity_spike] Phase F: queue state
+[run_identity_spike] squeue --me total=18
+[run_identity_spike] JID range: 9531 .. 9548
+[run_identity_spike] OK: all 18 cells submitted
+runner exit=0
+=== jid_table.txt ===
+heihe 1 1 9531
+heihe 1 2 9532
+heihe 1 3 9533
+heihe 4 1 9534
+heihe 4 2 9535
+heihe 4 3 9536
+heihe 8 1 9537
+heihe 8 2 9538
+heihe 8 3 9539
+heihe_x4 1 1 9540
+heihe_x4 1 2 9541
+heihe_x4 1 3 9542
+heihe_x4 4 1 9543
+heihe_x4 4 2 9544
+heihe_x4 4 3 9545
+heihe_x4 8 1 9546
+heihe_x4 8 2 9547
+heihe_x4 8 3 9548
+=== squeue --me ===
+             JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
+              9548       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9547       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9546       CPU p8pre_id frd_muzi PD       0:00      1 (None)
+              9545       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9544       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9543       CPU p8pre_id frd_muzi PD       0:00      1 (None)
+              9542       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9541       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9540       CPU p8pre_id frd_muzi PD       0:00      1 (None)
+              9539       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9538       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9536       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9535       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9533       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9532       CPU p8pre_id frd_muzi PD       0:00      1 (Dependency)
+              9531       CPU p8pre_id frd_muzi  R       0:01      1 cn14
+              9534       CPU p8pre_id frd_muzi  R       0:01      1 cn14
+              9537       CPU p8pre_id frd_muzi  R       0:01      1 cn14
+=== current time UTC ===
+Sat Jun 27 05:06:41 AM UTC 2026

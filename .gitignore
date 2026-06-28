@@ -44,3 +44,7 @@ docs/review/
 # Python cache
 **/__pycache__/
 .obsidian/
+
+# Session-local scratchpad (debug artifacts, dry-run outputs, ad-hoc scripts).
+# Tracked artifacts belong in openspec/changes/ or .review-evidence/.
+scratchpad/

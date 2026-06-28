@@ -1,0 +1,82 @@
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+
+[33m███████ ██   ██ ██    ██ ██████      ██   ██ ██████   ██████ [0m
+[33m██      ██   ██ ██    ██ ██   ██     ██   ██ ██   ██ ██      [0m
+[33m███████ ███████ ██    ██ ██   ██     ███████ ██████  ██      [0m
+[33m     ██ ██   ██ ██    ██ ██   ██     ██   ██ ██      ██      [0m
+[33m███████ ██   ██  ██████  ██████      ██   ██ ██       ██████ [0m
+ [33m欢迎使用SHUD高性能计算集群 @2024 [0m
+
+ System information as of Sat Jun 27 01:06:10 PM CST 2026
+
+  System load:  4.39              Temperature:              46.9 C
+  Usage of /:   24.6% of 1.72TB   Processes:                932
+  Memory usage: 16%               Users logged in:          3
+  Swap usage:   100%              IPv4 address for eno1np0: 210.77.77.22
+
+  => There is 1 zombie process.
+
+[0;36m======================== [ shudHPC 资源状态 ] ========================[0m
+ 集群负载: [0;32m9[0m / 25 节点可用 (CPU)
+ 核时余额: [0;32m100000.0[0m / 100000 小时
+ 并发限制: [0;36m8[0m 最大作业数
+[0;36m======================== [ 存储目录说明 ] ============================[0m
+[0;35m - 用户主目录：/users/frd_muziyao (10.5GB/20GB, [0;32m剩余 9.5GB[0;35m)[0m
+[0;35m - 高速计算磁盘：/scratch/frd_muziyao (不限额，计算目录)[0m
+[0;35m - Repo长期冷数据：/volume/repo/frd_muziyao (不限额，数据归档目录)[0m
+[0;31m
+ ！！！禁止将超算账号借给他人！！！！
+ ！！！禁止用户将目录/文件改为 777 权限！！！！
+ ！！！首次登录后请主动修改密码 (passwd) ！！！！
+ ！！！密码长度 8 以上，包含字母、数字、符号！！！
+ ！！！至少每 12 个月修改一次密码！！！
+ ！！！超30天未活跃账户会被自动冻结！！！
+[0m
+[0;36m======================== [ 使用守则 ] ================================[0m
+ 1. 非必要，不在主节点进行大规模计算；大规模计算使用 Slurm 任务调度。
+ 2. 计算任务请在 /scratch/frd_muziyao 存储空间 下进行。
+ 3. /scratch 空间中超过 180 天的文件将被自动删除，且不可逆，请及时备份至 /volume/repo/frd_muziyao/
+ 4. 禁止在用户主目录 /users/frd_muziyao 进行计算任务，否则将被封号。
+ 5. 非必要，不使用 Slurm 节点独占任务 (exclusive 选项)。
+ 6. 登录异常时，请先检查主目录容量 (/users/frd_muziyao 容量 (quota -u frd_muziyao) 是否超额。
+[0;36m======================================================================[0m
+ 常用工具: [0;34mastat[0m (查核时余额), [0;34mtstat[0m (查任务状态), [0;34msqueue[0m (查slurm队列), pestat(查节点负载)
+
+=== make clean ===
+  rm -f ./shud_asan
+Done. (InstallSundials/ preserved)
+
+=== make shud SHUD_ENABLE_OPENMP_RHS=1 SHUD_ENABLE_PROFILE=1 ===
+src/Model/shud.cpp:579:51: warning: ‘/profile_B0.yaml’ directive output may be truncated writing 16 bytes into a region of size between 1 and 2048 [-Wformat-truncation=]
+  579 |         snprintf(prof_path, sizeof(prof_path), "%s/profile_B0.yaml",
+      |                                                   ^~~~~~~~~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘double SHUD_uncouple(FileIn*, FileOut*)’ at src/Model/shud.cpp:579:17:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 17 and 2064 bytes into a destination of size 2048
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+
+ ./shud is compiled successfully!
+
+make exit=0
+=== identity 3-symbol nm output ===
+                 U CVodeSetPreconditioner
+0000000000021830 T PSetupIdentity
+0000000000021880 T PSolveIdentity
+---
+PSetupIdentity=1 PSolveIdentity=1 CVodeSetPreconditioner=1
+OK: server gate-1 evidence captured to /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/identity_spike/server_nm.log
+=== Mode C nm gate (3 nm gates per master plan §1.6) ===
+Mode C nm: N_VNew_Serial=1 N_VNew_OpenMP=0 GOMP_parallel=1
+OK: Mode C nm gate PASS
+=== Compiler + lib provenance ===
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+	libsundials_cvode.so.6 => /scratch/frd_muziyao/SHUD-OpenMP/SHUD/InstallSundials/lib/libsundials_cvode.so.6 (0x00007df6d2eb4000)
+	libgomp.so.1 => /lib/x86_64-linux-gnu/libgomp.so.1 (0x00007df6d2e4b000)
+=== binary metadata ===
+-rwxr-xr-x 1 frd_muziyao huser 2393096 Jun 27 13:06 ./shud
+./shud: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=1cdf5f114adf7b8ee794dfc1dfe6f4e3372aac5c, for GNU/Linux 3.2.0, with debug_info, not stripped

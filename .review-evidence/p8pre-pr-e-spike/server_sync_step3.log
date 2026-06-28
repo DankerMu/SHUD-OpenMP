@@ -1,0 +1,288 @@
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+
+[33m███████ ██   ██ ██    ██ ██████      ██   ██ ██████   ██████ [0m
+[33m██      ██   ██ ██    ██ ██   ██     ██   ██ ██   ██ ██      [0m
+[33m███████ ███████ ██    ██ ██   ██     ███████ ██████  ██      [0m
+[33m     ██ ██   ██ ██    ██ ██   ██     ██   ██ ██      ██      [0m
+[33m███████ ██   ██  ██████  ██████      ██   ██ ██       ██████ [0m
+ [33m欢迎使用SHUD高性能计算集群 @2024 [0m
+
+ System information as of Sat Jun 27 01:04:53 PM CST 2026
+
+  System load:  5.09              Temperature:              46.9 C
+  Usage of /:   24.6% of 1.72TB   Processes:                935
+  Memory usage: 16%               Users logged in:          3
+  Swap usage:   100%              IPv4 address for eno1np0: 210.77.77.22
+
+  => There is 1 zombie process.
+
+[0;36m======================== [ shudHPC 资源状态 ] ========================[0m
+ 集群负载: [0;32m9[0m / 25 节点可用 (CPU)
+ 核时余额: [0;32m100000.0[0m / 100000 小时
+ 并发限制: [0;36m8[0m 最大作业数
+[0;36m======================== [ 存储目录说明 ] ============================[0m
+[0;35m - 用户主目录：/users/frd_muziyao (10.5GB/20GB, [0;32m剩余 9.5GB[0;35m)[0m
+[0;35m - 高速计算磁盘：/scratch/frd_muziyao (不限额，计算目录)[0m
+[0;35m - Repo长期冷数据：/volume/repo/frd_muziyao (不限额，数据归档目录)[0m
+[0;31m
+ ！！！禁止将超算账号借给他人！！！！
+ ！！！禁止用户将目录/文件改为 777 权限！！！！
+ ！！！首次登录后请主动修改密码 (passwd) ！！！！
+ ！！！密码长度 8 以上，包含字母、数字、符号！！！
+ ！！！至少每 12 个月修改一次密码！！！
+ ！！！超30天未活跃账户会被自动冻结！！！
+[0m
+[0;36m======================== [ 使用守则 ] ================================[0m
+ 1. 非必要，不在主节点进行大规模计算；大规模计算使用 Slurm 任务调度。
+ 2. 计算任务请在 /scratch/frd_muziyao 存储空间 下进行。
+ 3. /scratch 空间中超过 180 天的文件将被自动删除，且不可逆，请及时备份至 /volume/repo/frd_muziyao/
+ 4. 禁止在用户主目录 /users/frd_muziyao 进行计算任务，否则将被封号。
+ 5. 非必要，不使用 Slurm 节点独占任务 (exclusive 选项)。
+ 6. 登录异常时，请先检查主目录容量 (/users/frd_muziyao 容量 (quota -u frd_muziyao) 是否超额。
+[0;36m======================================================================[0m
+ 常用工具: [0;34mastat[0m (查核时余额), [0;34mtstat[0m (查任务状态), [0;34msqueue[0m (查slurm队列), pestat(查节点负载)
+
+=== git status -uno (initial) ===
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+=== git fetch origin ===
+From https://github.com/DankerMu/SHUD-OpenMP
+   1769fb9..9e824f5  main           -> origin/main
+ * [new branch]      baseline/p8pre -> origin/baseline/p8pre
+ * [new branch]      feat/issue-346-p8pre-pr-e-server-spike -> origin/feat/issue-346-p8pre-pr-e-server-spike
+Fetching submodule SHUD
+From https://github.com/SHUD-System/SHUD
+ * [new branch]      openmp-baseline-p8pre -> origin/openmp-baseline-p8pre
+=== checkout feature branch ===
+error: The following untracked working tree files would be overwritten by checkout:
+	tools/p8pre/render_n8_profile.sh
+	tools/p8pre/run_n8_profile.sh
+	tools/p8pre/submit_n8_profile_template.sbatch
+Please move or remove them before you switch branches.
+Aborting
+error: The following untracked working tree files would be overwritten by checkout:
+	tools/p8pre/render_n8_profile.sh
+	tools/p8pre/run_n8_profile.sh
+	tools/p8pre/submit_n8_profile_template.sbatch
+Please move or remove them before you switch branches.
+Aborting
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+
+[33m███████ ██   ██ ██    ██ ██████      ██   ██ ██████   ██████ [0m
+[33m██      ██   ██ ██    ██ ██   ██     ██   ██ ██   ██ ██      [0m
+[33m███████ ███████ ██    ██ ██   ██     ███████ ██████  ██      [0m
+[33m     ██ ██   ██ ██    ██ ██   ██     ██   ██ ██      ██      [0m
+[33m███████ ██   ██  ██████  ██████      ██   ██ ██       ██████ [0m
+ [33m欢迎使用SHUD高性能计算集群 @2024 [0m
+
+ System information as of Sat Jun 27 01:04:53 PM CST 2026
+
+  System load:  5.09              Temperature:              46.9 C
+  Usage of /:   24.6% of 1.72TB   Processes:                935
+  Memory usage: 16%               Users logged in:          3
+  Swap usage:   100%              IPv4 address for eno1np0: 210.77.77.22
+
+  => There is 1 zombie process.
+
+[0;36m======================== [ shudHPC 资源状态 ] ========================[0m
+ 集群负载: [0;32m9[0m / 25 节点可用 (CPU)
+ 核时余额: [0;32m100000.0[0m / 100000 小时
+ 并发限制: [0;36m8[0m 最大作业数
+[0;36m======================== [ 存储目录说明 ] ============================[0m
+[0;35m - 用户主目录：/users/frd_muziyao (10.5GB/20GB, [0;32m剩余 9.5GB[0;35m)[0m
+[0;35m - 高速计算磁盘：/scratch/frd_muziyao (不限额，计算目录)[0m
+[0;35m - Repo长期冷数据：/volume/repo/frd_muziyao (不限额，数据归档目录)[0m
+[0;31m
+ ！！！禁止将超算账号借给他人！！！！
+ ！！！禁止用户将目录/文件改为 777 权限！！！！
+ ！！！首次登录后请主动修改密码 (passwd) ！！！！
+ ！！！密码长度 8 以上，包含字母、数字、符号！！！
+ ！！！至少每 12 个月修改一次密码！！！
+ ！！！超30天未活跃账户会被自动冻结！！！
+[0m
+[0;36m======================== [ 使用守则 ] ================================[0m
+ 1. 非必要，不在主节点进行大规模计算；大规模计算使用 Slurm 任务调度。
+ 2. 计算任务请在 /scratch/frd_muziyao 存储空间 下进行。
+ 3. /scratch 空间中超过 180 天的文件将被自动删除，且不可逆，请及时备份至 /volume/repo/frd_muziyao/
+ 4. 禁止在用户主目录 /users/frd_muziyao 进行计算任务，否则将被封号。
+ 5. 非必要，不使用 Slurm 节点独占任务 (exclusive 选项)。
+ 6. 登录异常时，请先检查主目录容量 (/users/frd_muziyao 容量 (quota -u frd_muziyao) 是否超额。
+[0;36m======================================================================[0m
+ 常用工具: [0;34mastat[0m (查核时余额), [0;34mtstat[0m (查任务状态), [0;34msqueue[0m (查slurm队列), pestat(查节点负载)
+
+=== diagnose blocking files ===
+?? tools/p8pre/
+=== current branch main has these files? ===
+=== compare staged/untracked vs HEAD ===
+0a1
+> none
+=== file presence on disk ===
+total 25
+drwxr-xr-x  2 frd_muziyao huser     5 Jun 27 09:29 .
+drwxr-xr-x 17 frd_muziyao huser    29 Jun 27 09:29 ..
+-rwxr-xr-x  1 frd_muziyao huser  6198 Jun 27 09:29 render_n8_profile.sh
+-rwxr-xr-x  1 frd_muziyao huser 11053 Jun 27 09:29 run_n8_profile.sh
+-rwxr-xr-x  1 frd_muziyao huser  6265 Jun 27 09:32 submit_n8_profile_template.sbatch
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+
+[33m███████ ██   ██ ██    ██ ██████      ██   ██ ██████   ██████ [0m
+[33m██      ██   ██ ██    ██ ██   ██     ██   ██ ██   ██ ██      [0m
+[33m███████ ███████ ██    ██ ██   ██     ███████ ██████  ██      [0m
+[33m     ██ ██   ██ ██    ██ ██   ██     ██   ██ ██      ██      [0m
+[33m███████ ██   ██  ██████  ██████      ██   ██ ██       ██████ [0m
+ [33m欢迎使用SHUD高性能计算集群 @2024 [0m
+
+ System information as of Sat Jun 27 01:04:53 PM CST 2026
+
+  System load:  5.09              Temperature:              46.9 C
+  Usage of /:   24.6% of 1.72TB   Processes:                935
+  Memory usage: 16%               Users logged in:          3
+  Swap usage:   100%              IPv4 address for eno1np0: 210.77.77.22
+
+  => There is 1 zombie process.
+
+[0;36m======================== [ shudHPC 资源状态 ] ========================[0m
+ 集群负载: [0;32m9[0m / 25 节点可用 (CPU)
+ 核时余额: [0;32m100000.0[0m / 100000 小时
+ 并发限制: [0;36m8[0m 最大作业数
+[0;36m======================== [ 存储目录说明 ] ============================[0m
+[0;35m - 用户主目录：/users/frd_muziyao (10.5GB/20GB, [0;32m剩余 9.5GB[0;35m)[0m
+[0;35m - 高速计算磁盘：/scratch/frd_muziyao (不限额，计算目录)[0m
+[0;35m - Repo长期冷数据：/volume/repo/frd_muziyao (不限额，数据归档目录)[0m
+[0;31m
+ ！！！禁止将超算账号借给他人！！！！
+ ！！！禁止用户将目录/文件改为 777 权限！！！！
+ ！！！首次登录后请主动修改密码 (passwd) ！！！！
+ ！！！密码长度 8 以上，包含字母、数字、符号！！！
+ ！！！至少每 12 个月修改一次密码！！！
+ ！！！超30天未活跃账户会被自动冻结！！！
+[0m
+[0;36m======================== [ 使用守则 ] ================================[0m
+ 1. 非必要，不在主节点进行大规模计算；大规模计算使用 Slurm 任务调度。
+ 2. 计算任务请在 /scratch/frd_muziyao 存储空间 下进行。
+ 3. /scratch 空间中超过 180 天的文件将被自动删除，且不可逆，请及时备份至 /volume/repo/frd_muziyao/
+ 4. 禁止在用户主目录 /users/frd_muziyao 进行计算任务，否则将被封号。
+ 5. 非必要，不使用 Slurm 节点独占任务 (exclusive 选项)。
+ 6. 登录异常时，请先检查主目录容量 (/users/frd_muziyao 容量 (quota -u frd_muziyao) 是否超额。
+[0;36m======================================================================[0m
+ 常用工具: [0;34mastat[0m (查核时余额), [0;34mtstat[0m (查任务状态), [0;34msqueue[0m (查slurm队列), pestat(查节点负载)
+
+=== local main vs origin/main ===
+9e824f5 fix(ci): align s5d_hot_fields.yaml path to docs/b1b/ after f24d474 mv
+386da4d docs(step0): GPT Pro fact-check post-P2a corrections (#337)
+327b52f fix(master plan §P2a M12): P5→P8-precond/P8-KLU 引用修正
+f7e8b02 master plan §P2a M12 NO-GO 重写
+1edb164 docs: case deployment canonical map (双端 source-of-truth)
+e2b77ca docs(p2a): v0.4 heihe forcing.trimmed fair-compare — NO-GO 严谨确认
+31cf3da docs(p2a): v0.3 add heihe_x4 production target — P2a NO-GO 反转
+1e1e2a6 docs(p2a): re-baseline heihe N=1 with fixed t_forcing_io bucket
+03d2167 chore(submodule): bump SHUD pin for t_forcing_io nested-Timer fix
+1f7d7f0 docs(p2a): profile baseline (Mac 4 + server heihe N=1) + go/no-go 建议
+f800bb2 feat(p8pre PR-E): 3 tool scripts for identity-precond 18-cell spike (#346)
+ac47a62 chore(review-loop-log): finalize #345/#357 merge_sha 4e0bf39
+4e0bf39 feat(p8pre PR-D impl): identity precond stub + PREC_LEFT wire (#345) (#357)
+=== check feat branch contains identical files (so untracked safe to delete) ===
+ tools/p8pre/aggregate_n8_profile.sh               | 911 ++++++++++++++++++++++
+ tools/p8pre/render_identity_spike.sh              | 147 ++++
+ tools/p8pre/render_n8_profile.sh                  | 147 ++++
+ tools/p8pre/run_identity_spike.sh                 | 298 +++++++
+ tools/p8pre/run_n8_profile.sh                     | 270 +++++++
+ tools/p8pre/submit_identity_spike_template.sbatch | 129 +++
+ tools/p8pre/submit_n8_profile_template.sbatch     | 129 +++
+ 7 files changed, 2031 insertions(+)
+=== sha256 of local vs origin feat branch versions of PR-A scripts ===
+  render_n8_profile.sh: local=3b6bef1abe367f9b1a27eb5bb801ca56c1e6b24a91835075e46db43ce0bc83f8
+  render_n8_profile.sh: feat =3b6bef1abe367f9b1a27eb5bb801ca56c1e6b24a91835075e46db43ce0bc83f8
+  render_n8_profile.sh: IDENTICAL — safe to delete and replace via checkout
+  run_n8_profile.sh: local=bae8a7f56a3016ce41cdea32744729e67dcb13579bd105918896b4f86251dbc5
+  run_n8_profile.sh: feat =bae8a7f56a3016ce41cdea32744729e67dcb13579bd105918896b4f86251dbc5
+  run_n8_profile.sh: IDENTICAL — safe to delete and replace via checkout
+  submit_n8_profile_template.sbatch: local=a7f261558817127ad85eecec672b403b7de557a1975ce5589ce1eb8aefc4d90f
+  submit_n8_profile_template.sbatch: feat =a7f261558817127ad85eecec672b403b7de557a1975ce5589ce1eb8aefc4d90f
+  submit_n8_profile_template.sbatch: IDENTICAL — safe to delete and replace via checkout
+Pseudo-terminal will not be allocated because stdin is not a terminal.
+
+[33m███████ ██   ██ ██    ██ ██████      ██   ██ ██████   ██████ [0m
+[33m██      ██   ██ ██    ██ ██   ██     ██   ██ ██   ██ ██      [0m
+[33m███████ ███████ ██    ██ ██   ██     ███████ ██████  ██      [0m
+[33m     ██ ██   ██ ██    ██ ██   ██     ██   ██ ██      ██      [0m
+[33m███████ ██   ██  ██████  ██████      ██   ██ ██       ██████ [0m
+ [33m欢迎使用SHUD高性能计算集群 @2024 [0m
+
+ System information as of Sat Jun 27 01:04:53 PM CST 2026
+
+  System load:  5.09              Temperature:              46.9 C
+  Usage of /:   24.6% of 1.72TB   Processes:                935
+  Memory usage: 16%               Users logged in:          3
+  Swap usage:   100%              IPv4 address for eno1np0: 210.77.77.22
+
+  => There is 1 zombie process.
+
+[0;36m======================== [ shudHPC 资源状态 ] ========================[0m
+ 集群负载: [0;32m9[0m / 25 节点可用 (CPU)
+ 核时余额: [0;32m100000.0[0m / 100000 小时
+ 并发限制: [0;36m8[0m 最大作业数
+[0;36m======================== [ 存储目录说明 ] ============================[0m
+[0;35m - 用户主目录：/users/frd_muziyao (10.5GB/20GB, [0;32m剩余 9.5GB[0;35m)[0m
+[0;35m - 高速计算磁盘：/scratch/frd_muziyao (不限额，计算目录)[0m
+[0;35m - Repo长期冷数据：/volume/repo/frd_muziyao (不限额，数据归档目录)[0m
+[0;31m
+ ！！！禁止将超算账号借给他人！！！！
+ ！！！禁止用户将目录/文件改为 777 权限！！！！
+ ！！！首次登录后请主动修改密码 (passwd) ！！！！
+ ！！！密码长度 8 以上，包含字母、数字、符号！！！
+ ！！！至少每 12 个月修改一次密码！！！
+ ！！！超30天未活跃账户会被自动冻结！！！
+[0m
+[0;36m======================== [ 使用守则 ] ================================[0m
+ 1. 非必要，不在主节点进行大规模计算；大规模计算使用 Slurm 任务调度。
+ 2. 计算任务请在 /scratch/frd_muziyao 存储空间 下进行。
+ 3. /scratch 空间中超过 180 天的文件将被自动删除，且不可逆，请及时备份至 /volume/repo/frd_muziyao/
+ 4. 禁止在用户主目录 /users/frd_muziyao 进行计算任务，否则将被封号。
+ 5. 非必要，不使用 Slurm 节点独占任务 (exclusive 选项)。
+ 6. 登录异常时，请先检查主目录容量 (/users/frd_muziyao 容量 (quota -u frd_muziyao) 是否超额。
+[0;36m======================================================================[0m
+ 常用工具: [0;34mastat[0m (查核时余额), [0;34mtstat[0m (查任务状态), [0;34msqueue[0m (查slurm队列), pestat(查节点负载)
+
+=== removing identical untracked PR-A files (sha256 confirmed match feat branch) ===
+removed 'tools/p8pre/render_n8_profile.sh'
+removed 'tools/p8pre/run_n8_profile.sh'
+removed 'tools/p8pre/submit_n8_profile_template.sbatch'
+=== verify tools/p8pre/ empty ===
+total 9
+drwxr-xr-x  2 frd_muziyao huser  2 Jun 27 13:05 .
+drwxr-xr-x 17 frd_muziyao huser 29 Jun 27 09:29 ..
+=== checkout feat/issue-346-p8pre-pr-e-server-spike ===
+Switched to a new branch 'feat/issue-346-p8pre-pr-e-server-spike'
+M	SHUD
+branch 'feat/issue-346-p8pre-pr-e-server-spike' set up to track 'origin/feat/issue-346-p8pre-pr-e-server-spike'.
+=== verify HEAD + branch ===
+f800bb2
+feat/issue-346-p8pre-pr-e-server-spike
+=== tools/p8pre/ contents after checkout ===
+total 12
+drwxr-xr-x  2 frd_muziyao huser     9 Jun 27 13:05 .
+drwxr-xr-x 17 frd_muziyao huser    29 Jun 27 09:29 ..
+-rwxr-xr-x  1 frd_muziyao huser 37618 Jun 27 13:05 aggregate_n8_profile.sh
+-rwxr-xr-x  1 frd_muziyao huser  6259 Jun 27 13:05 render_identity_spike.sh
+-rwxr-xr-x  1 frd_muziyao huser  6198 Jun 27 13:05 render_n8_profile.sh
+-rwxr-xr-x  1 frd_muziyao huser 12872 Jun 27 13:05 run_identity_spike.sh
+-rwxr-xr-x  1 frd_muziyao huser 11053 Jun 27 13:05 run_n8_profile.sh
+-rw-r--r--  1 frd_muziyao huser  6374 Jun 27 13:05 submit_identity_spike_template.sbatch
+-rwxr-xr-x  1 frd_muziyao huser  6265 Jun 27 13:05 submit_n8_profile_template.sbatch
+=== SHUD submodule update + pin to 5276167 ===
+Submodule path 'SHUD': checked out '5276167eea67184d801905f54dc805d2cd61db2d'
+HEAD is now at 5276167 feat(p8pre): identity preconditioner stub + cvode_config PREC_LEFT wire
+SHUD HEAD=5276167eea67184d801905f54dc805d2cd61db2d
+SHUD log --oneline -5:
+5276167 feat(p8pre): identity preconditioner stub + cvode_config PREC_LEFT wire
+7a1dc8f fix(profile): remove inner-function Timers that nested with shud.cpp call-sites
+7cc46d8 feat(profile): wire 4 Timer instrumentation in primary main loop for P2a
+3341368 feat(p1e): PR-H remove steady-state first-touch + convert omp single to omp for (D2/D4)
+85c8215 feat(p1e): PR-G -fopenmp wiring + SHUD_RHS_THREADS env split
+=== final state ===
+OUTER HEAD=f800bb21d92daaf81d1cbe18cdfddc0a9649eb9e
+SHUD pointer in tree=5276167eea67184d801905f54dc805d2cd61db2d

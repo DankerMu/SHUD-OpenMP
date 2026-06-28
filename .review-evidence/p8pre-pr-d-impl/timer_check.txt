@@ -1,0 +1,41 @@
+    /* Surface any non-canonical buckets (raw measurements used in the
+     * derivation above, plus any future bucket the source emits before
+     * canonical-list churn catches up). Skipped if absent. */
+    bool extras_header_emitted = false;
+    auto emit_extra = [&](const char *name, double sec) {
+        if (!extras_header_emitted) {
+            std::fprintf(fp, "extras:\n");
+            extras_header_emitted = true;
+        }
+        std::fprintf(fp, "  %s: %.9f\n", name, sec);
+    };
+    /* Surface raw timers used as derivation inputs (always present
+     * when their corresponding code site fired). */
+    if (sec_cvode_raw > 0.0) emit_extra("t_CVODE_raw", sec_cvode_raw);
+    if (sec_wall_total > 0.0) emit_extra("t_wall_total", sec_wall_total);
+    /* Any other bucket the source emits not in the canonical-or-raw
+     * set above also gets surfaced. */
+    static const char *const kKnownRawOrCanonical[] = {
+        "t_RHS_kernel", "t_RHS_total", "t_CVODE_internal", "t_forcing_io",
+        "t_ET", "t_output", "t_other", "t_CVODE_raw", "t_wall_total",
+    };
+    constexpr size_t kKnownCount =
+        sizeof(kKnownRawOrCanonical) / sizeof(kKnownRawOrCanonical[0]);
+    for (const auto &kv : r.buckets) {
+        bool is_known = false;
+        for (size_t i = 0; i < kKnownCount; ++i) {
+            if (kv.first == kKnownRawOrCanonical[i]) {
+                is_known = true;
+                break;
+            }
+        }
+        if (is_known) continue;
+        const int64_t ns =
+            kv.second->load(std::memory_order_relaxed);
+        emit_extra(kv.first.c_str(),
+                   static_cast<double>(ns) * 1e-9);
+    }
+    /* CVODE stats placeholder — populated in a later stage when
+     * cvode_stats.txt ingestion lands (out of scope for #14). */
+    std::fprintf(fp, "cvode_stats:\n");
+    /* Spec rhs-profile-gate requires `ratio_nfeLS_over_nfe` in the

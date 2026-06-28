@@ -1,0 +1,33 @@
+=== Current HEAD ===
+7a1dc8f6ea9e5496f516255406ee3563d397959b
+
+=== Verify HEAD = 7a1dc8f (P1e ship pin) ===
+PASS: HEAD = 7a1dc8f
+
+=== Fetch upstream ===
+
+=== Check if openmp-baseline-p8pre already exists on origin ===
+
+=== Branch does NOT exist on origin - creating new branch from 7a1dc8f ===
+Switched to a new branch 'openmp-baseline-p8pre'
+
+=== Push to origin -u ===
+remote: 
+remote: Create a pull request for 'openmp-baseline-p8pre' on GitHub by visiting:        
+remote:      https://github.com/SHUD-System/SHUD/pull/new/openmp-baseline-p8pre        
+remote: 
+To https://github.com/SHUD-System/SHUD.git
+ * [new branch]      openmp-baseline-p8pre -> openmp-baseline-p8pre
+branch 'openmp-baseline-p8pre' set up to track 'origin/openmp-baseline-p8pre'.
+
+=== Fork base verification ===
+rev-parse openmp-baseline-p8pre: 7a1dc8f6ea9e5496f516255406ee3563d397959b
+rev-parse 7a1dc8f:              7a1dc8f6ea9e5496f516255406ee3563d397959b
+merge-base openmp-baseline-p8pre 7a1dc8f: 7a1dc8f6ea9e5496f516255406ee3563d397959b
+
+=== Strict forward-only descendant criterion ===
+PASS: rev-parse openmp-baseline-p8pre == rev-parse 7a1dc8f
+PASS: merge-base == rev-parse 7a1dc8f
+
+=== Confirm branch exists on origin after push ===
+7a1dc8f6ea9e5496f516255406ee3563d397959b	refs/heads/openmp-baseline-p8pre

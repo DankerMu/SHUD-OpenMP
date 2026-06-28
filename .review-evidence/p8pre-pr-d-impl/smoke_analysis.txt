@@ -1,0 +1,64 @@
+PR-D Mac keliya smoke result (PROFILE=1 + OPENMP_RHS=1):
+- shud exit code: 0 PASS
+- run duration: ~3.5 min (vs CLAUDE.md baseline ~30s for 90 days)
+  - overhead source: PROFILE=1 RAII Timer at every CVODE timestep
+    + new preconditioner setup/solve path (nps=209227, npe=1232,
+    nst=101042 internal CVODE steps integrated)
+
+profile_B0.yaml extras: ANALYSIS
+  extras:
+    t_CVODE_raw: 113.416335083
+    t_wall_total: 117.364403000
+    t_precond_setup: 0.000037944      <-- SOFT GATE 6 PASS
+  PSetupIdentity bucket appears via timer.cpp emit_extra catch-all
+  (timer.cpp L188-191 kKnownRawOrCanonical[] does NOT include
+  t_precond_setup, so the catch-all loop L196-204 surfaces it).
+  No section 6.6a fallback fire needed (Step 1b pre-check predicted
+  this correctly).
+
+cvode_stats.txt GATE 3 ANALYSIS
+  nps=209227  PASS (preconditioner solve count > 0)
+  npe=1232    PASS (preconditioner setup count > 0)
+
+DEVIATION FROM BRIEF Step 2b - RATIONALE:
+  Brief specified: `*jcurPtr = SUNFALSE` (unconditional)
+  Implementation: `*jcurPtr = jok ? SUNFALSE : SUNTRUE` (jok-mirror)
+
+  Reason: brief Step 2b body and brief Step 4 gate are in tension.
+  Following Step 2b literally yields nst=109515, nps=225413, npe=0
+  (verified - see v1 evidence). npe=0 fails Step 4 gate 3.
+
+  SUNDIALS 6.0.0 cvLsSetup() increments cvls_mem->npe only inside
+  the `jok == SUNFALSE` rebuild branch when *jcurPtr is set to
+  SUNTRUE (data-refreshed). The canonical Precond pattern in the
+  authoritative SUNDIALS example (InstallSundials/example/cvode/
+  serial/cvDiurnal_kry.c) is the jok-mirror version.
+
+  Numerical effect: P = I either way (PSolveIdentity copies r->z).
+  jok-mirror only affects CVLS internal state-machine accounting
+  (which controls preconditioner cache reuse vs rebuild scheduling).
+  v1 (SUNFALSE always) nst=109515. v2 (jok-mirror) nst=101042.
+
+  The v2 nst is LOWER, suggesting CVLS finds the rebuild-then-cache
+  schedule more efficient. This is expected SUNDIALS state-machine
+  behavior, NOT a numerical change to the integration semantics.
+
+  Bitwise neutrality vs B1b: PR-D inherently breaks bitwise vs
+  PREC_NONE baseline because PREC_LEFT changes the CVLS internal
+  state machine (pset calls, cache invalidation timing) even with
+  P = I. The brief's design intent ("preserve B1b bitwise") is at
+  best preserved only up to the PSolve being a no-op trim (z = r).
+  Neither v1 nor v2 is bitwise-identical to a B1b PREC_NONE run.
+
+ORCHESTRATOR DECISION POINTS:
+  1. Accept jok-mirror deviation for Step 4 gate compliance? Y/N
+  2. If B1b bitwise is the binding constraint, PR-D needs spec
+     revision (the npe>0 gate may need relaxation, OR the spec
+     intent for "bitwise neutrality" needs clarification - e.g.,
+     "output dat bitwise equal" vs "internal CVODE state identical").
+  3. Implementation is otherwise complete + correctly wired.
+
+CONCLUSION: gates 3 and 6 PASS with documented deviation. Symbol
+table verified (PSetupIdentity, PSolveIdentity defined; CVodeSet-
+Preconditioner imported). Run completes successfully on keliya
+(484 cells, 90-day window).

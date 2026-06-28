@@ -1,0 +1,40 @@
+[run_n8_profile] cwd=/scratch/frd_muziyao/SHUD-OpenMP
+[run_n8_profile] host=xnode
+[run_n8_profile] outer_git=1769fb9
+[run_n8_profile] SHUD pin=7a1dc8f
+[run_n8_profile] Phase B: pre-flight nm Mode C verify
+[verify_mode_c] N_VNew_Serial=1 (need>=1)
+[verify_mode_c] N_VNew_OpenMP=0 (need==0)
+[verify_mode_c] GOMP_parallel=1 (need>=1)
+[run_n8_profile] pre-flight PASS: existing Mode C binary
+[run_n8_profile] Phase C: mkdir per-cell artifact dirs
+[run_n8_profile] mkdir cells=18
+[run_n8_profile] Phase D: render 18 cells
+[render_n8_profile] rendered 18 cells; write_rendered=1; out_dir=/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered
+[run_n8_profile] render emitted 18 sbatch lines
+[run_n8_profile] rendered .sbatch files=18
+[run_n8_profile] Phase E: submit 18 cells with JID substitution
+[run_n8_profile] submit cell=heihe_N1_rep1 cmd: sbatch --parsable --job-name=p8pre_heihe_N1_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N1_rep1.sbatch
+[run_n8_profile] submit cell=heihe_N1_rep2 cmd: sbatch --parsable --job-name=p8pre_heihe_N1_singleton --dependency=afterany:9510 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N1_rep2.sbatch
+[run_n8_profile] submit cell=heihe_N1_rep3 cmd: sbatch --parsable --job-name=p8pre_heihe_N1_singleton --dependency=afterany:9511 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N1_rep3.sbatch
+[run_n8_profile] submit cell=heihe_N4_rep1 cmd: sbatch --parsable --job-name=p8pre_heihe_N4_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N4_rep1.sbatch
+[run_n8_profile] submit cell=heihe_N4_rep2 cmd: sbatch --parsable --job-name=p8pre_heihe_N4_singleton --dependency=afterany:9513 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N4_rep2.sbatch
+[run_n8_profile] submit cell=heihe_N4_rep3 cmd: sbatch --parsable --job-name=p8pre_heihe_N4_singleton --dependency=afterany:9514 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N4_rep3.sbatch
+[run_n8_profile] submit cell=heihe_N8_rep1 cmd: sbatch --parsable --job-name=p8pre_heihe_N8_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N8_rep1.sbatch
+[run_n8_profile] submit cell=heihe_N8_rep2 cmd: sbatch --parsable --job-name=p8pre_heihe_N8_singleton --dependency=afterany:9516 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N8_rep2.sbatch
+[run_n8_profile] submit cell=heihe_N8_rep3 cmd: sbatch --parsable --job-name=p8pre_heihe_N8_singleton --dependency=afterany:9517 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_N8_rep3.sbatch
+[run_n8_profile] submit cell=heihe_x4_N1_rep1 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N1_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N1_rep1.sbatch
+[run_n8_profile] submit cell=heihe_x4_N1_rep2 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N1_singleton --dependency=afterany:9519 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N1_rep2.sbatch
+[run_n8_profile] submit cell=heihe_x4_N1_rep3 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N1_singleton --dependency=afterany:9520 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N1_rep3.sbatch
+[run_n8_profile] submit cell=heihe_x4_N4_rep1 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N4_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N4_rep1.sbatch
+[run_n8_profile] submit cell=heihe_x4_N4_rep2 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N4_singleton --dependency=afterany:9522 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N4_rep2.sbatch
+[run_n8_profile] submit cell=heihe_x4_N4_rep3 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N4_singleton --dependency=afterany:9523 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N4_rep3.sbatch
+[run_n8_profile] submit cell=heihe_x4_N8_rep1 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N8_singleton /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N8_rep1.sbatch
+[run_n8_profile] submit cell=heihe_x4_N8_rep2 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N8_singleton --dependency=afterany:9525 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N8_rep2.sbatch
+[run_n8_profile] submit cell=heihe_x4_N8_rep3 cmd: sbatch --parsable --job-name=p8pre_heihe_x4_N8_singleton --dependency=afterany:9526 /scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/rendered/submit_heihe_x4_N8_rep3.sbatch
+[run_n8_profile] submit summary: submit_count=18 fail_count=0
+[run_n8_profile] jid_table.txt lines=18 (path=/scratch/frd_muziyao/SHUD-OpenMP/.p8pre-runs/jid_table.txt)
+[run_n8_profile] Phase F: queue state
+[run_n8_profile] squeue --me total=18
+[run_n8_profile] JID range: 9510 .. 9527
+[run_n8_profile] OK: all 18 cells submitted

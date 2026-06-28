@@ -1,0 +1,293 @@
+[OMP] WARNING: OMP_PROC_BIND not set, NUMA first-touch may be ineffective. Use tools/run_omp.sh to set defaults.
+
+___________________________________________________________________________________________
+    SSSSSSSSSSSSSSS   HHHHHHHHH     HHHHHHHHH  UUUUUUUU     UUUUUUUU  DDDDDDDDDDDDD        
+  SS:::::::::::::::S  H:::::::H     H:::::::H  U::::::U     U::::::U  D::::::::::::DDD     
+ S:::::SSSSSS::::::S  H:::::::H     H:::::::H  U::::::U     U::::::U  D:::::::::::::::DD   
+ S:::::S     SSSSSSS  HH::::::H     H::::::HH  UU:::::U     U:::::UU  DDD:::::DDDDD:::::D  
+ S:::::S                H:::::H     H:::::H     U:::::U     U:::::U     D:::::D    D:::::D 
+ S:::::S                H:::::H     H:::::H     U:::::D     D:::::U     D:::::D     D:::::D
+  S::::SSSS             H::::::HHHHH::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+   SS::::::SSSSS        H:::::::::::::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+     SSS::::::::SS      H:::::::::::::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+        SSSSSS::::S     H::::::HHHHH::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+             S:::::S    H:::::H     H:::::H     U:::::D     D:::::U     D:::::D     D:::::D
+             S:::::S    H:::::H     H:::::H     U::::::U   U::::::U     D:::::D    D:::::D 
+ SSSSSSS     S:::::S  HH::::::H     H::::::HH   U:::::::UUU:::::::U   DDD:::::DDDDD:::::D  
+ S::::::SSSSSS:::::S  H:::::::H     H:::::::H    UU:::::::::::::UU    D:::::::::::::::DD   
+ S:::::::::::::::SS   H:::::::H     H:::::::H      UU:::::::::UU      D::::::::::::DDD     
+  SSSSSSSSSSSSSSS     HHHHHHHHH     HHHHHHHHH        UUUUUUUUU        DDDDDDDDDDDDD        
+
+                  Simulator for Hydrologic Unstructured Domains v2.0  2022                      
+___________________________________________________________________________________________
+
+
+
+
+		 * openMP enabled. Maximum Threads = 14
+[NUMA] OMP_PROC_BIND=unset
+[NUMA] WARNING: OMP_PROC_BIND unset - skipping first-touch optimization for determinism guarantee.
+* 	 Project name: keliya
+* 	 Project input folder: input/keliya
+* 	 Project output folder: output/keliya.out
+1 	 Reading file: input/keliya/keliya.cfg.para
+2 	 Reading file: input/keliya/keliya.sp.riv
+	The downstream of RIV 44 is negtive (Outlet, -3)
+	The downstream of RIV 64 is negtive (Outlet, -3)
+3 	 Reading file: input/keliya/keliya.sp.rivseg
+	Number of River segments: 534
+4 	 Reading file: input/keliya/keliya.sp.mesh
+5 	 Reading file: input/keliya/keliya.sp.att
+6 	 Reading file: input/keliya/keliya.para.soil
+7 	 Reading file: input/keliya/keliya.para.geol
+8 	 Reading file: input/keliya/keliya.para.lc
+9 	 Reading file: input/keliya/keliya.tsd.forc
+	Number of csv files: 32
+	 Reading 1/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.45Y36.25.csv
+	 Reading 2/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.55Y36.25.csv
+	 Reading 3/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.25.csv
+	 Reading 4/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.25.csv
+	 Reading 5/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.85Y36.25.csv
+	 Reading 6/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.95Y36.25.csv
+	 Reading 7/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X83.05Y36.25.csv
+	 Reading 8/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.45Y36.35.csv
+	 Reading 9/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.55Y36.35.csv
+	 Reading 10/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.35.csv
+	 Reading 11/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.35.csv
+	 Reading 12/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.85Y36.35.csv
+	 Reading 13/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.95Y36.35.csv
+	 Reading 14/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X83.05Y36.35.csv
+	 Reading 15/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.55Y36.45.csv
+	 Reading 16/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.45.csv
+	 Reading 17/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.45.csv
+	 Reading 18/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.85Y36.45.csv
+	 Reading 19/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.95Y36.45.csv
+	 Reading 20/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X83.05Y36.45.csv
+	 Reading 21/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.55Y36.55.csv
+	 Reading 22/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.55.csv
+	 Reading 23/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.55.csv
+	 Reading 24/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.85Y36.55.csv
+	 Reading 25/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.95Y36.55.csv
+	 Reading 26/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.65.csv
+	 Reading 27/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.65.csv
+	 Reading 28/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.75.csv
+	 Reading 29/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.75.csv
+	 Reading 30/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.85.csv
+	 Reading 31/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.85.csv
+	 Reading 32/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.95.csv
+10 	 Reading file: input/keliya/keliya.tsd.lai
+11 	 Reading file: input/keliya/keliya.tsd.mf
+12 	 Reading file: input/keliya/keliya.cfg.calib
+
+Initializing data structure ... 
+[NUMA] first-touch skipped: OMP_PROC_BIND unset (3 sites: hot.soa, QeleSurf_flat, Ele_AoS)
+WARNING:: Aqd of Node(18) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(19) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(22) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(23) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(28) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(116) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(185) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(188) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(190) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(191) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(197) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(206) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(208) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(209) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(226) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(237) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(266) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(275) = 0.000000
+Press anykey to continue ...
+Warning: remove sink on 5, from 3544.00 to 3615.33. dz = 71.33
+Warning: remove sink on 6, from 594.00 to 1161.00. dz = 567.00
+Warning: remove sink on 22, from 747.33 to 1470.67. dz = 723.33
+Warning: remove sink on 28, from 3421.67 to 3739.33. dz = 317.67
+Warning: remove sink on 39, from 3066.33 to 3145.67. dz = 79.33
+Warning: remove sink on 46, from 4750.67 to 4792.33. dz = 41.67
+Warning: remove sink on 95, from 3863.33 to 3888.67. dz = 25.33
+Warning: remove sink on 145, from 3384.00 to 3499.00. dz = 115.00
+Warning: remove sink on 233, from 4551.67 to 4559.67. dz = 8.00
+Warning: remove sink on 294, from 3708.67 to 3805.33. dz = 96.67
+Warning: remove sink on 346, from 723.33 to 1419.33. dz = 696.00
+Warning: remove sink on 348, from 1766.00 to 1892.00. dz = 126.00
+Warning: remove sink on 353, from 696.00 to 1368.00. dz = 672.00
+Warning: remove sink on 359, from 1327.33 to 1368.00. dz = 40.67
+Warning: remove sink on 363, from 1915.00 to 3615.33. dz = 1700.33
+Warning: remove sink on 394, from 5453.67 to 5472.33. dz = 18.67
+Warning: remove sink on 412, from 1307.00 to 2718.00. dz = 1411.00
+Warning: remove sink on 429, from 3256.33 to 3321.33. dz = 65.00
+Warning: remove sink on 437, from 1854.00 to 3641.33. dz = 1787.33
+Warning: remove sink on 481, from 3375.00 to 3503.33. dz = 128.33
+
+openMP NVector: OFF (Serial backend)
+P1e startup: SHUD_RHS_THREADS=(unset) -> omp_set_num_threads(14); omp_get_max_threads=14
+
+Global Implicit Mode: ON
+[NUMA] first-touch skipped: OMP_PROC_BIND unset (1 site: LoadIC)
+
+========================================================
+Summary:
+	Project name:	 keliya
+ 	Input path:	 input/keliya
+	Output path:	 output/keliya.out
+	Calibration file:	 input/keliya/keliya.cfg.calib
+	Parameter file:	 input/keliya/keliya.cfg.para
+	Model starts at: 12053.00 day
+	Model ends at: 12143.00 day
+	Model time step(max): 20.00 minutes
+	Model total number of steps(minimum): 6480 
+	Size of model: 	Ncell = 484 	Nriver = 333	 NSeg = 534
+
+	OpenMP enable. No of threads = 8
+
+========================================================
+
+Model Starting ... 
+
+12053.00 day 	 0.00% 	 1782535089.84 s 	 1782535089.84 s 	 0 
+12054.00 day 	 1.11% 	 4.61 s 	 4.61 s 	 2902 
+12055.00 day 	 2.22% 	 1.10 s 	 1.10 s 	 2008 
+12056.00 day 	 3.33% 	 0.18 s 	 0.18 s 	 330 
+12057.00 day 	 4.44% 	 1.02 s 	 1.02 s 	 1889 
+12058.00 day 	 5.56% 	 1.50 s 	 1.50 s 	 2756 
+12059.00 day 	 6.67% 	 1.50 s 	 1.50 s 	 2756 
+12060.00 day 	 7.78% 	 1.49 s 	 1.49 s 	 2756 
+12061.00 day 	 8.89% 	 1.49 s 	 1.49 s 	 2756 
+12062.00 day 	 10.00% 	 1.49 s 	 1.49 s 	 2756 
+12063.00 day 	 11.11% 	 1.49 s 	 1.49 s 	 2756 
+12064.00 day 	 12.22% 	 1.49 s 	 1.49 s 	 2758 
+12065.00 day 	 13.33% 	 1.48 s 	 1.48 s 	 2756 
+12066.00 day 	 14.44% 	 1.48 s 	 1.48 s 	 2757 
+12067.00 day 	 15.56% 	 1.48 s 	 1.48 s 	 2757 
+12068.00 day 	 16.67% 	 1.50 s 	 1.50 s 	 2756 
+12069.00 day 	 17.78% 	 1.51 s 	 1.51 s 	 2756 
+12070.00 day 	 18.89% 	 1.50 s 	 1.50 s 	 2756 
+12071.00 day 	 20.00% 	 1.50 s 	 1.50 s 	 2756 
+12072.00 day 	 21.11% 	 1.51 s 	 1.51 s 	 2756 
+12073.00 day 	 22.22% 	 1.49 s 	 1.49 s 	 2756 
+12074.00 day 	 23.33% 	 1.54 s 	 1.54 s 	 2756 
+12075.00 day 	 24.44% 	 1.52 s 	 1.52 s 	 2756 
+12076.00 day 	 25.56% 	 1.54 s 	 1.54 s 	 2756 
+12077.00 day 	 26.67% 	 1.54 s 	 1.54 s 	 2756 
+12078.00 day 	 27.78% 	 1.54 s 	 1.54 s 	 2756 
+12079.00 day 	 28.89% 	 1.53 s 	 1.53 s 	 2756 
+12080.00 day 	 30.00% 	 1.53 s 	 1.53 s 	 2756 
+12081.00 day 	 31.11% 	 1.49 s 	 1.49 s 	 2756 
+12082.00 day 	 32.22% 	 1.49 s 	 1.49 s 	 2756 
+12083.00 day 	 33.33% 	 1.49 s 	 1.49 s 	 2756 
+12084.00 day 	 34.44% 	 1.50 s 	 1.50 s 	 2756 
+12085.00 day 	 35.56% 	 1.49 s 	 1.49 s 	 2756 
+12086.00 day 	 36.67% 	 1.49 s 	 1.49 s 	 2756 
+12087.00 day 	 37.78% 	 1.49 s 	 1.49 s 	 2756 
+12088.00 day 	 38.89% 	 1.48 s 	 1.48 s 	 2756 
+12089.00 day 	 40.00% 	 1.48 s 	 1.48 s 	 2756 
+12090.00 day 	 41.11% 	 1.51 s 	 1.51 s 	 2756 
+12091.00 day 	 42.22% 	 1.49 s 	 1.49 s 	 2756 
+12092.00 day 	 43.33% 	 1.48 s 	 1.48 s 	 2756 
+12093.00 day 	 44.44% 	 1.48 s 	 1.48 s 	 2756 
+12094.00 day 	 45.56% 	 1.48 s 	 1.48 s 	 2756 
+12095.00 day 	 46.67% 	 1.48 s 	 1.48 s 	 2756 
+12096.00 day 	 47.78% 	 1.48 s 	 1.48 s 	 2756 
+12097.00 day 	 48.89% 	 1.43 s 	 1.43 s 	 2667 
+12098.00 day 	 50.00% 	 1.38 s 	 1.38 s 	 2564 
+12099.00 day 	 51.11% 	 1.15 s 	 1.15 s 	 2128 
+12100.00 day 	 52.22% 	 1.38 s 	 1.38 s 	 2583 
+12101.00 day 	 53.33% 	 1.39 s 	 1.39 s 	 2583 
+12102.00 day 	 54.44% 	 1.38 s 	 1.38 s 	 2583 
+12103.00 day 	 55.56% 	 1.38 s 	 1.38 s 	 2582 
+12104.00 day 	 56.67% 	 1.40 s 	 1.40 s 	 2583 
+12105.00 day 	 57.78% 	 1.38 s 	 1.38 s 	 2582 
+12106.00 day 	 58.89% 	 1.40 s 	 1.40 s 	 2582 
+12107.00 day 	 60.00% 	 1.39 s 	 1.39 s 	 2582 
+12108.00 day 	 61.11% 	 1.39 s 	 1.39 s 	 2582 
+12109.00 day 	 62.22% 	 1.39 s 	 1.39 s 	 2582 
+12110.00 day 	 63.33% 	 1.39 s 	 1.39 s 	 2582 
+12111.00 day 	 64.44% 	 1.39 s 	 1.39 s 	 2582 
+12112.00 day 	 65.56% 	 1.40 s 	 1.40 s 	 2582 
+12113.00 day 	 66.67% 	 1.41 s 	 1.41 s 	 2582 
+12114.00 day 	 67.78% 	 1.40 s 	 1.40 s 	 2582 
+12115.00 day 	 68.89% 	 1.39 s 	 1.39 s 	 2582 
+12116.00 day 	 70.00% 	 1.39 s 	 1.39 s 	 2582 
+12117.00 day 	 71.11% 	 1.39 s 	 1.39 s 	 2582 
+12118.00 day 	 72.22% 	 1.39 s 	 1.39 s 	 2582 
+12119.00 day 	 73.33% 	 1.42 s 	 1.42 s 	 2582 
+12120.00 day 	 74.44% 	 1.41 s 	 1.41 s 	 2582 
+12121.00 day 	 75.56% 	 1.41 s 	 1.41 s 	 2582 
+12122.00 day 	 76.67% 	 1.41 s 	 1.41 s 	 2582 
+12123.00 day 	 77.78% 	 1.41 s 	 1.41 s 	 2582 
+12124.00 day 	 78.89% 	 1.40 s 	 1.40 s 	 2583 
+12125.00 day 	 80.00% 	 1.40 s 	 1.40 s 	 2582 
+12126.00 day 	 81.11% 	 1.40 s 	 1.40 s 	 2583 
+12127.00 day 	 82.22% 	 1.71 s 	 1.71 s 	 3183 
+12128.00 day 	 83.33% 	 0.71 s 	 0.71 s 	 1314 
+12129.00 day 	 84.44% 	 1.22 s 	 1.22 s 	 2265 
+12130.00 day 	 85.56% 	 0.78 s 	 0.78 s 	 1450 
+12131.00 day 	 86.67% 	 0.31 s 	 0.31 s 	 563 
+12132.00 day 	 87.78% 	 0.45 s 	 0.45 s 	 815 
+12133.00 day 	 88.89% 	 0.37 s 	 0.37 s 	 678 
+12134.00 day 	 90.00% 	 0.39 s 	 0.39 s 	 683 
+12135.00 day 	 91.11% 	 0.38 s 	 0.38 s 	 677 
+12136.00 day 	 92.22% 	 0.38 s 	 0.38 s 	 674 
+12137.00 day 	 93.33% 	 0.38 s 	 0.38 s 	 676 
+12138.00 day 	 94.44% 	 0.37 s 	 0.37 s 	 676 
+12139.00 day 	 95.56% 	 0.37 s 	 0.37 s 	 677 
+12140.00 day 	 96.67% 	 0.39 s 	 0.39 s 	 698 
+12141.00 day 	 97.78% 	 0.47 s 	 0.47 s 	 861 
+12142.00 day 	 98.89% 	 0.48 s 	 0.48 s 	 896 
+12143.00 day 	 100.00% 	 0.41 s 	 0.41 s 	 748 
+
+========================================================
+Summary:
+	Project name:	 keliya
+ 	Input path:	 input/keliya
+	Output path:	 output/keliya.out
+	Calibration file:	 input/keliya/keliya.cfg.calib
+	Parameter file:	 input/keliya/keliya.cfg.para
+	Model starts at: 12053.00 day
+	Model ends at: 12143.00 day
+	Model time step(max): 20.00 minutes
+	Model total number of steps(minimum): 6480 
+	Size of model: 	Ncell = 484 	Nriver = 333	 NSeg = 534
+
+	OpenMP enable. No of threads = 8
+
+========================================================
+
+	Number of calls of f function:	 209230 
+
+	Time used by model:	 116.579 seconds.
+
+
+The successful end. 
+
+
+Final Statistics.. 
+
+lenrw   = 23294     leniw   =    53
+lenrwLS = 21474     leniwLS =    42
+nst     = 101042
+nfe     = 102095     nfeLS   = 107135
+nni     = 102094     nli     = 107135
+nsetups =  2487     netf    =     7
+npe     =  1232     nps     = 209227
+ncfn    =   118     ncfl    =   186
+

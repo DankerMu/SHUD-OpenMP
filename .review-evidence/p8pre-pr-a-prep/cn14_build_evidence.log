@@ -1,0 +1,51 @@
+=== host + SHUD pin ===
+cn14
+7a1dc8f
+
+=== make clean + Mode C build ===
+  rm -f ./shud_omp
+  rm -f ./shud_debug
+  rm -f ./shud_asan
+Done. (InstallSundials/ preserved)
+
+      |                                    ~~~~~~~~~~~~~~~~~
+src/Model/shud.cpp: In function ‘double SHUD_uncouple(FileIn*, FileOut*)’:
+src/Model/shud.cpp:555:55: warning: ‘/nfcall.txt’ directive output may be truncated writing 11 bytes into a region of size between 1 and 2048 [-Wformat-truncation=]
+  555 |         snprintf(nfcall_path, sizeof(nfcall_path), "%s/nfcall.txt",
+      |                                                       ^~~~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘double SHUD_uncouple(FileIn*, FileOut*)’ at src/Model/shud.cpp:555:17:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 12 and 2059 bytes into a destination of size 2048
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+src/Model/shud.cpp: In function ‘double SHUD_uncouple(FileIn*, FileOut*)’:
+src/Model/shud.cpp:579:51: warning: ‘/profile_B0.yaml’ directive output may be truncated writing 16 bytes into a region of size between 1 and 2048 [-Wformat-truncation=]
+  579 |         snprintf(prof_path, sizeof(prof_path), "%s/profile_B0.yaml",
+      |                                                   ^~~~~~~~~~~~~~~~
+In function ‘int snprintf(char*, size_t, const char*, ...)’,
+    inlined from ‘double SHUD_uncouple(FileIn*, FileOut*)’ at src/Model/shud.cpp:579:17:
+/usr/include/x86_64-linux-gnu/bits/stdio2.h:54:35: note: ‘__builtin___snprintf_chk’ output between 17 and 2064 bytes into a destination of size 2048
+   54 |   return __builtin___snprintf_chk (__s, __n, __USE_FORTIFY_LEVEL - 1,
+      |          ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   55 |                                    __glibc_objsize (__s), __fmt,
+      |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   56 |                                    __va_arg_pack ());
+      |                                    ~~~~~~~~~~~~~~~~~
+
+ ./shud is compiled successfully!
+
+
+=== build exit_code=0 ===
+
+=== nm SHALL gates ===
+Serial NVec linked (>=1, gate-1a):
+1
+OpenMP NVec NOT linked (=0, gate-1b):
+0
+0
+libgomp GOMP_parallel linked (>=1, gate-1c):
+1

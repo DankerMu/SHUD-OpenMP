@@ -1,0 +1,30 @@
+# keliya cleaned-PREC_NONE smoke artifact (PR-A issue #364)
+# Source: docs/p8tune/clean_prec_none_baseline.md §keliya-smoke-anchor
+SHUD_pin=37be0fe92f729b8849834f9fc032faf86c642d3b
+outer_pin=2582352523b2631bc7d11008a339612c7b331ccd
+node=cn14
+wall_sec=88
+exit_code=0
+
+rivqdown_sha12=1bfe6a30856e
+
+=== cvode_stats.txt 15-key snapshot ===
+nfe=112248
+nfeLS=116421
+nni=112247
+nli=116421
+nsetups=0
+netf=5
+nst=110917
+npe=0
+nps=0
+ncfn=205
+ncfl=42
+lenrw=23294
+leniw=53
+lenrwLS=21474
+leniwLS=42
+
+=== build env ===
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0
+	libsundials_cvode.so.6 => /scratch/frd_muziyao/SHUD-OpenMP/SHUD/InstallSundials/lib/libsundials_cvode.so.6 (0x000071d9f35da000)

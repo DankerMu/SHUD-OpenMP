@@ -1,0 +1,34 @@
+Phase 7 Final Review (Gap Sweep)
+Reviewer agent: independent-final
+Reviewed head SHA: c6db15f9510c68cb8854f931f821a4faa654a655
+PR: #370 (PR-A of p8tune-spgmr-maxl epic)
+
+Final verdict: CLEAN
+
+Gap Sweep summary:
+Re-ran the full closed-form audit against c6db15f from a clean slate without re-litigating prior reviewer findings. Verified: (a) git diff baseline/p8tune..HEAD touches exactly 3 tracked files (capstone.md +13/-3, clean_prec_none_baseline.md +429 new, aggregate_clean_baseline.sh +434 new); (b) c6db15f patch is a single-line scope-correct doc fix on L303 only — diffed 3494c6a..c6db15f for aggregator script + capstone.md returns 0 lines (zero collateral); (c) baseline doc structure preserved at c6db15f (still 429 lines, still 9 sections at the same byte offsets); (d) aggregator script re-executed with --plan-a, exit 0, all 5 T1-T5 tables emit including the §decision-input T5 with both hard-evidence triggers showing YES (>0) and the case-asymmetric saturation flag separation; (e) YAML metadata still consistent (SHUD_pin=37be0fe, outer_pin=2582352523..., plan=A, status reflects PASS with the 1bfe6a30856e anchor); (f) §keliya-smoke-anchor 15-key snapshot byte-identical to evidence file (nfe=112248, nfeLS=116421, ncfn=205, ncfl=42, netf=5); (g) submodule pointer 37be0fe unchanged at HEAD; (h) openspec validate p8tune-spgmr-maxl --strict returns "is valid"; (i) capstone §5.1 table at L161-163 still reads `30509 | 4.526` triple-row with HTML provenance comment intact at L165-169; (j) ADR-0003 still cites 6/47 only as negative-control anchor with PR-0 correction lineage. Reject-When precision gate applied — no new defects emerged from sweeping caller/callee contracts, removed-behavior audit, cross-doc consistency, or pre-existing consumer compatibility. The 1-char c6db15f patch addresses the two open round 1 notes (correctness N1 + integration N1) without introducing collateral; the remaining round 1 notes are all informational presentation matters explicitly classified as non-blocking by their originators.
+
+New findings (NOT already in round 1 reports):
+- None — Reject When precision applied; round 1 + c6db15f fix close all material concerns. No real defect was found by independent clean-context re-audit.
+
+Round 1 non-blocking notes status:
+- Correctness N1 (path typo `./build/shud` → `./shud`): addressed by c6db15f (verified at docs/p8tune/clean_prec_none_baseline.md L303 now reads `./shud keliya`)
+- Correctness N2 (Slurm sacct triplet not reproducible from evidence file alone): informational only — the 9620/0:0/00:01:47 triplet is sourced from A2 implementer report; the doc's table values are still accurate; round 1 reviewer suggested but did not block on attaching `sacct -j 9620` output as evidence; can be deferred to PR-B/C/D when next server cell is captured
+- Integration N1 (OMP build clarification for PR-C): addressed by c6db15f (verified L303 now adds explicit "serial-only smoke; OMP build `make shud_omp` is separately validated via PR-C G1 build gate, not by this anchor" clarification preventing PR-C implementer ambiguity)
+- Integration N2 (rep semantics for PR-E dedup): deferred to PR-E informational; not a PR-A defect — Plan A's median-triplication of (case,N) into 3 rep rows is honestly documented at L693-694 of the aggregator script
+- Spec-compliance 3 notes: informational only — T1 rep-row triplication, rivqdown SHA12 / wall.sec prose-annotation under Plan A reuse-without-rerun stance, and bundled capstone fix all explicitly accepted under spec L67 + spec L17
+
+Per-check assessment:
+1. Removed-behavior audit:                  pass — c6db15f is pure value-correction + scope-clarification, prior aggregator/baseline doc are pure additions, no removal anywhere in PR
+2. Caller/callee contract drift:            pass — PR-C G3 4-way contract at L333 enumerates `{ unset, "", "0", "5" }` against 1bfe6a30856e SHA + 15-key snapshot; PR-B decision-input table T5 satisfies; PR-D ncfn=7/51 + ncfl=85/3620 + netf=0 floors verified; PR-E mode-C-tune-reference cross-refs §codepath-equivalence + glossary
+3. Baseline doc coherence at c6db15f:       pass — 429 lines (unchanged from 3494c6a), 9 sections at same byte offsets (L40/104/134/189/238/263/288/384/400), YAML metadata consistent, SHA12 anchor 1bfe6a30856e + 15-key snapshot byte-identical to evidence file, no surrounding section inadvertently modified
+4. Aggregator script unchanged:             pass — `git diff 3494c6a..c6db15f -- tools/p8tune/aggregate_clean_baseline.sh` returns 0 lines; re-ran `bash tools/p8tune/aggregate_clean_baseline.sh --plan-a` exit 0 emitting all 5 tables T1-T5 (verified T4 floor verification gate still in T5 output)
+5. Cross-doc consistency:                   pass — PR-0 corrected docs (ADR-0003 + capstone §5.1) still self-consistent with PR-A authoritative §solver-failure-table; no new typo introduced by c6db15f (the 1-char patch is just `build/shud`→`shud` + scope clarification)
+6. Test/evidence coverage:                  pass — Tasks §2.1-§2.10 still satisfied per spec-compliance round 1; all evidence files present (.review-evidence/p8tune-pr-a/ contains codepath_equivalence_diff.txt 2358B + keliya_smoke_artifact.txt 676B + keliya_smoke_job.out 16315B + plan_b_template_check.txt 128B)
+7. Pre-existing consumer compatibility:     pass — SHUD submodule pointer 37be0fe unchanged; no existing tool/doc broken; capstone §5.1 bundled fix is forward-corrective (value 4.527→4.526 + 30517→30509) preserving column meaning and citing authoritative source via HTML comment
+8. openspec validate strict:                pass — "Change 'p8tune-spgmr-maxl' is valid"
+9. Issue #364 acceptance:                   pass — all 8 acceptance bullets verified: (a) 5 tables present, (b) §codepath-equivalence embeds git diff, (c) §keliya-smoke-anchor with rivqdown SHA12 + 15-key, (d) §submit-template-provenance documents Plan B path verification, (e) aggregator parses 15 canonical keys and emits 5 tables, (f) decision-input states ncfl>0 trigger satisfied with full sweep GO, (g) saturation_ratio column flag present (0.905/0.364), (h) solver-failure floors 7/51/85/3620/0 documented with "NOT 6/47" negative-control note. Cross-N invariance 30/30 PASS verified.
+10. Reject-When precision applied:          confirmed — sweep is clean; not padded with style preferences; no nameable failing scenario per finding-contract.md
+
+Pre-merge readiness recommendation:
+APPROVE merge gate — Phase 7 Gap Sweep finds no new defects beyond round 1 coverage. The 1-char c6db15f fix addresses both blocking-eligible round 1 notes (correctness N1 + integration N1) with surgical precision (zero collateral). All 4 remaining round 1 notes are informational only by their originators' classification and do not affect functional acceptance of PR-A as the clean PREC_NONE baseline anchor for the p8tune-spgmr-maxl epic.

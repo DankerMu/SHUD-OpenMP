@@ -1,0 +1,15 @@
+21:35:21: 15 pending/running
+21:40:23: 9 pending/running
+21:45:24: 9 pending/running
+21:50:26: 7 pending/running
+21:55:28: 7 pending/running
+22:00:30: 5 pending/running
+22:05:32: 4 pending/running
+22:10:34: 4 pending/running
+22:15:35: 3 pending/running
+22:20:37: 2 pending/running
+22:25:39: 1 pending/running
+22:30:40: 1 pending/running
+22:35:42: 1 pending/running
+22:40:43: 1 pending/running
+22:45:45: ALL 18 DONE
