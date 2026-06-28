@@ -173,12 +173,14 @@ int run_column_coloring(const CSC &csc, std::vector<int> &color) {
 
 void print_usage(const char *prog) {
     std::fprintf(stderr,
-                 "Usage: %s --case <name> [--basin-root <path>] [--in <prefix>] [--out <prefix>] [--report-chi-only]\n"
-                 "  --case             case name (e.g. keliya)\n"
-                 "  --basin-root       parent of Basins/<case>/  (default: ../../SHUD/Basins)\n"
-                 "  --in               CSC input prefix; expects <prefix>_adjacency.csc  (default: <case>)\n"
-                 "  --out              numeric J output prefix; emits <prefix>_numeric_J.bin (default: <case>)\n"
-                 "  --report-chi-only  load CSC + run coloring + emit χ to stdout; skip FD probe + J binary write\n",
+                 "Usage: %s --case <name> [--basin-root <path>] [--in <prefix>] [--out <prefix>] [--report-chi-only] [--brute-force-dense]\n"
+                 "  --case               case name (e.g. keliya)\n"
+                 "  --basin-root         parent of Basins/<case>/  (default: ../../SHUD/Basins)\n"
+                 "  --in                 CSC input prefix; expects <prefix>_adjacency.csc  (default: <case>)\n"
+                 "  --out                numeric J output prefix; emits <prefix>_numeric_J.bin (default: <case>)\n"
+                 "  --report-chi-only    load CSC + run coloring + emit χ to stdout; skip FD probe + J binary write\n"
+                 "  --brute-force-dense  per-column INDEPENDENT FD probe (no ColPack); emits <prefix>_numeric_J_dense.bin\n"
+                 "                       Used by keliya tool-correctness gate (REQ-3 dense FD cross-check)\n",
                  prog);
 }
 
@@ -200,6 +202,7 @@ int main(int argc, char **argv) {
     std::string in_prefix;
     std::string out_prefix;
     bool chi_only = false;
+    bool brute_force_dense = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -208,6 +211,7 @@ int main(int argc, char **argv) {
         else if (a == "--in" && i + 1 < argc) { in_prefix = argv[++i]; }
         else if (a == "--out" && i + 1 < argc) { out_prefix = argv[++i]; }
         else if (a == "--report-chi-only") { chi_only = true; }
+        else if (a == "--brute-force-dense") { brute_force_dense = true; }
         else if (a == "-h" || a == "--help") { print_usage(argv[0]); return 0; }
         else { std::fprintf(stderr, "[fd_color] ERROR: unknown arg '%s'\n", a.c_str()); print_usage(argv[0]); return 1; }
     }
@@ -215,7 +219,11 @@ int main(int argc, char **argv) {
     if (in_prefix.empty()) in_prefix = case_name;
     if (out_prefix.empty()) out_prefix = case_name;
 
-    const std::string csc_path = in_prefix + "_adjacency.csc";
+    // CSC is written by dump_adjacency AFTER chdir into basin_dir, so it lives
+    // under basin_root/<case>/. Mirror klu_analyze_factor.cpp:164 path pattern
+    // so the per-cell driver does not need to copy files between stages.
+    // (PR-0 reviewer round 1 finding c03 / F3 fix.)
+    const std::string csc_path = basin_root + "/" + case_name + "/" + in_prefix + "_adjacency.csc";
 
     // --- 1. Read CSC adjacency ---
     CSC csc;
@@ -223,13 +231,31 @@ int main(int argc, char **argv) {
     std::printf("[fd_color] loaded CSC: NumY=%llu total_nnz=%llu\n",
                 (unsigned long long)csc.NumY, (unsigned long long)csc.total_nnz);
 
-    // --- 2. ColPack column coloring ---
+    // --- 2. ColPack column coloring (skipped in --brute-force-dense mode) ---
     std::vector<int> color;
-    const int chi = run_column_coloring(csc, color);
-    std::printf("[fd_color] chromatic_number=%d  (NumY=%llu, density=%.5f)\n",
-                chi, (unsigned long long)csc.NumY,
-                static_cast<double>(csc.total_nnz) /
-                    (static_cast<double>(csc.NumY) * static_cast<double>(csc.NumY)));
+    int chi = 0;
+    if (!brute_force_dense) {
+        chi = run_column_coloring(csc, color);
+        std::printf("[fd_color] chromatic_number=%d  (NumY=%llu, density=%.5f)\n",
+                    chi, (unsigned long long)csc.NumY,
+                    static_cast<double>(csc.total_nnz) /
+                        (static_cast<double>(csc.NumY) * static_cast<double>(csc.NumY)));
+
+        // Case-aware χ sanity gate (REQ-2 Scenario "Column coloring via Welsh-Powell"):
+        //   keliya:                       χ ≤ 30 (tighter tool-correctness bound)
+        //   heihe / heihe_x4 / heihe_x16: χ ≤ 50 (production-scale bound)
+        // Asserted ALWAYS (not just under --report-chi-only) so a regression in
+        // ColPack ordering or CSC pattern is caught in the full FD-probe pipeline.
+        // (PR-0 reviewer round 1 finding c05 / F5 fix.)
+        const int chi_threshold = (case_name == "keliya") ? 30 : 50;
+        if (chi > chi_threshold) {
+            std::fprintf(stderr, "[fd_color] ERROR: chromatic_number=%d exceeds case-aware threshold=%d (case=%s)\n",
+                         chi, chi_threshold, case_name.c_str());
+            return 2;
+        }
+    } else {
+        std::printf("[fd_color] --brute-force-dense mode: skipping ColPack coloring; per-column independent FD probe\n");
+    }
 
     if (chi_only) {
         std::printf("[fd_color] --report-chi-only mode: exiting after chromatic-number report.\n");
@@ -321,48 +347,84 @@ int main(int argc, char **argv) {
         return sq * (std::abs(Y[k]) + 1.0);
     };
 
-    const int n_colors = chi;
-    std::vector<int> cols_in_color;
-    cols_in_color.reserve(NumY / std::max(1, n_colors) + 4);
-    for (int c = 0; c < n_colors; ++c) {
-        cols_in_color.clear();
+    int n_colors = 0;
+    if (brute_force_dense) {
+        // --- 5b. Brute-force dense FD: one perturbed rhs_core per column ---
+        // For each column k ∈ [0, NumY): perturb Y[k] += ε_k INDEPENDENTLY of
+        // all other columns (i.e., one rhs_core call per column = NumY total
+        // calls instead of χ as in colored mode). For keliya NumY=1785 this
+        // is ~30s wall on Mac — fast enough to be an independent reference
+        // for the spec REQ-3 dense FD cross-check gate.
+        // (PR-0 reviewer round 1 finding c01 / F1 fix.)
+        n_colors = NumY;  // semantic: each column is its own "color"
         for (int k = 0; k < NumY; ++k) {
-            if (color[k] == c) cols_in_color.push_back(k);
-        }
-        if (cols_in_color.empty()) continue;
-
-        for (int k = 0; k < NumY; ++k) {
-            Y_perturbed[k] = Y[k];
-        }
-        for (int k : cols_in_color) {
-            Y_perturbed[k] += eps_of(k);
-        }
-        timeNow = t0;
-        MD->rhs_core(Y_perturbed.data(), DY_plus.data(), t0, ExecPolicy::Serial);
-
-        // Recover J entries. Each row i intersects AT MOST ONE column k in
-        // the group (definition of distance-2 column coloring); so
-        // J[i,k] = (DY_plus[i] - DY_base[i]) / ε_k is well-defined for the
-        // group probe.
-        for (int k : cols_in_color) {
+            for (int j = 0; j < NumY; ++j) Y_perturbed[j] = Y[j];
             const double e = eps_of(k);
+            Y_perturbed[k] += e;
+            timeNow = t0;
+            MD->rhs_core(Y_perturbed.data(), DY_plus.data(), t0, ExecPolicy::Serial);
+            // Emit only pattern entries for column k from CSC.
             const int64_t s = csc.col_ptr[k];
             const int64_t end = csc.col_ptr[k + 1];
             for (int64_t p = s; p < end; ++p) {
                 const int32_t i = csc.row_idx[p];
                 J_values[p] = (DY_plus[i] - DY_base[i]) / e;
             }
+            if ((k % 200) == 0) {
+                std::fprintf(stdout, "[fd_color] dense column %d/%d probed\n", k + 1, NumY);
+                std::fflush(stdout);
+            }
         }
+    } else {
+        // --- 5a. Colored FD (default): group perturbation per distance-2 color ---
+        n_colors = chi;
+        std::vector<int> cols_in_color;
+        cols_in_color.reserve(NumY / std::max(1, n_colors) + 4);
+        for (int c = 0; c < n_colors; ++c) {
+            cols_in_color.clear();
+            for (int k = 0; k < NumY; ++k) {
+                if (color[k] == c) cols_in_color.push_back(k);
+            }
+            if (cols_in_color.empty()) continue;
 
-        if ((c & 7) == 0) {
-            std::fprintf(stdout, "[fd_color] color %d/%d (cols=%zu) probed\n",
-                         c + 1, n_colors, cols_in_color.size());
-            std::fflush(stdout);
+            for (int k = 0; k < NumY; ++k) {
+                Y_perturbed[k] = Y[k];
+            }
+            for (int k : cols_in_color) {
+                Y_perturbed[k] += eps_of(k);
+            }
+            timeNow = t0;
+            MD->rhs_core(Y_perturbed.data(), DY_plus.data(), t0, ExecPolicy::Serial);
+
+            // Recover J entries. Each row i intersects AT MOST ONE column k in
+            // the group (definition of distance-2 column coloring); so
+            // J[i,k] = (DY_plus[i] - DY_base[i]) / ε_k is well-defined for the
+            // group probe.
+            for (int k : cols_in_color) {
+                const double e = eps_of(k);
+                const int64_t s = csc.col_ptr[k];
+                const int64_t end = csc.col_ptr[k + 1];
+                for (int64_t p = s; p < end; ++p) {
+                    const int32_t i = csc.row_idx[p];
+                    J_values[p] = (DY_plus[i] - DY_base[i]) / e;
+                }
+            }
+
+            if ((c & 7) == 0) {
+                std::fprintf(stdout, "[fd_color] color %d/%d (cols=%zu) probed\n",
+                             c + 1, n_colors, cols_in_color.size());
+                std::fflush(stdout);
+            }
         }
     }
 
     // --- 6. Emit numeric J binary ---
-    const std::string out_path = out_prefix + "_numeric_J.bin";
+    // Dense mode emits `<prefix>_numeric_J_dense.bin`; colored mode emits
+    // `<prefix>_numeric_J.bin`. Same binary layout (magic NDNJ + version=1 +
+    // NumY + total_nnz + n_colors + col_ptr + row_idx + values).
+    const std::string out_path = brute_force_dense
+        ? (out_prefix + "_numeric_J_dense.bin")
+        : (out_prefix + "_numeric_J.bin");
     FILE *fp = std::fopen(out_path.c_str(), "wb");
     if (!fp) {
         std::fprintf(stderr, "[fd_color] ERROR: cannot open %s for write\n", out_path.c_str());

@@ -1,6 +1,9 @@
+--- stage 3: klu_analyze_factor ---
 [klu] loaded numeric J: NumY=1785 total_nnz=10255 n_colors=16
 [klu] test matrix M = I - 1.000000 * J  (diagonal set on 1785 / 1785 cols)
+[klu] PREFLIGHT_HINT pattern_est_bytes=770560 (advisory only; decisive check after klu_analyze)
 [klu] pre-flight: A nnz=10255 est_bytes=770560 cn_ram=185528156160
+[klu] PREFLIGHT_AFTER_ANALYZE symbolic_lnz+unz=33088 est_bytes=1191168 rss_budget=129869709311
 [klu] cell_summary
   case=keliya ordering=amd btf=1
   NumY=1785 Anz=10255
@@ -8,5 +11,6 @@
   nblocks=1 maxblock=1785 nzoff=0 symmetry=1.000000
   numeric_lnz=16544 numeric_unz=16544 max_lnz_block=16544 max_unz_block=16544
   fill_ratio=3.2265 (numeric_lnz+unz)/Anz
-  symbolic_wall_sec=0.000384 numeric_factor_wall_sec=0.000444
+  symbolic_wall_sec=0.000409 numeric_factor_wall_sec=0.000515
   peak_rss_bytes=3145728 (CN_NODE_RAM_BYTES=185528156160)
+=== spike_run.sh keliya_amd_btf1 done ===

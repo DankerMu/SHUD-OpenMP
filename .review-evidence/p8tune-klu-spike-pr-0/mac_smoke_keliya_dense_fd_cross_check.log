@@ -1,3 +1,15 @@
-[dense_fd_cross_check] loaded J: NumY=1785 total_nnz=10255 n_colors=16
+--- stage 2c: dense_fd_cross_check.py ---
+[dense_fd_cross_check] loaded DUT (colored): NumY=1785 total_nnz=10255 n_colors=16
+[dense_fd_cross_check] loaded REF (dense):   NumY=1785 total_nnz=10255 n_colors=1785
 [dense_fd_cross_check] TSV: /Users/danker/Desktop/Hydro-SHUD/openMP/.review-evidence/p8tune-klu-spike-pr-0/mac_smoke_keliya_dense_fd_cross_check.tsv
-[dense_fd_cross_check] PASS: all blocks finite + bounded + max_rel_err ≤ 1e-6 (distance-2 invariant)
+[dense_fd_cross_check] per-block max_rel_err:
+   surf x surf   nnz= 314  max_rel_err=0.000e+00
+  unsat x surf   nnz= 397  max_rel_err=2.041e-07
+  unsat x unsat  nnz= 397  max_rel_err=2.139e-08
+  unsat x gw     nnz= 397  max_rel_err=2.128e-07
+     gw x unsat  nnz=  31  max_rel_err=0.000e+00
+     gw x gw     nnz=  60  max_rel_err=0.000e+00
+     gw x river  nnz=  29  max_rel_err=0.000e+00
+  river x river  nnz= 873  max_rel_err=0.000e+00
+[dense_fd_cross_check] PASS: every block has max_rel_err <= 1.0e-06
+--- stage 3: klu_analyze_factor ---

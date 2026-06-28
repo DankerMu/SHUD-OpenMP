@@ -63,16 +63,9 @@
 #include "Macros.hpp"
 #include "Model_Data.hpp"
 
-// SHUD globals referenced by Model_Data init (defined in shud.cpp). They
-// must exist in some TU; we provide our own here because we do NOT link
-// against shud.cpp's globals via the libshud.a archive (the archive does
-// contain shud.o, but the linker only pulls in the .o files for symbols
-// we reference, and we don't reference SHUD()).
-//
-// Update 2026-06-28: shud.o IS pulled in by Model_Data initialize() (via
-// the g_numa_first_touch_enabled extern), so these globals are already
-// defined. If you see a multiple-definition link error, remove the
-// duplicates below; if you see undefined-symbol, restore them.
+// globalY + timeNow are defined in SHUD/src/Model/shud.cpp and transitively pulled
+// into libshud.a via MD_rhs_core.cpp's `extern int g_numa_first_touch_enabled` reference.
+// DO NOT add duplicate definitions here — they would cause multiple-definition link errors.
 
 namespace {
 

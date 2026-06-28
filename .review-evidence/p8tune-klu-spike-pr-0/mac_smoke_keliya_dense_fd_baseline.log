@@ -1,6 +1,6 @@
---- stage 2: fd_color_jacobian ---
+--- stage 2b: fd_color_jacobian --brute-force-dense (keliya tool-correctness gate) ---
 [fd_color] loaded CSC: NumY=1785 total_nnz=10255
-[fd_color] chromatic_number=16  (NumY=1785, density=0.00322)
+[fd_color] --brute-force-dense mode: skipping ColPack coloring; per-column independent FD probe
 		 * openMP disabled.
 * 	 Project name: keliya
 * 	 Project input folder: input/keliya
@@ -114,7 +114,14 @@ Warning: remove sink on 437, from 1854.00 to 3641.33. dz = 1787.33
 Warning: remove sink on 481, from 3375.00 to 3503.33. dz = 128.33
 [NUMA] first-touch skipped: OMP_PROC_BIND unset (1 site: LoadIC)
 [fd_color] Model_Data init: NumY=1785 (CSC NumY=1785); t0=17356320.000000 StartTime=17356320.000000 SolverStep=20.000000
-[fd_color] color 1/16 (cols=198) probed
-[fd_color] color 9/16 (cols=104) probed
-[fd_color] J binary written: keliya_numeric_J.bin  total_nnz=10255 n_zero=7757  |v|_min=2.194e-13 |v|_max=6.733e+01
---- stage 2b: fd_color_jacobian --brute-force-dense (keliya tool-correctness gate) ---
+[fd_color] dense column 1/1785 probed
+[fd_color] dense column 201/1785 probed
+[fd_color] dense column 401/1785 probed
+[fd_color] dense column 601/1785 probed
+[fd_color] dense column 801/1785 probed
+[fd_color] dense column 1001/1785 probed
+[fd_color] dense column 1201/1785 probed
+[fd_color] dense column 1401/1785 probed
+[fd_color] dense column 1601/1785 probed
+[fd_color] J binary written: keliya_numeric_J_dense.bin  total_nnz=10255 n_zero=7757  |v|_min=2.194e-13 |v|_max=6.733e+01
+--- stage 2c: dense_fd_cross_check.py ---

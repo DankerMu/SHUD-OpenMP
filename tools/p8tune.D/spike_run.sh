@@ -48,6 +48,13 @@ CASE="$1"
 ORDERING="$2"
 BTF="$3"
 
+# Case-name whitelist (PR-0 reviewer round 1 finding c12 / F10 fix).
+# Per spec REQ-4 Scenario "4-case definition", the spike matrix is restricted
+# to exactly these 4 cases.
+case "$CASE" in
+    keliya|heihe|heihe_x4|heihe_x16) ;;
+    *) echo "ERROR: case must be one of {keliya, heihe, heihe_x4, heihe_x16}, got '$CASE'" >&2; exit 2 ;;
+esac
 case "$ORDERING" in
     natural|amd|colamd) ;;
     *) echo "ERROR: ordering must be natural|amd|colamd, got '$ORDERING'" >&2; exit 2 ;;
@@ -89,6 +96,21 @@ echo "--- stage 1: dump_adjacency ---" | tee -a "$LOG"
 # Stage 2: fd_color_jacobian (full FD probe, NOT --report-chi-only)
 echo "--- stage 2: fd_color_jacobian ---" | tee -a "$LOG"
 "$FDCJ" --case "$CASE" --basin-root "$BASIN_ROOT" 2>&1 | tee -a "$LOG"
+
+# Stage 2b: brute-force dense FD + cross-check (keliya tool-correctness gate ONLY).
+# Per spec REQ-3 Scenario "keliya tool-correctness gate via independent
+# ground-truth reference": the FD-probed numeric J for keliya SHALL be
+# cross-checked against a brute-force dense FD with relative error ≤ 1e-6
+# per nonzero entry. NumY is small enough (1785) for an O(NumY) dense probe
+# (~30s on Mac). Skipped for other cases where dense FD is intractable.
+# Triggered ONLY for the tool-correctness cell (keliya, amd, btf=1).
+# (PR-0 reviewer round 1 finding c01 / F1 fix.)
+if [[ "$CASE" == "keliya" && "$ORDERING" == "amd" && "$BTF" == "1" ]]; then
+    echo "--- stage 2b: fd_color_jacobian --brute-force-dense (keliya tool-correctness gate) ---" | tee -a "$LOG"
+    "$FDCJ" --case "$CASE" --basin-root "$BASIN_ROOT" --brute-force-dense 2>&1 | tee -a "$LOG"
+    echo "--- stage 2c: dense_fd_cross_check.py ---" | tee -a "$LOG"
+    uv run python "$(dirname "$0")/dense_fd_cross_check.py" --case "$CASE" 2>&1 | tee -a "$LOG"
+fi
 
 # Stage 3: klu_analyze_factor
 echo "--- stage 3: klu_analyze_factor ---" | tee -a "$LOG"

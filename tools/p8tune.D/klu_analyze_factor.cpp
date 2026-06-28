@@ -225,18 +225,18 @@ int main(int argc, char **argv) {
                      n - n_diag_modified);
     }
 
-    // --- 3. Pre-flight RSS estimate ---
-    // Rough lower bound: nnz(A) × 16B (one int row_idx + one double value) plus
-    // SuiteSparse working set (estimated 4× nnz(A) when AMD permutation arrays added).
-    // CN_NODE_RAM_BYTES comes from cn_node_ram.h.
-    const size_t est_pre_factor_bytes = static_cast<size_t>(j.total_nnz) * 64ULL + n * 64ULL;
+    // --- 3. Pre-flight hint (advisory only) ---
+    // The pattern-only nnz(A) × 16B + slack lower-bound is too pessimistic
+    // in the wrong direction (under-counts actual L+U fill by ~4× on keliya
+    // empirically). Per PR-0 reviewer round 1 finding c04 / F4 fix, this is
+    // logged as an advisory hint ONLY and MUST NOT exit-0 OOM on its own.
+    // The decisive RSS preflight runs AFTER klu_analyze (step 5 below) using
+    // Symbolic->lnz + unz, which reflects actual factor sizes.
+    const size_t est_pre_factor_hint_bytes = static_cast<size_t>(j.total_nnz) * 64ULL + n * 64ULL;
+    std::printf("[klu] PREFLIGHT_HINT pattern_est_bytes=%zu (advisory only; decisive check after klu_analyze)\n",
+                est_pre_factor_hint_bytes);
     std::printf("[klu] pre-flight: A nnz=%llu est_bytes=%zu cn_ram=%zu\n",
-                (unsigned long long)j.total_nnz, est_pre_factor_bytes, (size_t)CN_NODE_RAM_BYTES);
-    if (est_pre_factor_bytes > CN_NODE_RAM_BYTES) {
-        std::printf("KLU_OOM_DETECTED case=%s ordering=%s btf=%d peak_rss_bytes=%zu reason=preflight_estimate\n",
-                    case_name.c_str(), ordering_name.c_str(), btf_flag, est_pre_factor_bytes);
-        return 0;
-    }
+                (unsigned long long)j.total_nnz, est_pre_factor_hint_bytes, (size_t)CN_NODE_RAM_BYTES);
 
     // --- 4. klu_analyze (symbolic) ---
     auto t0_sym = std::chrono::steady_clock::now();
@@ -256,6 +256,27 @@ int main(int argc, char **argv) {
     }
     const double sym_wall_s =
         std::chrono::duration<double>(t1_sym - t0_sym).count();
+
+    // --- 4b. RSS preflight (DECISIVE) — uses Symbolic->lnz + unz ---
+    // Reformulate using actual symbolic-estimate L+U nnz: 24 bytes per nnz
+    // (one int row_idx + one int col index slot + one double value) × 1.5
+    // safety multiplier accounts for working-set + permutation arrays.
+    // If exceeds 0.7 × CN_NODE_RAM_BYTES, emit OOM-as-data-point per REQ-5
+    // and exit 0. (PR-0 reviewer round 1 finding c04 / F4 fix.)
+    {
+        const size_t est_after_analyze_bytes =
+            static_cast<size_t>(Symbolic->lnz + Symbolic->unz) * 24ULL * 3ULL / 2ULL;
+        const size_t rss_budget = static_cast<size_t>(
+            static_cast<double>(CN_NODE_RAM_BYTES) * 0.7);
+        std::printf("[klu] PREFLIGHT_AFTER_ANALYZE symbolic_lnz+unz=%.0f est_bytes=%zu rss_budget=%zu\n",
+                    Symbolic->lnz + Symbolic->unz, est_after_analyze_bytes, rss_budget);
+        if (est_after_analyze_bytes > rss_budget) {
+            std::printf("KLU_OOM_DETECTED case=%s ordering=%s btf=%d peak_rss_bytes=%zu reason=preflight_after_analyze\n",
+                        case_name.c_str(), ordering_name.c_str(), btf_flag, est_after_analyze_bytes);
+            klu_free_symbolic(&Symbolic, &common);
+            return 0;
+        }
+    }
 
     // --- 5. klu_factor (numeric) ---
     // Uses the BDF-equivalent test matrix M = I - γ·J (Ax) constructed above.

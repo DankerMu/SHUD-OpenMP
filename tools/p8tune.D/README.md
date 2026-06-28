@@ -206,6 +206,16 @@ Re-run `fd_color_jacobian` MUST yield bytewise identical `<case>_numeric_J.bin`.
 - `omp_set_num_threads(1)` is being called at main entry (look for the line "color N/X (cols=...) probed" in stdout — re-runs should show the same column counts per color).
 - ColPack version is master branch (older branches had non-deterministic SMPGCColoring tie-breaking).
 
+#### Repro recipe (manual determinism check)
+
+```bash
+cd "$REPO_ROOT/SHUD/Basins/keliya"
+"$REPO_ROOT/tools/p8tune.D/fd_color_jacobian" --case keliya  # first run
+sha256sum keliya_numeric_J.bin > /tmp/first.sha
+"$REPO_ROOT/tools/p8tune.D/fd_color_jacobian" --case keliya  # second run
+diff /tmp/first.sha <(sha256sum keliya_numeric_J.bin)        # MUST be empty
+```
+
 ---
 
 ## Files
