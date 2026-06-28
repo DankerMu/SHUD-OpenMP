@@ -44,12 +44,14 @@ ADR-0003 在 p8pre-spike NO-GO 决策后建立了 "cleaned PREC_NONE production 
 
 **Per-case best-maxl recommendation** (落地于 `docs/p8tune/maxl_sweep_verdict.md` §production-tune-guidance，3-rep median 数据)：
 
-| (case, N) | recommended `SHUD_SPGMR_MAXL` | wall reduction vs default | band |
-|---|---|---|---|
-| heihe N=1 | **=30** RECOMMENDED | +11.99% | GO |
-| heihe N=8 | **=30** Optional | +6.78% | Optional |
-| heihe_x4 N=1 | unset (default=5) | maxl ≥10 全 REGRESS −6.86% 至 −15.83% | n/a |
-| heihe_x4 N=8 | unset (default=5) | maxl ≥10 全 REGRESS −15.81% 至 −24.82% | n/a |
+| (case, N) | recommended `SHUD_SPGMR_MAXL` | wall reduction vs default | band | tier (see §Acceptance for promotion criteria) |
+|---|---|---|---|---|
+| heihe N=1 | **=30** | +11.99% | GO (wall band) | Performance opt-in (NOT A5-certified)[¹] |
+| heihe N=8 | **=30** | +6.78% | Optional (wall band) | Performance opt-in (NOT A5-certified)[¹] |
+| heihe_x4 N=1 | unset (default=5) | maxl ≥10 全 REGRESS −6.86% 至 −15.83% | n/a | n/a |
+| heihe_x4 N=8 | unset (default=5) | maxl ≥10 全 REGRESS −15.81% 至 −24.82% | n/a | n/a |
+
+[¹]: `Performance opt-in (NOT A5-certified)` = mechanism-attested per §Rationale §G7 (Arnoldi MGS → CVODE step-size adapter → trajectory drift) but NOT validated by hydrology-equivalence (NSE/KGE/peak/water-balance). Promotion to `A5-certified` requires the future P9-A5 epic (see §Acceptance forward action). Users opting in accept solver-tunable trajectory drift on a different valid PREC_NONE step-size path.
 
 **8-gate verdict** (per `tools/p8tune/aggregate_maxl_sweep.sh`):
 
@@ -88,14 +90,46 @@ ADR-0003 在 p8pre-spike NO-GO 决策后建立了 "cleaned PREC_NONE production 
 - heihe_x4 N=8: maxl=5 → 30 wall **+25% (1372s → 1713s)** REGRESSION
 - 即便 maxl=10 (saturation point) 也是 −7% 至 −23% wall REGRESSION
 
-### 机制解释 — Krylov vector memory bandwidth
+### 机制解释 — Krylov vector memory bandwidth (NumY-corrected per GPT Pro 2026-06-28 review)
 
-SUNDIALS SPGMR 内部存 Krylov 基 `V[0..maxl-1]` 每个向量长度 = N_elem。Arnoldi 正交化 (Modified Gram-Schmidt) 在每次 inner iter 需访问已存的所有 V[i] 计算 `dot(V[i], w)` + `w -= dot * V[i]` (per `sunlinsol_spgmr.c` `SPGMRSolve`)。
+SUNDIALS SPGMR 内部存 Krylov 基 `V[0..maxl-1]` — **每个向量长度 = NumY** (NOT NumEle / N_elem)。SHUD `N_VNew_Serial(NY, sunctx)` (per `SHUD/src/Model/shud.cpp:139`) 分配的是 N_Vector 长度 NumY，组成为：
 
-- 小 case (heihe ~6300 elem × 8B = 49 KB/vector)：8 个 maxl=8 向量 = 392 KB，fit in L2 cache。bigger maxl → fewer (outer iter) restart → fewer expensive (N_elem-scaled) RHS evals → wall ↓
-- 大 case (heihe_x4 40046 elem × 8B = 312 KB/vector)：8 个 maxl=8 向量 = 2.5 MB，approaches L2-cache limit。bigger maxl → more cache misses during MGS → wall ↑ 超过 RHS eval 节省的成本
+```
+NumY = 3·NumEle + NumRiv + NumLake
+     = [Y_surf | Y_unsat | Y_gw | Y_riv | Y_lake]
+       NumEle   NumEle    NumEle  NumRiv   NumLake
+```
 
-heihe_x4 cell.meta `cells_n=40046` ≈ 6.3× heihe 的 `cells_n=6335`，与上述 cache-pressure 模型一致。
+(per master plan §P8-precond.1 L2450-2453 state-vector layout)
+
+Arnoldi 正交化 (Modified Gram-Schmidt) 在每次 inner iter 需访问已存的所有 V[i] 计算 `dot(V[i], w)` + `w -= dot * V[i]` (per `sunlinsol_spgmr.c` `SPGMRSolve`)。**Working set per Arnoldi iter ≈ maxl × NumY × 8B**。
+
+Per-case NumY estimates (approximate; exact = read from SHUD runtime print at Init):
+
+| Case | NumEle | NumRiv (est) | NumLake (est) | NumY (est) | maxl=10 working set @ 8B |
+|---|---|---|---|---|---|
+| keliya | 484 | ~50 | 0 | ~1,500 | ~120 KB |
+| heihe | 6,335 | ~few hundred | ~16 (Juyan + NE) | **~19,000** | **~1.52 MB** |
+| heihe_x4 | 40,046 | ~few hundred | ~16 | **~120,000** | **~9.6 MB** |
+| heihe_x16 | ~250,000 | ~few hundred | ~16 | **~760,000** | **~60 MB** |
+
+> NumRiv / NumLake 在 mesh-refine 下**不**线性 scale (rSHUD `shud.triangle(a/4)` 只 multiply Voronoi mesh elements；river network 和 lake polygon 保留)。NumRiv / NumLake estimates pending server runtime-print; replace with exact values in a future PR if precision needed for P8-tune.D fill-ratio formulae.
+
+Cache-fit verdict (per NumY 口径):
+
+- **小 case (heihe ~6300 elem, NumY ~19K)**: maxl=10 working set ≈ 1.52 MB。Intel Skylake-X L2 = 1 MB/core (server SKL-SP variants 1.375 MB)、AMD EPYC Rome L2 = 512 KB/core、Apple M-series L2 = 4-8 MB shared。**1.52 MB 在更大 L2 上 fits**，在 1-MB L2 (Skylake client) 上**已经溢出**。这与实证一致：heihe N=1 maxl=30 sustains GO band (+11.99%, 单线程独占 L2)，N=8 maxl=30 droppes to Optional band (+6.78%, 8 线程争抢 L2 + L3)。bigger maxl → fewer (outer iter) restart → fewer expensive RHS evals → wall ↓ (only when L2 holds the working set)
+- **大 case (heihe_x4 ~40046 elem, NumY ~120K)**: maxl=10 working set ≈ 9.6 MB → **显著超出 L2 (1-2 MB)**, 接近 L3 (8-32 MB) 下限。bigger maxl → MGS 每 inner iter 触发 DRAM 读 → wall ↑ 超过 RHS eval 节省的成本。所有 maxl ≥10 全 REGRESS −6.86% 至 −24.82%, 与 cache-pressure 模型一致
+
+**口径校正与原稿对比** (GPT Pro 2026-06-28 review identified N_elem 口径低估 ~3×):
+
+| | 原稿 (N_elem × 8B) | 正确 (NumY × 8B) | 影响 |
+|---|---|---|---|
+| heihe maxl=10 working set | 507 KB | **1.52 MB** | 仍 fit L2 但更紧；解释 N=8 contention 更硬 |
+| heihe_x4 maxl=10 working set | 3.2 MB | **9.6 MB** | 显著超 L2 → DRAM-bound 信号更强 |
+
+口径校正后的 case-asymmetric pattern verdict **更 robust**, 不削弱原结论。
+
+heihe_x4 cell.meta `cells_n=40046` ≈ 6.3× heihe 的 `cells_n=6335`，NumY 比例 ≈ 120K / 19K ≈ 6.3×, 与上述 cache-pressure 模型一致。
 
 ### G7 STRICT FAIL — expected numerical phenomenon, not corruption
 
@@ -140,7 +174,7 @@ PR-A 通过 18-cell 数据 lock 了 maxl=5 (= SUNDIALS default = env-unset) 为 
 
 ### Positive
 
-1. **小 case 用户可选 +12% wall acceleration** (heihe N=1 maxl=30) 无需 source patch、无需重 compile
+1. **小 case 用户可选 +12% wall acceleration** (heihe N=1 maxl=30) 无需 source patch、无需重 compile (Performance opt-in tier; NOT A5-certified — see §Acceptance forward action for P9-A5 promotion path)
 2. **solver convergence 失败统计学消除** (heihe ncfl 85→0, heihe_x4 ncfl 3620→0)，给后续 P9 epic（精度等级 A5）提供更稳定的 solver 起点
 3. **PR-C env-var hook 长寿化** — 作为 production-supported 调参界面，未来 P8-tune.X / P9 / Prod 都可复用
 4. **case-size-asymmetric Krylov pattern 被实证 + 文档化** → 为 P8-tune.D KLU 选型决策提供 mechanistic backbone (KLU 不受 Krylov-vector cache pressure 影响，对大 case 可能更合适)
@@ -151,7 +185,7 @@ PR-A 通过 18-cell 数据 lock 了 maxl=5 (= SUNDIALS default = env-unset) 为 
 1. **G7 STRICT FAIL 数字突兀** — max_ulp 4.4×10¹⁵ 至 4.6×10¹⁸ 让没读 mechanism 的人误以为 numerical corruption；需要 ADR-0004 §G7 mechanism 段反复 cite。本 ADR 已 explicit 说明
 2. **per-case maxl 推荐表碎片化** — 4 个 (case, N) 组合给 4 个不同 maxl 建议，用户必须知道自己 case 的 element count 和典型 thread count；非 one-size-fits-all
 3. **heihe_x4 全部 REGRESSION** — 即便 ncfl 3620 全消，也没法换回 wall (用户体验角度：用户看 wall 不看 ncfl)；这是 large case 用户的 "不要碰" 信号
-4. **未触发 P8-tune.D KLU spike** — 本 ADR 是 Optional-knob 而非 NO-GO，因此**不**触发 P8-tune.D KLU spike epic。但留 forward-action：若未来有更大 case (heihe_x16 ≈ 250K elements，per master plan §1.1.1 P8+ 规划)，可重做 maxl sweep 数据来判 KLU 触发；本 ADR + tools/p8tune/aggregate_maxl_sweep.sh 可直接复用
+4. **未在 PR-E 中直接触发 P8-tune.D KLU spike** — 本 ADR (PR-E) 是 Optional-knob 而非 NO-GO, 因此**当时不**触发 P8-tune.D KLU spike epic. **但 GPT Pro 2026-06-28 review 在 PR `chore/p8tune-doc-correction` 中重新评估**: 用户意图 "hydrology-validatable large-case acceleration" + NumY 口径分析 (heihe_x4 maxl=10 working set ~9.6 MB 超 L2; heihe_x16 ~60 MB 超 L3) 表明 SPGMR 路径对生产规模 case 已饱和, 不是 wall-improvement 路径。**P8-tune.D KLU pattern-only spike 已 active triggered** (master plan §P8-tune.D anchor section), 4-PR 序列 forthcoming via openspec change `p8tune-klu-spike`。原稿 forward action "若未来有更大 case 可重做 maxl sweep" 由 P8-tune.D 直接 KLU 路径取代 (SPGMR-tune 路径不再扩展)。
 
 ### Neutral
 
@@ -162,24 +196,33 @@ PR-A 通过 18-cell 数据 lock 了 maxl=5 (= SUNDIALS default = env-unset) 为 
 
 ---
 
-## Discussion — case-size-asymmetric Krylov memory pattern
+## Discussion — case-size-asymmetric Krylov memory pattern (NumY 口径)
 
 这个 pattern 的实证有更广的 implication：
 
-**SUNDIALS SPGMR Arnoldi MGS 复杂度** per outer iter = `O(maxl² × N_elem)`：
-- maxl × N_elem flops for V matrix storage scan
+**SUNDIALS SPGMR Arnoldi MGS 复杂度** per outer iter = `O(maxl² × NumY)` (working set 基于 SUNDIALS N_Vector 长度 NumY, 非 NumEle):
+- maxl × NumY flops for V matrix storage scan
 - maxl × maxl orthogonality H matrix updates
-- 每次 inner iter 重新读 V[0..maxl-1] (working set ≈ maxl × N_elem × 8 bytes)
+- 每次 inner iter 重新读 V[0..maxl-1] (working set ≈ maxl × NumY × 8 bytes)
+
+`NumY = 3·NumEle + NumRiv + NumLake` (per `SHUD/src/Model/shud.cpp:139` `N_VNew_Serial(NY, sunctx)` 其中 `NY = MD->NumY`; 详 §Rationale §G5 机制解释 per-case NumY 表)。**原稿用 N_elem (= NumEle) 口径低估 working set ~3×**, GPT Pro 2026-06-28 review identified + 本 PR `chore/p8tune-doc-correction` corrected。
 
 当 working set 超 L2/L3 cache → 每次 inner iter 触发 DRAM 读取 → bandwidth-bound
 
-L2 typical size ≈ 1-2 MB per core。heihe_x4 maxl=10 working set = 40046 × 8 × 10 = 3.2 MB → 已经超 L2，每次 inner iter 落 DRAM。bigger maxl 把更多向量推过 cache 边界。
+L2 typical size ≈ 1-2 MB per core (Intel Skylake-X 1-1.375 MB / AMD EPYC Rome 0.5 MB / Apple M-series 4-8 MB shared)。L3 typical = 8-32 MB shared per socket。
 
-heihe maxl=10 working set = 6335 × 8 × 10 = 507 KB → 完全 fit in L2。bigger maxl 仍能塞下，但 RHS eval 节省的 wall 主导。
+**NumY 口径下** per-case working set:
 
-**Forward implication**：
-- KLU (direct sparse) 不存 Krylov 向量，pivot+L+U 是一次 setup amortized cost；对大 case **更友好**
-- P8-tune.D KLU 触发条件 (master plan §P8-tune.D) 可能需要从 "ROI nfeLS/nfe" 改为 "Krylov working-set vs cache fit"
+- **heihe_x4** (NumY ~120K) maxl=10 = 120000 × 8 × 10 ≈ **9.6 MB** → **显著超 L2, 接近 L3 下限**, 每次 inner iter 落 DRAM。bigger maxl 把更多向量推过 cache 边界 → wall ↑ 主导。所有 maxl ≥10 全 REGRESS 与此一致。
+- **heihe** (NumY ~19K) maxl=10 = 19000 × 8 × 10 ≈ **1.52 MB** → 在 ≥1.5 MB L2 核心上 fit，在 1-MB L2 核心 (Skylake client) 上溢出。N=1 独占 L2 sustains GO band (+11.99%); N=8 八线程争 L2 + 互相驱逐 → Optional band (+6.78%)。
+- **keliya** (NumY ~1.5K) maxl=10 ≈ 120 KB → 远在 L1 内, 无 cache pressure。
+- **heihe_x16** (NumY ~760K, future scale) maxl=10 ≈ **60 MB** → 显著超 L3 → 即便单线程也 DRAM-bound, SPGMR 路径不适合此规模。**这就是 P8-tune.D KLU spike trigger 的核心 motivation**。
+
+**Forward implication (post-correction, active triggers)**：
+
+- KLU (direct sparse) 不存 Krylov 向量，pivot+L+U 是一次 setup amortized cost。对大 case 在 wall 维度**可能更友好** (具体 fill ratio / RSS / wall vs SPGMR 由 P8-tune.D spike 实证)
+- P8-tune.D KLU pattern-only spike 触发条件 (master plan §P8-tune.D, 本 PR 添加): "**NumY 大到 SPGMR Krylov-vector working set 超 L3 cache**" (heihe_x4 NumY ~120K maxl=10 ~9.6 MB 已经临界, heihe_x16 ~760K maxl=10 ~60 MB 显著超), 加用户意图 "hydrology-validatable large-case acceleration"
+- P9-A5 hydrology-equivalence trigger (Optional-knob 当前 maxl=30 promotion 路径): NSE/KGE ≥ 0.95 + peak Δ ≤ 5-10% + water-balance Δ ≤ 1% 验证, promotes Performance opt-in → A5-certified RECOMMEND
 
 ---
 
@@ -204,20 +247,31 @@ heihe maxl=10 working set = 6335 × 8 × 10 = 507 KB → 完全 fit in L2。bigg
 
 - [x] PR-E merge → epic #362 close (manual `gh issue close 362`)
 - [x] OpenSpec change archive: `openspec/changes/p8tune-spgmr-maxl/` → `openspec/changes/archive/p8tune-spgmr-maxl-YYYY-MM-DD/` (post-merge cleanup PR)
-- [ ] master plan §P8-tune.C status mark **CLOSE** (deferred to next master plan refresh)
-- [ ] heihe_x16 mesh refine (master plan §1.1.1 P8+) trigger 时复跑 aggregate_maxl_sweep.sh → 重判 KLU 触发条件 (sweeping methodology 复用 via PR-D tools + PR-E aggregator)
+- [x] PR-376 G7-strict / G7-attested split spec amendment (merged 2026-06-28)
+- [x] `chore/p8tune-doc-correction` (本 PR) — NumY 口径 correction + maxl=30 wording softening + master plan §P8-tune.C CLOSE + §P8-tune.D anchor (per GPT Pro 2026-06-28 review)
+- [ ] **P8-tune.D KLU pattern-only spike epic** (master plan §P8-tune.D, openspec change `p8tune-klu-spike` forthcoming) — 4-PR sequence (PR-0 tool + PR-A 16-cell Slurm array sweep + PR-B aggregator+ADR-0005 + PR-C capstone), 2-3 weeks. Trigger: NumY-based working-set analysis (heihe_x4 ~9.6 MB > L2 / heihe_x16 ~60 MB > L3) + user intent hydrology-validatable large-case acceleration
+- [ ] **P9-A5 hydrology-equivalence epic** (future) — validate `SHUD_SPGMR_MAXL=30` heihe N=1 trajectory drift (criteria: NSE/KGE ≥ 0.95, peak Δ ≤ 5-10%, water balance Δ ≤ 1%, peak timing ≤ 1 output interval); PASS promotes Performance opt-in → A5-certified RECOMMEND tier
+- [ ] heihe_x16 KLU spike data — folded into P8-tune.D PR-A 16-cell array (case set: keliya + heihe + heihe_x4 + heihe_x16); supersedes original "复跑 aggregate_maxl_sweep.sh" item which was SPGMR-tune extension (SPGMR path saturated for large case per NumY analysis)
 
 ---
 
 ## Acceptance
 
-本 ADR Accepted (status flag = `Accepted`)，effective `2026-06-27`。
+本 ADR Accepted (status flag = `Accepted`)，effective `2026-06-27`。NumY 口径 + tier 标注 amended via PR `chore/p8tune-doc-correction` (2026-06-28).
 
 - **Decision adopted**: Optional-knob branch
 - **Hook lifecycle**: PR-C `SHUD_SPGMR_MAXL` env-var = long-lived production opt-in
 - **Default unchanged**: cvode_config.cpp default maxl path = SUNDIALS-default 5 (preserved)
-- **Production tune guidance**: heihe N=1 → `SHUD_SPGMR_MAXL=30` (+12% wall); heihe N=8 → optional `=30` (+7% wall); heihe_x4 任 N → keep unset
-- **P8-tune.D KLU**: not triggered by 本 ADR; deferred to future heihe_x16 (250K elem) data
+- **Production tune guidance** (Performance opt-in tier, NOT A5-certified — see Forward action P9-A5 epic for promotion path):
+  - heihe N=1 → `SHUD_SPGMR_MAXL=30` Performance opt-in (+12% wall, GO wall band)
+  - heihe N=8 → `SHUD_SPGMR_MAXL=30` Performance opt-in (+7% wall, Optional wall band)
+  - heihe_x4 任 N → keep unset (large-case Krylov-vector working set 9.6 MB > L2 → DRAM-bound; SPGMR path saturated)
+- **Tier definitions**:
+  - `A5-certified (RECOMMEND)`: mechanism-attested AND A5 hydrology-equivalence validated (NSE/KGE/peak/water-balance) — currently NONE of the maxl values are in this tier
+  - `Performance opt-in (NOT A5-certified)`: mechanism-attested (per §Rationale §G7) but A5 validation pending — current state of `=30` for heihe N=1 / N=8
+  - `Diagnostic / no recommendation`: mechanism unclear or unattested — n/a for current sweep
+- **P8-tune.D KLU pattern-only spike**: **TRIGGERED** by 本 PR `chore/p8tune-doc-correction` per GPT Pro 2026-06-28 review (user intent: hydrology-validatable large-case acceleration; NumY analysis confirms heihe_x4 / heihe_x16 SPGMR-path saturated). 4-PR epic forthcoming per master plan §P8-tune.D.
+- **P9-A5 hydrology-equivalence**: future epic, validation criteria documented in Forward action items; promotes `Performance opt-in` to `A5-certified` upon PASS.
 
 ---
 

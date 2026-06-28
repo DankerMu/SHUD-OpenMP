@@ -29,12 +29,14 @@ data_provenance: Slurm 9690 (60/60 COMPLETED), tools/p8tune/aggregate_maxl_sweep
 
 ## Per-combo best-maxl recommendation (3-rep median)
 
-| case | N | best maxl | best wall improvement % | best band | rationale |
-|---|---|---|---|---|---|
-| heihe | 1 | **30** | +11.99 | GO | maxl=30 gives GO band wall reduction; ncfl elimination preserved |
-| heihe | 8 | **30** | +6.78 | Optional | maxl=30 gives Optional band wall reduction; ncfl elimination preserved |
-| heihe_x4 | 1 | **5** | +0.00 | default (no opt-in benefit) | all maxl ≥10 REGRESS or are sub-threshold; keep default per 'never break userspace' |
-| heihe_x4 | 8 | **5** | +0.00 | default (no opt-in benefit) | all maxl ≥10 REGRESS or are sub-threshold; keep default per 'never break userspace' |
+| case | N | best maxl | best wall improvement % | best wall band | tier (see §Production tune guidance) | rationale |
+|---|---|---|---|---|---|---|
+| heihe | 1 | **30** | +11.99 | GO | **Performance opt-in (NOT A5-certified)**[*] | maxl=30 gives GO wall band; ncfl elimination preserved; trajectory drift documented in ADR-0004 §G7-attested |
+| heihe | 8 | **30** | +6.78 | Optional | **Performance opt-in (NOT A5-certified)**[*] | maxl=30 gives Optional wall band; ncfl elimination preserved; multi-thread L2 contention erodes N=1 GO band per ADR-0004 §Discussion NumY 口径 |
+| heihe_x4 | 1 | **5** | +0.00 | default (no opt-in benefit) | n/a | all maxl ≥10 REGRESS; NumY ~120K → maxl=10 working set ~9.6 MB > L2 → DRAM-bound; keep default per 'never break userspace' |
+| heihe_x4 | 8 | **5** | +0.00 | default (no opt-in benefit) | n/a | all maxl ≥10 REGRESS; large-case + high-thread combo amplifies Krylov-vector DRAM-thrash per ADR-0004 §Discussion |
+
+[*]: `Performance opt-in (NOT A5-certified)` = mechanism-attested per ADR-0004 §Rationale §G7 (Arnoldi MGS → CVODE step-size adapter → trajectory drift) but NOT validated by hydrology equivalence (NSE/KGE/peak/water-balance). Promotion to `A5-certified` requires future P9-A5 epic per ADR-0004 §Acceptance forward action. Users opting in accept solver-tunable trajectory drift on a different valid PREC_NONE step-size path.
 
 ## ADR-0004 branch rationale
 
@@ -164,13 +166,15 @@ Evidence: PR-C G3 verdict 4-way bit-identical (SHA12=1bfe6a30856e for keliya; pr
 - [Slurm job 9690 summary.tsv](file:///scratch/frd_muziyao/SHUD-OpenMP/.p8tune-runs/maxl_sweep/_summary.tsv) — server-resident 60-cell raw data
 - [aggregate_verdict.txt](file:///scratch/frd_muziyao/SHUD-OpenMP/.p8tune-runs/maxl_sweep/aggregate_verdict.txt) — flat KV mirror of this doc
 
-## Production tune guidance (Optional knob branch)
+## Production tune guidance (Optional knob branch — all recommendations are Performance opt-in tier, NOT A5-certified)
 
-| (case, N) | recommended SHUD_SPGMR_MAXL | rationale (3-rep median wall vs unset baseline) |
-|---|---|---|
-| heihe N=1 | **=30** RECOMMENDED | +11.99% wall improvement (GO band), ncfl 85 → 0 (solver failures eliminated) |
-| heihe N=8 | **=30** Optional | +6.78% wall improvement (Optional band), counter improvement |
-| heihe_x4 N=1 | unset (default=5) | maxl ≥10 all REGRESS wall (−6.86% at 10 to −15.83% at 30); ncfl gain (3620 → 0) does NOT outweigh wall cost |
-| heihe_x4 N=8 | unset (default=5) | maxl ≥10 all REGRESS wall (−15.81% to −24.82%); large-case + high-thread combo amplifies Krylov-vector memory bandwidth cost |
+> **Tier note**: All `SHUD_SPGMR_MAXL` recommendations below are **Performance opt-in (NOT A5-certified)**. Users gain wall reduction at the cost of solver-tunable trajectory drift (G7 STRICT FAIL at max_ulp 4.4×10¹⁵ for heihe, 4.6×10¹⁸ for heihe_x4 — mechanism-attested per ADR-0004 §G7 Arnoldi MGS → CVODE step-size adapter chain, but NOT hydrology-equivalence validated). Promotion to `A5-certified RECOMMEND` requires future P9-A5 epic (NSE/KGE ≥ 0.95, peak Δ ≤ 5-10%, water-balance Δ ≤ 1%). Downstream pipelines assuming default-trajectory output SHOULD NOT opt in until A5 validation lands. See [ADR-0004 §Acceptance](../adr/0004-maxl-sweep-decision.md#acceptance) tier definitions.
 
-**Case-size-asymmetric pattern** (key finding): small case (heihe ~6300 elements) benefits from larger Krylov subspace; large case (heihe_x4 ~40046 elements) suffers because each Krylov vector occupies more memory bandwidth, and bigger maxl multiplies bandwidth pressure during Arnoldi orthogonalization. See ADR-0004 §discussion for mechanistic analysis.
+| (case, N) | recommended SHUD_SPGMR_MAXL | tier | rationale (3-rep median wall vs unset baseline) |
+|---|---|---|---|
+| heihe N=1 | **=30** | Performance opt-in (NOT A5-certified) | +11.99% wall (GO band), ncfl 85 → 0 (solver failures eliminated); NumY ~19K → maxl=10 working set ~1.52 MB fits L2 on ≥1.5 MB cores |
+| heihe N=8 | **=30** | Performance opt-in (NOT A5-certified) | +6.78% wall (Optional band); multi-thread L2 contention erodes single-thread +12% to +7% per ADR-0004 §Discussion NumY 口径 |
+| heihe_x4 N=1 | unset (default=5) | n/a (SPGMR path saturated) | maxl ≥10 all REGRESS wall (−6.86% at 10 to −15.83% at 30); NumY ~120K → maxl=10 working set ~9.6 MB > L2 → DRAM-bound; ncfl gain (3620 → 0) does NOT outweigh wall cost |
+| heihe_x4 N=8 | unset (default=5) | n/a (SPGMR path saturated) | maxl ≥10 all REGRESS wall (−15.81% to −24.82%); large-case + high-thread combo amplifies Krylov-vector DRAM-bandwidth pressure |
+
+**Case-size-asymmetric pattern** (key finding, NumY 口径 per GPT Pro 2026-06-28 review correction): SUNDIALS SPGMR Krylov basis stores `maxl × NumY × 8B` working-set (NumY = 3·NumEle + NumRiv + NumLake per `SHUD/src/Model/shud.cpp:139` N_VNew_Serial; NOT NumEle as originally documented). Small case (heihe NumY ~19K) maxl=10 working set ~1.52 MB fits L2 → bigger maxl reduces outer-iter restarts → wall ↓. Large case (heihe_x4 NumY ~120K) maxl=10 working set ~9.6 MB exceeds L2 / approaches L3 lower bound → MGS DRAM-bound → wall ↑ outweighs ncfl elimination savings. See [ADR-0004 §Discussion](../adr/0004-maxl-sweep-decision.md#discussion--case-size-asymmetric-krylov-memory-pattern-numy-口径) for full mechanistic analysis + per-case NumY anchor table + forward triggers (P8-tune.D KLU spike + P9-A5 hydrology equivalence).

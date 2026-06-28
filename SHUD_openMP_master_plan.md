@@ -2393,7 +2393,7 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 
 **Outcome**: design D8 fall-back PREC_NONE 还原已 COMPLETED at outer `e442ce8` / SHUD `37be0fe` (cleanup pointer bump merged 2026-06-27). p8pre-spike epic 价值 = (i) framework readiness (PSetup/PSolve canonical pattern + Timer instrumentation 已固化), (ii) ROI ceiling 数据库 (`ncfn` floor + `nfeLS/nfe` 比值 + S5 drift baseline), (iii) Negative result 形式化记录避免后续 epic 重复试错。SHUD pin `5276167` 含 unused identity code 已由 cleanup PR 消化, 当前 outer pointer 指向 SHUD `37be0fe` clean baseline; baseline/p8pre 分支 (HEAD `df45deb`) close 留作 non-blocking 后续处理。下一步 P8-tune.C SPGMR `maxl` sweep 形式化在 §P8-tune.C (下一节)。
 
-##### P8-tune.C — SPGMR maxl sweep epic (openspec change `p8tune-spgmr-maxl`)
+##### P8-tune.C — SPGMR maxl sweep epic (openspec change `p8tune-spgmr-maxl`) [CLOSE 2026-06-28]
 
 **Epic scope (revised 2026-06-27)**: 4 capabilities × 6 PR (PR-0 → PR-A → PR-B → PR-C → PR-D → PR-E + conditional PR-F) 形式化 ADR-0003 §Forward action §3 列出的 P8-tune.C 候选 (SPGMR `maxl` sweep)。openspec change [`p8tune-spgmr-maxl`](openspec/changes/p8tune-spgmr-maxl/proposal.md) 4 capabilities:
 
@@ -2441,6 +2441,84 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 | NO-GO-no-improvement | G4/G5 no improvement | transition to P8-tune.D KLU pattern-only spike (per ADR-0002 Path 4) |
 
 详 [`openspec/changes/p8tune-spgmr-maxl/proposal.md`](openspec/changes/p8tune-spgmr-maxl/proposal.md) + [`design.md`](openspec/changes/p8tune-spgmr-maxl/design.md) D0-D11 + [`tasks.md`](openspec/changes/p8tune-spgmr-maxl/tasks.md) §1-§4 + 4 spec deltas under [`openspec/changes/p8tune-spgmr-maxl/specs/`](openspec/changes/p8tune-spgmr-maxl/specs/)。
+
+**P8-tune.C status (post-merge 2026-06-28)**: 6-PR sequence MERGED (PR-0 #369 + PR-A #370 + PR-B #371 + PR-C #372 + PR-D #373 + PR-E #368) + follow-up PR-376 G7 split-gate spec amendment (2026-06-28) + 本 PR `chore/p8tune-doc-correction` (NumY 口径修正 + maxl=30 wording softening per GPT Pro 2026-06-28 review). ADR-0004 adopted **Optional-knob** branch with G7-attested (mechanism). Production opt-in `SHUD_SPGMR_MAXL=30` for heihe N=1 is **Performance opt-in tier (NOT A5-certified)**, pending future P9-A5 hydrology-equivalence epic for promotion. heihe_x4 全 maxl ≥10 wall REGRESS — SPGMR Krylov-vector path saturated per NumY ~120K × 8 × 10 ≈ 9.6 MB > L2 cache analysis (per ADR-0004 §Discussion NumY 口径). Triggers **P8-tune.D KLU pattern-only spike epic** (next section).
+
+##### P8-tune.D — KLU pattern-only spike epic (trigger ACTIVE per 2026-06-28)
+
+**Trigger condition** (per ADR-0004 §Discussion forward-implication + GPT Pro 2026-06-28 review):
+
+- **User intent**: hydrology-validatable large-case acceleration (heihe_x4 production target, ~40K elements, NumY ~120K; heihe_x16 future scale, ~250K elements, NumY ~760K, 常驻 `/scratch/.../SHUD/Basins/heihe_x16/`)
+- **Optional-knob (ADR-0004) sub-threshold for large case**: heihe_x4 全 maxl ≥10 wall REGRESS −6.86% 至 −24.82%, ncfl elimination (3620 → 0) 不足以抵消 Krylov-vector DRAM thrashing wall cost
+- **NumY working-set analysis** (per ADR-0004 §Discussion NumY 口径):
+  - heihe (NumY ~19K) maxl=10 ≈ 1.52 MB → fits L2 on ≥1.5 MB cores (Optional-knob viable)
+  - heihe_x4 (NumY ~120K) maxl=10 ≈ 9.6 MB → exceeds L2, approaches L3 lower bound (DRAM-bound)
+  - heihe_x16 (NumY ~760K) maxl=10 ≈ 60 MB → exceeds L3 even single-thread (SPGMR path infeasible for future scale)
+- **Spike epic 是 low-risk pattern-only**: 不接 CVODE (no SUNLinSol_KLU wire-up), 不跑 SHUD 模型 (no rivqdown.dat compare), 不改 SHUD source (libshud.a link only); 仅判 fill ratio + RSS + estimated wall feasibility
+
+**4-PR scope (openspec change `p8tune-klu-spike` forthcoming, 2-3 weeks budget)**:
+
+| PR | scope | depends on |
+|---|---|---|
+| PR-0 | tool authoring — `tools/p8tune.D/dump_adjacency.cpp` (link libshud.a + walk Element/Riv/Lake) + `tools/p8tune.D/fd_color_jacobian.cpp` (Curtis-Powell-Reid colored FD via `MD->rhs_core(Serial)` dispatcher) + `tools/p8tune.D/klu_analyze_factor.cpp` (klu_analyze + klu_factor wall + RSS via `/usr/bin/time -v`) + Mac keliya smoke | 本 PR merged (P8-tune.C CLOSE) |
+| PR-A | server 16-cell Slurm array execution (4 case × 4 ordering combo, 1 cell per node) on `cn[05-06,09,14-19,23-24]` | PR-0 merged + cn-node RAM verified |
+| PR-B | aggregator + ADR-0005 verdict (3-axis hard threshold + 4-branch decision tree + NO-GO axis typing) | PR-A complete |
+| PR-C | epic capstone + (conditional) trigger next epic (P8-tune.E full KLU + A5 integration OR P8-tune.F BoomerAMG spike) | PR-B ADR-0005 |
+
+**Case matrix (4 case × 4 ordering combo = 16 cell)**:
+
+- **Cases**: keliya (NumY ~1.5K, sanity smoke) + heihe (NumY ~19K, reference baseline) + heihe_x4 (NumY ~120K, **production target — decisive verdict cell**) + heihe_x16 (NumY ~760K, future scale + RSS overflow canary)
+- **Ordering combos**: (natural, +BTF) test pure BTF benefit + (AMD, −BTF) test pure AMD benefit + (AMD, +BTF) KLU default reference + (COLAMD, +BTF) test asymmetric ordering
+- **Jacobian acquisition**: FD colored via `libshud.a` `MD->rhs_core(Y, DY, t, ExecPolicy::Serial)` dispatcher; Welsh-Powell column coloring (`N_colors` ~10-50 for SHUD mesh-local coupling expected, χ ~O(degree)); CPR algorithm restores J columns from `f(y + ε·v_color)` evaluations; zero SHUD source patch
+
+**3-axis hard verdict (per case, all-AND for GO)**:
+
+1. **Fill gate**: `nnz(L+U) / nnz(A) < 8 · log₂(NumY)` (PDE-domain-tuned threshold; 2D mesh PDE nested-dissection theoretical optimum ≈ log₂(NumY); 8× allows real-world AMD/COLAMD deviation)
+2. **RSS gate**: peak RSS during numeric factor < 70% cn-node RAM (RSS = nnz(L+U) × 8B × 2-3× SuiteSparse structure overhead; cn-RAM verified at PR-0 via `/proc/meminfo`)
+3. **Wall gate**: `(numeric_factor_wall / refactor_freq + N_solve · solve_wall) < 0.7 × SPGMR_per_step_wall` (SPGMR wall from PR-A 60-cell baseline at `_summary.tsv`; refactor_freq=10 conservative estimate, N_solve from CVODE counters)
+
+**4-branch ADR-0005 decision tree**:
+
+| Branch | Trigger | Action |
+|---|---|---|
+| **GO** | 3 axes ALL PASS per case at heihe_x4 | open P8-tune.E full KLU + A5 hydrology-equivalence integration epic (4-6 weeks); SUNLinSol_KLU wire-up to CVODE; A5 NSE/KGE/peak/water-balance acceptance gates from start |
+| **Optional** | Mixed per-case PASS (small case GO, heihe_x4 marginal) | benchmark numeric prototype on heihe_x4 before commit; document case-aware KLU env-var hook similar to maxl Optional-knob pattern |
+| **Case-aware** | Small cases GO, large cases NO-GO | small-case opt-in only; large-case 走 F5 BoomerAMG/Hypre 退路 path |
+| **NO-GO** | Any axis fail at heihe_x4 (decisive cell) | open P8-tune.F BoomerAMG/Hypre spike (3-4 weeks per GPT Pro F5 recommendation); AMG is O(N) memory + scales for elliptic-parabolic PDE structure native to SHUD domain |
+
+**Aggregator-internal NO-GO axis typing** (PR-B aggregator emits machine-readable verdict per case):
+
+```
+heihe_x4_KLU_NO_GO_axis = fill_overflow | rss_overflow | wall_overflow | clean_GO
+heihe_x4_KLU_NO_GO_diagnostic = "fill_ratio=85.2 >> 8·log₂(NumY)=136 threshold band"
+heihe_x4_recommended_next_epic = p8-tune.E-klu-impl | p8-tune.F-amg-spike
+heihe_x4_recommended_next_epic_priority = high | medium | low
+```
+
+ADR-0005 NO-GO branch is **auto-typed by which gate failed** — no manual interpretation required.
+
+**Out of scope (P8-tune.D pattern-only nature)**:
+
+- ❌ CVODE integration (no `SUNLinSol_KLU` wire-up to `cvode_config.cpp`)
+- ❌ SHUD model run (no rivqdown.dat output produced; no 90-day case integration)
+- ❌ A5 hydrology-equivalence validation (deferred to P8-tune.E full integration epic, where KLU vs PREC_NONE trajectory comparison is the natural object of A5 validation)
+- ❌ SHUD source patch (spike tool links `libshud.a` + calls public `Model_Data::ReadInput/Initialize/Element[]/rivNode` API only; numeric work is spike-tool-internal)
+
+**Dependencies (new external)**:
+
+- SuiteSparse KLU library (`apt install libsuitesparse-dev` on Ubuntu; `brew install suite-sparse` on Mac)
+- ColPack for column coloring (build from source: `git clone + cmake -DCMAKE_INSTALL_PREFIX=/scratch/...` on server, manual build on Mac)
+
+**Risk and mitigation**:
+
+| Risk | Mitigation |
+|---|---|
+| `libshud.a` link complexity (SHUD Makefile is monolithic) | PR-0 早期 prototype link; 若需 add install target 单独小 PR 前置 |
+| heihe_x16 numeric factor OOM (NumY ~760K, fill ratio unknown) | spike timeout 15min per cell; OOM = data point itself (NO-GO for x16 scale at cn-RAM); 不阻塞 heihe_x4 verdict |
+| cn-node RAM 不确认 | PR-0 跑 `cat /proc/meminfo` on cn14 + 钉进 aggregator threshold |
+| FD coloring miss corner case (lake-bank / river outlet) | Q1-Q2 grilling confirmed: `updateLakeElement()` runtime truth via libshud.a Init avoids static analysis drift |
+
+详 forthcoming openspec change `p8tune-klu-spike` proposal + design.md (D1-D8) + tasks.md。
 
 ##### P8-precond.1 — 物理分块结构设计
 
