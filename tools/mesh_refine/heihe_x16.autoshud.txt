@@ -1,0 +1,54 @@
+# heihe_x16 — B-XLarge benchmark (server-only) for P8-tune.D KLU pattern-only spike
+# Derived from heihe via 16× NumCells refinement (6335 → ~101360 target; mesh-quality
+# constraints tol.wb=1000 + MinAngle=30 usually inflate to ~1.6× the target).
+# Calibration NOT a goal: benchmark scope is mesh-topology + scale-test load only.
+# Raster paths verified server-side. Hydrology validation deferred.
+#
+# This file is a TEMPLATE: paths use placeholders <server-scratch-root> and
+# <server-data-root>. Run via tools/mesh_refine/run_heihe_x16.sh, which
+# substitutes the placeholders with env-resolved paths into a runtime cfg
+# before invoking AutoSHUD's Rscript steps.
+
+# Basic
+prjname heihe_x16
+startyear 2003
+endyear 2005
+dir.out <server-scratch-root>/SHUD-OpenMP/SHUD/Basins/heihe_x16
+
+# Spatial Data — heihe boundary + river reused (16x refinement triangulates within same domain)
+fsp.wbd <server-data-root>/nwm/Basins/heihe/input/heihe/gis/domain.shp
+fsp.stm <server-data-root>/nwm/Basins/heihe/input/heihe/gis/river.shp
+fr.dem <server-scratch-root>/SHUD-OpenMP/SHUD/Basins/heihe_x16/dem/heihe_dem_mosaic.tif
+
+# Forcing — CMFD2.0 0.1° subset (same as heihe + heihe_x4)
+Forcing 0.5
+dir.ldas <server-data-root>/ForcingData/CMFD2.0/Data_forcing_03hr_010deg
+dout.forc <server-scratch-root>/SHUD-OpenMP/SHUD/Basins/heihe_x16/forcing
+
+# Soil/Geol — HWSD global mode (Soil 0.1)
+Soil 0.1
+dir.soil <server-data-root>/SpatialData/World/Soil/HWSD/HWSD_RASTER
+
+# Landuse — USGS LCI global mode (Landuse 0.1)
+Landuse 0.1
+fn.landuse <server-data-root>/SpatialData/World/Landuse/USGS_LCI/LCType.tif
+tab.landuse <server-data-root>/SpatialData/World/Landuse/USGS_LCI/LCType.tif
+
+# Mesh-gen parameters — sized for ~101360 NumEle over 140908 km² basin
+# a.max = min(AA1/NumCells, AreaMax) → with NumCells=101360 → ~1.39 km² per element
+# (4× finer than heihe_x4's 5.56 km²; 16× finer than heihe's 22.24 km²)
+NumCells 101360
+AqDepth 6
+MaxArea 50
+MinAngle 30
+tol.wb 1000
+tol.rivlen 3000
+RivWidth 10
+RivDepth 6
+DistBuffer 2000
+flowpath 0
+QuickMode 0
+MAX_SOLVER_STEP 20
+CRYOSPHERE 1
+STARTDAY 1
+ENDDAY 1095
