@@ -153,10 +153,13 @@ The system SHALL produce `docs/adr/0004-maxl-sweep-decision.md` per the ADR temp
 - AND ADR SHALL specify new SHA baseline lock under `mode-C-tune` reference set (per `design.md` §D9)
 
 #### Scenario: ADR-0004 Optional-knob branch
-- WHEN G5 5-10% AND G6/G7/G8 PASS
+- WHEN G5 5-10% AND G6/G7/G8 PASS (or G7-attested PASS per ADR mechanism analysis when G7-strict FAIL)
 - THEN ADR-0004 verdict SHALL be "Optional knob; no default change"
 - AND ADR SHALL document recommended maxl values for production users (per case profile)
+- AND every recommended `SHUD_SPGMR_MAXL` value SHALL be labeled with its tier per Requirement "Performance opt-in vs A5-certified tier separation" (canonical tiers: `A5-certified (RECOMMEND)` requires both mechanism attestation AND A5 hydrology-equivalence; `Performance opt-in (NOT A5-certified)` has mechanism attestation only; `Diagnostic / no recommendation` lacks mechanism attestation)
 - AND env var hook stays as-is; no source default change
+- AND ADR §Discussion SHALL use the corrected NumY 口径 per Requirement "ADR working-set 口径 SHALL reference SUNDIALS N_Vector length" (working set = `maxl × NumY × 8B` where `NumY = 3·NumEle + NumRiv + NumLake`)
+- AND ADR §Forward action SHALL include the future A5 hydrology-equivalence epic as the promotion path from `Performance opt-in` to `A5-certified`
 
 #### Scenario: ADR-0004 Diagnostic branch
 - WHEN G4 PASS but G5 <5% improvement
@@ -180,4 +183,48 @@ The system SHALL produce `docs/adr/0004-maxl-sweep-decision.md` per the ADR temp
 - WHEN G4 and G5 both NO-GO
 - THEN ADR-0004 verdict SHALL be "NO-GO; close P8-tune.C; transition to KLU pattern-only"
 - AND ADR SHALL recommend P8-tune.D KLU pattern-only spike opening as next epic
+
+### Requirement: ADR working-set 口径 SHALL reference SUNDIALS N_Vector length
+
+ADR-0004 §Rationale / §Discussion (and any successor ADR analyzing SPGMR Krylov-vector memory pressure) SHALL reference the SUNDIALS `N_Vector` length `NumY = 3·NumEle + NumRiv + NumLake` as the per-Krylov-vector working-set basis, NOT `NumEle` or any other per-element count. This requirement is canonical for any future maxl-like SPGMR sweep epic; it amends the pre-PR-376 canonical spec via PR `chore/p8tune-doc-correction` per GPT Pro 2026-06-28 review of ADR-0004 capstone.
+
+#### Scenario: Working-set basis is NumY, not NumEle
+
+- WHEN an ADR analyzes per-Krylov-vector cache pressure for `SUNLinSol_SPGMR`
+- THEN the working-set expression SHALL be `maxl × NumY × 8B`
+- AND `NumY` SHALL be expanded as `3·NumEle + NumRiv + NumLake` per `SHUD/src/Model/shud.cpp:139` `NY = MD->NumY` + `N_VNew_Serial(NY, sunctx)` allocation
+- AND per-case approximations MAY use `NumEle` as a proxy ONLY when explicitly annotated as a lower-bound underestimate (since `NumY ≥ 3·NumEle` always)
+
+#### Scenario: Per-case NumY anchor table SHALL exist in ADR §Discussion
+
+- WHEN an ADR analyzing SPGMR Krylov memory pressure references per-case numbers (e.g., heihe / heihe_x4 / heihe_x16)
+- THEN §Discussion SHALL include a per-case NumY table with columns `(case, NumEle, NumY estimate, maxl=10 working-set @ 8B)` for the cases analyzed
+- AND the table SHALL note that NumRiv / NumLake do not scale linearly under mesh-refinement (only the Voronoi mesh elements multiply; river and lake polygon counts are preserved across `rSHUD shud.triangle(a/K)` refinement)
+- AND the table MAY use approximations (e.g., `~few hundred`, `~16`) annotated as pending server runtime-print precision
+
+### Requirement: Performance opt-in vs A5-certified tier separation
+
+Production tune guidance derived from `maxl-sweep-verdict` capability outputs SHALL classify each recommended `SHUD_SPGMR_MAXL` value into one of three tiers, with the tier explicitly named in the recommendation. The label `RECOMMENDED` without qualifier SHALL NOT appear next to any maxl value that is only mechanism-attested (Performance opt-in tier).
+
+#### Scenario: Tier definitions (canonical)
+
+- WHEN a production tune guidance document (e.g., `docs/p8tune/maxl_sweep_verdict.md` §Production tune guidance, ADR-0004 §Acceptance, ADR-0004 §Decision per-case table) references a `SHUD_SPGMR_MAXL` value for adoption
+- THEN the value SHALL be classified into ONE of:
+  - `A5-certified (RECOMMEND)`: requires mechanism attestation (ADR §G7-attested) AND A5 hydrology-equivalence validation (NSE/KGE ≥ 0.95, peak Δ ≤ 5-10%, water-balance Δ ≤ 1%, peak timing ≤ 1 output interval)
+  - `Performance opt-in (NOT A5-certified)`: requires mechanism attestation (ADR §G7-attested) but A5 not yet performed
+  - `Diagnostic / no recommendation`: mechanism unclear or unattested
+- AND the tier label SHALL appear in the same table row / cell as the maxl value, not buried in a footnote
+
+#### Scenario: Optional-knob branch maxl recommendation tier annotation
+
+- WHEN ADR-0004 (or any successor ADR) adopts Optional-knob branch AND G7-strict FAIL AND G7-attested PASS (via ADR mechanism analysis) AND no A5 hydrology-equivalence epic has been run
+- THEN every per-case recommended `SHUD_SPGMR_MAXL` value in `docs/p8tune/maxl_sweep_verdict.md` §production-tune-guidance AND ADR §Decision per-case table AND ADR §Acceptance Production tune guidance section SHALL be explicitly labeled `Performance opt-in (NOT A5-certified)`
+- AND the recommendation SHALL include a footnote referencing the future A5 epic that would promote it to A5-certified
+- AND the term `RECOMMENDED` (without qualifier) SHALL NOT appear next to any maxl value that is only mechanism-attested
+
+#### Scenario: A5-certified promotion path
+
+- WHEN a future A5 hydrology-equivalence epic validates a maxl value's trajectory drift against the criteria in the tier definitions scenario
+- THEN that maxl value MAY be promoted from `Performance opt-in (NOT A5-certified)` to `A5-certified (RECOMMEND)` in `docs/p8tune/maxl_sweep_verdict.md` §production-tune-guidance via a follow-up PR
+- AND the promotion PR SHALL update both the verdict.md table AND the ADR §Acceptance section AND the ADR §Decision per-case table simultaneously
 
