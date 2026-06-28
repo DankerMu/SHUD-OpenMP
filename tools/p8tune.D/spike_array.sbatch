@@ -83,6 +83,13 @@
 
 set -uo pipefail
 
+# ---------- PATH ------------------------------------------------------------
+# Compute nodes don't source ~/.bashrc for non-interactive sbatch; explicitly
+# prepend ~/.local/bin so `uv` (project-mandated Python runner per CLAUDE.md
+# rule "Python 一律用 uv") is found by spike_run.sh's dense-FD cross-check
+# stage. Harmless if ~/.local/bin doesn't exist or isn't on the host.
+export PATH="${HOME}/.local/bin:${PATH}"
+
 # ---------- RUN_ID resolution -----------------------------------------------
 # Prefer the externally-injected RUN_ID (--export=RUN_ID=...) so the per-run
 # scratch directory matches what the submit-time `mkdir -p` created. If
