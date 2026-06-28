@@ -2448,7 +2448,7 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 
 **Trigger condition** (per ADR-0004 §Discussion forward-implication + GPT Pro 2026-06-28 review):
 
-- **User intent**: hydrology-validatable large-case acceleration (heihe_x4 production target, ~40K elements, NumY ~120K; heihe_x16 future scale, ~250K elements, NumY ~760K, 常驻 `/scratch/.../SHUD/Basins/heihe_x16/`)
+- **User intent**: hydrology-validatable large-case acceleration (heihe_x4 production target, ~40K elements, NumY ~120K; heihe_x16 future scale, ~250K elements, NumY ~760K — to be deployed at P8-tune.D PR-A task 2.1 into `/scratch/.../SHUD/Basins/heihe_x16/` per CLAUDE.md L44 `推到 P8` + this §832 / §983 `推到 P8 前补` schedule. After PR-A task 2.1 lands, heihe_x16 enters 常驻 state at that path, mirroring the `heihe_x4` convention. NOTE: openspec change `p8tune-klu-spike` task 2.1 is the deployment step; do NOT presume 常驻 before that task lands)
 - **Optional-knob (ADR-0004) sub-threshold for large case**: heihe_x4 全 maxl ≥10 wall REGRESS −6.86% 至 −24.82%, ncfl elimination (3620 → 0) 不足以抵消 Krylov-vector DRAM thrashing wall cost
 - **NumY working-set analysis** (per ADR-0004 §Discussion NumY 口径):
   - heihe (NumY ~19K) maxl=10 ≈ 1.52 MB → fits L2 on ≥1.5 MB cores (Optional-knob viable)
@@ -2475,7 +2475,7 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 
 1. **Fill gate**: `nnz(L+U) / nnz(A) < 8 · log₂(NumY)` (PDE-domain-tuned threshold; 2D mesh PDE nested-dissection theoretical optimum ≈ log₂(NumY); 8× allows real-world AMD/COLAMD deviation)
 2. **RSS gate**: peak RSS during numeric factor < 70% cn-node RAM (RSS = nnz(L+U) × 8B × 2-3× SuiteSparse structure overhead; cn-RAM verified at PR-0 via `/proc/meminfo`)
-3. **Wall gate**: `(numeric_factor_wall / refactor_freq + N_solve · solve_wall) < 0.7 × SPGMR_per_step_wall` (SPGMR wall from PR-A 60-cell baseline at `_summary.tsv`; refactor_freq=10 conservative estimate, N_solve from CVODE counters)
+3. **Wall gate**: `(numeric_factor_wall / refactor_freq + N_solve · solve_wall) < 0.7 × SPGMR_per_step_wall_from_ADR0004_PRD_60cell_baseline` (SPGMR wall from epic #362 PR-D #373 60-cell sweep baseline at `/scratch/frd_muziyao/SHUD-OpenMP/.p8tune-runs/maxl_sweep/_summary.tsv` median of heihe_x4 N=1 maxl=5 3-rep; refactor_freq=10 conservative estimate, N_solve from CVODE counters. The 60-cell sweep was produced by epic #362 (`p8tune-spgmr-maxl`) PR-D #373 — NOT by THIS epic's PR-A, which is the new 16-cell KLU sweep. Do NOT cite "PR-A 60-cell baseline")
 
 **4-branch ADR-0005 decision tree**:
 
@@ -2486,23 +2486,35 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 | **Case-aware** | Small cases GO, large cases NO-GO | small-case opt-in only; large-case 走 F5 BoomerAMG/Hypre 退路 path |
 | **NO-GO** | Any axis fail at heihe_x4 (decisive cell) | open P8-tune.F BoomerAMG/Hypre spike (3-4 weeks per GPT Pro F5 recommendation); AMG is O(N) memory + scales for elliptic-parabolic PDE structure native to SHUD domain |
 
-**Aggregator-internal NO-GO axis typing** (PR-B aggregator emits machine-readable verdict per case):
+**Aggregator-internal verdict KV schema** (PR-B aggregator emits machine-readable verdict; canonical schema mirrored in openspec change `p8tune-klu-spike` spec §Requirement 5 Scenario "Per-case axis machine-readable" + design D8 + tasks §3.4):
 
 ```
-heihe_x4_KLU_NO_GO_axis = fill_overflow | rss_overflow | wall_overflow | clean_GO
-heihe_x4_KLU_NO_GO_diagnostic = "fill_ratio=85.2 >> 8·log₂(NumY)=136 threshold band"
-heihe_x4_recommended_next_epic = p8-tune.E-klu-impl | p8-tune.F-amg-spike
-heihe_x4_recommended_next_epic_priority = high | medium | low
+# Per-case block (emitted once for each case in {keliya, heihe, heihe_x4, heihe_x16})
+<case>_KLU_fill_axis            = PASS | FAIL
+<case>_KLU_rss_axis             = PASS | FAIL
+<case>_KLU_wall_axis            = PASS | FAIL
+<case>_KLU_overall_verdict      = GO | Optional | Case-aware | NO-GO
+<case>_KLU_NO_GO_axis           = fill_overflow | rss_overflow | wall_overflow | clean_GO
+<case>_KLU_NO_GO_diagnostic     = "fill_ratio=85.2 >> 8·log₂(NumY)=136 threshold band"
+<case>_recommended_action       = klu-env-var-opt-in | use-spgmr-default | use-future-amg
+
+# Decisive-cell pointers (heihe_x4 = decisive cell per Q3 case matrix)
+heihe_x4_recommended_next_epic           = p8-tune.E-klu-impl | p8-tune.F-amg-spike
+heihe_x4_recommended_next_epic_priority  = high | medium | low
+
+# Embedded thresholds (pinned at PR-0 + PR-A 1.3.1)
+CN_NODE_RAM_BYTES                                       = <measured at PR-0 cn14 probe>
+SPGMR_per_step_wall_from_ADR0004_PRD_60cell_baseline_s  = <pinned from epic #362 PR-D #373>
 ```
 
-ADR-0005 NO-GO branch is **auto-typed by which gate failed** — no manual interpretation required.
+ADR-0005 GO / Optional / Case-aware / NO-GO branches are **all auto-typed by these KVs** — Case-aware specifically requires reading small-case verdicts (keliya + heihe) alongside heihe_x4, not only heihe_x4. No manual interpretation required.
 
 **Out of scope (P8-tune.D pattern-only nature)**:
 
 - ❌ CVODE integration (no `SUNLinSol_KLU` wire-up to `cvode_config.cpp`)
 - ❌ SHUD model run (no rivqdown.dat output produced; no 90-day case integration)
 - ❌ A5 hydrology-equivalence validation (deferred to P8-tune.E full integration epic, where KLU vs PREC_NONE trajectory comparison is the natural object of A5 validation)
-- ❌ SHUD source patch (spike tool links `libshud.a` + calls public `Model_Data::ReadInput/Initialize/Element[]/rivNode` API only; numeric work is spike-tool-internal)
+- ❌ SHUD source patch (spike tool links `libshud.a` + calls public `Model_Data::loadinput()/initialize()` + reads `Ele[].nabr/lakenabr/nabrToMe` + `Riv[].down/toLake/frLake` + `RivSeg[]` + `io_riv/io_lake` only; numeric work is spike-tool-internal. NOTE: `MD->rivNode[]` is NOT used — its allocation is commented out in `SHUD/src/ModelData/MD_readin.cpp:182-187`. Additive `SHUD/Makefile libshud.a` archive target is the documented carve-out exception)
 
 **Dependencies (new external)**:
 
