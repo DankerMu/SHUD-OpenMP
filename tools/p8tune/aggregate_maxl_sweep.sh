@@ -320,8 +320,9 @@ kv_lines.append(f"G8_verdict={G8['verdict']}")
 # ADR branch decision (spec-amended G7 split: G7-strict for GO+default-bump; G7-attested for Optional-knob/Diagnostic)
 adr_branch = "Optional-knob"  # default: assumes G7-strict FAIL is ADR-attestable as solver-tunable-sensitivity
 g7_strict_pass = G7["verdict"] == "PASS"
-if g7_strict_pass and "GO" in G5["verdict"]:
-    # GO+default-bump requires G7-strict (never break userspace for default users)
+if g7_strict_pass and G5["verdict"] == "GO uniform":
+    # GO+default-bump requires G7-strict AND G5 uniform GO (never break userspace for default users)
+    # Use exact-string match rather than substring, since "NO-GO uniform" also contains "GO"
     adr_branch = "GO+default-bump"
 elif G6["verdict"] == "FAIL":
     adr_branch = "NO-GO solver"
