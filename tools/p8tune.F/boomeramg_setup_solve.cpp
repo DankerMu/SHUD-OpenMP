@@ -51,10 +51,13 @@
  *      separation, GetFinalRelativeResidualNorm returns the post-convergence
  *      ratio ~1e-8, making 1/r meaningless as a v1 metric — round-1 M1.)
  *
- *  10. Loop n_solve times: reset x = 0 via SetValues+Assemble ONLY (NO
- *      Initialize call, per Hypre 3.1.0 IJ docs — Initialize is for
- *      first-use only; calling on an assembled vector is UB — round-1 C1),
- *      timed apply HYPRE_BoomerAMGSolve → average apply_wall_sec.
+ *  10. Loop n_solve times: reset x = 0 via documented Initialize + SetValues
+ *      + Assemble pattern. Per Hypre 3.1.0 HYPRE_IJ_mv.h:556-561,
+ *      HYPRE_IJVectorInitialize "will also re-initialize an already
+ *      assembled vector, allowing users to modify coefficient values" —
+ *      this is the contractual API for re-zeroing an assembled vector
+ *      (round-2 repair retracts round-1 C1 misread of the Hypre spec).
+ *      Timed apply HYPRE_BoomerAMGSolve → average apply_wall_sec.
  *
  *  11. HYPRE_BoomerAMGGetCumNnzAP → operator_complexity = cum_nnz_AP / nnz_A
  *      (Hypre canonical definition: sum of nnz across all A-level operators
@@ -366,24 +369,35 @@ void emit_marker(const char *marker_class) {
     std::fflush(stdout);
 }
 
-// Probe Hypre version at runtime via HYPRE_Version(). Returns a
-// transient C-string (Hypre allocates with hypre_TAlloc on first call,
-// reuses on subsequent calls — no caller free). On unexpected NULL the
-// fallback "unknown" sentinel is emitted. Round-1 M5 — eliminates the
-// hardcoded HYPRE_VERSION_STR "3.1.0" which silently lied if brew bumped.
+// Probe Hypre version at runtime via HYPRE_Version(). Per Hypre 3.1.0
+// src/utilities/HYPRE_version.c, HYPRE_Version allocates a fresh string
+// each call via hypre_CTAlloc + hypre_sprintf and hands ownership to the
+// caller (caller must hypre_TFree). To avoid leaking ~52 bytes per call
+// (the cell_summary emitter calls this in the hot path), cache the
+// parsed dotted-version triple in a static std::string after the first
+// successful probe; subsequent calls return the cached value without
+// allocating. On unexpected NULL the fallback "unknown" sentinel is
+// emitted. Round-1 M5 + round-2 R1 ownership repair.
 const char *hypre_version_runtime() {
+    static std::string cached;
+    if (!cached.empty()) return cached.c_str();
     char *ver = nullptr;
     if (HYPRE_Version(&ver) != 0 || ver == nullptr) {
-        return "unknown";
+        cached = "unknown";
+        return cached.c_str();
     }
     // Hypre's HYPRE_Version writes something like "HYPRE Release Version 3.1.0".
     // Aggregator cares about the dotted version triple — strip leading
     // boilerplate so the cell_summary KV stays compact + machine-parseable.
-    // Search for the first digit; if found, use the suffix from there.
+    // Search for the first digit; if found, copy the suffix into the cache.
+    const char *digit = nullptr;
     for (const char *p = ver; *p; ++p) {
-        if (*p >= '0' && *p <= '9') return p;
+        if (*p >= '0' && *p <= '9') { digit = p; break; }
     }
-    return ver;
+    cached = digit ? std::string(digit) : std::string(ver);
+    // Free the Hypre-owned buffer; the cache now holds an independent copy.
+    hypre_TFree(ver, HYPRE_MEMORY_HOST);
+    return cached.c_str();
 }
 
 // Emit cell_summary KV block (REQ-4 Scenario "cell_summary KV block schema").
@@ -472,8 +486,15 @@ void check_sigterm_at_safe_point() {
                       g_cell.setup_wall_sec, g_cell.apply_wall_sec,
                       peak_rss_bytes(), 0.0, 0.0, 0.0,
                       "AMG_WALL_OVERFLOW");
-    std::exit(0);  // normal exit OK from main thread context; destructors
-                   // + atexit run; SIGTERM handler did NOT touch them.
+    // std::exit runs atexit handlers + static-storage-duration destructors,
+    // but per C++ [support.start.term]/p2 does NOT unwind the stack — local
+    // automatic-storage objects (here: solver, A_ij, b_ij, x_ij, r_ij in
+    // main()) are NOT destroyed. Acceptable in this SIGTERM-trap context
+    // because the process is about to die regardless; the kernel will
+    // reclaim all heap memory + file descriptors + Hypre internal state
+    // when the process exits. The transient handle leak during the death
+    // roll is benign. Round-2 R5 N1.
+    std::exit(0);
 }
 
 }  // namespace
@@ -626,6 +647,13 @@ int main(int argc, char **argv) {
     HYPRE_IJVector b_ij = nullptr, x_ij = nullptr;
     HYPRE_ParVector b_par = nullptr, x_par = nullptr;
     HYPRE_Solver solver = nullptr;
+    // V-cycle-1 probe scratch vector hoisted to outer scope so the
+    // bad_alloc catch handler below can clean it up. At PR-B heihe_x16
+    // scale (n ~ 485K, ~3.9 MB alloc per IJVector) bad_alloc raised
+    // between the IJVectorCreate (probe) and the IJVectorDestroy that
+    // closes the probe would leak this handle without an outer-scope
+    // declaration + null-guarded cleanup in the catch arm. Round-2 R5 N2.
+    HYPRE_IJVector r_ij = nullptr;
 
     try {
         if (HYPRE_IJMatrixCreate(MPI_COMM_SELF, 0, n - 1, 0, n - 1, &A_ij) != 0) {
@@ -767,29 +795,43 @@ int main(int argc, char **argv) {
         // convergence ratio), so 1.0/r is ~1e8 — meaningless as the
         // 1-step reduction ratio the spec REQ-4 AMG_SOLVE_DIVERGE Scenario
         // calls for (< 2.0 threshold). Run ONE V-cycle here in isolation
-        // (MaxIter=1, Tol=1e-300 so the convergence check never fires and
-        // x_par actually receives the V-cycle update) and compute the true
+        // (MaxIter=1, Tol=0.0 — documented "no convergence check"
+        // preconditioner mode per HYPRE_parcsr_ls.h:215-220 — so x_par
+        // actually receives the V-cycle update) and compute the true
         // residual norm via Hypre vector ops — GetFinalRelativeResidualNorm
         // is unreliable for this case (returns 0 when Hypre's internal
         // residual computation is skipped, which happens at MaxIter=1).
         HYPRE_BoomerAMGSetMaxIter(solver, 1);
-        HYPRE_BoomerAMGSetTol(solver, 1e-300);
-        // Reset x_par = 0 via SetValues + Assemble only (no Initialize
-        // re-call on an assembled vector — round-1 C1).
+        // Tol=0.0 is the documented "use as preconditioner / no convergence
+        // check" sentinel — per Hypre 3.1.0 HYPRE_parcsr_ls.h:215-220
+        // ("(Optional) Set the convergence tolerance ... If it is used as
+        // a preconditioner, it should be set to 0."). The V-cycle still
+        // runs + x_par receives the update; the convergence check is
+        // bypassed so MaxIter=1 truly executes exactly one cycle.
+        // Round-2 repair (replaces round-1 Tol=1e-300 denormal trick).
+        HYPRE_BoomerAMGSetTol(solver, 0.0);
+        // Reset x_par = 0 via documented Initialize + SetValues + Assemble.
+        // Per Hypre 3.1.0 HYPRE_IJ_mv.h:556-561, HYPRE_IJVectorInitialize
+        // is documented to "re-initialize an already assembled vector,
+        // allowing users to modify coefficient values" — this is the
+        // contractual API for re-zeroing an assembled vector.
+        // Round-2 repair (retracts round-1 C1 misread of the Hypre spec).
+        HYPRE_IJVectorInitialize(x_ij);
         HYPRE_IJVectorSetValues(x_ij, n, indices.data(), x_vals.data());
         HYPRE_IJVectorAssemble(x_ij);
         HYPRE_IJVectorGetObject(x_ij, (void **)&x_par);
         HYPRE_Int v1_rc = HYPRE_BoomerAMGSolve(solver, A_par, b_par, x_par);
         // v1_rc==HYPRE_ERROR_CONV(256) is EXPECTED here — we deliberately
-        // set Tol=1e-300 so the convergence check never passes; the V-cycle
-        // still ran + x_par updated. Treat the probe as successful so long
-        // as the rc is 0 or pure HYPRE_ERROR_CONV (no other bits set).
+        // set Tol=0.0 (preconditioner-mode sentinel) so the convergence
+        // check never passes; the V-cycle still ran + x_par updated.
+        // Treat the probe as successful so long as the rc is 0 or pure
+        // HYPRE_ERROR_CONV (no other bits set).
         const bool v1_ok = (v1_rc == 0) || (v1_rc == HYPRE_ERROR_CONV);
 
         // Manually compute residual_reduction_v1 = ||b|| / ||b - A*x_v1||.
         // We need a scratch ParVector for r = b - A*x. Allocate via IJ so it
-        // owns its own storage; destroy after probing.
-        HYPRE_IJVector r_ij = nullptr;
+        // owns its own storage; destroy after probing. r_ij is declared at
+        // outer scope (round-2 R5 N2 — bad_alloc cleanup).
         HYPRE_ParVector r_par = nullptr;
         HYPRE_IJVectorCreate(MPI_COMM_SELF, 0, n - 1, &r_ij);
         HYPRE_IJVectorSetObjectType(r_ij, HYPRE_PARCSR);
@@ -830,27 +872,35 @@ int main(int argc, char **argv) {
         //  will catch it via the < 2.0 check.)
 
         HYPRE_IJVectorDestroy(r_ij);
+        r_ij = nullptr;  // mark cleaned-up so the bad_alloc catch arm skips it.
 
         // Restore convergence settings for the main timed loop.
         HYPRE_BoomerAMGSetMaxIter(solver, 100);
         HYPRE_BoomerAMGSetTol(solver, 1e-8);
 
-        // Clear Hypre's accumulated error flag. The probe deliberately ran
-        // with Tol=1e-300 + MaxIter=1, so Hypre raised HYPRE_ERROR_CONV
-        // (256) into the global flag. Without clearing, every subsequent
-        // Hypre call (Solve, GetCumNnzAP, HYPRE_Version inside our cell-
-        // summary emit) inherits the flag and returns non-zero, which the
-        // main timed loop would mis-interpret as a SOLVE_DIVERGE.
-        HYPRE_ClearAllErrors();
+        // Clear ONLY the convergence-error flag raised by the probe.
+        // The probe deliberately ran with Tol=0.0 + MaxIter=1 (Tol=0.0
+        // is the documented preconditioner-mode "no convergence check"
+        // sentinel per HYPRE_parcsr_ls.h:215-220), so Hypre raised
+        // HYPRE_ERROR_CONV into the global flag. Using
+        // HYPRE_ClearError(HYPRE_ERROR_CONV) instead of
+        // HYPRE_ClearAllErrors() is surgical — it preserves any other
+        // legitimate Hypre error bits (AMG_OOM, generic memory errors)
+        // that may have fired during the probe, so they still propagate
+        // to the SOLVE_DIVERGE / OOM logic below. Round-2 repair.
+        HYPRE_ClearError(HYPRE_ERROR_CONV);
 
         // SIGTERM safe point: after the V-cycle-1 probe. Round-1 C4.
         check_sigterm_at_safe_point();
 
         // --- Timed solve loop (average over n_solve) ---
-        // Per Hypre 3.1.0 IJ docs, HYPRE_IJVectorInitialize is for
-        // first-use only; re-calling on an assembled vector inside the
-        // loop is UB and was making apply_wall_sec from iter 2+ unreliable
-        // — round-1 C1. Reset x via SetValues + Assemble only.
+        // Per Hypre 3.1.0 HYPRE_IJ_mv.h:556-561, HYPRE_IJVectorInitialize
+        // is the documented API for re-initializing an already assembled
+        // vector ("re-initialize an already assembled vector, allowing
+        // users to modify coefficient values"). Use Initialize + SetValues
+        // + Assemble each iteration to reset x = 0 — this is the
+        // contractually supported reset pattern. Round-2 repair (retracts
+        // round-1 C1 misread of the Hypre spec).
         double apply_wall_sum = 0.0;
         HYPRE_Real final_res_rel = 0.0;
         HYPRE_Int solve_rc_last = 0;
@@ -858,7 +908,9 @@ int main(int argc, char **argv) {
             // SIGTERM safe point: between solve iterations. Round-1 C4.
             check_sigterm_at_safe_point();
 
-            // Reset x = 0 each iteration via SetValues+Assemble ONLY.
+            // Reset x = 0 each iteration via documented Initialize +
+            // SetValues + Assemble pattern (Hypre 3.1.0 HYPRE_IJ_mv.h:556-561).
+            HYPRE_IJVectorInitialize(x_ij);
             HYPRE_IJVectorSetValues(x_ij, n, indices.data(), x_vals.data());
             HYPRE_IJVectorAssemble(x_ij);
             HYPRE_IJVectorGetObject(x_ij, (void **)&x_par);
@@ -932,6 +984,7 @@ int main(int argc, char **argv) {
                           peak_rss_bytes(), 0.0, 0.0, 0.0, "AMG_OOM");
         // Best-effort cleanup; may itself throw, but we're exiting.
         if (solver)  HYPRE_BoomerAMGDestroy(solver);
+        if (r_ij)    HYPRE_IJVectorDestroy(r_ij);  // round-2 R5 N2
         if (b_ij)    HYPRE_IJVectorDestroy(b_ij);
         if (x_ij)    HYPRE_IJVectorDestroy(x_ij);
         if (A_ij)    HYPRE_IJMatrixDestroy(A_ij);

@@ -114,12 +114,24 @@ The expanded triggers are deterministic but cannot fire on keliya scale
 - **H3 (cycle_complexity 2× linkage)**: documented inline in cpp + README §6
   + flagged for PR-C ADR-0007 §Discussion (axis-independence caveat).
 
-## C1 fix verified (apply loop UB removed)
+## C1 fix verified (apply loop reset uses documented Initialize pattern)
 
-`HYPRE_IJVectorInitialize(x_ij)` is no longer called inside the solve loop.
-The loop resets x via `SetValues + Assemble` only (per Hypre 3.1.0 IJ docs
-— Initialize is for first-use only). Variance across N_solve=5 iterations
-is now well-defined.
+**Round-2 retraction notice**: The round-1 C1 framing — that calling
+`HYPRE_IJVectorInitialize` on an already-assembled vector is UB and that
+`SetValues + Assemble` alone is the correct reset — was incorrect.
+Direct quote from Hypre 3.1.0 header
+`/opt/homebrew/Cellar/hypre/3.1.0/include/HYPRE_IJ_mv.h:556-561`:
+
+> "Prepare a vector object for setting coefficient values. This routine
+> will also **re-initialize an already assembled vector**, allowing users
+> to modify coefficient values."
+
+The documented contract IS to call `HYPRE_IJVectorInitialize` to re-zero
+an assembled vector. Round-2 repair restores the documented pattern in
+both reset paths (V-cycle-1 probe + main solve loop): `Initialize +
+SetValues + Assemble + GetObject`. Variance across `N_solve=5` iterations
+remains well-defined, and the residual_reduction_v1 values are bitwise
+identical to the round-1 baseline (see Round-2 repair section below).
 
 ## C4 fix verified (async-signal-safe SIGTERM handler)
 
@@ -147,3 +159,121 @@ synthesis §"DEFER TO FOLLOW-UP"):
 - L1-L7 low-priority bin
 
 All to be tracked in issue #401 §4 + flagged in PR-B / PR-C reviewer briefs.
+
+---
+
+## Round-2 repair (post-cross-review)
+
+Cross-review round-2 surfaced 1 critical retraction + 6 minor follow-ups
+against the Phase 6 round-1 fixes. R3 self-reverted its round-1 C1 finding
+after directly quoting Hypre 3.1.0 header
+`/opt/homebrew/Cellar/hypre/3.1.0/include/HYPRE_IJ_mv.h:556-561`:
+
+> "Prepare a vector object for setting coefficient values. This routine
+> will also re-initialize an already assembled vector, allowing users to
+> modify coefficient values."
+
+The ORIGINAL pre-Phase-6 code (using `HYPRE_IJVectorInitialize` per iter)
+was using the DOCUMENTED API. Phase 6 round-1 (acting on R3 round-1's
+wrong premise) had swapped the documented pattern for an undocumented
+`SetValues+Assemble`-on-assembled pattern that happens to work on the Mac
+host parcsr backend but is not contractually supported by Hypre 3.1.0.
+
+Round-2 restores the documented pattern + applies 6 other minor fixes.
+
+### Fix 1: Restored `HYPRE_IJVectorInitialize` in both reset paths
+
+| File:line | Path | Pre-round-2 | Round-2 |
+|-----------|------|-------------|---------|
+| `boomeramg_setup_solve.cpp:818` | V-cycle-1 probe x reset | `SetValues + Assemble` only | `Initialize + SetValues + Assemble` |
+| `boomeramg_setup_solve.cpp:909` | Main solve loop x reset | `SetValues + Assemble` only | `Initialize + SetValues + Assemble` |
+
+### Fix 2: Surgical `HYPRE_ClearError(HYPRE_ERROR_CONV)`
+
+`boomeramg_setup_solve.cpp:887` — replaced `HYPRE_ClearAllErrors()` with
+`HYPRE_ClearError(HYPRE_ERROR_CONV)` so the probe-induced convergence
+flag is cleared without masking any legitimate AMG_OOM / generic memory
+error bits that may have fired concurrently (more relevant at PR-B
+heihe_x16 scale).
+
+### Fix 3: `Tol=0.0` replaces `Tol=1e-300` denormal trick
+
+`boomeramg_setup_solve.cpp:811` — verified via Hypre 3.1.0 header
+`HYPRE_parcsr_ls.h:215-220`:
+
+> "(Optional) Set the convergence tolerance, if BoomerAMG is used as a
+> solver. If it is used as a preconditioner, it should be set to 0."
+
+`Tol=0.0` IS the documented "no convergence check / preconditioner mode"
+sentinel. Switched from `1e-300` to `0.0` for spec compliance. **Bitwise
+identical** `residual_reduction_v1` values vs round-1 baseline (50.8449 /
+73.8267 / 57.2150 / 50.8449), confirming the two values are semantically
+equivalent for this probe but `Tol=0.0` is now contractually documented.
+
+### Fix 4: Purged "Initialize on assembled is UB" misinformation
+
+`boomeramg_setup_solve.cpp:54-61` (docblock) + `boomeramg_setup_solve.cpp:893-900`
+(inline pre-loop comment) — removed claims that calling Initialize on an
+assembled vector is UB. Replaced with explicit Hypre 3.1.0 header
+citation. This verification.md `C1 fix verified` section above also
+updated with the retraction notice.
+
+### Fix 5: Hoisted `r_ij` to outer scope + bad_alloc cleanup
+
+`boomeramg_setup_solve.cpp:638` — moved `HYPRE_IJVector r_ij = nullptr;`
+declaration to the outer scope alongside `solver / A_ij / b_ij / x_ij`.
+`boomeramg_setup_solve.cpp:858` — set `r_ij = nullptr;` after the
+in-flight `IJVectorDestroy` so the catch arm skips double-destroy.
+`boomeramg_setup_solve.cpp:976` — added `if (r_ij) HYPRE_IJVectorDestroy(r_ij);`
+to the bad_alloc cleanup chain. At PR-B heihe_x16 scale (n ~ 485K,
+~3.9 MB alloc per IJVector) a bad_alloc raised between the probe's
+IJVectorCreate and IJVectorDestroy would have leaked this handle without
+the hoist.
+
+### Fix 6: Fixed `std::exit` destructor semantics comment
+
+`boomeramg_setup_solve.cpp:489-497` — comment had claimed `std::exit`
+runs destructors. Per C++ `[support.start.term]/p2`, `std::exit` runs
+atexit handlers + static-storage-duration destructors but does NOT
+unwind the stack, so local automatic-storage objects in `main()` are
+NOT destroyed. Comment now states this accurately + explains why the
+leak is benign in the SIGTERM-trap context (process about to die; kernel
+reclaims everything).
+
+### Fix 7: Fixed `hypre_version_runtime` ownership comment + cache pattern
+
+`boomeramg_setup_solve.cpp:373-403` — comment had claimed Hypre's
+`HYPRE_Version` returns a buffer that the library owns (no caller free).
+Per Hypre 3.1.0 `src/utilities/HYPRE_version.c`:
+
+```c
+version = hypre_CTAlloc(char, len, HYPRE_MEMORY_HOST);
+hypre_sprintf(version, "HYPRE Release Version %s", HYPRE_RELEASE_VERSION);
+*version_ptr = version;
+```
+
+Fresh allocation per call, caller owns + must `hypre_TFree`. The previous
+implementation leaked ~52 bytes per `cell_summary` emission. Round-2
+implements Option A (static `std::string` cache) — first call parses the
+dotted version triple and frees the Hypre-owned buffer; subsequent calls
+return the cached `c_str()` without re-probing. Symbol `hypre_TFree` is
+a macro (defined in `_hypre_utilities.h`, transitively included via
+`_hypre_parcsr_ls.h` → `_hypre_parcsr_mv.h` → `_hypre_utilities.h`).
+
+### Round-2 build + smoke verification
+
+Build: clean, zero warnings, zero errors. See
+`/tmp/phase6_round2_build.log`.
+
+4-combo keliya smoke (all PASS, bitwise-identical `residual_reduction_v1`
+vs round-1):
+
+| Combo | interp_type | coarsen_type | setup_wall_sec | apply_wall_sec | residual_reduction_v1 | verdict_class |
+|------:|------------:|-------------:|---------------:|---------------:|----------------------:|---------------|
+|     0 |           6 |            8 |       0.001620 |       0.000333 |               50.8449 | PASS          |
+|     1 |          14 |           10 |       0.000366 |       0.000319 |               73.8267 | PASS          |
+|     2 |           6 |           21 |       0.000394 |       0.000298 |               57.2150 | PASS          |
+|     3 |           8 |            8 |       0.000408 |       0.000329 |               50.8449 | PASS          |
+
+The `cell-N.log` files have been regenerated (overwriting round-1).
+`hypre_version=3.1.0 colpack_version=1.0.11 shud_pin=…` schema unchanged.
