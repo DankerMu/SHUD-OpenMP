@@ -7,7 +7,7 @@
 - **Tags**: klu / suitesparse / direct-sparse / pattern-spike / case-aware / amg-retreat / fill-axis / rss-axis / wall-axis
 - **Supersedes**: none (first KLU-related ADR)
 - **Superseded by**: none
-- **Related**: ADR-0004 maxl-sweep-decision (SPGMR maxl Optional-knob; baseline wall anchor heihe_x4 N=1 maxl=5 ≈ 0.227 s/step) + ADR-0003 precond-spike-decision (p8pre NO-GO; PREC_NONE production baseline) + master plan §P8-tune.D anchor + `openspec/changes/p8tune-klu-spike/` (epic SHUD-OpenMP#379) + PR-0 #384 (spike tool) + PR-A #385 (16-cell sweep) + 本 PR-B + 待开 PR-C (capstone)
+- **Related**: ADR-0004 maxl-sweep-decision (SPGMR maxl Optional-knob; baseline wall anchor heihe_x4 N=1 maxl=5 ≈ 0.227 s/step) + ADR-0003 precond-spike-decision (p8pre NO-GO; PREC_NONE production baseline) + master plan §P8-tune.D anchor + `openspec/changes/p8tune-klu-spike/` (epic SHUD-OpenMP#379) + PR-0 [#384](https://github.com/DankerMu/SHUD-OpenMP/pull/384) (spike tool) + PR-A [#385](https://github.com/DankerMu/SHUD-OpenMP/pull/385) (16-cell sweep) + PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (aggregator + ADR draft) + 本 PR-C [#388](https://github.com/DankerMu/SHUD-OpenMP/pull/388) (epic capstone — Accepted flip)
 
 ---
 

@@ -1,6 +1,6 @@
 # klu-pattern-spike-verdict Specification
 
-> **Status**: Implemented via PR-0 [#384](https://github.com/DankerMu/SHUD-OpenMP/pull/384) + PR-A [#385](https://github.com/DankerMu/SHUD-OpenMP/pull/385) + PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) + PR-C [#XXX](https://github.com/DankerMu/SHUD-OpenMP/pull/XXX) (epic [#379](https://github.com/DankerMu/SHUD-OpenMP/issues/379)).
+> **Status**: Implemented via PR-0 [#384](https://github.com/DankerMu/SHUD-OpenMP/pull/384) + PR-A [#385](https://github.com/DankerMu/SHUD-OpenMP/pull/385) + PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) + PR-C [#388](https://github.com/DankerMu/SHUD-OpenMP/pull/388) (epic [#379](https://github.com/DankerMu/SHUD-OpenMP/issues/379)).
 > **Verdict (as of 2026-06-29)**: **Case-aware** — `keliya` + `heihe` = GO (KLU env-var opt-in path); `heihe_x4` = Optional (1.87× wall over 0.7×SPGMR budget; near-miss); `heihe_x16` = NO-GO (17.9× wall over budget; structural).
 > **Forward actions**: P8-tune.E.small-only (medium priority — KLU env-var opt-in for keliya + heihe) + P8-tune.F (high priority — BoomerAMG/Hypre spike for heihe_x4 + heihe_x16).
 > **Authoritative ADR**: [docs/adr/0005-klu-spike-decision.md](docs/adr/0005-klu-spike-decision.md) (Status: Accepted).
