@@ -527,6 +527,118 @@ P8-tune.D 数据点也启发以下 P9+ 长程 epic 方向:
 
 ---
 
+# §10 GPT Pro 2026-06-29 Retrospective Review / 回顾性评审
+
+P8-tune.D epic PR-D #389 capstone-merge 当日 (2026-06-29) 由 GPT Pro 独立 retrospective 评审本研究 + master plan + ADR-0005, surfaced 4 项 corrections。本节记录评审 corrections + acceptance + revised forward path 作 audit trail。
+
+## §10.1 Corrections 概要
+
+| # | severity | 主题 | 影响范围 |
+|---|---|---|---|
+| F1 | HIGH | "GO acceleration" 不能由 pattern-only formula 直接得出 | ADR-0005 §Decision + 学术 §5/§8;keliya/heihe action wording revised |
+| F2 | MEDIUM | heihe\_x4 next-epic self-contradiction (use-future-amg vs p8-tune.E-klu-impl) | ADR-0005 §Decision decisive-cell pointer + master plan §P8-tune.F decision input |
+| F3 | HIGH | #386 升级为 P8-tune.F + P8-tune.E hard prereq | #386 重开 + master plan §P8-tune.F + §P8-tune.E PR-0 prereq |
+| F4 | HIGH | Phase 3 应改为 mini-prototype-first, A5 conditional, P8-tune.F primary | master plan §P8-tune.E.small-only re-scope + §P8-tune.F priority confirm HIGH |
+
+## §10.2 F1 — Wall budget unit-mismatch caveat
+
+**Problem**: §5.3 Tab.8 wall axis 全 case 用统一 `WALL_BUDGET_S = 0.7 × heihe_x4 N=1 SPGMR per-step (0.226579 s) = 0.158605 s/step`,作 3-axis 第三轴 PASS/FAIL threshold。这一统一 budget 是为 across-case 一致性选择,但 small case PASS 宽裕 (keliya 0.6% / heihe 14.5% of budget) **不等价于** "KLU 比 small case 自己的 SPGMR 快"。
+
+**GPT Pro empirical evidence** (cross-checked against epic #362 PR-D 60-cell sweep `_summary.tsv`):
+
+| case | own SPGMR per-step (s) | KLU per-step est (s) | speedup ratio | acceleration verdict |
+|---|---:|---:|---:|---|
+| keliya | ≈ 0.0003 (estimated by NumY scaling) | 0.0009 | 0.33× | **slower 3× per-step (but overall wall trivially small)** |
+| heihe | 0.0222 (= 148.43s / 6698 nst, heihe N=1 maxl=5 3-rep median) | 0.0230 | 0.97× | **持平或略慢 (within noise)** |
+| heihe\_x4 | 0.226579 (recorded baseline) | 0.2967 | 0.76× | slower 24% (= the §5.3 1.87× failure) |
+| heihe\_x16 | not measured (uses heihe\_x4 baseline as proxy) | 2.844 | 0.056× | slower 18× (= the §5.3 17.9× failure) |
+
+**Acceptance + Resolution**: §5.3/§6.1/§8 conclusion 表述从 "**GO** klu-env-var-opt-in" 收紧为 "**pattern-feasible / prototype-worthy**"。actual wall improvement on production cases 必须由 CVODE-integrated mini-prototype 实测确认。本研究 §6.1 H1 PASS 仍成立 (pattern-only 三轴可行),但 §6.1 PASS ≠ "implies wall acceleration",必须明确区分。
+
+详 [ADR-0005 §"Why not 'GO acceleration' yet for small cases"](docs/adr/0005-klu-spike-decision.md) 子节 (本日 amended)。
+
+## §10.3 F2 — heihe\_x4 next-epic self-contradiction
+
+**Problem**: ADR-0005 §Decision 表 heihe\_x4 recommended action = `use-future-amg`, 但同 ADR decisive-cell pointer KV `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl priority=medium`。两 statement 矛盾——is heihe\_x4 走 AMG (P8-tune.F) 还是 KLU (P8-tune.E)?
+
+**Acceptance + Resolution**: 统一 heihe\_x4 **主路径 = P8-tune.F BoomerAMG/Hypre** (high priority)。KLU mini-prototype 作 **low-priority optional branch**, 仅在 future CVODE refactor cadence profiling 后由 mini-spike trigger。ADR-0005 §Decision decisive-cell pointer 行已 amended (`p8-tune.E-klu-impl` → `klu-mini-prototype-deferred`)。aggregator code 未改 (避免回归 PR-A 数据),future P8-tune.E.small-only PR-0 可一并 amend。
+
+## §10.4 F3 — #386 升级为 hard prereq
+
+**Problem**: PR-A in-session 把 #386 SHUD `Model_Data` 析构链 uninit-pointer UB 标 deferred 并随 PR-C 关闭。但 #386 标题是 large NumY 下 `fd_color_jacobian` heap corruption (`free(): invalid pointer`),`-O1` / strict-aliasing 调整未解决——仅 `_exit(0)` workaround 绕过 dtor 调用。**任何 future 路径若复用 `fd_color_jacobian` / numeric J / KLU/AMG 工具链**, dtor 会被 production init/teardown 调到,UB 必然 exposed。
+
+**Acceptance + Resolution**: #386 **re-opened** (2026-06-29) 标 prerequisite for:
+- P8-tune.F PR-0 (BoomerAMG/Hypre 复用 dump_adjacency + fd_color_jacobian)
+- P8-tune.E.small-only PR-0 (SUNLinSol_KLU CVODE integration 调 SHUD 全 init/teardown 90-day)
+- 任何 P9+ epic 接 fd_color_jacobian / dump_adjacency 工具
+
+详 §9.3 + master plan §P8-tune.F PR-0 + §P8-tune.E.small-only PR-0 dependency。
+
+## §10.5 F4 — Phase 3 re-routing: P8-tune.F primary + P8-tune.E mini-prototype-first
+
+**Problem**: 原 §9.1 + master plan §P8-tune.E.small-only scope 是 4-PR ~3w medium priority,含 A5 hydrology-equivalence gate (PR-B) + ADR-0006 promotion (Performance-tier → A5-certified-tier)。但 KLU 已被 wall axis 否决 (heihe\_x4 Optional + heihe\_x16 NO-GO),小 case 也仅 pattern-feasible。A5 是昂贵验收,**应用在 integrated solver candidate 有 wall improvement 的阶段, 而不是 pattern-only candidate 上**。GPT Pro 建议:**P8-tune.F BoomerAMG/Hypre 是大 case 加速 main objective primary line,应优先;P8-tune.E.small-only 仅 mini-prototype,A5 conditional**。
+
+**Acceptance + Resolution**: 完全采纳。Forward priority 反转:
+
+```
+P8-tune.D close (2026-06-29 PR-D #389 merge)
+       │
+       ├── Step 0 (本日 ADR + master plan correction PR)
+       │        ↓
+       │   #386 re-opened
+       │        ↓
+       ├── PRIMARY (HIGH priority): P8-tune.F BoomerAMG/Hypre spike (~4 weeks)
+       │        prereq = #386 closure
+       │        scope = pattern/numeric-only spike (类 P8-tune.D zero-CVODE pattern)
+       │        5-PR: PR-0 #386 fix → PR-A AMG build + Mac smoke → PR-B 12-16 cell sweep
+       │               → PR-C aggregator + ADR-0007 → PR-D epic capstone
+       │        ADR-0007 4-branch:
+       │          - heihe_x4 + heihe_x16 全 PASS → GO → P8-tune.G full AMG + A5
+       │          - heihe_x4 PASS, heihe_x16 FAIL → Optional → P8-tune.G heihe_x4 only
+       │          - both FAIL → NO-GO → P8-tune.H GPU sparse spike
+       │          - #386 未闭合 → BLOCKED
+       │
+       └── OPTIONAL (medium priority): P8-tune.E.small-only KLU mini-prototype (~2 weeks)
+                prereq = #386 closure (与 P8-tune.F shared)
+                scope = mini-prototype-first, A5 conditional
+                4-PR: PR-0 SHUD_KLU_ENABLE env-var hook (keliya + heihe only;
+                       AMD + btf=0 hardcoded per P8-tune.D ordering lock)
+                     → PR-A actual CVODE-integrated wall measurement
+                       vs case-specific SPGMR baseline (NOT global budget)
+                     → PR-B CONDITIONAL A5 gate:
+                         IF wall improvement ≥ 10% on heihe → A5 + ADR-0006 promotion
+                         ELIF wall ≈ 持平 (-5% to +5%) → ship Optional + no-speedup tier
+                         ELIF wall regress < -5% → close NO-GO
+                     → PR-C epic capstone
+```
+
+A5 hydrology-equivalence 不作 pattern-only candidate 的 direct gate, 仅作 integrated solver candidate 的验收 gate。
+
+详 master plan §P8-tune.F (HIGH primary, re-scoped 5-PR) + §P8-tune.E.small-only (OPTIONAL/medium, re-scoped 4-PR mini-prototype-first) 本日修订。
+
+## §10.6 GPT Pro 评审之总评价
+
+GPT Pro 总结 (节选,中文):
+
+> Phase 1 与 Phase 2 基本达到阶段目标,但结论需要更精确地落地。Phase 2 KLU pattern-only spike 回答了 "KLU 的 fill / RSS / isolated numeric factor wall 在不同规模下是否可行" 这个问题,**但没有证明 KLU 能带来 production wall 加速**,尤其没有证明 heihe / heihe_x4 的 CVODE-integrated KLU 速度会优于 SPGMR。它是 pattern-only / factor-only spike, 不是 solver integration benchmark。
+>
+> 如果总目标是 "水文学可验收的大 case 加速 = heihe_x4 / heihe_x16 wall ↓ + A5 PASS", 那么 Phase 2 的真实结论是:**KLU 不适合作为大 case 主线;下一步应优先 P8-tune.F BoomerAMG/Hypre, 而不是 P8-tune.E.small-only。**
+
+**本研究 + 工程主线 全部 acceptance**:
+- F1 acceptance:ADR-0005 + 学术 §5/§8 corrections landed 本日。
+- F2 acceptance:ADR-0005 §Decision decisive-cell pointer amended 本日。
+- F3 acceptance:#386 reopened 本日 + master plan §P8-tune.F PR-0 + §P8-tune.E PR-0 dependency landed。
+- F4 acceptance:master plan §P8-tune.F priority confirm HIGH + §P8-tune.E.small-only re-scope mini-prototype-first + A5 conditional landed 本日。
+
+**方法学层面 lesson learnt** (本研究主线长期保留):
+- **Pattern-only spike output ≠ production acceleration claim**:future architectural spike epic 应在 verdict 表述上明确 "feasibility verdict" vs "acceleration verdict" 二分。本研究 §6 已用 "pattern-feasible" 但 §5 Tab.8 + §8 conclusion 第 1 项 "完全可行" 仍可能被读为 "GO acceleration",应进一步收紧。GPT Pro 评审帮助暴露了这一表述盲区。
+- **Wall budget 单位选择**:统一 budget (across-case 一致性) vs case-specific baseline (per-case acceleration claim) 二者目的不同, future spike 应同时 report 两种 verdict, 避免 reader 误读。本研究 §3.1 Tab.1 wall 阈值仅用统一 0.7×SPGMR baseline, 是该盲区的方法学源头。
+- **A5 验收应保留给 integrated solver candidate**:pattern-only candidate (无 CVODE wire-up / 无 SHUD model run) 不具备 A5 验收的 input,不应作 A5 gate trigger。
+
+本节本身也是本研究学术 capstone 的方法学贡献:**post-merge retrospective review 是 capstone 文档的合法组成部分**, 不应被视为研究后批评而摒弃。本研究通过纳入 GPT Pro retrospective 至 capstone, 同时实现 (i) audit trail 完整性 + (ii) forward path 工程正确性 + (iii) 方法学透明度。
+
+---
+
 # References / 参考文献
 
 ## 内部 docs

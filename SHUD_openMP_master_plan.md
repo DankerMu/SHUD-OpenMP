@@ -2537,39 +2537,65 @@ ADR-0005 GO / Optional / Case-aware / NO-GO branches are **all auto-typed by the
 
 详 archived openspec change `p8tune-klu-spike` (canonical spec at [openspec/specs/klu-pattern-spike-verdict/spec.md](openspec/specs/klu-pattern-spike-verdict/spec.md))。
 
-##### P8-tune.E.small-only — KLU env-var opt-in for small cases ([OPEN, anchor] per 2026-06-29)
+##### Post-P8-tune.D GPT Pro 2026-06-29 retrospective corrections
 
-**Trigger condition**: P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `keliya`+`heihe` GO on all 3 axes (fill+RSS+wall). Forward path is **KLU env-var opt-in** mirroring ADR-0004 `SHUD_SPGMR_MAXL` Optional-knob pattern, NOT a full integration epic.
+ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审,surfaced 4 项 corrections (F1 HIGH + F2 MEDIUM + F3 HIGH + F4 HIGH),全部 adopted。完整 audit trail 详 [ADR-0005 §GPT Pro 2026-06-29 retrospective corrections](docs/adr/0005-klu-spike-decision.md#gpt-pro-2026-06-29-retrospective-corrections)。
 
-**4-PR scope (forthcoming openspec change `p8tune-klu-small-only-opt-in`, ~3 weeks budget, medium priority)**:
+**核心修订** (落在本节下游 §P8-tune.E.small-only + §P8-tune.F):
+- **F1**: `keliya`/`heihe` 判定从 "GO acceleration" 收紧为 "pattern-feasible / prototype-worthy"。原因:aggregator wall budget 用统一 heihe_x4 N=1 SPGMR per-step (0.226579s),按 case-specific SPGMR baseline 重计 heihe own per-step ≈ 0.0222s vs KLU est 0.0230s **持平或略慢**。真实 wall improvement 必须由 CVODE-integrated mini-prototype 实测确认。
+- **F2**: heihe_x4 主路径统一为 **P8-tune.F BoomerAMG/Hypre**,KLU mini-prototype 仅 low-priority optional branch (移除原 `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl` self-contradictory decisive-cell pointer)。
+- **F3**: [#386](https://github.com/DankerMu/SHUD-OpenMP/issues/386) SHUD `Model_Data` 析构链 uninit-pointer audit **re-opened**,标 P8-tune.F PR-0 + P8-tune.E.small-only PR-0 hard prereq。workaround `_exit(0)` 仅 P8-tune.D spike scope acceptable, 不适用任何 production CVODE integration。
+- **F4**: **Forward priority 反转** — P8-tune.F **primary line** (HIGH priority,大 case 加速主目标);P8-tune.E.small-only **optional/medium**, scope re-scaled 为 mini-prototype-first (PR-A 实测 wall vs case-specific SPGMR baseline,PR-B A5 gate **CONDITIONAL** 仅 wall ≥ 10% improvement 才进)。A5 hydrology-equivalence 不作 pattern-only candidate 直接 gate,仅作 integrated solver candidate 的验收 gate。
 
-| PR | scope | depends on |
-|---|---|---|
-| PR-0 | `SHUD_KLU_ENABLE=1` env-var hook in `cvode_config.cpp` (SUNLinSol_KLU constructor wire-up; default OFF; opt-in only) + small-case smoke (keliya 90-day) | P8-tune.D CLOSE + [#386](https://github.com/DankerMu/SHUD-OpenMP/issues/386) destructor audit FIX (prereq, must land first) |
-| PR-A | server 12-cell sweep (keliya + heihe × N=1/4/8 × 3 rep) measure end-to-end SHUD wall + ncfl/nli/nni counter delta vs SPGMR baseline | PR-0 merged |
-| PR-B | A5 hydrology-equivalence gate (rivqdown.dat NSE/KGE/peak/water-balance vs PREC_NONE B1b baseline) on heihe N=1 + ADR-0006 promotion (Performance-tier → A5-certified-tier) | PR-A complete |
-| PR-C | epic capstone + master plan §P8-tune.E.small-only [OPEN]→[CLOSED] + OpenSpec archive | PR-B ADR-0006 |
-
-**Out of scope**: heihe_x4/x16 (those cases go to §P8-tune.F BoomerAMG path). NO `SHUD_KLU_ENABLE=1` for production large-case workflows; env-var gates large-case to fall-through-to-SPGMR per ADR-0005 §Decision.
-
-**Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `keliya_recommended_action = klu-env-var-opt-in` + `heihe_recommended_action = klu-env-var-opt-in`).
-
-##### P8-tune.F — BoomerAMG/Hypre spike for large cases ([OPEN, anchor] per 2026-06-29)
+##### P8-tune.F — BoomerAMG/Hypre spike for large cases ([OPEN, anchor — PRIMARY forward line] per 2026-06-29 + GPT Pro F4)
 
 **Trigger condition**: P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `heihe_x4` Optional (1.87× wall over 0.7×SPGMR budget; near-miss) + `heihe_x16` NO-GO (17.9×; structural). SPGMR Krylov-vector path saturated per ADR-0004 + KLU fill-axis fine but wall-axis blown per ADR-0005. AMG is the algebraically-correct retreat: O(N) memory + scales for elliptic-parabolic PDE structure native to SHUD domain.
 
-**4-PR scope (forthcoming openspec change `p8tune-amg-spike`, ~4 weeks budget, high priority)**:
+**Priority**: **HIGH (primary forward line for 大 case 加速 main objective)**, **before** P8-tune.E.small-only mini-prototype。理由 (per GPT Pro F4): P8-tune.D 已证 KLU 在大 case 上不可行;若 user goal 是 heihe_x4 / heihe_x16 wall ↓ + A5 PASS, AMG/Hypre 是 ADR-0005 唯一指明的 viable architectural path,应优先验证。
+
+**5-PR scope (forthcoming openspec change `p8tune-amg-spike`, ~4 weeks budget, HIGH priority)**:
 
 | PR | scope | depends on |
 |---|---|---|
-| PR-0 | tool authoring — BoomerAMG/Hypre spike (`tools/p8tune.F/{dump_adjacency,fd_color_jacobian,boomeramg_setup_solve}.cpp`) reusing PR-0 #384 dump_adjacency + fd_color_jacobian + Hypre + IJMatrix CSR wrap + Mac keliya smoke | P8-tune.D CLOSE |
-| PR-A | server 16-cell Slurm array sweep (4 case × 4 (interp_type, coarsen_type) combo per BoomerAMG best-practice) on cn[05-06,09,14-19,23-24] | PR-0 merged |
-| PR-B | aggregator + ADR-0007 verdict (3-axis hard threshold: setup_wall + solve_wall + memory; AMG-specific: cycle_complexity + operator_complexity) | PR-A complete |
-| PR-C | epic capstone + (conditional) trigger P8-tune.G full AMG + A5 integration epic OR P8-tune.H GPU sparse spike (if AMG also NO-GO on heihe_x16) | PR-B ADR-0007 |
+| PR-0 | [#386](https://github.com/DankerMu/SHUD-OpenMP/issues/386) SHUD `Model_Data` 析构链 uninit-pointer fix (P8-tune.F prereq per GPT Pro F3) + fd_color_jacobian + numeric J pipeline 在 heihe_x4/x16 上稳定性确认 (无 heap corruption, 无 `_exit(0)` workaround) | P8-tune.D CLOSE |
+| PR-A | tool authoring — Hypre/BoomerAMG build + tiny matrix smoke (Mac keliya level) + libshud.a 链 (类 P8-tune.D PR-0 carve-out 模式) | PR-0 merged |
+| PR-B | server 12-16 cell Slurm array sweep on heihe + heihe_x4 + heihe_x16 (4 (interp_type, coarsen_type) combo per BoomerAMG best-practice; numeric J 由 PR-A fd_color reuse) on cn[05-06,09,14-19,23-24] | PR-A merged |
+| PR-C | aggregator + ADR-0007 verdict (3-axis hard threshold: setup_wall + apply_wall + memory; AMG-specific axes: cycle_complexity + operator_complexity + residual_reduction_per_V-cycle) | PR-B complete |
+| PR-D | epic capstone + (conditional) trigger P8-tune.G full AMG + A5 integration epic OR P8-tune.H GPU sparse spike (if AMG also NO-GO on heihe_x16) + master plan §P8-tune.F [OPEN]→[CLOSED] + OpenSpec archive | PR-C ADR-0007 |
 
-**Out of scope**: SHUD source patch (Hypre spike links libshud.a only, same pattern as P8-tune.D PR-0); CVODE integration (deferred to forthcoming P8-tune.G full epic); A5 hydrology-equivalence (deferred to P8-tune.G — pattern-only spike same as P8-tune.D).
+**Out of scope**: SHUD source patch (Hypre spike links libshud.a only, same pattern as P8-tune.D PR-0); CVODE integration (deferred to forthcoming P8-tune.G full epic per ADR-0007 GO branch); A5 hydrology-equivalence (deferred to P8-tune.G — pattern-only spike same as P8-tune.D)。
 
-**Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `heihe_x4_recommended_action = use-future-amg` + `heihe_x16_recommended_action = use-future-amg` + `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl` — note decisive-cell pointer flags heihe_x4 as boundary case; P8-tune.E.small-only may absorb heihe_x4 if `refactor_freq ≥ 20` CVODE cadence flips the verdict).
+**ADR-0007 4-branch decision tree (forthcoming)** (per GPT Pro F4 推荐 AMG go/no-go):
+
+| AMG result | next |
+|---|---|
+| heihe_x4 + heihe_x16 setup/RSS/apply 全 PASS | GO → P8-tune.G full AMG CVODE integration epic |
+| heihe_x4 PASS, heihe_x16 FAIL | Optional → production-target only (P8-tune.G covers heihe_x4 only) |
+| both FAIL | NO-GO → P8-tune.H GPU sparse spike OR reconsider solver architecture (domain decomposition / multigrid hybrid) |
+| #386 未闭合导致工具不稳定 | BLOCKED → fix #386 root cause first |
+
+**Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `heihe_x4_recommended_action = use-future-amg` + `heihe_x16_recommended_action = use-future-amg`)。**Note** (per GPT Pro F2): 原 `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl` decisive-cell pointer 与 `use-future-amg` 矛盾,已被 ADR-0005 retrospective amendment 撤回;统一 heihe_x4 主路径 = P8-tune.F。
+
+##### P8-tune.E.small-only — KLU env-var mini-prototype for small cases ([OPEN, anchor — OPTIONAL/medium] per 2026-06-29 + GPT Pro F4)
+
+**Trigger condition**: P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `keliya`+`heihe` 3 axes ALL PASS (pattern-feasible/prototype-worthy per GPT Pro F1 retrospective)。Forward path 仅 mini-prototype 验证 actual wall improvement, **不直接** 进 full integration + A5 (per GPT Pun F4 retrospective)。
+
+**Priority**: **OPTIONAL/medium**, **after** P8-tune.F PR-0 #386 fix (其本身就是 P8-tune.E PR-0 prereq)。可与 P8-tune.F PR-A/B/C 并行,但不抢占 cn-node 资源 (P8-tune.F primary)。
+
+**4-PR scope (forthcoming openspec change `p8tune-klu-small-mini-prototype`, ~2 weeks budget, OPTIONAL priority — re-scoped per GPT Pro F4)**:
+
+| PR | scope | depends on |
+|---|---|---|
+| PR-0 | `SHUD_KLU_ENABLE=1` env-var hook in `cvode_config.cpp` (SUNLinSol_KLU constructor wire-up; default OFF; opt-in only); cases = keliya + heihe only;runs = N=1 (and optionally N=8 for default-compat sanity);**hardcoded `AMD + btf=0`** per P8-tune.D ordering lock | P8-tune.D CLOSE + [#386](https://github.com/DankerMu/SHUD-OpenMP/issues/386) destructor audit FIX (prereq, must land first — same as P8-tune.F PR-0) |
+| PR-A | server 6-12 cell sweep — keliya + heihe × N=1 (+ N=8 sanity) × 3 rep — 实测 **actual CVODE-integrated wall** + `nst/nfe/nli/ncfn/ncfl` counters vs **case-specific SPGMR baseline** (heihe own per-step ≈ 0.0222s, NOT global heihe_x4 budget) | PR-0 merged |
+| PR-B | **CONDITIONAL A5 gate** (per GPT Pro F4 retrospective): IF PR-A actual wall improvement ≥ 10% on heihe (or keliya) THEN proceed to A5 hydrology-equivalence (rivqdown NSE/KGE/peak/water-balance vs PREC_NONE B1b baseline) + ADR-0006 promotion (Performance-tier → A5-certified-tier); ELIF wall ≈ 持平 (-5% to +5%) THEN close epic with verdict "pattern-feasible-but-no-acceleration", NO A5 gate, ship as Optional knob with explicit "no measured speedup" annotation; ELIF wall regress < -5% THEN close epic as NO-GO without ship | PR-A wall measurement complete |
+| PR-C | epic capstone + master plan §P8-tune.E.small-only [OPEN]→[CLOSED] (with one of 3 verdicts above) + OpenSpec archive | PR-B verdict |
+
+**Out of scope**: heihe_x4/x16 (those cases 走 §P8-tune.F BoomerAMG path,本 epic 不 absorb 即使 future cadence profiling 显示 Optional flip);default-ON 部署 (用户必须显式 `SHUD_KLU_ENABLE=1`);跨工具链 A5 (Mac libomp / server libgomp 双工具链 A5 deferred 到 P9+ epic per ADR-0005 §Limitations)。
+
+**Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `keliya_recommended_action = klu-pattern-feasible-prototype-worthy` + `heihe_recommended_action = klu-pattern-feasible-prototype-worthy` per F1 retrospective amendment;原 `klu-env-var-opt-in` 收紧为 prototype-first 语义)。
+
+**期望产出**: 三选一 verdict at PR-B:(i) ship KLU env-var opt-in tier (Optional + A5-certified) 若 wall ≥ 10% improvement;(ii) ship as "Optional + no-measured-speedup" tier 若 wall 持平 (类似 ADR-0004 `SHUD_SPGMR_MAXL=30` Performance opt-in but without speedup claim);(iii) close epic as NO-GO 若 wall regress。任 verdict 均不抢占 P8-tune.F primary line。
 
 ##### P8-precond.1 — 物理分块结构设计
 
