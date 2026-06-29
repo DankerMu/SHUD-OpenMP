@@ -26,7 +26,16 @@
 #   - SUNDIALS: pulled from SHUD/InstallSundials/ via SHUD's existing dir
 
 CXX ?= g++
-CXXFLAGS ?= -O2 -g -ffp-contract=off -fno-fast-math -std=c++14 -Wall
+# -O1 deliberate: gcc 13 + -O2 + std=c++14 produces a heap-corruption UB in
+# fd_color_jacobian.cpp's color-loop interaction with Model_Data state at
+# NumY > 100k (heihe_x4, heihe_x16); reproducible on cn-node sbatch with
+# `free(): invalid pointer` between color 9/16 and color 10/16 probe. ASan
+# build at -O1 ran the full pipeline cleanly + emitted J binary. The bug is
+# not strict-aliasing (-fno-strict-aliasing -fwrapv didn't fix it). Spike
+# binaries are not perf-critical (the wall-axis verdict is dominated by KLU
+# library work, not spike main), so -O1 is the safe + ship-able workaround.
+# Root-cause investigation tracked separately as PR-A follow-up.
+CXXFLAGS ?= -O1 -g -ffp-contract=off -fno-fast-math -std=c++14 -Wall
 
 # --- platform-conditional libomp / libgomp ---
 UNAME_S := $(shell uname -s)

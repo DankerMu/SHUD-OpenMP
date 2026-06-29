@@ -308,6 +308,18 @@ int main(int argc, char **argv) {
             klu_free_symbolic(&Symbolic, &common);
             return 0;
         }
+        if (common.status == KLU_TOO_LARGE) {
+            // 32-bit-int index overflow inside KLU's internal indexing of L+U
+            // nnz at large NumY (heihe_x16, natural+BTF, NumY=485250 hits this
+            // because natural-ordering nnz exceeds 2^31). Per spec REQ-5
+            // Scenario "Tool-bound data point", emit a recognized marker +
+            // exit 0 so the aggregator treats it as an axis-typed data point
+            // (NOT a Slurm-FAILED real failure).
+            std::printf("KLU_INDEX_OVERFLOW_DETECTED case=%s ordering=%s btf=%d peak_rss_bytes=%zu reason=klu_factor_status_KLU_TOO_LARGE_int32_index_overflow\n",
+                        case_name.c_str(), ordering_name.c_str(), btf_flag, rss_post);
+            klu_free_symbolic(&Symbolic, &common);
+            return 0;
+        }
         std::fprintf(stderr, "[klu] ERROR: klu_factor failed (common.status=%d)\n", common.status);
         klu_free_symbolic(&Symbolic, &common);
         return 1;
