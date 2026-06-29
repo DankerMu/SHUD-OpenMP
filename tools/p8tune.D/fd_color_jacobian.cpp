@@ -470,5 +470,12 @@ int main(int argc, char **argv) {
     // valgrind for future regression protection).
     std::fflush(stdout);
     std::fflush(stderr);
+    // Explicit success-path heap release: mirror the error-path convention
+    // (`delete MD; delete fout; delete fin; return 1;` at L308/L318/L432)
+    // so the ~Model_Data() → FreeData() chain fires on the happy path too.
+    // Phase 6 round-1 cross-review F1 closure.
+    delete MD;
+    delete fout;
+    delete fin;
     return 0;
 }

@@ -1412,19 +1412,24 @@ jobs:
       - name: Run ${{ matrix.case }} under ASan + UBSan
         if: steps.skip_check.outputs.skipped != 'true' && steps.case_gate.outputs.active == 'true' && steps.data_probe.outputs.data_available == 'true'
         env:
-          # P8-tune.F PR-0 (#394 / #386): detect_leaks flipped 0 → 1 so the
-          # ASan exit path emits a `LEAK SUMMARY:` line on stderr, evidence
-          # that the C++ destructor chain ran to completion (the previous
-          # `_exit(0)` short-circuit in tools/p8tune.D/* and any future
-          # regression that bypasses dtors would silently skip this line).
-          # halt_on_error=1 still fails the job on first UAF/OOB/double-free
-          # hit. exitcode=0 prevents ASan-summary-only paths (zero-leak,
-          # zero-error) from non-zero-exiting on the LEAK SUMMARY emission.
-          # print_suppressions=0 keeps the log uncluttered; we only care
-          # about the SUMMARY line, the leak-by-leak details are in the
-          # artifact for diagnostic spelunking.
+          # P8-tune.F PR-0 (#394 / #386) Phase 6 — dtor coverage gate revised:
+          # the prior LeakSanitizer-summary approach (`detect_leaks=1` + grep
+          # for `LEAK SUMMARY:`) was three-way broken:
+          #   (a) `LEAK SUMMARY:` is a valgrind-only string; LeakSanitizer
+          #       emits `==<pid>==ERROR: LeakSanitizer: detected memory leaks`
+          #       only on a non-zero-leak run — silent on a clean run, which
+          #       would invert the gate (clean = false fail);
+          #   (b) the prior asan_err grep at the same place matched
+          #       `==<pid>==ERROR: LeakSanitizer:` so `exit 1` would fire
+          #       before the leak-summary check ran (unreachable gate);
+          #   (c) `exitcode=0` was needed only to neuter (a); now removed.
+          # Replaced with a POSITIVE sentinel grep on stdout for SHUD's
+          # `The successful end.` print (emitted on normal main() return path
+          # AFTER all init + state writes; if `_exit/abort/crash` bypasses
+          # normal return, marker absent → gate fails as intended).
+          # halt_on_error=1 still fails on first UAF/OOB/double-free.
           # Per spec amg-pattern-spike-verdict REQ-3 dtor coverage gate.
-          ASAN_OPTIONS: "detect_leaks=1:halt_on_error=1:print_stacktrace=1:exitcode=0:print_suppressions=0"
+          ASAN_OPTIONS: "detect_leaks=0:halt_on_error=1:print_stacktrace=1:print_suppressions=0"
           UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=1"
         run: |
           rm -rf SHUD/Basins/${{ matrix.case }}/output/${{ matrix.case }}.out
@@ -1441,31 +1446,36 @@ jobs:
           asan_err=$(grep -cE 'AddressSanitizer.*ERROR|==.*==ERROR' sanitizer_run_${{ matrix.case }}.stderr.log || true)
           ubsan_err=$(grep -cE 'runtime error|UndefinedBehavior.*ERROR' sanitizer_run_${{ matrix.case }}.stderr.log || true)
           asan_warn=$(grep -cE 'AddressSanitizer.*WARNING|UndefinedBehaviorSanitizer.*WARNING' sanitizer_run_${{ matrix.case }}.stderr.log || true)
-          # P8-tune.F PR-0 (#394 / #386) — dtor coverage gate: assert the
-          # ASan `LEAK SUMMARY:` line is present in stderr. Its presence
-          # proves the destructor chain ran to completion (no `_exit(0)`
-          # or `abort()` short-circuit anywhere); its absence indicates
-          # silent dtor bypass + immediate hard fail.
-          leak_summary_count=$(grep -cE '^==[0-9]+==(ERROR: LeakSanitizer:|SUMMARY: AddressSanitizer: detected memory leaks)|LEAK SUMMARY:' sanitizer_run_${{ matrix.case }}.stderr.log || true)
+          # P8-tune.F PR-0 (#394 / #386) Phase 6 — dtor coverage POSITIVE
+          # sentinel: SHUD CLI prints `The successful end.` on the normal
+          # main() return path (see SHUD/src/Model/shud.cpp; emitted AFTER
+          # write outputs and BEFORE main exits). If _exit(0)/abort()/SIGSEGV
+          # bypasses normal return, marker is absent → gate fails.
+          # The marker is generated IFF the C++ dtor chain ran to completion
+          # (the converse direction is what we want: positive emission proves
+          # full dtor coverage). Per Phase 5 cross-review F2 closure.
+          marker_count=$(grep -cE 'The successful end\.' sanitizer_run_${{ matrix.case }}.stdout.log || true)
           echo "ASan ERROR: $asan_err"
           echo "UBSan ERROR: $ubsan_err"
           echo "Sanitizer WARNING: $asan_warn"
-          echo "LEAK SUMMARY presence: $leak_summary_count"
+          echo "Dtor-coverage sentinel ('The successful end.') count: $marker_count"
+          # Order: check positive sentinel FIRST so the dtor-coverage
+          # regression signal isn't masked by an ASan error that happens to
+          # fire on the same broken run.
+          if [[ "$marker_count" == "0" ]]; then
+            echo "::error title=Dtor coverage missing (${{ matrix.case }})::Positive sentinel 'The successful end.' absent from sanitizer stdout — destructor chain did not run to completion. Regression of P8-tune.F PR-0 #386 fix (Model_Data + sibling-class NSDMI defaults) or reintroduction of _exit/abort workaround suspected. See sanitizer_run_${{ matrix.case }}.stdout.log artifact."
+            tail -50 sanitizer_run_${{ matrix.case }}.stdout.log
+            exit 1
+          fi
           # Per spec L57 + P8-tune.F PR-0 REQ-3: "ASan 报告 0 errors;
-          # UBSan 报告 0 errors 0 warnings; LEAK SUMMARY: 行可见 (dtor
-          # 全程跑)". Hard-fail on any ASan/UBSan error/warning OR on
-          # absent LEAK SUMMARY emission (= dtor bypass regression).
+          # UBSan 报告 0 errors 0 warnings; dtor 全程跑". Hard-fail on any
+          # ASan/UBSan error/warning.
           if [[ "$asan_err" != "0" || "$ubsan_err" != "0" || "$asan_warn" != "0" ]]; then
             echo "::error title=ASan/UBSan ${{ matrix.case }} non-clean::ASan=$asan_err UBSan_err=$ubsan_err Sanitizer_warn=$asan_warn — see sanitizer_run_${{ matrix.case }}.stderr.log artifact for details."
             head -200 sanitizer_run_${{ matrix.case }}.stderr.log
             exit 1
           fi
-          if [[ "$leak_summary_count" == "0" ]]; then
-            echo "::error title=ASan dtor coverage missing (${{ matrix.case }})::No LEAK SUMMARY line in sanitizer stderr — destructor chain did not run to completion. Regression of P8-tune.F PR-0 #386 fix (Model_Data NSDMI defaults) or reintroduction of _exit/abort workaround suspected. See sanitizer_run_${{ matrix.case }}.stderr.log artifact."
-            head -200 sanitizer_run_${{ matrix.case }}.stderr.log
-            exit 1
-          fi
-          echo "S5d.2-5a + P8-tune.F PR-0 ASan + UBSan ${{ matrix.case }} 90-day NUM_OPENMP=1 CLEAN (0 errors / 0 warnings / LEAK SUMMARY present = dtor full)"
+          echo "S5d.2-5a + P8-tune.F PR-0 ASan + UBSan ${{ matrix.case }} 90-day NUM_OPENMP=1 CLEAN (0 errors / 0 warnings / dtor-coverage sentinel present = dtor full)"
 
       - name: Upload sanitizer diagnostics
         # Always upload when the case actually ran (active gate satisfied

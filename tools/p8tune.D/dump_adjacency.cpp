@@ -439,5 +439,13 @@ int main(int argc, char **argv) {
     // "_exit(0) workaround removal").
     std::fflush(stdout);
     std::fflush(stderr);
+    // Explicit success-path heap release: mirror the error-path convention
+    // (`delete MD; delete fout; delete fin; return 1;`) so the
+    // ~Model_Data() → FreeData() chain fires on the happy path too. This
+    // is the positive signal the CI dtor-coverage gate (ASan + LeakSanitizer
+    // on Linux) checks for. Phase 6 round-1 cross-review F1 closure.
+    delete MD;
+    delete fout;
+    delete fin;
     return ok ? 0 : 1;
 }

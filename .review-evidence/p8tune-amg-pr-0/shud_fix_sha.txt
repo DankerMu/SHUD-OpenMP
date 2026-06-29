@@ -1,9 +1,17 @@
-P8-tune.F PR-0 (#394 / #386) — SHUD submodule fix commit
+P8-tune.F PR-0 (#394 / #386) — SHUD submodule fix commits
 
 branch: openmp-baseline (per CLAUDE.md SHUD submodule 工作流)
-parent SHA (pre-fix): 710c00a4  (== 710c00a FloodAlert fix)
-fix SHA (post-fix):   056a1dce4b75e79779242b4796e178bebe89680b
 
-Outer pointer bump expected to track: 056a1dce4b75e79779242b4796e178bebe89680b
+Phase 4 (Model_Data + ElementHotData NSDMI):
+  parent SHA (pre-fix): 710c00a4  (== 710c00a FloodAlert fix)
+  fix SHA (post-fix):   056a1dce4b75e79779242b4796e178bebe89680b
+
+Phase 6 (sibling-class invariant closure: _TimeSeriesData / _Lake /
+         LakeBathymetry NSDMI + delete[] correctness; drop dead
+         Model_Data::{ISFactor,windH} NSDMI):
+  parent SHA: 056a1dce4b75e79779242b4796e178bebe89680b
+  fix SHA:    1ab61c023ac2b93a178c2feb07aa3df509fe1a96
+
+Outer pointer bump expected to track: 1ab61c023ac2b93a178c2feb07aa3df509fe1a96
 SHUD remote push (orchestrator Phase 3, BEFORE outer push):
   cd SHUD && git push origin openmp-baseline

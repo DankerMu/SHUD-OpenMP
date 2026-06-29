@@ -1,3 +1,9 @@
+# NOTE: filename mac_asan_*; valgrind substitute per CLAUDE.md
+# "alternative tooling documented" — canonical valgrind run is Linux server only.
+# Phase 6 round-1 cross-review F7 closure: renamed from valgrind_keliya_postfix.log
+# (was a misleading filename — valgrind never ran on Mac because it has no
+# Darwin AArch64 port).
+
 P8-tune.F PR-0 (#394) — Mac local memory-safety smoke
 
 Platform constraint note
@@ -71,3 +77,67 @@ Acceptance: post-fix Mac coverage row of Invariant Matrix CONFIRMED
 - Row iv (heihe_x16, server NumY=485K): DEFERRED orchestrator Phase 2
 - Row v (B0/B1a/B1b bitwise neutral): COVERED via pre/post SHA self-compare
 - Row vi (Mac libomp + Linux libgomp): PARTIAL (Mac covered; Linux deferred)
+
+
+Phase 6 re-verify post-fix (SHUD 1ab61c0 + spike binary delete restoration)
+============================================================================
+Re-run after Phase 6 closure landed:
+  - F1: success-path `delete MD; delete fout; delete fin;` restored in
+    tools/p8tune.D/{dump_adjacency,fd_color_jacobian}.cpp.
+  - F3: NSDMI nullptr + delete[] correctness in SHUD/src/classes/
+    {TimeSeriesData.hpp,Lake.hpp,Lake.cpp}.
+  - F9: dead Model_Data::{ISFactor,windH} (top-level) NSDMI removed
+    (cosmetic).
+  - F2: CI `.github/workflows/serial-baseline.yml` ASan gate switched
+    from negative `LEAK SUMMARY:` to positive `The successful end.`
+    sentinel.
+
+Build:
+  cd SHUD && make clean && make shud && make shud_asan && make libshud.a
+  make -C tools/p8tune.D clean && make -C tools/p8tune.D
+  All four binaries (shud, shud_asan, libshud.a + dump_adjacency,
+  fd_color_jacobian, klu_analyze_factor) compiled clean (only the
+  pre-existing -Wdeprecated-declarations / search-path warnings).
+
+SHUD CLI bitwise neutrality (keliya):
+  cd SHUD/Basins/keliya && rm -rf output/keliya.out
+  ../../shud keliya
+  shasum -a 256 output/keliya.out/keliya.rivqdown.dat
+  ==> b769e3270e1c4d075e7913bf0d0a229530200ae4b11663bdfa4a0cc3c9c028bd
+  MATCH baseline (056a1dc) — F3/F9 sibling-class fix is bitwise-neutral.
+
+Mac shud_asan keliya post-Phase-6:
+  ASAN_OPTIONS="detect_leaks=0:halt_on_error=1:print_stacktrace=1" \
+  UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
+    ../../shud_asan keliya
+  EXIT=0
+  ASan errors: 0
+  UBSan errors: 0
+  Sanitizer warnings: 0
+  Stdout L218: "The successful end."  ← positive sentinel emitted, gate
+                                        would pass on the new CI flow
+  Stderr: only the unrelated 'WARNING:: Aqd of Node(N) = 0.000000' SHUD
+          model warnings + 'WARNING: OMP_PROC_BIND not set' (these are
+          model-level diagnostics, not sanitizer reports).
+
+tools/p8tune.D dtor full path smoke (success-path deletes restored):
+  ./dump_adjacency --case keliya
+  EXIT=0
+  Output: keliya_adjacency.csc (NumEle=484 NumRiv=333 NumLake=0 NumY=1785
+  total_nnz=10255).
+  ~Model_Data → FreeData() chain fires on success path now (verified by
+  return path passing through `delete MD; delete fout; delete fin;` before
+  `return ok ? 0 : 1`).
+
+  ./fd_color_jacobian --case keliya --report-chi-only
+  EXIT=0
+  chromatic_number=16 (threshold ≤ 30 for keliya)
+
+  ./fd_color_jacobian --case keliya     (full FD probe)
+  EXIT=0
+  J binary: keliya_numeric_J.bin total_nnz=10255 n_zero=7757
+            |v|_min=2.194e-13 |v|_max=6.733e+01
+  ~Model_Data chain fires on success path (no free invalid ptr).
+
+All Phase 6 re-verify rows PASS on Mac. Server validation (heihe / heihe_x4 /
+heihe_x16) deferred to orchestrator Phase 2 (see server_acceptance_cmds.sh).
