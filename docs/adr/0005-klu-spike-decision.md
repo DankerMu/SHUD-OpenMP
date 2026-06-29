@@ -1,6 +1,6 @@
 # ADR-0005: klu-spike-decision — KLU pattern-only spike 4-branch verdict (Case-aware branch)
 
-- **Status**: Accepted (2026-06-29, flipped from Proposed at PR-C capstone — verdict=Case-aware; forward path = P8-tune.E.small-only [medium priority KLU env-var opt-in for keliya+heihe] + P8-tune.F [high priority BoomerAMG/Hypre spike for heihe_x4+heihe_x16])
+- **Status**: Accepted-with-retrospective-corrections (2026-06-29, flipped from Proposed at PR-C capstone; subsequently amended same day per GPT Pro retrospective review F1-F4 — see §"GPT Pro 2026-06-29 retrospective corrections" below). **Revised verdict semantics**: keliya/heihe = **pattern-feasible / prototype-worthy** (NOT "GO acceleration" — see §"Why not 'GO acceleration' yet for small cases" — actual wall improvement requires CVODE-integrated mini-prototype to confirm); heihe_x4 = Optional (1.87× wall; mini-prototype-deferred branch; primary path = P8-tune.F AMG); heihe_x16 = NO-GO (17.9× wall; primary path = P8-tune.F AMG). **Revised forward priority**: P8-tune.F [HIGH priority, primary line] before P8-tune.E.small-only [OPTIONAL/medium, mini-prototype-first, A5 conditional on wall improvement]. **#386 re-opened** as hard prereq for both downstream epics.
 - **Date**: 2026-06-28
 - **Deciders**: DankerMu + Claude orchestrator (per `tools/p8tune.D/aggregate_klu_spike.sh` 3-axis per-case verdict + `docs/p8tune/klu_spike_verdict.md` synthesis)
 - **Owner**: SHUD-OpenMP 改造工程 / P8-tune.D epic capstone → split into (a) P8-tune.E.small-only (KLU env-var opt-in for small cases) + (b) P8-tune.F (BoomerAMG/Hypre spike for large cases)
@@ -55,23 +55,37 @@ heihe_x16_KLU_overall_verdict    = NO-GO
 case_aware_branch_fires          = true
 ```
 
-Per-case recommended actions (auto-typed by aggregator per spec REQ-5 D8):
+Per-case recommended actions (auto-typed by aggregator per spec REQ-5 D8, **then amended 2026-06-29 per GPT Pro F1+F2 retrospective**):
 
-| case      | overall    | fill | rss  | wall | recommended_action       |
+| case      | overall    | fill | rss  | wall | recommended_action (**revised**)         |
 |-----------|------------|------|------|------|--------------------------|
-| keliya    | GO         | PASS | PASS | PASS | `klu-env-var-opt-in`     |
-| heihe     | GO         | PASS | PASS | PASS | `klu-env-var-opt-in`     |
-| heihe_x4  | Optional   | PASS | PASS | FAIL | `use-future-amg`         |
+| keliya    | GO         | PASS | PASS | PASS | `klu-pattern-feasible-prototype-worthy` |
+| heihe     | GO         | PASS | PASS | PASS | `klu-pattern-feasible-prototype-worthy` |
+| heihe_x4  | Optional   | PASS | PASS | FAIL | `use-future-amg` (primary) + `klu-mini-prototype-deferred` (optional, low priority) |
 | heihe_x16 | NO-GO      | PASS | PASS | FAIL | `use-future-amg`         |
 
-Decisive-cell pointer:
+> **F1 amendment (2026-06-29)**: `klu-env-var-opt-in` 不直接蕴含 wall acceleration。aggregator wall axis 使用统一 budget = 0.7 × heihe_x4 SPGMR per-step (0.226579 s/step),用此大 case budget 比较小 case 会使小 case "看起来宽裕"。按 case-specific SPGMR baseline 重新计算:heihe maxl=5 N=1 wall=148.43s / `nst=6698` ≈ **0.0222 s/step**,KLU per-step estimate ≈ 0.0230 s ≈ **持平或略慢**。即 small case KLU pattern-feasible 但 wall improvement 需 CVODE-integrated mini-prototype 实测,不能直接由 pattern-only formula 得出 "GO acceleration"。详 §"Why not 'GO acceleration' yet for small cases"。
 
-```
-heihe_x4_recommended_next_epic           = p8-tune.E-klu-impl
-heihe_x4_recommended_next_epic_priority  = medium
-```
+> **F2 amendment (2026-06-29)**: 移除旧 decisive-cell pointer `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl priority=medium` (与 `use-future-amg` self-contradiction)。统一:heihe\_x4 **主路径 = P8-tune.F BoomerAMG/Hypre**;KLU mini-prototype 仅作 **low-priority optional branch**,在 future CVODE refactor cadence profiling 后 trigger。
 
-The heihe_x4 wall margin = 0.297 / 0.159 ≈ 1.87× (within 2× budget — Optional), while heihe_x16 wall margin ≈ 17.9× (far past — NO-GO). The asymmetry justifies the Case-aware split: small cases earn a KLU env-var opt-in path; large cases retreat to BoomerAMG/Hypre per Q7 commitment.
+The heihe_x4 wall margin = 0.297 / 0.159 ≈ 1.87× (within 2× budget — Optional), while heihe_x16 wall margin ≈ 17.9× (far past — NO-GO). The asymmetry justifies the Case-aware split: small cases earn a KLU pattern-feasible / prototype-worthy mark; large cases retreat to BoomerAMG/Hypre per Q7 commitment.
+
+### Why not "GO acceleration" yet for small cases (F1 retrospective)
+
+ADR-0005 aggregator 用统一 wall budget = `0.7 × heihe_x4 N=1 SPGMR per-step (0.226579 s/step) = 0.158605 s/step` 作 3-axis 第三轴 threshold。这一统一 budget 是为 **across-case verdict 一致性** 选择,但 small case 在该 budget 下 "PASS 宽裕" (keliya KLU est 0.0009s / 0.6% of budget;heihe KLU est 0.0230s / 14.5% of budget) 不等价于 "KLU 比 small case 自己的 SPGMR 快"。
+
+**Case-specific SPGMR baseline 重新计算** (per epic #362 PR-D 60-cell sweep `_summary.tsv` heihe N=1 maxl=5 3-rep median):
+
+| case  | own SPGMR per-step (s) | KLU per-step est (s) | speedup ratio | actual acceleration? |
+|---|---:|---:|---:|---|
+| keliya | ≈ 0.0003 (NumY=1785, est by NumY scaling) | 0.0009 | **0.33×** | **slower (3× slower per-step;但 overall walls 太小 unscalable to total)** |
+| heihe | 0.0222 (148.43s / 6698 nst) | 0.0230 | **0.97×** | **~equivalent (持平或略慢)** |
+| heihe_x4 | 0.226579 (recorded baseline) | 0.2967 | **0.76×** | **slower 24% per-step (= the 1.87× failure)** |
+| heihe_x16 | not measured (heihe_x4 baseline used as proxy) | 2.844 | **0.056×** | **slower 18× per-step (= the 17.9× failure)** |
+
+结论:**KLU 在小 case 上 pattern-feasible (fill+RSS+wall 三轴可行) 但不必带来 actual wall improvement vs case-specific SPGMR baseline**。仅 CVODE-integrated mini-prototype 能确证 actual wall delta。因此 small case 路径 = **prototype-first,A5 conditional on wall improvement** (per F4 retrospective)。
+
+> **Caveat**: 上表 keliya SPGMR per-step 是 estimate (not measured in epic #362),仅作 sanity reference。production decision 应等 keliya CVODE-integrated mini-prototype 实测后确认。
 
 ### 4-branch decision tree (per spec REQ-6 Scenario "4-branch decision tree")
 
@@ -265,7 +279,74 @@ Per spec REQ-6 Scenario "4-branch decision tree" + tasks §3.7c:
 
 - **GO branch (NOT chosen)** — would have triggered single P8-tune.E full KLU + A5 hydrology-equivalence epic. Not chosen because heihe_x4 wall margin = 1.87× (Optional) and heihe_x16 = 17.9× (NO-GO).
 - **Optional branch (NOT chosen)** — would have triggered benchmark numeric prototype mini-spike (~1 week). Not chosen because heihe_x16 NO-GO already excludes large-case path; Case-aware split is more decisive.
-- **NO-GO branch (NOT chosen)** — would have triggered P8-tune.F only. Not chosen because small-case GO data is genuine — denying small-case users a >85-99% wall-budget-headroom KLU opt-in (i.e., KLU per-step uses ≤14% of the 0.7×SPGMR-baseline budget for the heihe-class small cases) would be wasteful.
+- **NO-GO branch (NOT chosen)** — would have triggered P8-tune.F only. Not chosen because small-case GO data is genuine — denying small-case users a >85-99% wall-budget-headroom KLU opt-in (i.e., KLU per-step uses ≤14% of the 0.7×SPGMR-baseline budget for the heihe-class small cases) would be wasteful. **F1 retrospective amendment**: 这一拒绝理由仅在 "global heihe_x4 budget" 框架下成立;按 case-specific SPGMR baseline (heihe own per-step ≈ 0.0222 s vs KLU est 0.0230 s) 重计后,small case KLU 并无明显 acceleration,因此 NO-GO branch (P8-tune.F only) 不再是 "wasteful"——但仍非 chosen,因小 case KLU 至少 pattern-feasible 值得 mini-prototype 实测 (不需 commit 4-6w full epic)。
+
+---
+
+## GPT Pro 2026-06-29 retrospective corrections
+
+ADR-0005 在 PR-C [#388](https://github.com/DankerMu/SHUD-OpenMP/pull/388) 合并后由 GPT Pro 独立 retrospective 评审,surfaced 4 项 corrections (F1 HIGH + F2 MEDIUM + F3 HIGH + F4 HIGH)。F1+F2 已 amended 进本 ADR 上文;F3+F4 落在 master plan §P8-tune.E.small-only + §P8-tune.F 修订与 #386 重开。本节记录 corrections 完整内容作 audit trail。
+
+### F1 (HIGH): "GO acceleration" 不能直接由 pattern-only formula 得出
+
+**Problem**: 原 ADR §Decision 表把 keliya + heihe 标 "GO" + `klu-env-var-opt-in`, 易被读为 "KLU 加速 keliya/heihe"。实际 wall budget 用的是 heihe\_x4 N=1 SPGMR per-step (0.226579 s),用此大 case budget 比较小 case 自动 PASS 宽裕,**不等价于** "KLU 比 small case 自己的 SPGMR 快"。
+
+**GPT Pro evidence**: heihe maxl=5 N=1 wall = 148.43s / `nst=6698` ≈ 0.0222 s/step (case-specific SPGMR baseline); KLU per-step est = 0.0230 s。**实际持平或略慢**。heihe N=8 SPGMR 143.11 / 6698 ≈ 0.0214 s,KLU 0.0230 同样不占优。
+
+**Resolution**: §Decision 表 + §Suppressed branches NO-GO 段两处 amended (见上文)。`klu-env-var-opt-in` action 改为 `klu-pattern-feasible-prototype-worthy`。新增 §"Why not 'GO acceleration' yet for small cases" 子节解释 case-specific calc。Forward path = CVODE-integrated mini-prototype-first (per F4)。
+
+### F2 (MEDIUM): heihe\_x4 next-epic self-contradiction
+
+**Problem**: §Decision 表 heihe\_x4 recommended action = `use-future-amg`,但同一 ADR 下面 decisive-cell pointer 又写 `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl priority=medium`。两 statement 矛盾——is heihe\_x4 走 AMG (P8-tune.F) 还是 KLU (P8-tune.E)?
+
+**Resolution**: 统一 heihe\_x4 主路径 = **P8-tune.F BoomerAMG/Hypre** (high priority)。KLU mini-prototype 仅作 **low/medium optional branch**,future 在 CVODE refactor cadence profiling 后由 mini-spike trigger,不作主线。decisive-cell pointer 旧值 移除 / 改为 `klu-mini-prototype-deferred`。aggregator 输出 KV schema 在 future P8-tune.E.small-only PR-0 可一并 amend (本 ADR 不修 aggregator code,以免回归 PR-A 数据)。
+
+### F3 (HIGH): #386 升级为 P8-tune.F + P8-tune.E hard prereq
+
+**Problem**: PR-A in-session 把 #386 SHUD `Model_Data` 析构链 uninit-pointer UB 标 deferred 并随 PR-C 关闭。但 #386 标题是 large NumY 下 `fd_color_jacobian` heap corruption (`free(): invalid pointer`),`-O1` / strict-aliasing 调整都没解决——只是 `_exit(0)` workaround 绕过了 dtor 调用。任何 future 路径若复用 `fd_color_jacobian` / numeric J / KLU/AMG 工具链, dtor 都会被 production init/teardown 调到,UB 必然 exposed。
+
+**Resolution**: #386 **re-opened** (2026-06-29) 标 prerequisite for:
+- P8-tune.F PR-0 (BoomerAMG/Hypre 复用 dump_adjacency + fd_color_jacobian)
+- P8-tune.E.small-only PR-0 (SUNLinSol_KLU CVODE integration 调 SHUD 全 init/teardown)
+- 任何 P9+ epic 接 fd_color_jacobian / dump_adjacency 工具
+
+### F4 (HIGH): Phase 3 不应启动 "full KLU + A5",改为 mini-prototype-first
+
+**Problem**: 原 master plan §P8-tune.E.small-only scope 是 4-PR ~3 weeks medium priority 含 A5 hydrology-equivalence gate + ADR-0006 promotion。但 KLU 在大 case 上已被 wall axis 否决 (heihe\_x4 Optional + heihe\_x16 NO-GO),小 case 也仅 pattern-feasible 未证实 wall improvement。A5 是昂贵验收,应用在 integrated solver candidate 有 wall improvement 的阶段,而不是 pattern-only candidate 上。
+
+**Resolution**: master plan §P8-tune.E.small-only **re-scoped** 为 mini-prototype-first (per F4 详 master plan amendment commit):
+- PR-0 (prereq = #386 闭合): SHUD\_KLU\_ENABLE env-var wire-up
+- PR-A: 12-cell SHUD wall measurement vs case-specific SPGMR baseline (NOT A5)
+- PR-B: **conditional** A5 gate — 仅 PR-A 实测 wall ≥ 10% improvement on heihe (or keliya) 才进 A5;否则 close epic with "no improvement, prototype only"
+- PR-C: epic capstone
+
+Priority **降为 optional/medium**;并明确 P8-tune.F BoomerAMG/Hypre 是 **primary forward path** for large case acceleration (heihe\_x4 + heihe\_x16),应优先启动。
+
+### Forward path 修订总览
+
+```
+P8-tune.D close (2026-06-29 PR-D #389 merge)
+       │
+       ├── Step 0 (本 ADR amendment + master plan correction PR)
+       │        ↓
+       │   #386 re-opened
+       │        ↓
+       ├── PRIMARY (HIGH priority): P8-tune.F BoomerAMG/Hypre spike
+       │        prereq = #386 closure
+       │        scope = pattern/numeric-only spike (类 P8-tune.D zero-CVODE)
+       │        gate = ADR-0006 (GO/Optional/NO-GO at heihe_x4 + heihe_x16)
+       │        → if GO: open P8-tune.G full AMG + A5
+       │        → if NO-GO heihe_x16: P8-tune.H GPU sparse spike
+       │
+       └── OPTIONAL (medium/low priority): P8-tune.E.0 KLU mini-prototype small-only
+                prereq = #386 closure
+                scope = SHUD_KLU_ENABLE env-var + keliya/heihe wall measurement
+                gate = conditional A5 (only if wall ≥10% improvement)
+                → if wall improves AND A5 PASS: ship KLU env-var opt-in
+                → if wall flat: close as "pattern-feasible-but-no-acceleration"
+```
+
+A5 hydrology-equivalence validation 不作 pattern-only candidate 的 direct gate, 仅作 integrated solver candidate 的验收 gate。
 
 ---
 
