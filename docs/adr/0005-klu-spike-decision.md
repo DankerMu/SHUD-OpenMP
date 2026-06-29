@@ -1,6 +1,6 @@
 # ADR-0005: klu-spike-decision — KLU pattern-only spike 4-branch verdict (Case-aware branch)
 
-- **Status**: Proposed (PR-B authoring; flipped to Accepted at PR-C capstone)
+- **Status**: Accepted (2026-06-29, flipped from Proposed at PR-C capstone — verdict=Case-aware; forward path = P8-tune.E.small-only [medium priority KLU env-var opt-in for keliya+heihe] + P8-tune.F [high priority BoomerAMG/Hypre spike for heihe_x4+heihe_x16])
 - **Date**: 2026-06-28
 - **Deciders**: DankerMu + Claude orchestrator (per `tools/p8tune.D/aggregate_klu_spike.sh` 3-axis per-case verdict + `docs/p8tune/klu_spike_verdict.md` synthesis)
 - **Owner**: SHUD-OpenMP 改造工程 / P8-tune.D epic capstone → split into (a) P8-tune.E.small-only (KLU env-var opt-in for small cases) + (b) P8-tune.F (BoomerAMG/Hypre spike for large cases)
