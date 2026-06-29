@@ -1,0 +1,5 @@
+Verifier verdict for: c07
+Reviewed head SHA: a65f3ca175405e128ec15b7fe7f07c8932903bf0
+Verdict: REFUTED
+Evidence: `tools/p8tune.D/klu_analyze_factor.cpp` exits 0 on ALL three OOM paths (L238 `reason=preflight_estimate` → `return 0`; L275 `reason=klu_factor_OOM` → `return 0`; L287 `reason=post_factor_rss_exceeds_cn_ram` → `return 0`), matching spec REQ-5 Scenario "OOM-as-data-point" L141: "the tool SHALL exit with status 0 (NOT non-zero) AND SHALL emit a diagnostic line `KLU_OOM_DETECTED case=<C> ordering=<O> btf=<B> peak_rss_bytes=<N>` to stdout". Under `set -euo pipefail` (`spike_run.sh` L37), the stage-3 pipeline `"$KLU" ... 2>&1 | tee -a "$LOG"` (L95) sees klu exit 0 on OOM, so the pipeline exits 0, no abort triggers, the script reaches the `done` marker at L97, and the wrapper exits 0 — exactly as the header (L29-31) advertises.
+Note: Reviewer's premise ("non-zero exit from klu_analyze_factor [for] OOM-as-data-point [will] abort the script") contradicts both spec REQ-5 and the implementation; the candidate is refuted by direct code citation.

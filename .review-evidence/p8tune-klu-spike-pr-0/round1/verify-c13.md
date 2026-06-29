@@ -1,0 +1,5 @@
+Verifier verdict for: c13
+Reviewed head SHA: a65f3ca175405e128ec15b7fe7f07c8932903bf0
+Verdict: CONFIRMED
+Evidence: Spec `openspec/changes/p8tune-klu-spike/specs/klu-pattern-spike-verdict/spec.md` REQ-3 body L57 ("NOT via static derivation from `.sa / .riv / .lake` file syntax") and Scenario "keliya tool-correctness gate" L77 ("an independent Python implementation that reads keliya `.sa/.riv/.lake` files, constructs adjacency via rSHUD-equivalent logic"). Actual implementation `tools/p8tune.D/verify_adjacency_keliya.py:81-84` reads `keliya.sp.mesh / keliya.sp.riv / keliya.sp.rivseg / keliya.sp.att`. `ls SHUD/Basins/keliya/input/keliya/` shows only `.sp.{mesh,riv,rivseg,att}` family — no `.sa` and no `.lake` files exist for keliya (lakes are derived from `keliya.sp.att` LAKE column, per Python L96-98).
+Note: Behaviorally correct (independent Python codepath, exact-match nnz gate intact); errata-class spec phrasing fix — update REQ-3 L57 + Scenario L77 to `.sp.mesh / .sp.riv / .sp.rivseg / .sp.att` OR add docstring note in Python script.

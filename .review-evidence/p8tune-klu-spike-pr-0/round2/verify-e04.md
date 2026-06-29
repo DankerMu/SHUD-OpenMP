@@ -1,0 +1,5 @@
+Verifier verdict for: e04
+Reviewed head SHA: 50d2a4bddacbfa3ef5b3e1c25d760555103c5556
+Verdict: CONFIRMED
+Evidence: tools/p8tune.D/klu_analyze_factor.cpp:236-239 emits both `[klu] PREFLIGHT_HINT pattern_est_bytes=%zu (advisory only; ...)` AND legacy `[klu] pre-flight: A nnz=%llu est_bytes=%zu cn_ram=%zu`, where the legacy line passes the same `est_pre_factor_hint_bytes` (pattern-only nnz×64 + n×64) that the comment at L229-232 acknowledges "under-counts actual L+U fill by ~4× on keliya". The decisive value is on a separate `PREFLIGHT_AFTER_ANALYZE` line at L271-272 (post klu_analyze, using Symbolic->lnz+unz). The legacy line's prefix `pre-flight: A` carries no "advisory" / "pattern-only" marker, so a PR-B aggregator grepping the pre-F4 idiom `^\[klu\] pre-flight:` will silently consume the broken number.
+Note: Minor log-hygiene concern; both lines are well-formed but the legacy prefix invites aggregator misuse. Suggested fix (delete L238-239 OR rename prefix to e.g. `pre-flight-pattern-only-advisory:`) is reasonable.
