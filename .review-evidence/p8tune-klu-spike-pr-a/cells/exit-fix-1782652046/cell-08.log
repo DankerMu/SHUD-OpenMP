@@ -1,6 +1,6 @@
 === spike_run.sh heihe_x4_natural_btf1 ===
-date_utc: 2026-06-28T13:07:27Z
-hostname: cn06
+date_utc: 2026-06-29T00:43:12Z
+hostname: cn23
 basin_root: /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins
 --- stage 1: dump_adjacency ---
 		 * openMP disabled.
@@ -6372,3 +6372,10 @@ Warning: remove sink on 39956, from 1515.76 to 1516.35. dz = 0.59
 [fd_color] color 9/16 (cols=4029) probed
 [fd_color] J binary written: heihe_x4_numeric_J.bin  total_nnz=653387 n_zero=480427  |v|_min=5.988e-11 |v|_max=1.155e+02
 --- stage 3: klu_analyze_factor ---
+[klu] loaded numeric J: NumY=124395 total_nnz=653387 n_colors=16
+[klu] test matrix M = I - 1.000000 * J  (diagonal set on 124395 / 124395 cols)
+[klu] PREFLIGHT_HINT pattern_est_bytes=49778048 (advisory only; decisive check after klu_analyze)
+[klu] PREFLIGHT_AFTER_ANALYZE skipped (ordering=natural lnz=-1 unz=-1; AMD-only); relying on post-factor RSS check
+KLU_INDEX_OVERFLOW_DETECTED case=heihe_x4 ordering=natural btf=1 peak_rss_bytes=16211218432 reason=klu_factor_status_KLU_TOO_LARGE_int32_index_overflow
+=== spike_run.sh heihe_x4_natural_btf1 done ===
+log: /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.D-runs/exit-fix-1782652046/_stage/cell-08/cell-heihe_x4_natural_btf1.log
