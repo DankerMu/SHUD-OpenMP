@@ -265,7 +265,7 @@ Per spec REQ-6 Scenario "4-branch decision tree" + tasks §3.7c:
 
 - **GO branch (NOT chosen)** — would have triggered single P8-tune.E full KLU + A5 hydrology-equivalence epic. Not chosen because heihe_x4 wall margin = 1.87× (Optional) and heihe_x16 = 17.9× (NO-GO).
 - **Optional branch (NOT chosen)** — would have triggered benchmark numeric prototype mini-spike (~1 week). Not chosen because heihe_x16 NO-GO already excludes large-case path; Case-aware split is more decisive.
-- **NO-GO branch (NOT chosen)** — would have triggered P8-tune.F only. Not chosen because small-case GO data is genuine — denying small-case users a +85-99% wall opt-in would be wasteful.
+- **NO-GO branch (NOT chosen)** — would have triggered P8-tune.F only. Not chosen because small-case GO data is genuine — denying small-case users a >85-99% wall-budget-headroom KLU opt-in (i.e., KLU per-step uses ≤14% of the 0.7×SPGMR-baseline budget for the heihe-class small cases) would be wasteful.
 
 ---
 
