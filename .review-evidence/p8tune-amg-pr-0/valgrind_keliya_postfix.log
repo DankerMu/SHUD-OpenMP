@@ -1,0 +1,73 @@
+P8-tune.F PR-0 (#394) — Mac local memory-safety smoke
+
+Platform constraint note
+========================
+valgrind has no Apple Silicon / Darwin AArch64 port (upstream issue: no Darwin
+ARM64 host support; last attempt 2021 stalled on Mach trap dispatch). On Mac
+the equivalent gate is AddressSanitizer (ASan) + UBSan via `make shud_asan`.
+
+Per CLAUDE.md "all alternative tooling documented", this evidence file
+substitutes Mac shud_asan run for the spec-named valgrind step. The Linux
+server (frd_muziyao@210.77.77.22) DOES have valgrind; the canonical valgrind
+keliya/heihe run is deferred to orchestrator Phase 2 server validation
+(see server_acceptance_cmds.sh in the same evidence directory).
+
+Mac ASan + UBSan post-fix run
+==============================
+Build:
+  cd SHUD && make shud_asan       # SHUD_ASAN_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer
+
+Invocation:
+  cd SHUD/Basins/keliya
+  rm -rf output/keliya.out
+  ASAN_OPTIONS="detect_leaks=0:halt_on_error=1:print_stacktrace=1" \
+  UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
+    ../../shud_asan keliya
+
+Result:
+  EXIT=0
+  ASan errors (grep -c 'AddressSanitizer.*ERROR'): 0
+  UBSan errors (grep -c 'runtime error|UndefinedBehavior.*ERROR'): 0
+  Sanitizer warnings (grep -c '*Sanitizer.*WARNING'): 0
+  Stdout tail: "The successful end." + Final Statistics (lenrw/leniw/nst/nfe/nfeLS/...)
+  Stderr: empty (no sanitizer output = clean run)
+
+Note on `detect_leaks`
+======================
+Mac ASan does not support `detect_leaks=1` (LeakSanitizer Darwin port absent):
+  ==XXXX==AddressSanitizer: detect_leaks is not supported on this platform.
+On Linux GH runner the flag flip from 0→1 produces `LEAK SUMMARY:` stderr line;
+that path is gated in `.github/workflows/serial-baseline.yml` `asan-ubsan (keliya)`
+job via the P8-tune.F PR-0 ASAN_OPTIONS env change (this PR). The CI runner is
+the canonical LEAK SUMMARY emission site.
+
+Bitwise neutrality vs pre-fix baseline
+=======================================
+Compare pre-fix vs post-fix SHA256 on keliya rivqdown.dat:
+
+  pre-fix SHA  = b769e3270e1c4d075e7913bf0d0a229530200ae4b11663bdfa4a0cc3c9c028bd
+  post-fix SHA = b769e3270e1c4d075e7913bf0d0a229530200ae4b11663bdfa4a0cc3c9c028bd
+
+MATCH → fix is bitwise-neutral by construction (NSDMI nullptr defaults are
+immediately overwritten by the existing `new` assignments in
+Model_Data::malloc_EleRiv() / MD_Lake.cpp / MD_readin.cpp; only failure-path
+behavior changes from UB → defined-no-op).
+
+tools/p8tune.D dtor full path smoke (workaround removed)
+=========================================================
+  cd tools/p8tune.D
+  ./dump_adjacency --case keliya
+  EXIT=0
+  Output: keliya_adjacency.csc + per-block nnz table (surf/unsat/gw/river/lake)
+  Stdout: "loaded case=keliya: NumEle=484 NumRiv=333 NumLake=0 NumSegmt=534 NumY=1785"
+  No `free(): invalid pointer`, no SEGV at dtor — return path triggers
+  ~Model_Data → FreeData() chain to completion.
+
+Acceptance: post-fix Mac coverage row of Invariant Matrix CONFIRMED
+====================================================================
+- Row i (keliya valgrind, Mac): COVERED via shud_asan equivalent (0 errors)
+- Row ii (heihe, server NumY=19515): DEFERRED orchestrator Phase 2
+- Row iii (heihe_x4, server NumY=124K): DEFERRED orchestrator Phase 2
+- Row iv (heihe_x16, server NumY=485K): DEFERRED orchestrator Phase 2
+- Row v (B0/B1a/B1b bitwise neutral): COVERED via pre/post SHA self-compare
+- Row vi (Mac libomp + Linux libgomp): PARTIAL (Mac covered; Linux deferred)

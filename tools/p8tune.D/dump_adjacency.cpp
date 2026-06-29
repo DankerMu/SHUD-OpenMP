@@ -56,7 +56,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <unistd.h>  // _exit
+#include <unistd.h>  // chdir, optind
 #include <vector>
 
 #include "CommandIn.hpp"
@@ -431,10 +431,13 @@ int main(int argc, char **argv) {
     std::string out_path = out_prefix + "_adjacency.csc";
     bool ok = write_csc(out_path, B);
 
-    // See fd_color_jacobian.cpp main exit comment + issue #386: SHUD's
-    // Model_Data destructor chain has uninit-pointer UB at NumEle > ~30k
-    // on Linux + glibc. Spike is one-shot, OS reclaims on exit.
+    // P8-tune.F PR-0 (#394 / #386): SHUD Model_Data dtor uninit-ptr UB
+    // resolved by NSDMI nullptr defaults in Model_Data.hpp + MD_layout.hpp
+    // — see fd_color_jacobian.cpp main exit comment for the full rationale.
+    // Restore normal `return` semantics so destructor chain runs to
+    // completion (per spec amg-pattern-spike-verdict REQ-3 Scenario
+    // "_exit(0) workaround removal").
     std::fflush(stdout);
     std::fflush(stderr);
-    _exit(ok ? 0 : 1);
+    return ok ? 0 : 1;
 }
