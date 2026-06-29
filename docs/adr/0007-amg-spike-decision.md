@@ -1,6 +1,6 @@
 # ADR-0007: amg-spike-decision — BoomerAMG/Hypre pattern-only spike 4-branch verdict (NO-GO-both, strict)
 
-- **Status**: Proposed (2026-06-29 in PR-C [#XXX]; PR-D capstone will flip to Accepted per spec REQ-6 Scenario "ADR-0007 Status lifecycle")
+- **Status**: Accepted (2026-06-29 in PR-D capstone PR #<TBD>; flipped Proposed → Accepted per spec REQ-6 Scenario "ADR-0007 Status lifecycle"). Strict verdict_branch = NO-GO-both (byte-identical to `aggregate_verdict.txt`); amended verdict_branch = GO (FYI per PR-A H3 Axis 4 hard-coded estimate disclosure). Forward action = §P8-tune.G AMG Axis-4 instrumentation epic [OPEN, HIGH] (new master plan anchor added in this PR-D per ADR §Forward action, separate from verdict_branch-mapped G/H epics suppressed by strict NO-GO-both branch).
 - **Date**: 2026-06-29
 - **Deciders**: DankerMu + Claude orchestrator (per `tools/p8tune.F/aggregate_amg_spike.sh` 5-axis per-case verdict + `docs/p8tune/amg_spike_verdict.md` synthesis)
 - **Owner**: SHUD-OpenMP 改造工程 / P8-tune.F epic capstone
@@ -201,7 +201,7 @@ PR-C acceptance per spec REQ-5 + REQ-6 + issue #397 任务清单 4.1-4.11:
 - [x] `tools/p8tune.F/render_verdict.sh` authored — emits `docs/p8tune/amg_spike_verdict.md` with top-line verdict_branch + per-case T-tables (4 cases × 5 axes) + raw 16-cell TSV inline + footer with Hypre + ColPack + SHUD pin provenance.
 - [x] `docs/adr/0007-amg-spike-decision.md` (this file) — §Status: Proposed (PR-D will flip Accepted); §Decision: 4-branch table auto-typed from `aggregate_verdict.txt` `verdict_branch=NO-GO-both` (byte-identical); §Discussion: Axis 4 amendment per PR-A H3 disclosure + recommended operational reading as amended `GO`; §Forward action: PR-D capstone anchor §P8-tune.G per amended verdict.
 - [x] `.review-evidence/p8tune-amg-pr-c/{aggregate.tsv, aggregate_verdict.txt, SPEC_STATUS_HEADER.md}` checked in as real (not placeholder) output of running the aggregator on PR-B 16-cell evidence.
-- [ ] PR-D task will flip §Status from `Proposed` → `Accepted YYYY-MM-DD` (PR-C leaves at Proposed per spec REQ-6 Scenario "ADR-0007 Status lifecycle").
+- [x] PR-D task flipped §Status from `Proposed` → `Accepted 2026-06-29` (this PR; per spec REQ-6 Scenario "ADR-0007 Status lifecycle").
 
 ---
 

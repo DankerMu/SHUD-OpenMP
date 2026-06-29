@@ -2547,9 +2547,17 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 - **F3**: [#386](https://github.com/DankerMu/SHUD-OpenMP/issues/386) SHUD `Model_Data` 析构链 uninit-pointer audit **re-opened**,标 P8-tune.F PR-0 + P8-tune.E.small-only PR-0 hard prereq。workaround `_exit(0)` 仅 P8-tune.D spike scope acceptable, 不适用任何 production CVODE integration。
 - **F4**: **Forward priority 反转** — P8-tune.F **primary line** (HIGH priority,大 case 加速主目标);P8-tune.E.small-only **optional/medium**, scope re-scaled 为 mini-prototype-first (PR-A 实测 wall vs case-specific SPGMR baseline,PR-B A5 gate **CONDITIONAL** 仅 wall ≥ 10% improvement 才进)。A5 hydrology-equivalence 不作 pattern-only candidate 直接 gate,仅作 integrated solver candidate 的验收 gate。
 
-##### P8-tune.F — BoomerAMG/Hypre spike for large cases ([OPEN, anchor — PRIMARY forward line] per 2026-06-29 + GPT Pro F4)
+##### P8-tune.F — BoomerAMG/Hypre spike for large cases ([CLOSED, 5-PR sequence MERGED, verdict_branch=NO-GO-both (strict) / GO (amended)] per 2026-06-29)
 
-**Trigger condition**: P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `heihe_x4` Optional (1.87× wall over 0.7×SPGMR budget; near-miss) + `heihe_x16` NO-GO (17.9×; structural). SPGMR Krylov-vector path saturated per ADR-0004 + KLU fill-axis fine but wall-axis blown per ADR-0005. AMG is the algebraically-correct retreat: O(N) memory + scales for elliptic-parabolic PDE structure native to SHUD domain.
+**P8-tune.F status (post-merge 2026-06-29)**: Closed 2026-06-29. Strict verdict_branch = NO-GO-both per spec REQ-6 byte-identical contract (`aggregate_verdict.txt verdict_branch=NO-GO-both`; trigger = "heihe_x4 fails ['axis4_cycle'] (max margin 1.333×)" via 4-branch decision tree rule 4 first clause); amended verdict_branch = GO per PR-A H3 disclosure (Axis 4 = `2 × operator_complexity` is a hard-coded estimate, NOT HYPRE telemetry measurement; mechanically tracks Axis 5 in all 16 cells with cycle_complexity ≈ 2.0 uniformly). 5-PR sequence MERGED — PR-0 [#394](https://github.com/DankerMu/SHUD-OpenMP/pull/394) (#386 SHUD `Model_Data` dtor uninit-pointer UB fix + workaround removal) + PR-A [#402](https://github.com/DankerMu/SHUD-OpenMP/pull/402) (spike binary `boomeramg_setup_solve.cpp` + H3 disclosure for Axis 4 estimate) + PR-B [#403](https://github.com/DankerMu/SHUD-OpenMP/pull/403) (16-cell Slurm array sweep on cn-nodes, 16/16 verdict_class=PASS) + PR-C [#404](https://github.com/DankerMu/SHUD-OpenMP/pull/404) (aggregator + ADR-0007 + verdict.md) + PR-D #<TBD> (本 PR — epic capstone + master plan close + OpenSpec archive + review-loop log). ADR-0007 [Accepted](docs/adr/0007-amg-spike-decision.md). Capability spec archived at [openspec/specs/amg-pattern-spike-verdict/spec.md](openspec/specs/amg-pattern-spike-verdict/spec.md). See:
+- ADR-0007 (Accepted) — `docs/adr/0007-amg-spike-decision.md`
+- aggregate_verdict.txt strict verdict — `.review-evidence/p8tune-amg-pr-c/aggregate_verdict.txt`
+- amg_spike_verdict.md (top-line strict + amended) — `docs/p8tune/amg_spike_verdict.md`
+- archived OpenSpec at `openspec/specs/amg-pattern-spike-verdict/spec.md`
+
+**Forward action**: §P8-tune.G "AMG Axis-4 instrumentation" epic [OPEN, HIGH] added below per ADR-0007 §Forward action. The new §P8-tune.G epic is separate from the verdict_branch-mapped G/H epics defined in spec REQ-7 Scenario "Conditional next-epic anchor per verdict_branch" (those branches are suppressed by strict NO-GO-both per spec REQ-7 NO-GO-both clause: "不新增 anchor; PR-D 注 '升级到 ADR re-evaluation workshop; future epic 由 user trigger'"); §P8-tune.G is an enabler epic that hardens the Axis 4 measurement gap. After §P8-tune.G integrates `HYPRE_BoomerAMGGetCycleNumIterations` + `HYPRE_BoomerAMGGetCycleOpCount` telemetry and re-runs the 16-cell sweep with measured cycle_complexity, an **ADR-0007 re-evaluation workshop** (per spec REQ-7 NO-GO-both clause) will determine whether the strict verdict matches measurement (≤5% drift → ADR stands; >5% drift → ADR-0007 re-opened) and, if so, whether to launch the operational AMG productionization epic that the amended GO supports.
+
+**Trigger condition** (historical, pre-close): P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `heihe_x4` Optional (1.87× wall over 0.7×SPGMR budget; near-miss) + `heihe_x16` NO-GO (17.9×; structural). SPGMR Krylov-vector path saturated per ADR-0004 + KLU fill-axis fine but wall-axis blown per ADR-0005. AMG is the algebraically-correct retreat: O(N) memory + scales for elliptic-parabolic PDE structure native to SHUD domain.
 
 **Priority**: **HIGH (primary forward line for 大 case 加速 main objective)**, **before** P8-tune.E.small-only mini-prototype。理由 (per GPT Pro F4): P8-tune.D 已证 KLU 在大 case 上不可行;若 user goal 是 heihe_x4 / heihe_x16 wall ↓ + A5 PASS, AMG/Hypre 是 ADR-0005 唯一指明的 viable architectural path,应优先验证。
 
@@ -2575,6 +2583,22 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 | #386 未闭合导致工具不稳定 | BLOCKED → fix #386 root cause first |
 
 **Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `heihe_x4_recommended_action = use-future-amg` + `heihe_x16_recommended_action = use-future-amg`)。**Note** (per GPT Pro F2): 原 `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl` decisive-cell pointer 与 `use-future-amg` 矛盾,已被 ADR-0005 retrospective amendment 撤回;统一 heihe_x4 主路径 = P8-tune.F。
+
+##### P8-tune.G — AMG Axis-4 instrumentation epic ([OPEN, HIGH priority] per 2026-06-29 in PR-D capstone per ADR-0007 §Forward action)
+
+**Status**: Open 2026-06-29; HIGH priority. Per ADR-0007 §Forward action: integrate `HYPRE_BoomerAMGGetCycleNumIterations` + `HYPRE_BoomerAMGGetCycleOpCount` telemetry into `tools/p8tune.F/boomeramg_setup_solve.cpp` (or a follow-on integrated variant in `cvode_config.cpp`) so Axis 4 (`cycle_complexity`) becomes a HYPRE-measured quantity rather than the current hard-coded `2 × operator_complexity` estimate (per PR-A H3 disclosure). After re-running the 16-cell sweep with measured `cycle_complexity`:
+
+- **IF measured matches estimate within 5%**: ADR-0007 strict verdict (NO-GO-both) stands as a stable architectural reading → trigger ADR-0007 **re-evaluation workshop** (per spec REQ-7 NO-GO-both clause) to decide forward path (e.g., operational AMG productionization epic under the amended GO reading, or further architectural retreat).
+- **IF measured drifts > 5% vs estimate**: ADR-0007 SHALL be re-opened with corrected `verdict_branch`; the 4-branch decision tree (GO / Optional / NO-GO-heihe_x16-only / NO-GO-both / BLOCKED) is re-typed from the new aggregate_verdict.txt.
+
+**Dependencies**: PR-E (PR-D + PR-E capstone-merge `baseline/p8tune-amg-spike → main`) merged + ADR-0007 (Accepted).
+
+**Anchor**: ADR-0007 §Forward action (canonical reference); ADR-0007 §Consequences §Negative item 1 (Axis 4 instrumentation issue).
+
+**Scope notes** (out-of-scope until epic formally opens):
+- This is a **separate** epic from the verdict_branch-mapped G/H epics defined in spec REQ-7 Scenario "Conditional next-epic anchor per verdict_branch" (which are suppressed by strict NO-GO-both per spec REQ-7 NO-GO-both clause: "不新增 anchor; PR-D 注 '升级到 ADR re-evaluation workshop; future epic 由 user trigger'").
+- The §P8-tune.G instrumentation epic is an **enabler** for re-running the spike with proper Axis 4 measurement; it is NOT an AMG-productionization or CVODE-integration epic.
+- §P8-tune.H GPU sparse spike is NOT anchored by this PR-D (strict NO-GO-both branch does not trigger §P8-tune.H per spec REQ-7; §P8-tune.H anchoring is only triggered by NO-GO-heihe_x16-only branch per spec REQ-7 GPU-presence gate Scenario).
 
 ##### P8-tune.E.small-only — KLU env-var mini-prototype for small cases ([OPEN, anchor — OPTIONAL/medium] per 2026-06-29 + GPT Pro F4)
 
