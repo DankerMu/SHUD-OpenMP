@@ -58,7 +58,29 @@ if [[ ${TASK_ID} -ne 0 ]]; then
 fi
 printf -v NN "%02d" "${TASK_ID}"
 
+# Smoke test is always TASK_ID=0 → keliya (case_idx=0, combo_idx=0) =
+# (interp_type=6, coarsen_type=8). Hardcode for trap stub schema.
+CASE_NAME=keliya
+INTERP=6
+COARSEN=8
+
 CELL_LOG="${RUN_DIR}/cell-${NN}.log"
+
+# ---------- precheck_env.sh gate (spec REQ-4 7-condition) -------------------
+# Mirrors spike_array.sbatch H1 fix. Smoke test only has 1 task so no guard.
+PRECHECK_LOG="${RUN_DIR}/precheck.log"
+bash /scratch/frd_muziyao/SHUD-OpenMP/tools/p8tune.F/precheck_env.sh \
+    /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins \
+    "$0" \
+    /scratch/frd_muziyao/SHUD-OpenMP/tools/p8tune.F/run_cell.sh \
+    > "${PRECHECK_LOG}" 2>&1
+PRECHECK_RC=$?
+if [[ ${PRECHECK_RC} -ne 0 ]]; then
+    echo "ERROR: precheck_env.sh failed (rc=${PRECHECK_RC}); see ${PRECHECK_LOG}" >&2
+    tail -20 "${PRECHECK_LOG}" >&2
+    exit 1
+fi
+echo "[smoke] precheck_env.sh 7/7 PASS (log: ${PRECHECK_LOG})"
 
 echo "=== p8f_amg_smoke task ${TASK_ID} (NN=${NN}) ==="
 echo "node=$(hostname) date_utc=$(date -u +%FT%TZ)"
@@ -79,11 +101,15 @@ emit_wall_overflow() {
     {
         echo ""
         echo "MARKER:AMG_WALL_OVERFLOW_DETECTED elapsed_sec=${elapsed} wall_budget_sec=${wall_budget_sec}"
+        # M3 fix: full spec REQ-4 5-line / 14-field schema with NA sentinels.
         echo "CELL_SUMMARY_BEGIN"
-        echo "verdict_class=AMG_WALL_OVERFLOW"
+        echo "case=${CASE_NAME} interp_type=${INTERP} coarsen_type=${COARSEN} NumY=NA nnz_A=NA"
         echo "setup_wall_sec=NA apply_wall_sec=NA peak_rss_bytes=NA"
-        echo "wall_budget_sec=${wall_budget_sec} elapsed_sec=${elapsed}"
+        echo "cycle_complexity=NA operator_complexity=NA residual_reduction_v1=NA"
+        echo "verdict_class=AMG_WALL_OVERFLOW"
+        echo "hypre_version=NA colpack_version=NA shud_pin=NA"
         echo "CELL_SUMMARY_END"
+        echo "wall_budget_sec=${wall_budget_sec} elapsed_sec=${elapsed}"
     } >> "${CELL_LOG}" 2>/dev/null
     echo "MARKER:AMG_WALL_OVERFLOW_DETECTED emitted to ${CELL_LOG} (caught SIGTERM at elapsed=${elapsed}s)" >&2
     cp -p "${CELL_LOG}" "${RUN_DIR}/cells/cell-${NN}.log" 2>/dev/null || true

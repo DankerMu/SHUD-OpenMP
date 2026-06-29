@@ -115,7 +115,51 @@ if [[ ${TASK_ID} -lt 0 || ${TASK_ID} -gt 15 ]]; then
 fi
 printf -v NN "%02d" "${TASK_ID}"
 
+# Decode NN -> (CASE_NAME, INTERP, COARSEN) so the SIGTERM trap below can
+# emit a spec REQ-4 schema-conformant CELL_SUMMARY block (5-line / 14-field)
+# even when the cpp main is killed before its own emit_cell_summary fires.
+# MUST stay in sync with run_cell.sh decoder (4 case × 4 combo matrix).
+NN_INT=$((10#${NN}))
+CASE_IDX=$((NN_INT / 4))
+COMBO_IDX=$((NN_INT % 4))
+case ${CASE_IDX} in
+    0) CASE_NAME=keliya ;;
+    1) CASE_NAME=heihe ;;
+    2) CASE_NAME=heihe_x4 ;;
+    3) CASE_NAME=heihe_x16 ;;
+    *) echo "ERROR: CASE_IDX=${CASE_IDX} invalid (NN=${NN})" >&2; exit 1 ;;
+esac
+case ${COMBO_IDX} in
+    0) INTERP=6  ; COARSEN=8 ;;
+    1) INTERP=14 ; COARSEN=10 ;;
+    2) INTERP=6  ; COARSEN=21 ;;
+    3) INTERP=8  ; COARSEN=8 ;;
+    *) echo "ERROR: COMBO_IDX=${COMBO_IDX} invalid (NN=${NN})" >&2; exit 1 ;;
+esac
+
 CELL_LOG="${RUN_DIR}/cell-${NN}.log"
+
+# ---------- precheck_env.sh gate (spec REQ-4 7-condition) -------------------
+# Per Phase 7 review H1: precheck_env.sh must run BEFORE cell body executes,
+# otherwise the 7-condition Slurm 三铁律 gate is documentation rather than
+# enforcement. Guard with TASK_ID==0 so only one of the 16 array tasks
+# pays the ~1 sec cost; the 7 conditions are environment-invariant across
+# tasks. Fails the whole sweep early (this cell rc=1, peer cells continue).
+if [[ ${TASK_ID} -eq 0 ]]; then
+    PRECHECK_LOG="${RUN_DIR}/precheck.log"
+    bash /scratch/frd_muziyao/SHUD-OpenMP/tools/p8tune.F/precheck_env.sh \
+        /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins \
+        "$0" \
+        /scratch/frd_muziyao/SHUD-OpenMP/tools/p8tune.F/run_cell.sh \
+        > "${PRECHECK_LOG}" 2>&1
+    PRECHECK_RC=$?
+    if [[ ${PRECHECK_RC} -ne 0 ]]; then
+        echo "ERROR: precheck_env.sh failed (rc=${PRECHECK_RC}); see ${PRECHECK_LOG}" >&2
+        tail -20 "${PRECHECK_LOG}" >&2
+        exit 1
+    fi
+    echo "[task 0] precheck_env.sh 7/7 PASS (log: ${PRECHECK_LOG})"
+fi
 
 echo "=== p8f_amg_spike array task ${TASK_ID} (NN=${NN}) ==="
 echo "node=$(hostname) date_utc=$(date -u +%FT%TZ)"
@@ -144,13 +188,21 @@ emit_wall_overflow() {
     {
         echo ""
         echo "MARKER:AMG_WALL_OVERFLOW_DETECTED elapsed_sec=${elapsed} wall_budget_sec=${wall_budget_sec}"
-        # Best-effort cell_summary stub so PR-C parser sees verdict_class
-        # even when the cpp main thread is killed before emit_cell_summary.
+        # Full spec REQ-4 5-line / 14-field schema with NA sentinels for
+        # the fields that can't be measured at trap time. CASE_NAME/INTERP/
+        # COARSEN are known (decoded above from NN). hypre/colpack/shud_pin
+        # are NA because they come from the cpp's HYPRE_Version()/
+        # COLPACK_VERSION_STR/SHUD_PIN_SHA which require running the binary.
+        # PR-C aggregator must accept NA sentinels for AMG_WALL_OVERFLOW cells
+        # (per spec REQ-4 marker-as-data-point semantics).
         echo "CELL_SUMMARY_BEGIN"
-        echo "verdict_class=AMG_WALL_OVERFLOW"
+        echo "case=${CASE_NAME} interp_type=${INTERP} coarsen_type=${COARSEN} NumY=NA nnz_A=NA"
         echo "setup_wall_sec=NA apply_wall_sec=NA peak_rss_bytes=NA"
-        echo "wall_budget_sec=${wall_budget_sec} elapsed_sec=${elapsed}"
+        echo "cycle_complexity=NA operator_complexity=NA residual_reduction_v1=NA"
+        echo "verdict_class=AMG_WALL_OVERFLOW"
+        echo "hypre_version=NA colpack_version=NA shud_pin=NA"
         echo "CELL_SUMMARY_END"
+        echo "wall_budget_sec=${wall_budget_sec} elapsed_sec=${elapsed}"
     } >> "${CELL_LOG}" 2>/dev/null
     echo "MARKER:AMG_WALL_OVERFLOW_DETECTED emitted to ${CELL_LOG} (caught SIGTERM at elapsed=${elapsed}s)" >&2
     # Copy the partial log into cells/ for evidence collection (same
