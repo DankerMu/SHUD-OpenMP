@@ -1,0 +1,41 @@
+=== Pre-flight + 4-combo smoke summary ===
+Pre-flight artifacts: -rw-r--r--@ 1 danker  staff   55564 Jun 29 08:17 SHUD/Basins/keliya/keliya_adjacency.csc
+-rw-r--r--@ 1 danker  staff  137380 Jun 29 08:17 SHUD/Basins/keliya/keliya_numeric_J.bin
+
+=== Per-combo verdicts ===
+--- cell-0.log ---
+CELL_SUMMARY_BEGIN
+case=keliya interp_type=6 coarsen_type=8 NumY=1785 nnz_A=10255
+setup_wall_sec=0.000389 apply_wall_sec=0.000353 peak_rss_bytes=18972672
+cycle_complexity=2.0043 operator_complexity=1.0021 residual_reduction_v1=151303634.8127
+verdict_class=PASS
+hypre_version=3.1.0 colpack_version=unknown shud_pin=runtime
+CELL_SUMMARY_END
+
+--- cell-1.log ---
+CELL_SUMMARY_BEGIN
+case=keliya interp_type=14 coarsen_type=10 NumY=1785 nnz_A=10255
+setup_wall_sec=0.000380 apply_wall_sec=0.000334 peak_rss_bytes=19087360
+cycle_complexity=2.0043 operator_complexity=1.0021 residual_reduction_v1=187354425.9125
+verdict_class=PASS
+hypre_version=3.1.0 colpack_version=unknown shud_pin=runtime
+CELL_SUMMARY_END
+
+--- cell-2.log ---
+CELL_SUMMARY_BEGIN
+case=keliya interp_type=6 coarsen_type=21 NumY=1785 nnz_A=10255
+setup_wall_sec=0.000378 apply_wall_sec=0.000320 peak_rss_bytes=19136512
+cycle_complexity=2.0059 operator_complexity=1.0029 residual_reduction_v1=187354425.9125
+verdict_class=PASS
+hypre_version=3.1.0 colpack_version=unknown shud_pin=runtime
+CELL_SUMMARY_END
+
+--- cell-3.log ---
+CELL_SUMMARY_BEGIN
+case=keliya interp_type=8 coarsen_type=8 NumY=1785 nnz_A=10255
+setup_wall_sec=0.000396 apply_wall_sec=0.000327 peak_rss_bytes=19333120
+cycle_complexity=2.0043 operator_complexity=1.0021 residual_reduction_v1=151303634.8127
+verdict_class=PASS
+hypre_version=3.1.0 colpack_version=unknown shud_pin=runtime
+CELL_SUMMARY_END
+
