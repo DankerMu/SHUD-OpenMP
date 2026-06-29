@@ -2444,7 +2444,12 @@ void rhs_core_omp(double* Y, double* DY, double t, ExecPolicy policy) {
 
 **P8-tune.C status (post-merge 2026-06-28)**: 6-PR sequence MERGED (PR-0 #369 + PR-A #370 + PR-B #371 + PR-C #372 + PR-D #373 + PR-E #368) + follow-up PR-376 G7 split-gate spec amendment (2026-06-28) + 本 PR `chore/p8tune-doc-correction` (NumY 口径修正 + maxl=30 wording softening per GPT Pro 2026-06-28 review). ADR-0004 adopted **Optional-knob** branch with G7-attested (mechanism). Production opt-in `SHUD_SPGMR_MAXL=30` for heihe N=1 is **Performance opt-in tier (NOT A5-certified)**, pending future P9-A5 hydrology-equivalence epic for promotion. heihe_x4 全 maxl ≥10 wall REGRESS — SPGMR Krylov-vector path saturated per NumY ~120K × 8 × 10 ≈ 9.6 MB > L2 cache analysis (per ADR-0004 §Discussion NumY 口径). Triggers **P8-tune.D KLU pattern-only spike epic** (next section).
 
-##### P8-tune.D — KLU pattern-only spike epic ([OPEN, executing PR-0 #380] per 2026-06-28)
+##### P8-tune.D — KLU pattern-only spike epic ([CLOSED, 4-PR sequence MERGED, verdict=Case-aware] per 2026-06-29)
+
+**P8-tune.D status (post-merge 2026-06-29)**: 4-PR sequence MERGED — PR-0 [#384](https://github.com/DankerMu/SHUD-OpenMP/pull/384) (spike tool authoring + Mac smoke) + PR-A [#385](https://github.com/DankerMu/SHUD-OpenMP/pull/385) (server 16-cell Slurm array sweep on cn-nodes) + PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (aggregator + 3-axis verdict docs + ADR-0005) + PR-C [#388](https://github.com/DankerMu/SHUD-OpenMP/pull/388) (本 PR — epic capstone + master plan close + OpenSpec archive). ADR-0005 [Accepted](docs/adr/0005-klu-spike-decision.md). Capability spec archived at [openspec/specs/klu-pattern-spike-verdict/spec.md](openspec/specs/klu-pattern-spike-verdict/spec.md). **Verdict**: **Case-aware** — `keliya`+`heihe`=GO (KLU fill_ratio 1.18-1.92, RSS << 0.7×cn-RAM, wall ≤14% of 0.7×SPGMR budget); `heihe_x4`=Optional (1.87× wall over budget; near-miss); `heihe_x16`=NO-GO (17.9× wall over budget; structurally infeasible). Forward path split — see §P8-tune.E.small-only (medium priority) + §P8-tune.F (high priority) below.
+
+**Out-of-scope follow-ups (deferred, not merged)**: [#386](https://github.com/DankerMu/SHUD-OpenMP/issues/386) SHUD `Model_Data` destructor uninit-pointer audit (workaround = `_exit(0)` in spike binaries per `tools/p8tune.D/fd_color_jacobian.cpp` + `dump_adjacency.cpp`; deferred to P8-tune.E prereq).
+
 
 **Trigger condition** (per ADR-0004 §Discussion forward-implication + GPT Pro 2026-06-28 review):
 
@@ -2530,7 +2535,41 @@ ADR-0005 GO / Optional / Case-aware / NO-GO branches are **all auto-typed by the
 | cn-node RAM 不确认 | PR-0 跑 `cat /proc/meminfo` on cn14 + 钉进 aggregator threshold |
 | FD coloring miss corner case (lake-bank / river outlet) | Q1-Q2 grilling confirmed: `updateLakeElement()` runtime truth via libshud.a Init avoids static analysis drift |
 
-详 forthcoming openspec change `p8tune-klu-spike` proposal + design.md (D1-D8) + tasks.md。
+详 archived openspec change `p8tune-klu-spike` (canonical spec at [openspec/specs/klu-pattern-spike-verdict/spec.md](openspec/specs/klu-pattern-spike-verdict/spec.md))。
+
+##### P8-tune.E.small-only — KLU env-var opt-in for small cases ([OPEN, anchor] per 2026-06-29)
+
+**Trigger condition**: P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `keliya`+`heihe` GO on all 3 axes (fill+RSS+wall). Forward path is **KLU env-var opt-in** mirroring ADR-0004 `SHUD_SPGMR_MAXL` Optional-knob pattern, NOT a full integration epic.
+
+**4-PR scope (forthcoming openspec change `p8tune-klu-small-only-opt-in`, ~3 weeks budget, medium priority)**:
+
+| PR | scope | depends on |
+|---|---|---|
+| PR-0 | `SHUD_KLU_ENABLE=1` env-var hook in `cvode_config.cpp` (SUNLinSol_KLU constructor wire-up; default OFF; opt-in only) + small-case smoke (keliya 90-day) | P8-tune.D CLOSE + [#386](https://github.com/DankerMu/SHUD-OpenMP/issues/386) destructor audit FIX (prereq, must land first) |
+| PR-A | server 12-cell sweep (keliya + heihe × N=1/4/8 × 3 rep) measure end-to-end SHUD wall + ncfl/nli/nni counter delta vs SPGMR baseline | PR-0 merged |
+| PR-B | A5 hydrology-equivalence gate (rivqdown.dat NSE/KGE/peak/water-balance vs PREC_NONE B1b baseline) on heihe N=1 + ADR-0006 promotion (Performance-tier → A5-certified-tier) | PR-A complete |
+| PR-C | epic capstone + master plan §P8-tune.E.small-only [OPEN]→[CLOSED] + OpenSpec archive | PR-B ADR-0006 |
+
+**Out of scope**: heihe_x4/x16 (those cases go to §P8-tune.F BoomerAMG path). NO `SHUD_KLU_ENABLE=1` for production large-case workflows; env-var gates large-case to fall-through-to-SPGMR per ADR-0005 §Decision.
+
+**Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `keliya_recommended_action = klu-env-var-opt-in` + `heihe_recommended_action = klu-env-var-opt-in`).
+
+##### P8-tune.F — BoomerAMG/Hypre spike for large cases ([OPEN, anchor] per 2026-06-29)
+
+**Trigger condition**: P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `heihe_x4` Optional (1.87× wall over 0.7×SPGMR budget; near-miss) + `heihe_x16` NO-GO (17.9×; structural). SPGMR Krylov-vector path saturated per ADR-0004 + KLU fill-axis fine but wall-axis blown per ADR-0005. AMG is the algebraically-correct retreat: O(N) memory + scales for elliptic-parabolic PDE structure native to SHUD domain.
+
+**4-PR scope (forthcoming openspec change `p8tune-amg-spike`, ~4 weeks budget, high priority)**:
+
+| PR | scope | depends on |
+|---|---|---|
+| PR-0 | tool authoring — BoomerAMG/Hypre spike (`tools/p8tune.F/{dump_adjacency,fd_color_jacobian,boomeramg_setup_solve}.cpp`) reusing PR-0 #384 dump_adjacency + fd_color_jacobian + Hypre + IJMatrix CSR wrap + Mac keliya smoke | P8-tune.D CLOSE |
+| PR-A | server 16-cell Slurm array sweep (4 case × 4 (interp_type, coarsen_type) combo per BoomerAMG best-practice) on cn[05-06,09,14-19,23-24] | PR-0 merged |
+| PR-B | aggregator + ADR-0007 verdict (3-axis hard threshold: setup_wall + solve_wall + memory; AMG-specific: cycle_complexity + operator_complexity) | PR-A complete |
+| PR-C | epic capstone + (conditional) trigger P8-tune.G full AMG + A5 integration epic OR P8-tune.H GPU sparse spike (if AMG also NO-GO on heihe_x16) | PR-B ADR-0007 |
+
+**Out of scope**: SHUD source patch (Hypre spike links libshud.a only, same pattern as P8-tune.D PR-0); CVODE integration (deferred to forthcoming P8-tune.G full epic); A5 hydrology-equivalence (deferred to P8-tune.G — pattern-only spike same as P8-tune.D).
+
+**Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `heihe_x4_recommended_action = use-future-amg` + `heihe_x16_recommended_action = use-future-amg` + `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl` — note decisive-cell pointer flags heihe_x4 as boundary case; P8-tune.E.small-only may absorb heihe_x4 if `refactor_freq ≥ 20` CVODE cadence flips the verdict).
 
 ##### P8-precond.1 — 物理分块结构设计
 

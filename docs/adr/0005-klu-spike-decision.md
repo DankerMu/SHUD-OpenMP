@@ -1,13 +1,13 @@
 # ADR-0005: klu-spike-decision — KLU pattern-only spike 4-branch verdict (Case-aware branch)
 
-- **Status**: Proposed (PR-B authoring; flipped to Accepted at PR-C capstone)
+- **Status**: Accepted (2026-06-29, flipped from Proposed at PR-C capstone — verdict=Case-aware; forward path = P8-tune.E.small-only [medium priority KLU env-var opt-in for keliya+heihe] + P8-tune.F [high priority BoomerAMG/Hypre spike for heihe_x4+heihe_x16])
 - **Date**: 2026-06-28
 - **Deciders**: DankerMu + Claude orchestrator (per `tools/p8tune.D/aggregate_klu_spike.sh` 3-axis per-case verdict + `docs/p8tune/klu_spike_verdict.md` synthesis)
 - **Owner**: SHUD-OpenMP 改造工程 / P8-tune.D epic capstone → split into (a) P8-tune.E.small-only (KLU env-var opt-in for small cases) + (b) P8-tune.F (BoomerAMG/Hypre spike for large cases)
 - **Tags**: klu / suitesparse / direct-sparse / pattern-spike / case-aware / amg-retreat / fill-axis / rss-axis / wall-axis
 - **Supersedes**: none (first KLU-related ADR)
 - **Superseded by**: none
-- **Related**: ADR-0004 maxl-sweep-decision (SPGMR maxl Optional-knob; baseline wall anchor heihe_x4 N=1 maxl=5 ≈ 0.227 s/step) + ADR-0003 precond-spike-decision (p8pre NO-GO; PREC_NONE production baseline) + master plan §P8-tune.D anchor + `openspec/changes/p8tune-klu-spike/` (epic SHUD-OpenMP#379) + PR-0 #384 (spike tool) + PR-A #385 (16-cell sweep) + 本 PR-B + 待开 PR-C (capstone)
+- **Related**: ADR-0004 maxl-sweep-decision (SPGMR maxl Optional-knob; baseline wall anchor heihe_x4 N=1 maxl=5 ≈ 0.227 s/step) + ADR-0003 precond-spike-decision (p8pre NO-GO; PREC_NONE production baseline) + master plan §P8-tune.D anchor + `openspec/changes/p8tune-klu-spike/` (epic SHUD-OpenMP#379) + PR-0 [#384](https://github.com/DankerMu/SHUD-OpenMP/pull/384) (spike tool) + PR-A [#385](https://github.com/DankerMu/SHUD-OpenMP/pull/385) (16-cell sweep) + PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (aggregator + ADR draft) + 本 PR-C [#388](https://github.com/DankerMu/SHUD-OpenMP/pull/388) (epic capstone — Accepted flip)
 
 ---
 
