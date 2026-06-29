@@ -22,13 +22,13 @@ Per spec REQ-7 PR-A boundary L218, the expected per-cell flat layout is:
 
 ```
 cell-results/
-  cell-00.out  cell-00.err  cell-00.log  cell-00.J.bin  cell-00.time   # keliya     amd  btf=1
-  cell-01.out  cell-01.err  cell-01.log  cell-01.J.bin  cell-01.time   # keliya     amd  btf=0
-  cell-02.out  cell-02.err  cell-02.log  cell-02.J.bin  cell-02.time   # keliya     colamd btf=1
-  cell-03.out  cell-03.err  cell-03.log  cell-03.J.bin  cell-03.time   # keliya     colamd btf=0
-  cell-04..07                                                          # heihe      × 4 orderings
-  cell-08..11                                                          # heihe_x4   × 4 orderings
-  cell-12..15                                                          # heihe_x16  × 4 orderings
+  cell-00.out  cell-00.err  cell-00.log  cell-00.J.bin  cell-00.time   # keliya     natural btf=1
+  cell-01.out  cell-01.err  cell-01.log  cell-01.J.bin  cell-01.time   # keliya     amd     btf=0
+  cell-02.out  cell-02.err  cell-02.log  cell-02.J.bin  cell-02.time   # keliya     amd     btf=1
+  cell-03.out  cell-03.err  cell-03.log  cell-03.J.bin  cell-03.time   # keliya     colamd  btf=1
+  cell-04..07                                                          # heihe      × 4 orderings (natural+1, amd-0, amd+1, colamd+1)
+  cell-08..11                                                          # heihe_x4   × 4 orderings (same)
+  cell-12..15                                                          # heihe_x16  × 4 orderings (same)
 ```
 
 ## Acceptance gate (PR-A merge prerequisite per tasks §2.9)
