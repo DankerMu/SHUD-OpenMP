@@ -1,0 +1,5 @@
+Verifier verdict for: c11
+Reviewed head SHA: a65f3ca175405e128ec15b7fe7f07c8932903bf0
+Verdict: CONFIRMED
+Evidence: REQ-1 spec.md L18: "AND PR-0 SHALL NOT bump the SHUD submodule pointer (pin stays at `6ce17d6`, the current live SHUD HEAD per ADR-0004 §References)". REQ-7 spec.md L215 permits "`SHUD/Makefile` (additive `libshud.a` archive target only — the documented carve-out)". Per CLAUDE.md "SHUD submodule 工作流（强制）", any SHUD/Makefile commit MUST be pushed to `openmp-baseline` then the outer pointer bumped — there is no in-tree-only edit path. PR-0 actual diff confirms `SHUD: 6ce17d6 → bc919f5` (Subproject commit change in pointer file). Therefore the two requirements are mutually exclusive under strict reading: satisfying REQ-7 L215 (carve-out commit) forces a pointer bump that violates REQ-1 L18 (no bump). The PR realizes the contradiction by performing exactly what REQ-7 permits and REQ-1 forbids.
+Note: Spec drafting defect (interpretive), not a code defect; REQ-1 L18 needs the suggested carve-out caveat to match REQ-7 L215.
