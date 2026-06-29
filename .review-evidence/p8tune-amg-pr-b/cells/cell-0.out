@@ -1,0 +1,96 @@
+=== p8f_amg_spike array task 0 (NN=00) ===
+node=cn08 date_utc=2026-06-29T13:32:57Z
+run_id=p8f_amg_spike.9896
+run_dir=/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.F-runs/p8f_amg_spike.9896
+slurm_job_id=9897 slurm_array_job_id=9896
+
+=== CELL_HEADER NN=00 keliya_interp6_coarsen8 ===
+date_utc:       2026-06-29T13:32:57Z
+hostname:       cn08
+run_id:         p8f_amg_spike.9896
+run_dir:        /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.F-runs/p8f_amg_spike.9896
+tool_dir:       /scratch/frd_muziyao/SHUD-OpenMP/tools/p8tune.F
+basin_root:     /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins
+cell_log:       /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.F-runs/p8f_amg_spike.9896/cell-00.log
+cell_time:      /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.F-runs/p8f_amg_spike.9896/cell-00.time
+case:           keliya      (case_idx=0)
+interp_type:    6  (combo_idx=0)
+coarsen_type:   8
+
+INFO: pre-flight artifacts present (will skip dump_adjacency + fd_color_jacobian inside cpp)
+INFO:   /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/keliya_adjacency.csc  (55564 bytes)
+INFO:   /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/keliya_numeric_J.bin (137380 bytes)
+
+[amg] config: case=keliya interp_type=6 coarsen_type=8 n_solve=5 rhs_mode=ones
+[amg] loaded numeric J: NumY=1785 total_nnz=10255 n_colors=16
+[amg] test matrix M = I - 1.000000 * J  (diagonal set on 1785 / 1785 cols)
+
+
+ Num MPI tasks = 1
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 2
+
+ Strength Threshold = 0.250000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = PMIS 
+ measures are determined locally
+
+ Interpolation = extended+i
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0    1785    10255  0.003     2   15     5.7   2.052e-01   1.533e+02
+  1       7        7  0.143     1    1     1.0   1.256e+00   2.186e+00
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0  1785 x 7       0    1   0.0   2.561e-01   7.043e-01   0.000e+00   1.000e+00
+
+
+     Complexity:   grid = 1.003922
+               operator = 1.000683
+                 memory = 1.002145
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         100 
+  Stopping Tolerance:               1.000000e-08 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            1    1     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:     13   14     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):   0
+                   Post-CG relaxation (up):   0
+                             Coarsest grid:   0
+
+CELL_SUMMARY_BEGIN
+case=keliya interp_type=6 coarsen_type=8 NumY=1785 nnz_A=10255
+setup_wall_sec=0.001094 apply_wall_sec=0.001257 peak_rss_bytes=19988480
+cycle_complexity=2.0043 operator_complexity=1.0021 residual_reduction_v1=50.8449
+verdict_class=PASS
+hypre_version=3.1.0 colpack_version=unknown shud_pin=1ab61c023ac2b93a178c2feb07aa3df509fe1a96
+CELL_SUMMARY_END
+
+=== CELL_FOOTER NN=00 keliya_interp6_coarsen8 done exit=0 ===
+
+=== task 0 (NN=00) exit=0 ===

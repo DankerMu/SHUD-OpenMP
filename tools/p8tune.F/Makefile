@@ -151,6 +151,14 @@ RPATH := -Wl,-rpath,$(HYPRE_LIB) \
 # its symbols before SuiteSparse/SUNDIALS deps so unresolved Model_Data
 # refs trigger transitive lookups. Hypre + MPI + openblas come after for
 # their own resolution.
+# EXTRA_LIBS: server portability hook. Ubuntu apt libhypre-dev (2.28.0)
+# transitively requires libsuperlu_dist + libptscotchparmetisv3 + libmetis
+# (Debian build chose distributed-solver integration). Mac brew libhypre
+# (3.1.0) needs none of these. Override on the make command line per platform:
+#   - Mac brew: EXTRA_LIBS=""   (default; nothing extra)
+#   - Ubuntu apt: EXTRA_LIBS="-lsuperlu_dist -lptscotchparmetisv3 -lmetis"
+EXTRA_LIBS ?=
+
 LIBS := \
   -lm \
   -lHYPRE \
@@ -159,7 +167,8 @@ LIBS := \
   -lsundials_cvode \
   -lsundials_nvecserial \
   -lklu -lamd -lbtf -lcolamd -lsuitesparseconfig \
-  -lColPack
+  -lColPack \
+  $(EXTRA_LIBS)
 
 BINARIES := boomeramg_setup_solve
 SYMLINKS := dump_adjacency fd_color_jacobian
