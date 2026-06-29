@@ -630,7 +630,11 @@ int main(int argc, char **argv) {
 
     // --- MPI + HYPRE init ---
     // Hypre 3.x brew is MPI-built (open-mpi). MPI_COMM_SELF for single-process
-    // spike. HYPRE_Initialize is mandatory (utilities header: "Required" tag).
+    // spike. HYPRE init API split across versions:
+    //   - Hypre 3.x: HYPRE_Initialize() (utilities.h "Required" tag)
+    //   - Hypre 2.x: HYPRE_Init() (older name; same role)
+    // Gate via HYPRE_RELEASE_NUMBER (cutoff 30000). Ubuntu apt ships 2.28.0
+    // (HYPRE_RELEASE_NUMBER=22800), Mac brew ships 3.1.0 (=30100).
     int mpi_argc = 1;
     char  mpi_arg0[] = "boomeramg_setup_solve";
     char *mpi_argv[2] = {mpi_arg0, nullptr};
@@ -639,7 +643,11 @@ int main(int argc, char **argv) {
         std::fprintf(stderr, "[amg] ERROR: MPI_Init failed\n");
         return 1;
     }
+#if defined(HYPRE_RELEASE_NUMBER) && HYPRE_RELEASE_NUMBER >= 30000
     HYPRE_Initialize();
+#else
+    HYPRE_Init();
+#endif
 
     // --- Build Hypre IJMatrix ---
     HYPRE_IJMatrix A_ij = nullptr;
