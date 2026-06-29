@@ -1446,14 +1446,21 @@ jobs:
           asan_err=$(grep -cE 'AddressSanitizer.*ERROR|==.*==ERROR' sanitizer_run_${{ matrix.case }}.stderr.log || true)
           ubsan_err=$(grep -cE 'runtime error|UndefinedBehavior.*ERROR' sanitizer_run_${{ matrix.case }}.stderr.log || true)
           asan_warn=$(grep -cE 'AddressSanitizer.*WARNING|UndefinedBehaviorSanitizer.*WARNING' sanitizer_run_${{ matrix.case }}.stderr.log || true)
-          # P8-tune.F PR-0 (#394 / #386) Phase 6 — dtor coverage POSITIVE
-          # sentinel: SHUD CLI prints `The successful end.` on the normal
-          # main() return path (see SHUD/src/Model/shud.cpp; emitted AFTER
-          # write outputs and BEFORE main exits). If _exit(0)/abort()/SIGSEGV
-          # bypasses normal return, marker is absent → gate fails.
-          # The marker is generated IFF the C++ dtor chain ran to completion
-          # (the converse direction is what we want: positive emission proves
-          # full dtor coverage). Per Phase 5 cross-review F2 closure.
+          # P8-tune.F PR-0 (#394 / #386) Phase 6/6.5 — dtor coverage POSITIVE
+          # sentinel: SHUD CLI prints `The successful end.` from
+          # Model_Data::TimeSpent() (via modelSummary(end=1) at
+          # SHUD/src/Model/shud.cpp:291/507) — emitted at the END of main
+          # BEFORE the `delete MD;` at shud.cpp:359/591 invokes
+          # ~Model_Data(). Necessary-but-not-sufficient for full dtor
+          # coverage by itself: it proves the main loop completed and
+          # reached the normal return path (catches _exit/abort/SIGSEGV
+          # bypass). The subsequent ~Model_Data() / FreeData() UB is
+          # caught by ASan halt_on_error=1 + the asan_err / ubsan_err
+          # / asan_warn greps below. Together the two checks bracket
+          # the dtor invocation: sentinel proves we REACHED the dtor;
+          # ASan greps prove the dtor RAN CLEANLY. Per Phase 5 + Phase
+          # 6.5 cross-review F2 closure (correctness lens — sentinel
+          # placement precisely characterized).
           marker_count=$(grep -cE 'The successful end\.' sanitizer_run_${{ matrix.case }}.stdout.log || true)
           echo "ASan ERROR: $asan_err"
           echo "UBSan ERROR: $ubsan_err"
