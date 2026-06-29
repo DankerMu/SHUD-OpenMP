@@ -182,6 +182,15 @@ AUTHORITATIVE_DIR = {
 }
 
 def find_cell_log(nn):
+    """Return AUTHORITATIVE cell-NN.log path or None.
+
+    NO FALLBACK: per spec REQ-7 PR-A boundary, NN=08-15 MUST come from
+    `exit-fix-1782652046/` only (pre-`_exit` fix logs in `run-9762/` for
+    those NNs are stale and lack the KLU markers). Phase-4 F1 hardening:
+    iterating CELLS_ROOT in fs order could silently substitute the stale
+    `run-9762/cell-08.log` (no marker, no cell_summary) producing
+    verdict_class=UNKNOWN. Hard-fail instead.
+    """
     nn_str = f"{nn:02d}"
     subdir_name = AUTHORITATIVE_DIR.get(nn)
     if subdir_name is None:
@@ -189,14 +198,7 @@ def find_cell_log(nn):
     candidate = CELLS_ROOT / subdir_name / f"cell-{nn_str}.log"
     if candidate.exists():
         return candidate
-    # Fallback: scan all subdirs (covers future re-runs / renamed dirs).
-    for subdir in CELLS_ROOT.iterdir():
-        if not subdir.is_dir():
-            continue
-        candidate = subdir / f"cell-{nn_str}.log"
-        if candidate.exists():
-            return candidate
-    return None
+    return None  # NO silent fallback — caller logs MISSING + exits non-zero
 
 # ---------------------------------------------------------------------------
 # Per-cell parser: extract klu_analyze_factor `cell_summary` KV OR
@@ -227,6 +229,16 @@ def parse_cell_log(path):
         text = f.read()
 
     # Markers (each is exit-0 data point per amended REQ-5).
+    #
+    # Precedence: CHRONOLOGICAL-FIRST across the log. If a cell emits
+    # multiple markers (e.g. KLU OOM during klu_factor + the sbatch SIGTERM
+    # trap appends KLU_WALL_OVERFLOW_DETECTED later), the first-emitted
+    # marker is the decisive verdict-class signal; later markers are
+    # secondary (the wall trap fires AFTER the OOM-killer in practice).
+    # Iterating over (marker_name, byte-offset) lets us deterministically
+    # pick the earliest occurrence rather than the iteration-order winner.
+    # (Phase-4 F3 hardening.)
+    candidates = []
     for marker in (
         "KLU_INDEX_OVERFLOW_DETECTED",
         "KLU_OOM_DETECTED",
@@ -234,28 +246,31 @@ def parse_cell_log(path):
     ):
         m = re.search(r"^.*" + marker + r".*$", text, re.MULTILINE)
         if m:
-            result["marker_line"] = m.group(0).strip()
-            # Parse the marker line: case=<C> ordering=<O> btf=<B>
-            #   peak_rss_bytes=<N> [reason=...] [elapsed_sec=N wall_budget_sec=W]
-            mc = re.search(r"case=(\S+)", m.group(0))
-            mo = re.search(r"ordering=(\S+)", m.group(0))
-            mb = re.search(r"btf=(\d+)", m.group(0))
-            mrss = re.search(r"peak_rss_bytes=(\d+)", m.group(0))
-            if mc:
-                result["case"] = mc.group(1)
-            if mo:
-                result["ordering"] = mo.group(1)
-            if mb:
-                result["btf"] = int(mb.group(1))
-            if mrss:
-                result["peak_rss_bytes"] = int(mrss.group(1))
-            if marker == "KLU_INDEX_OVERFLOW_DETECTED":
-                result["verdict_class"] = "fill_overflow"
-            elif marker == "KLU_OOM_DETECTED":
-                result["verdict_class"] = "rss_overflow"
-            else:
-                result["verdict_class"] = "wall_overflow"
-            break
+            candidates.append((m.start(), marker, m))
+    if candidates:
+        candidates.sort(key=lambda t: t[0])  # chronologically-first wins
+        _, marker, m = candidates[0]
+        result["marker_line"] = m.group(0).strip()
+        # Parse the marker line: case=<C> ordering=<O> btf=<B>
+        #   peak_rss_bytes=<N> [reason=...] [elapsed_sec=N wall_budget_sec=W]
+        mc = re.search(r"case=(\S+)", m.group(0))
+        mo = re.search(r"ordering=(\S+)", m.group(0))
+        mb = re.search(r"btf=(\d+)", m.group(0))
+        mrss = re.search(r"peak_rss_bytes=(\d+)", m.group(0))
+        if mc:
+            result["case"] = mc.group(1)
+        if mo:
+            result["ordering"] = mo.group(1)
+        if mb:
+            result["btf"] = int(mb.group(1))
+        if mrss:
+            result["peak_rss_bytes"] = int(mrss.group(1))
+        if marker == "KLU_INDEX_OVERFLOW_DETECTED":
+            result["verdict_class"] = "fill_overflow"
+        elif marker == "KLU_OOM_DETECTED":
+            result["verdict_class"] = "rss_overflow"
+        else:
+            result["verdict_class"] = "wall_overflow"
 
     # Also harvest NumY from any dump_adjacency line — useful when the
     # marker line lacks it (markers don't carry NumY).
@@ -346,6 +361,27 @@ for nn in range(16):
         continue
     parsed = parse_cell_log(log_path)
     parsed["nn"] = nn
+    # Phase-4 F2 hardening: a verdict_class=="UNKNOWN" means the log was
+    # found but neither a marker nor a cell_summary block was parsed
+    # (truncated mid-stage / parser bug / wrong file). Loudly warn + tail
+    # the log so the operator can diagnose; downgrade to MISSING semantics
+    # for verdict computation so it does NOT silently pollute best-combo.
+    if parsed["verdict_class"] == "UNKNOWN":
+        try:
+            with open(log_path, "r", errors="replace") as f:
+                tail_lines = f.read().splitlines()[-5:]
+        except Exception:
+            tail_lines = ["(unreadable)"]
+        print(
+            f"WARN: cell NN={nn:02d} ({expected_case}/{expected_ordering}/btf{expected_btf})"
+            f" — log present at {log_path} but neither cell_summary nor any"
+            f" KLU_*_DETECTED marker parsed. Last 5 lines:",
+            file=sys.stderr,
+        )
+        for line in tail_lines:
+            print(f"  | {line}", file=sys.stderr)
+        # Treat as MISSING for downstream verdict logic.
+        parsed["verdict_class"] = "MISSING"
     # Backfill case/ordering/btf from decoder if the log didn't carry them
     # (e.g. early failures before the cell_summary block).
     if parsed["case"] is None:
@@ -549,7 +585,17 @@ def per_case_verdict(case_name, case_cells):
         overall = "Optional"  # marginal wall axis (within 2× budget)
         no_go_axis = "wall_overflow"
     elif pass_count == 2 and wall_axis == "FAIL":
-        overall = "NO-GO"     # wall axis blown well past budget
+        # Two sub-cases collapse into NO-GO + wall_overflow per spec REQ-5
+        # D8 enum (the four-valued no_go_axis closure):
+        #   (a) wall_margin > 2.0 — structural blow-past-budget
+        #   (b) wall_margin is None — best combo has no numeric_factor_wall
+        #       (every combo of this case emitted a wall_overflow marker, or
+        #        the combos that did emit data are not in the PASS set).
+        # Both cases are decisively wall-axis-NO-GO; the spec enum has no
+        # separate "unevaluable" code, so we collapse them here. Phase-4 F4
+        # acknowledged this conflation and recorded it as documentation
+        # debt rather than a third enum value.
+        overall = "NO-GO"     # wall axis blown well past budget OR unevaluable
         no_go_axis = "wall_overflow"
     elif pass_count == 0:
         overall = "NO-GO"

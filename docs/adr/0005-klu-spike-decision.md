@@ -155,7 +155,7 @@ PR-B authors only `tools/p8tune.D/aggregate_klu_spike.sh` + `tools/p8tune.D/rend
 
 ### Positive
 
-1. **Small-case users can opt into KLU acceleration** (estimated +99% wall margin vs SPGMR for keliya / +85% for heihe) via a future env-var hook in P8-tune.E.small-only — no source patch required at user side, mirrors the ADR-0004 `SHUD_SPGMR_MAXL` pattern.
+1. **Small-case users can opt into KLU acceleration** (KLU's per-step estimate uses ≤1% of the 0.7×SPGMR-baseline per-step budget for keliya, ~14% for heihe — i.e., wall-budget headroom is >99% / >85% respectively; this is the budget-headroom fraction, NOT a +99%/+85% end-to-end speedup vs SPGMR) via a future env-var hook in P8-tune.E.small-only — no source patch required at user side, mirrors the ADR-0004 `SHUD_SPGMR_MAXL` pattern.
 2. **Large-case path is unblocked** — P8-tune.F BoomerAMG/Hypre spike is now justified by hard evidence (wall_overflow at heihe_x16 17.9× over budget). The retreat is decisive, not speculative.
 3. **Natural-ordering pathology surfaced as decisive `fill_overflow` data**: the spike correctly detected `KLU_TOO_LARGE` int32 index overflow at heihe_x4 / heihe_x16 natural+BTF. Future P8-tune.E implementers know to default to AMD (and that `klu_l_*` 64-bit-index API is NOT a required workaround for AMD-reordered SHUD matrices).
 4. **AMD vs COLAMD vs BTF decision matrix locked**: AMD is the uniform winner; COLAMD is 1.4-1.9× worse on fill; BTF is zero-effect. P8-tune.E can hardcode `AMD + btf=0` without further investigation.
@@ -190,7 +190,7 @@ The small-case KLU env-var opt-in should mirror the ADR-0004 `SHUD_SPGMR_MAXL` p
 - A5 hydrology equivalence (NSE/KGE/peak/water-balance) validation on keliya + heihe required for the Performance opt-in tier (NOT A5-certified yet — see ADR-0004 tier definitions)
 - Acceptance criteria: G1 build / G2 default-compat unset bit-identical / G4 ncfn+ncfl improvement / G7-attested ADR-mechanism explanation (KLU's exact factorization vs Krylov iterative may produce trajectory drift on the CVODE step-size adapter; document mechanism per ADR-0004 §G7-attested template)
 
-Recommendation: P8-tune.E.small-only is a **medium-priority** epic. The +85% wall margin for heihe is substantial enough to justify the engineering investment; keliya's +99% is gravy. 4-6 week budget is appropriate (mirrors ADR-0004 P8-tune.C epic cadence).
+Recommendation: P8-tune.E.small-only is a **medium-priority** epic. The ~86% wall-budget headroom for heihe (KLU per-step estimate uses ~14% of the 0.7×SPGMR baseline) is substantial enough to justify the engineering investment; keliya's >99% headroom is gravy. 4-6 week budget is appropriate (mirrors ADR-0004 P8-tune.C epic cadence).
 
 ### Forward implication for P8-tune.F (Case-aware branch NO-GO half)
 
@@ -223,7 +223,7 @@ ADR-0004 and this ADR together complete the SHUD linear solver decision matrix:
 |-----------------------------------------|-----------------------------------|------------------------------------------|
 | SPGMR maxl=5 (SUNDIALS default)         | baseline (ADR-0003 anchor)        | baseline (ADR-0003 anchor)              |
 | SPGMR `SHUD_SPGMR_MAXL=30` opt-in (ADR-0004) | +12% wall (heihe N=1), Optional   | REGRESS −15.83% (heihe_x4 N=1), unset   |
-| KLU `SHUD_KLU_ENABLE=1` opt-in (this ADR → P8-tune.E.small-only) | +99% wall (keliya), +85% (heihe) | wall_overflow → use future AMG          |
+| KLU `SHUD_KLU_ENABLE=1` opt-in (this ADR → P8-tune.E.small-only) | ≤1% wall budget used (keliya); ~14% (heihe); >99% / >85% budget-headroom respectively | wall_overflow → use future AMG          |
 | AMG (P8-tune.F future)                  | TBD (likely competitive)          | TBD (target)                            |
 
 The pattern is clear: **case-size dictates solver choice**. SHUD's user runbook should expose this directly.
