@@ -22,11 +22,11 @@ per spec REQ-4 4-combo definition.
 | 05 | heihe      | amd     | 0 | 5.39   | 0.0128 | 0.0384 | 15.9 MB | **best for heihe** |
 | 06 | heihe      | amd     | 1 | 5.39   | 0.0146 | 0.0383 | 16.0 MB | PASS |
 | 07 | heihe      | colamd  | 1 | 8.96   | 0.0173 | 0.0771 | 21.1 MB | PASS |
-| 08 | heihe_x4   | natural | 1 | —      | —      | TIMEOUT 30 min | — | **wall_overflow data-point** |
+| 08 | heihe_x4   | natural | 1 | —      | —      | TIMEOUT 30 min (1st-attempt sbatch `--time=00:30:00`; re-run with 4h wall + `KLU_WALL_OVERFLOW_DETECTED` trap pending) | — | **wall_overflow data-point** |
 | 09 | heihe_x4   | amd     | 0 | 8.35   | 0.0808 | 0.500  | 93.1 MB | **best for heihe_x4** |
 | 10 | heihe_x4   | amd     | 1 | 8.35   | 0.0894 | 0.494  | 93.5 MB | PASS |
 | 11 | heihe_x4   | colamd  | 1 | 15.06  | 0.0926 | 1.242  | 146.2 MB | PASS |
-| 12 | heihe_x16  | natural | 1 | —      | —      | klu_factor status=-4 OOM | — | **rss_overflow data-point** |
+| 12 | heihe_x16  | natural | 1 | —      | —      | klu_factor status=-4 = `KLU_TOO_LARGE` (int32 index overflow) | — | **fill_overflow data-point** (per amended REQ-5 Scenario "Tool-bound data point") |
 | 13 | heihe_x16  | amd     | 0 | 11.08  | 0.4546 | 4.743  | 425.4 MB | **best for heihe_x16** |
 | 14 | heihe_x16  | amd     | 1 | 11.08  | 0.5063 | 4.740  | 427.5 MB | PASS |
 | 15 | heihe_x16  | colamd  | 1 | 20.63  | 0.4280 | 11.708 | 712.0 MB | PASS |
@@ -37,22 +37,33 @@ Mesh sizes:
 - heihe_x4: NumEle=40046 → NumY=124395 (measured)
 - heihe_x16: NumEle=160331 → NumY=485250 (measured)
 
-## Cell-class data points (per spec REQ-5 OOM-as-data-point)
+## Cell-class data points (per spec REQ-5 amended scenarios)
 
-- **NN=08 (heihe_x4 natural+BTF) = wall_overflow data point**: Slurm killed at 30-min wall.
-  Natural ordering on NumY=124395 produces catastrophic fill (heihe natural at 1/3 the size
-  already took 1630s; heihe_x4 natural extrapolates to ~6500s = 1h48m, exceeding our 30-min
-  per-cell wall budget for the first attempt). Re-running with longer wall is not informative
-  because (a) the verdict-axis comparison is against SPGMR-per-step wall (0.227s), and any
-  factor wall above ~10s on this size is already >>> 7σ above-threshold; (b) the AMD reorderings
-  at the same NumY give 0.50s, a 12,000× speedup. The TIMEOUT serves as a "natural ordering
-  is pathological at scale" data point exactly as spec REQ-5 intends OOM-as-data-point.
+- **NN=08 (heihe_x4 natural+BTF) = wall_overflow data point** (per amended REQ-5 Scenario
+  "Wall-budget data point"): Slurm killed at 30-min wall on the 1st-attempt sbatch
+  (`--time=00:30:00` CLI override used during the heihe_x4 batch; the committed
+  `spike_array.sbatch` declares `--time=08:00:00`). Natural ordering on NumY=124395 produces
+  catastrophic fill (heihe natural at NumY=19500 already took 1630s; heihe_x4 natural
+  extrapolates to >6500s ≈ 1h48m). A re-run with 4h wall + the new SIGTERM trap that emits
+  `KLU_WALL_OVERFLOW_DETECTED` is scheduled to land in this same PR-A. Whether the re-run
+  completes (with explicit per-factor wall in stdout) or trips the trap (with explicit
+  marker), the cell is decisively wall-axis-FAIL: the AMD reorderings at the same NumY give
+  0.50 s/factor, a >12,000× speedup, so any natural-ordering wall on this case is >>> 7σ
+  above the SPGMR per-step baseline of 0.227 s.
 
-- **NN=12 (heihe_x16 natural+BTF) = rss_overflow data point**: `klu_factor` returned
-  `common.status=-4` (KLU_OUT_OF_MEMORY) at NumY=485250 with 64G mem cap and 16.8 GB
-  measured peak RSS. KLU's internal malloc for the natural-ordering L+U factor exceeded the
-  remaining 47G (= 64G - 16.8G) of the cell's allocation. This is the same pattern as NN=08
-  but materializes as RSS instead of wall.
+- **NN=12 (heihe_x16 natural+BTF) = fill_overflow data point** (per amended REQ-5 Scenario
+  "Tool-bound data point (KLU 32-bit-int index overflow)"): `klu_factor` returned
+  `common.status=-4` which is **`KLU_TOO_LARGE`** (32-bit-int index overflow), NOT
+  `KLU_OUT_OF_MEMORY` (which is `-2`). At NumY=485250 the natural-ordering `nnz(L+U)`
+  exceeds `2^31`, which the 32-bit signed index space of `klu_factor` cannot address.
+  Measured peak RSS = 16.07 GiB (16,847,680 KiB per `cell-12.time`) << 0.7 × cn-node 173 GiB
+  budget, so this is NOT an RSS-axis failure — it is a fill-pathology surfaced as a
+  tool-bound limit. The committed `--mem=170G` in `spike_array.sbatch` was the actual cap;
+  the index overflow happens at KLU's internal indexing layer, not at OS malloc.
+  Switching to `klu_l_*` 64-bit-index API would be a P8-tune.E implementation choice; the
+  pattern-only spike correctly surfaces this as a `fill_overflow` data point. A re-run with
+  the new `KLU_INDEX_OVERFLOW_DETECTED` diagnostic emit + exit 0 is scheduled to land in
+  this same PR-A.
 
 ## Production summary
 

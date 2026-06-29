@@ -133,6 +133,32 @@ echo "run_dir=${RUN_DIR}"
 echo "slurm_job_id=${SLURM_JOB_ID:-unset} slurm_array_job_id=${SLURM_ARRAY_JOB_ID:-unset}"
 echo ""
 
+# ---------- TIMEOUT trap (spec REQ-5 Scenario "Wall-budget data point") -----
+# When Slurm hits the cell's --time wall budget, it sends SIGTERM, waits
+# KillWait seconds (default 30), then SIGKILL. The trap below catches SIGTERM
+# and emits a KLU_WALL_OVERFLOW_DETECTED marker on a best-effort basis so the
+# aggregator (PR-B) can classify the cell as wall_overflow rather than as a
+# real Slurm failure. If the trap window is insufficient (e.g., KillWait
+# truncated), the aggregator falls back to the sacct State=TIMEOUT check.
+CELL_LOG="${RUN_DIR}/cell-${NN}.log"
+START_TS=$(date +%s)
+emit_wall_overflow() {
+    local now=$(date +%s)
+    local elapsed=$((now - START_TS))
+    local wall_budget_sec="unknown"
+    if [[ "${SLURM_JOB_END_TIME:-}" != "" && "${SLURM_JOB_START_TIME:-}" != "" ]]; then
+        wall_budget_sec=$((SLURM_JOB_END_TIME - SLURM_JOB_START_TIME))
+    fi
+    {
+        echo ""
+        echo "KLU_WALL_OVERFLOW_DETECTED case=${CASE} ordering=${ORDERING} btf=${BTF} elapsed_sec=${elapsed} wall_budget_sec=${wall_budget_sec}"
+    } >> "${CELL_LOG}" 2>/dev/null
+    echo "KLU_WALL_OVERFLOW_DETECTED emitted to ${CELL_LOG} (caught SIGTERM at elapsed=${elapsed}s)" >&2
+    # Exit 0 so Slurm sees the cell as a clean wall_overflow data point.
+    exit 0
+}
+trap emit_wall_overflow TERM
+
 # ---------- Delegate to per-cell wrapper -------------------------------------
 bash /scratch/frd_muziyao/SHUD-OpenMP/tools/p8tune.D/run_cell.sh \
     "${CASE}" "${ORDERING}" "${BTF}" "${NN}" "${RUN_ID}"
@@ -141,10 +167,13 @@ RC=$?
 echo ""
 echo "=== task ${TASK_ID} (NN=${NN}) exit=${RC} ==="
 
-# Exit semantics (per spec REQ-5 OOM-as-data-point):
-#   - rc=0 : PASS (or OOM cleanly reported via KLU_OOM_DETECTED line)
+# Exit semantics (per spec REQ-5 OOM-as-data-point + new tool-bound /
+# wall-budget data-point scenarios):
+#   - rc=0 : PASS, or OOM cleanly reported via KLU_OOM_DETECTED,
+#            or index-overflow via KLU_INDEX_OVERFLOW_DETECTED,
+#            or wall TIMEOUT via KLU_WALL_OVERFLOW_DETECTED (trap above)
 #   - rc=1 : real failure (dump_adjacency / fd_color_jacobian aborted,
-#            or klu_analyze_factor errored without OOM detection)
-# Slurm does NOT --requeue on rc=1 (no retry; per REQ-5 OOM is decisive
-# data, and real failures need root-cause debugging not blind retry).
+#            or klu_analyze_factor errored without any recognized marker)
+# Slurm does NOT --requeue on rc=1 (no retry; per REQ-5 data points are
+# decisive, and real failures need root-cause debugging not blind retry).
 exit ${RC}

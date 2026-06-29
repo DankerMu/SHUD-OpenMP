@@ -94,6 +94,23 @@ BASIN_ROOT="${SHUD_OPENMP_ROOT}/SHUD/Basins"
 RUN_DIR="${SHUD_OPENMP_ROOT}/.p8tune.D-runs/${RUN_ID}"
 mkdir -p "${RUN_DIR}"
 
+# ---------- Spec REQ-4 pre-submission environment gate ---------------------
+# Per spec REQ-4 Scenario "Pre-submission environment gate" L109-116:
+# refuse cell execution with exit 1 + diagnostic on any of:
+#   (a) the case's cfg.para END-START != 90 days (CLAUDE.md 项目级铁律)
+#   (b) the case's forcing.csv does not reference CMFD V0200
+#   (c) heihe_x16 deployed at expected path (only when CASE=heihe_x16)
+#   (d) CN_NODE_RAM_BYTES in cn_node_ram.h matches aggregator threshold
+PRECHECK="${TOOL_DIR}/precheck_env.sh"
+if [[ -x "${PRECHECK}" ]]; then
+    if ! bash "${PRECHECK}" "${CASE}" "${BASIN_ROOT}" "${TOOL_DIR}"; then
+        echo "ERROR: pre-submission env gate FAILED for ${CASE}; refusing cell execution" >&2
+        exit 1
+    fi
+else
+    echo "WARN: ${PRECHECK} not found; skipping spec REQ-4 pre-submission gate (gate will be added in a follow-up)" >&2
+fi
+
 CELL_TAG="${CASE}_${ORDERING}_btf${BTF}"
 CELL_LOG="${RUN_DIR}/cell-${NN}.log"
 CELL_J_BIN="${RUN_DIR}/cell-${NN}.J.bin"
@@ -189,6 +206,10 @@ echo "=== run_cell.sh NN=${NN} ${CELL_TAG} done exit=${RC} ==="
 
 if grep -q '^KLU_OOM_DETECTED ' "${CELL_LOG}" 2>/dev/null; then
     echo "INFO: KLU_OOM_DETECTED reported for ${CELL_TAG}; aggregator will classify as rss_overflow"
+fi
+
+if grep -q '^KLU_INDEX_OVERFLOW_DETECTED ' "${CELL_LOG}" 2>/dev/null; then
+    echo "INFO: KLU_INDEX_OVERFLOW_DETECTED reported for ${CELL_TAG}; aggregator will classify as fill_overflow (32-bit-int index exhaustion)"
 fi
 
 exit ${RC}
