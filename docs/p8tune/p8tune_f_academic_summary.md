@@ -24,7 +24,7 @@ related_docs:
   - "tools/p8tune.F/aggregate_amg_spike.sh + render_verdict.sh (PR-C aggregator + verdict renderer)"
   - ".review-evidence/p8tune-amg-pr-{0,a,b,c}/ (per-PR evidence)"
 related_prs:
-  - "PR-0 #394 (#386 SHUD Model_Data dtor uninit-ptr UB fix + _exit(0) workaround removal, merged 09e815d)"
+  - "PR-0 #394 (#386 SHUD Model_Data dtor uninit-ptr UB fix + _exit(0) workaround removal, merged 09a815d)"
   - "PR-A #402 (spike binary boomeramg_setup_solve.cpp + M1 H3 disclosure, merged)"
   - "PR-B #403 (16-cell Slurm array sweep on cn-nodes, 16/16 PASS, merged)"
   - "PR-C #404 (aggregator + ADR-0007 Proposed + verdict.md, merged)"
@@ -629,12 +629,12 @@ P8-tune.F 数据点也启发以下 P9+ 长程 epic 方向:
 - [tools/p8tune.D/fd_color_jacobian.cpp + dump_adjacency.cpp](tools/p8tune.D/) — reused via shell-out
 - [.review-evidence/p8tune-amg-pr-0/](.review-evidence/p8tune-amg-pr-0/) — PR-0 #386 dtor fix evidence (valgrind clean + smoke)
 - [.review-evidence/p8tune-amg-pr-a/](.review-evidence/p8tune-amg-pr-a/) — PR-A tool authoring + Mac smoke
-- [.review-evidence/p8tune-amg-pr-b/cells/](. review-evidence/p8tune-amg-pr-b/cells/) — PR-B 16-cell raw logs (Slurm 9896)
+- [.review-evidence/p8tune-amg-pr-b/cells/](.review-evidence/p8tune-amg-pr-b/cells/) — PR-B 16-cell raw logs (Slurm 9896)
 - [.review-evidence/p8tune-amg-pr-c/{aggregate.tsv, aggregate_verdict.txt, SPEC_STATUS_HEADER.md}](.review-evidence/p8tune-amg-pr-c/) — PR-C aggregator outputs
 
 ## Pull Requests (epic #393)
 
-- [PR-0 #394](https://github.com/DankerMu/SHUD-OpenMP/pull/394) — `feat(p8tune.F)` #386 SHUD Model\_Data dtor UB fix + workaround removal (merged 09e815d)
+- [PR-0 #394](https://github.com/DankerMu/SHUD-OpenMP/pull/394) — `feat(p8tune.F)` #386 SHUD Model\_Data dtor UB fix + workaround removal (merged 09a815d)
 - [PR-A #402](https://github.com/DankerMu/SHUD-OpenMP/pull/402) — `feat(p8tune-amg-spike-pr-a)` spike binary + M1 H3 disclosure (merged)
 - [PR-B #403](https://github.com/DankerMu/SHUD-OpenMP/pull/403) — `feat(p8tune-amg-spike-pr-b)` 16-cell Slurm array sweep (16/16 PASS;M2 colpack\_version sentinel + M3 NA timing sentinel) (merged)
 - [PR-C #404](https://github.com/DankerMu/SHUD-OpenMP/pull/404) — `feat(p8tune-amg-spike-pr-c)` aggregator + ADR-0007 (Proposed) + verdict.md (merged)
