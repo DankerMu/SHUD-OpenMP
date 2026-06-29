@@ -31,9 +31,10 @@ related_prs:
   - "PR-D #<TBD> (本 PR — epic capstone + master plan close + OpenSpec archive)"
   - "PR-E #<TBD> (forthcoming baseline→main capstone-merge, HARD-GATED behind this PR-D)"
 forward_anchors:
-  - "P8-tune.G AMG Axis-4 instrumentation epic ([OPEN, HIGH], ~4-6w; integrate HYPRE_BoomerAMGGetCycleNumIterations + GetCycleOpCount; re-run 16-cell sweep with measured cycle_complexity; if drift ≤5% → ADR-0007 re-evaluation workshop, if drift >5% → ADR-0007 re-opened)"
-  - "ADR-0007 re-evaluation workshop (post-§P8-tune.G; per spec REQ-7 NO-GO-both clause)"
+  - "P8-tune.G three-gate sequence ([OPEN, HIGH], revised 2026-06-29 post-Linus-review framing amendment, supersedes prior single-epic AMG Axis-4 instrumentation anchor): G0 Axis-4 telemetry + integrated AMG smoke → G1 18-cell integrated benchmark (heihe_x4 ≥10% / heihe_x16 ≥20% wall improvement) → G2 A5 hydrology equivalence (NSE/KGE ≥0.95, runoff Δ ≤1-3%). Axis 4 demoted from hard blocker to hierarchy-quality diagnostic per Saad 2003 §13 (V-cycle work ≈ 2× operator_complexity is steady-state, not NO-GO)."
+  - "ADR-0007 re-evaluation workshop (post-§P8-tune.G2; per spec REQ-7 NO-GO-both clause; driven by integrated wall + A5 evidence, not by Axis 4 drift)"
   - "P8-tune.E.small-only (independent OPTIONAL/medium; KLU env-var opt-in for keliya+heihe; unrelated to AMG path)"
+  - "P8-tune.H GPU sparse / domain decomposition (NOT scheduled; fallback only if G1 wall fails or G2 A5 fails)"
 ---
 
 # Abstract / 摘要
@@ -540,7 +541,7 @@ SHUD Jacobian 含 river-channel directional + lake-bank one-directional 项, 是
 - **shell-out 复用 P8-tune.D 工具** (fd\_color\_jacobian + dump\_adjacency 经 Makefile symlink) 降低 spike epic 工程 cost ~50%, 为 future related epic 提供 cross-epic tool reuse 模板。
 - **#386 SHUD dtor 修复 carve-out** (PR-0 限于 SHUD source root-cause repair, 不 expand 到 spike binary scope) 是 spec REQ-1 zero-source-patch + REQ-3 dtor fix carve-out 之间的 precise 边界定义, 同时满足 invariant gate (Phase 0.5 Invariant Matrix D5) + spike productivity。
 
-本研究为 SHUD-OpenMP 主线锁定 forward path: §P8-tune.G AMG Axis-4 instrumentation epic [OPEN, HIGH] (~4-6w) → ADR-0007 re-evaluation workshop → (conditional) operational AMG productionization epic (if amended GO sustains under measured Axis 4)。strict NO-GO-both 在 ADR re-evaluation workshop 前保持 production behavior 不变 (PREC\_NONE SPGMR maxl=5 default)。
+BoomerAMG 在 pattern-only setup/apply/RSS 上对 heihe\_x4/heihe\_x16 显示出强烈可行性;当前 strict NO-GO 由非遥测 Axis 4 硬编码估值触发,不能视为算法失败。下一步通过 P8-tune.G 三段 gate (G0 Axis-4 telemetry + integrated AMG smoke → G1 integrated 18-cell wall benchmark → G2 A5 hydrology equivalence) 验证 isolated apply advantage 是否能转化为 integrated SHUD wall 收益与水文学可接受性,再决定是否进入生产化。Axis 4 阈值 <1.5 经复审与 Saad 2003 §13 不符 (V-cycle work 典型 ≈ 2× operator\_complexity),已从 hard blocker 降级为 hierarchy-quality diagnostic。strict NO-GO-both 在 G2 verdict 前保持 production behavior 不变 (PREC\_NONE SPGMR maxl=5 default)。
 
 ---
 
@@ -548,46 +549,95 @@ SHUD Jacobian 含 river-channel directional + lake-bank one-directional 项, 是
 
 P8-tune.F capstone 之后, SHUD-OpenMP 工程主线后续 epic 与 1 个 deferred deep-dive:
 
-## §9.1 §P8-tune.G AMG Axis-4 instrumentation epic (HIGH priority, ~4-6 weeks)
+## §9.1 §P8-tune.G0 — Axis-4 telemetry + integrated AMG smoke (HIGH priority)
 
-**目标**: 修补 Axis 4 instrumentation gap, 经 HYPRE telemetry measurement 验证 strict NO-GO-both verdict 是否稳定。
+**目标**: 消除 Axis 4 硬编码估值,同时验证 `SUNLinSol_Hypre`/CVODE 集成是否端到端可跑通。这是把 pattern-only spike 推进到 integrated prototype 的第一段 gate。
 
 **Scope**:
-- PR-0: integrate `HYPRE_BoomerAMGGetCycleNumIterations` + `HYPRE_BoomerAMGGetCycleOpCount` 到 `tools/p8tune.F/boomeramg_setup_solve.cpp` (或 follow-on integrated variant)。
-- PR-A: re-run 16-cell sweep with measured `cycle_complexity`。
-- PR-B: 比对 measured vs hard-coded estimate;若 drift ≤ 5% → ADR-0007 strict verdict 稳定 + trigger ADR re-evaluation workshop;若 drift > 5% → ADR-0007 re-opened + 4-branch verdict re-typed。
-- PR-C: epic capstone + master plan §P8-tune.G [OPEN, HIGH] → [CLOSED] + ADR-0007 amendment (如适用)。
+1. 引入 `SHUD_LINSOL=spgmr|amg` env var (default `spgmr` — 零默认行为变更)。
+2. 当 `SHUD_LINSOL=amg`: 走 Hypre/BoomerAMG via `SUNLinSol_Hypre`;hardcode `(interp_type=6, coarsen_type=8)` 大 case combo (PR-B winner) 为首版。
+3. 集成真实 HYPRE 遥测: `HYPRE_BoomerAMGGetCycleNumIterations` + `HYPRE_BoomerAMGGetCycleOpCount`;保留 operator\_complexity / setup / apply / RSS 测量。
+4. Smoke + small matrix + heihe\_x4 / heihe\_x16 SHORT cells;不做完整 A5。
 
-**Prereq**: 本 PR-D merge + PR-E (baseline→main capstone-merge) merge。
+**Gate**:
 
-## §9.2 ADR-0007 re-evaluation workshop (post §P8-tune.G)
+| Gate | Criterion |
+|---|---|
+| default compatibility | `SHUD_LINSOL` unset → bit-identical SPGMR baseline |
+| build | Linux/Mac/server build PASS |
+| AMG telemetry | Axis 4 measured (NOT hard-coded) |
+| integrated solve | CVODE completes, no crash |
+| wall signal | heihe\_x4 / heihe\_x16 至少一 case 相对 SPGMR 改善 |
+| solver stats | nfe / nli / nfeLS / ncfn / ncfl / netf documented |
 
-per spec REQ-7 NO-GO-both clause, ADR re-evaluation workshop 是 strict NO-GO-both branch 的指定 forward action。Workshop scope:
+**Exit**:
+- integrated wall 改善 → 进 §9.2 G1。
+- 无改善 / 不稳定 → CLOSE AMG production path,保留 pattern-only 结果,改走 GPU sparse / domain decomposition 备选 (§9.5)。
 
-- Review §P8-tune.G measured Axis 4 evidence。
-- If amended GO sustains under measured Axis 4 (drift ≤ 5%): decision = whether to launch operational AMG productionization epic (4-6w, full `SUNLinSol_Hypre` wire-up + A5 hydrology-equivalence gate)。
-- If drift > 5%: ADR-0007 must be re-opened, new ADR (0008) author 决定 next architectural direction (e.g., GPU sparse spike if heihe\_x16 wall axis flips)。
+**Axis 4 demotion rationale**: per Saad 2003 §13, pure V-cycle work 典型 ≈ 2× operator\_complexity, 故 `< 1.5` 阈值预设了 Krylov acceleration 才合理。即使 G0 测得真实 Axis 4 ≈ 2.0,这也是 V-cycle steady-state 而非 NO-GO 信号;Axis 4 从 hard blocker 降为 hierarchy-quality diagnostic。
+
+## §9.2 §P8-tune.G1 — AMG 18-cell integrated benchmark (HIGH priority, gated on G0 pass)
+
+**目标**: 验证 pattern-only 78 ms setup / 18 ms apply 优势能否转化为 SHUD integrated wall 实际收益。
+
+**Matrix**:
+- solver ∈ {SPGMR default, AMG}
+- N (threads) ∈ {1, 8}
+- reps = 3
+- cases = heihe\_x4 + heihe\_x16 + heihe (keliya optional smoke only)
+- ~18 cells。
+
+**Gate**:
+
+| Gate | Criterion |
+|---|---|
+| wall | heihe\_x4 ≥ 10% improvement;heihe\_x16 ≥ 20% improvement |
+| memory | peak RSS < 70% node RAM |
+| solver stability | ncfn / ncfl / netf NOT degrading to failure |
+| determinism | same solver / case / N repeat stable |
+| telemetry | measured Axis 4 reported AND interpreted (NOT used as hard blocker) |
+| no default break | SPGMR default bit-identical |
+
+**Exit**:
+- wall pass → 进 §9.3 G2。
+- wall fail → AMG 不进 production;改走 §9.5 GPU sparse / domain decomposition 备选。
+
+## §9.3 §P8-tune.G2 — A5 hydrology equivalence (HIGH priority, gated on G1 pass)
+
+**目标**: 验证 AMG 轨迹漂移在水文学上可接受。
+
+**Indicator**:
+
+| Indicator | Threshold |
+|---|---|
+| total runoff volume Δ | ≤ 1-3% |
+| water balance residual | NOT degraded |
+| daily NSE / KGE | ≥ 0.95 |
+| peak magnitude Δ | ≤ 5-10% |
+| peak timing | ≤ 1 output interval |
+| zero/nonzero mismatch | documented (not single-blocker) |
+| low-flow relerr | stratified, NOT mixed with flood peak |
+
+**Cases**: heihe\_x4 + heihe\_x16 90-day minimum;如 wall 仍 pass 再抽取更长 production window 复测。
+
+**Exit**:
+- A5 pass → `SHUD_LINSOL=amg` 成为 **opt-in recommended for large cases**;默认 REMAINS SPGMR until 更长 production-window validation。
+- A5 fail → AMG 保留为 speed-only research knob,不进 production recommendation。
+
+**ADR re-evaluation workshop**: §G2 verdict 之后,per spec REQ-7 NO-GO-both clause, 召开 ADR-0007 re-evaluation workshop。Workshop scope:
+- Review G0/G1/G2 三段 gate evidence。
+- 若 G2 pass: 决定是否将 `SHUD_LINSOL=amg` 列为 large-case 生产推荐。
+- 若 G2 fail: ADR-0007 须再次 amend,新 ADR (0008) 决定 next architectural 方向 (e.g., §9.5 GPU sparse fallback)。
 
 Workshop participants: user (DankerMu) + Claude orchestrator + GPT Pro independent review (类 P8-tune.D GPT Pro 2026-06-29 retrospective 模式)。
-
-## §9.3 (Conditional) operational AMG productionization epic
-
-若 ADR-0007 re-evaluation workshop 决定 launch, 此 epic scope:
-
-- PR-0: Hypre Makefile carve-out (mirror P8-tune.D `libshud.a` pattern) + env-var hook `SHUD_LINSOL=amg` opt-in (default `spgmr` unchanged) + `cvode_config.cpp` gated `SUNLinSol_Hypre` constructor with hardcoded (interp\_type=6, coarsen\_type=8) per PR-B best combo。
-- PR-A: integrated AMG measurement on keliya + heihe + heihe\_x4 + heihe\_x16; validate spike setup + apply walls translate to integrated CVODE step walls within 10%。
-- PR-B: A5 hydrology-equivalence validation (NSE/KGE ≥ 0.95; peak Δ ≤ 5-10%; water balance Δ ≤ 1%) on all 4 cases。
-- PR-C: epic capstone + ADR-0008 + master plan close。
-
-Budget: 4-6 weeks。Priority: HIGH (if ADR re-evaluation workshop approves)。
 
 ## §9.4 P8-tune.E.small-only KLU mini-prototype (independent, OPTIONAL/medium)
 
 per ADR-0005 §Forward action F4 amendment, P8-tune.E.small-only 与 P8-tune.F 是 independent 两 forward path。本研究 P8-tune.F close 不影响 P8-tune.E.small-only 单独执行 (4-PR mini-prototype-first per master plan §P8-tune.E.small-only)。
 
-## §9.5 (Conditional) P8-tune.H GPU sparse spike (NOT triggered by strict NO-GO-both)
+## §9.5 (Conditional fallback) P8-tune.H GPU sparse / domain decomposition spike
 
-per spec REQ-7 verdict\_branch-mapped G/H epics: §P8-tune.H 仅在 NO-GO-heihe\_x16-only verdict\_branch 下触发 + GPU-presence gate (sinfo -p GPU 命中 gn01)。本研究 strict NO-GO-both / amended GO 均 NOT 触发 P8-tune.H, 故 P8-tune.H 不在本 PR-D anchor scope, 保留 future ADR-0007 re-evaluation workshop 或 operational AMG productionization epic Axis 4 measurement 后若 heihe\_x16 wall axis flip 触发 NO-GO-heihe\_x16-only 时再 anchor。
+per 2026-06-29 framing amendment, §P8-tune.H 不再绑定 spec REQ-7 NO-GO-heihe\_x16-only verdict\_branch 触发,而是作为 §P8-tune.G 三段 gate 的 fallback: 仅当 (i) §G1 integrated wall benchmark fail (AMG 在 heihe\_x4 / heihe\_x16 无 ≥10% / ≥20% wall 改善) OR (ii) §G2 A5 hydrology equivalence fail (NSE/KGE < 0.95 或 runoff Δ > 3%) 时才 anchor。GPU-presence gate (sinfo -p GPU 命中 gn01) 仍是必要条件。本 PR-D 不 anchor §P8-tune.H,留 future G1/G2 verdict 触发时再立。spec REQ-7 verdict\_branch-mapped G/H epics 在 §G2 verdict 前保持 SUSPENDED。
 
 ## §9.6 长程 (P9+) 方向
 

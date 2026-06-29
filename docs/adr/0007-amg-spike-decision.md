@@ -240,6 +240,24 @@ Alternative algorithmic substrates considered but rejected at epic-anchor time:
 - **PETSc AMG** — rejected: vendor sprawl; Hypre is the upstream-canonical AMG implementation with SUNDIALS adapter (`SUNLinSol_Hypre`); PETSc would require additional adapter shim.
 - **Sparse direct solvers at larger scale (KLU 64-bit-index API / MUMPS)** — rejected: ADR-0005 already established KLU is NO-GO at heihe_x4 wall margin 1.87× regardless of int32 vs int64; MUMPS is a heavier-weight dependency with no SUNDIALS adapter.
 
+### Amendment 2026-06-29 (post-Linus-review framing adjustment)
+
+The original §Forward action assumed `§P8-tune.G` as a single 4-6w "AMG Axis-4 instrumentation" epic with a "measured Axis 4 ≤5% drift from 2.0 estimate → ADR stands" decision rule. Post-merge Linus-style review identified two flaws:
+
+1. **Axis 4 threshold `<1.5` is likely too strict.** Per Saad 2003 §13, pure V-cycle work is typically ≈ 2× operator_complexity; the `<1.5` threshold presupposes Krylov acceleration. So even a faithful HYPRE-telemetered Axis 4 ≈ 2.0 measurement should NOT trigger NO-GO — it is the EXPECTED steady-state for pattern-only V-cycle.
+2. **Single-epic G is too coarse.** "Production AMG GO" requires integrated CVODE wall + A5 hydrology evidence, neither of which the pattern-only spike provided.
+
+§Forward action is therefore **revised** to a three-gate sequence:
+- **G0**: env-var hook (`SHUD_LINSOL=amg`) + real HYPRE Axis-4 telemetry (`HYPRE_BoomerAMGGetCycleNumIterations` + `HYPRE_BoomerAMGGetCycleOpCount`) + integrated CVODE smoke on heihe_x4/heihe_x16 short cells. Gate = integrated wall signal improves on at least one case.
+- **G1**: 18-cell integrated benchmark (solver ∈ {SPGMR, AMG} × N ∈ {1, 8} × reps=3 × cases ∈ {heihe, heihe_x4, heihe_x16}). Gate = heihe_x4 ≥10% / heihe_x16 ≥20% wall improvement; SPGMR default bit-identical.
+- **G2**: A5 hydrology equivalence (NSE/KGE ≥ 0.95, runoff Δ ≤ 1-3%, peak timing ≤ 1 output interval). Gate = full A5 pass on heihe_x4/x16 90-day windows.
+
+Axis 4 is **demoted from hard blocker to hierarchy-quality diagnostic**. The strict canonical `verdict_branch=NO-GO-both` recorded in §Decision is preserved as the spec-byte-identical anchor; operational forward action is driven by integrated wall (G1) + A5 (G2). The verdict_branch-mapped G/H epics from spec REQ-7 Scenario "Conditional next-epic anchor per verdict_branch" remain SUSPENDED until G2 passes or fails.
+
+GPU sparse / domain decomposition (§P8-tune.H) is NOT scheduled by this amendment; consider only as fallback if G1 wall fails or G2 A5 fails.
+
+See: `SHUD_openMP_master_plan.md` §P8-tune.G (G0/G1/G2 sub-anchors) for the canonical living anchor; `docs/p8tune/p8tune_f_academic_summary.md` §9 Future Work for the academic framing.
+
 ---
 
 ## References

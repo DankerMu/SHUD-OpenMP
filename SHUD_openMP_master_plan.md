@@ -2555,7 +2555,7 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 - amg_spike_verdict.md (top-line strict + amended) — `docs/p8tune/amg_spike_verdict.md`
 - archived OpenSpec at `openspec/specs/amg-pattern-spike-verdict/spec.md`
 
-**Forward action**: §P8-tune.G "AMG Axis-4 instrumentation" epic [OPEN, HIGH] added below per ADR-0007 §Forward action. The new §P8-tune.G epic is separate from the verdict_branch-mapped G/H epics defined in spec REQ-7 Scenario "Conditional next-epic anchor per verdict_branch" (those branches are suppressed by strict NO-GO-both per spec REQ-7 NO-GO-both clause: "不新增 anchor; PR-D 注 '升级到 ADR re-evaluation workshop; future epic 由 user trigger'"); §P8-tune.G is an enabler epic that hardens the Axis 4 measurement gap. After §P8-tune.G integrates `HYPRE_BoomerAMGGetCycleNumIterations` + `HYPRE_BoomerAMGGetCycleOpCount` telemetry and re-runs the 16-cell sweep with measured cycle_complexity, an **ADR-0007 re-evaluation workshop** (per spec REQ-7 NO-GO-both clause) will determine whether the strict verdict matches measurement (≤5% drift → ADR stands; >5% drift → ADR-0007 re-opened) and, if so, whether to launch the operational AMG productionization epic that the amended GO supports.
+**Forward action (revised 2026-06-29 post-Linus-review framing amendment)**: §P8-tune.G is split into three sequential gates G0 (Axis-4 telemetry + integrated AMG smoke) → G1 (18-cell integrated benchmark) → G2 (A5 hydrology equivalence). The prior "≤5% drift from 2.0 estimate → ADR stands" decision rule is **SUPERSEDED**: per Saad 2003 §13, pure V-cycle work is typically ≈ 2× operator_complexity, so a measured Axis 4 ≈ 2.0 is the EXPECTED steady-state and not a NO-GO signal. Axis 4 is demoted from hard blocker to hierarchy-quality diagnostic; the real verdict drivers are integrated wall (G1 gate) + A5 hydrology equivalence (G2 gate). Verdict_branch-mapped G/H epics defined in spec REQ-7 Scenario "Conditional next-epic anchor per verdict_branch" remain SUSPENDED until G2 passes or fails. P8-tune.H GPU sparse spike is NOT anchored by this PR-D; it is a fallback if G1 wall fails or A5 hydrology fails — consider only then.
 
 **Trigger condition** (historical, pre-close): P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `heihe_x4` Optional (1.87× wall over 0.7×SPGMR budget; near-miss) + `heihe_x16` NO-GO (17.9×; structural). SPGMR Krylov-vector path saturated per ADR-0004 + KLU fill-axis fine but wall-axis blown per ADR-0005. AMG is the algebraically-correct retreat: O(N) memory + scales for elliptic-parabolic PDE structure native to SHUD domain.
 
@@ -2584,21 +2584,97 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 
 **Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `heihe_x4_recommended_action = use-future-amg` + `heihe_x16_recommended_action = use-future-amg`)。**Note** (per GPT Pro F2): 原 `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl` decisive-cell pointer 与 `use-future-amg` 矛盾,已被 ADR-0005 retrospective amendment 撤回;统一 heihe_x4 主路径 = P8-tune.F。
 
-##### P8-tune.G — AMG Axis-4 instrumentation epic ([OPEN, HIGH priority] per 2026-06-29 in PR-D capstone per ADR-0007 §Forward action)
+##### P8-tune.G — AMG productionization three-gate sequence G0 → G1 → G2 ([OPEN, HIGH priority] per 2026-06-29 post-Linus-review framing amendment, supersedes prior single-epic "AMG Axis-4 instrumentation" anchor)
 
-**Status**: Open 2026-06-29; HIGH priority. Per ADR-0007 §Forward action: integrate `HYPRE_BoomerAMGGetCycleNumIterations` + `HYPRE_BoomerAMGGetCycleOpCount` telemetry into `tools/p8tune.F/boomeramg_setup_solve.cpp` (or a follow-on integrated variant in `cvode_config.cpp`) so Axis 4 (`cycle_complexity`) becomes a HYPRE-measured quantity rather than the current hard-coded `2 × operator_complexity` estimate (per PR-A H3 disclosure). After re-running the 16-cell sweep with measured `cycle_complexity`:
+**Status**: Open 2026-06-29; HIGH priority. Post-merge Linus-style review of P8-tune.F surfaced two flaws in the original single-epic §G framing: (i) pattern-only spike achieved its target (BoomerAMG runs cleanly on 4 case × 4 combo with healthy setup/apply/RSS/operator complexity) but did NOT wire up CVODE, integrate SHUD, run hydrology A5, or use real HYPRE Axis-4 telemetry — so "operationally GO" only means "GO to integrated prototype epic", NOT "GO to AMG production solver"; (ii) the Axis 4 `< 1.5` threshold itself is likely wrong because per Saad 2003 §13 pure V-cycle work is typically ≈ 2× operator_complexity (the `< 1.5` threshold presupposes Krylov acceleration). §G is therefore split into three sequential gates G0 → G1 → G2.
 
-- **IF measured matches estimate within 5%**: ADR-0007 strict verdict (NO-GO-both) stands as a stable architectural reading → trigger ADR-0007 **re-evaluation workshop** (per spec REQ-7 NO-GO-both clause) to decide forward path (e.g., operational AMG productionization epic under the amended GO reading, or further architectural retreat).
-- **IF measured drifts > 5% vs estimate**: ADR-0007 SHALL be re-opened with corrected `verdict_branch`; the 4-branch decision tree (GO / Optional / NO-GO-heihe_x16-only / NO-GO-both / BLOCKED) is re-typed from the new aggregate_verdict.txt.
+**Critical framing note**: Axis 4 threshold `< 1.5` is **likely too strict** for pattern-only V-cycle — Saad 2003 §13 shows V-cycle work is typically ≈ 2× operator_complexity. The previous "`measured Axis 4 ≤5% drift from 2.0 estimate → ADR stands`" decision rule (in master plan §P8-tune.F closure + ADR-0007 §Forward action) is **SUPERSEDED**: real Axis 4 ≈ 2.0 is the EXPECTED steady-state and should NOT trigger NO-GO. The real verdict driver is integrated wall (G1) + A5 hydrology (G2).
 
-**Dependencies**: PR-E (PR-D + PR-E capstone-merge `baseline/p8tune-amg-spike → main`) merged + ADR-0007 (Accepted).
+**Dependencies**: PR-E (PR-D + PR-E capstone-merge `baseline/p8tune-amg-spike → main`) merged + ADR-0007 (Accepted) + ADR-0007 §Forward action Amendment 2026-06-29 block.
 
-**Anchor**: ADR-0007 §Forward action (canonical reference); ADR-0007 §Consequences §Negative item 1 (Axis 4 instrumentation issue).
+**Anchor**: ADR-0007 §Forward action + §Forward action Amendment 2026-06-29 block (canonical reference); ADR-0007 §Consequences §Negative item 1 (Axis 4 instrumentation issue, demoted to hierarchy-quality diagnostic).
 
-**Scope notes** (out-of-scope until epic formally opens):
-- This is a **separate** epic from the verdict_branch-mapped G/H epics defined in spec REQ-7 Scenario "Conditional next-epic anchor per verdict_branch" (which are suppressed by strict NO-GO-both per spec REQ-7 NO-GO-both clause: "不新增 anchor; PR-D 注 '升级到 ADR re-evaluation workshop; future epic 由 user trigger'").
-- The §P8-tune.G instrumentation epic is an **enabler** for re-running the spike with proper Axis 4 measurement; it is NOT an AMG-productionization or CVODE-integration epic.
-- §P8-tune.H GPU sparse spike is NOT anchored by this PR-D (strict NO-GO-both branch does not trigger §P8-tune.H per spec REQ-7; §P8-tune.H anchoring is only triggered by NO-GO-heihe_x16-only branch per spec REQ-7 GPU-presence gate Scenario).
+###### §P8-tune.G0 — Axis-4 telemetry + integrated AMG smoke
+
+**Goal**: eliminate the hard-coded Axis 4 estimate AND verify SUNLinSol_Hypre/CVODE integration works end-to-end.
+
+**Scope**:
+1. Add `SHUD_LINSOL=spgmr|amg` env var (default `spgmr` — zero default-user-behavior change).
+2. When `SHUD_LINSOL=amg`:
+   - Use Hypre/BoomerAMG via `SUNLinSol_Hypre`.
+   - Hardcode large-case combo `(interp_type=6, coarsen_type=8)` (PR-B winner) as the first version.
+3. Integrate real HYPRE telemetry:
+   - `HYPRE_BoomerAMGGetCycleNumIterations`
+   - `HYPRE_BoomerAMGGetCycleOpCount`
+   - Keep operator_complexity / setup / apply / RSS instrumentation.
+4. Smoke + small matrix + heihe_x4 / heihe_x16 SHORT cells; NO full A5 here.
+
+**Gate table**:
+
+| Gate | Criterion |
+|---|---|
+| default compatibility | `SHUD_LINSOL` unset → bit-identical SPGMR baseline |
+| build | Linux/Mac/server build PASS |
+| AMG telemetry | Axis 4 measured (NOT hard-coded) |
+| integrated solve | CVODE completes, no crash |
+| wall signal | heihe_x4 / heihe_x16 at least one case improves vs SPGMR |
+| solver stats | nfe / nli / nfeLS / ncfn / ncfl / netf documented |
+
+**Exit**:
+- integrated wall improves → enter §P8-tune.G1.
+- no improvement or unstable → CLOSE AMG production path; retain pattern-only result; consider alternative (GPU sparse / domain decomposition).
+
+###### §P8-tune.G1 — AMG 18-cell integrated benchmark
+
+**Goal**: verify pattern-only 78 ms setup / 18 ms apply advantage translates to real SHUD integrated wall reduction.
+
+**Matrix**:
+- solver ∈ {SPGMR default, AMG}
+- N (threads) ∈ {1, 8}
+- reps = 3
+- cases = heihe_x4 + heihe_x16 + heihe (keliya optional smoke only)
+- ~18 cells.
+
+**Gate table**:
+
+| Gate | Criterion |
+|---|---|
+| wall | heihe_x4 ≥ 10% improvement; heihe_x16 ≥ 20% improvement |
+| memory | peak RSS < 70% node RAM |
+| solver stability | ncfn / ncfl / netf NOT degrading to failure |
+| determinism | same solver / case / N repeat stable |
+| telemetry | measured Axis 4 reported AND interpreted (NOT used as hard blocker) |
+| no default break | SPGMR default bit-identical |
+
+**Exit**:
+- wall pass → enter §P8-tune.G2 A5.
+- wall fail → AMG NOT into production; consider GPU sparse / domain decomposition (§P8-tune.H fallback).
+
+###### §P8-tune.G2 — A5 hydrology equivalence
+
+**Goal**: verify AMG trajectory drift is hydrologically acceptable on the cases where G1 wall improvement is shown.
+
+**Indicator table**:
+
+| Indicator | Threshold |
+|---|---|
+| total runoff volume Δ | ≤ 1-3% |
+| water balance residual | NOT degraded |
+| daily NSE / KGE | ≥ 0.95 |
+| peak magnitude Δ | ≤ 5-10% |
+| peak timing | ≤ 1 output interval |
+| zero/nonzero mismatch | documented (not single-blocker) |
+| low-flow relerr | stratified, NOT mixed with flood peak |
+
+**Cases**: heihe_x4 + heihe_x16 90-day minimum; if wall pass also sample a longer production window.
+
+**Exit**:
+- A5 pass → `SHUD_LINSOL=amg` becomes **opt-in recommended for large cases**; default REMAINS SPGMR until longer production-window validation.
+- A5 fail → AMG retained as speed-only research knob; NOT in production recommendation.
+
+**Scope notes**:
+- This three-gate §G sequence is **separate** from the verdict_branch-mapped G/H epics defined in spec REQ-7 Scenario "Conditional next-epic anchor per verdict_branch" (which are SUSPENDED until G2 passes or fails — see §P8-tune.F closure §Forward action revised paragraph).
+- §P8-tune.H GPU sparse spike is NOT scheduled by this PR-D; consider only as fallback if §G1 wall fails or §G2 A5 fails.
 
 ##### P8-tune.E.small-only — KLU env-var mini-prototype for small cases ([OPEN, anchor — OPTIONAL/medium] per 2026-06-29 + GPT Pro F4)
 
