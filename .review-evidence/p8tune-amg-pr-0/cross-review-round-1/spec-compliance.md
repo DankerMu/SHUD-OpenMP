@@ -1,0 +1,73 @@
+Reviewer agent: review-spec-compliance
+Review round: round 1
+Reviewed head SHA: 09a815dbcab9eabbddcad9550c706ddfa8636519
+Summary: Diff is within REQ-3 scope and tasks 1.1-1.12 are addressable from the artefacts; valgrind-name vs ASan-substitute drift and server rows (ii)-(iv) need explicit DEFERRED handling, no scope creep detected.
+
+Invariant Matrix Coverage:
+- row (i): partial - `.review-evidence/p8tune-amg-pr-0/valgrind_keliya_postfix.log` shows Mac shud_asan (NOT valgrind) with EXIT=0 + 0 ASan/UBSan errors + dump_adjacency keliya return-path exit + pre/post SHA256 bitwise neutral. valgrind has no Apple Silicon port (documented in evidence file lines 4-13); REQ-3 Scenario "valgrind clean acceptance" literally says `valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all ./shud keliya`. The substitution is technically defensible (LSan covers leaks, ASan covers errors) but the literal spec wording is unmet on Mac and the canonical Linux valgrind keliya run is also deferred to Phase 2 (only `valgrind ./shud heihe` is in server_acceptance_cmds.sh, not `valgrind ./shud keliya`).
+- row (ii): covered - `server_acceptance_cmds.sh` section [3/4] submits Slurm job running `valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --error-exitcode=42 ./shud heihe` from `/scratch/.../.p8tune.F-runs/` with `--output/--error` in `/scratch` (satisfies CLAUDE.md Slurm 三铁律). DEFERRED to orchestrator Phase 2 is explicit + reproducible.
+- row (iii): covered - `server_acceptance_cmds.sh` section [4/4] submits `./tools/p8tune.D/dump_adjacency --case heihe_x4` (NumEle=40046) on cn-node with explicit BOTH_OK sentinel check + "no _exit, no SEGV, no free invalid ptr" verification criterion. DEFERRED to Phase 2 with concrete runbook.
+- row (iv): covered - same Slurm job in section [4/4] also runs `./tools/p8tune.D/dump_adjacency --case heihe_x16`. DEFERRED to Phase 2.
+- row (v): covered - `.review-evidence/p8tune-amg-pr-0/keliya_postfix_rivqdown_sha256.txt` + `valgrind_keliya_postfix.log` lines 44-54 document pre/post-fix SHA256 self-compare `b769e3270e1c4d075e7913bf0d0a229530200ae4b11663bdfa4a0cc3c9c028bd` (MATCH). Bitwise neutrality follows analytically from NSDMI: nullptr writes are overwritten by every `new` in malloc_EleRiv()/malloc_Y()/MD_Lake.cpp/MD_readin.cpp before any read, and the change is .hpp-only (no production logic touched). Note: the evidence compares pre-fix vs post-fix on the same SHUD pin, not vs the B0/B1a/B1b tag goldens — but the inference chain (this fix preserves bytes vs immediate parent → parent preserves bytes vs B0/B1a/B1b which is already locked) is sound and the goldens are submodule-pinned.
+- row (vi): partial - Mac libomp side covered (`make shud_asan` on Apple Silicon executed; evidence in valgrind_keliya_postfix.log). Linux libgomp side covered by the in-flight CI `serial-baseline.yml asan-ubsan (keliya)` matrix entry (the new `LEAK SUMMARY:` grep gate runs on Ubuntu GH runner = libgomp) PLUS the deferred server-side Slurm jobs (cn-node = libgomp). Cross-toolchain compat thus has Mac done + Linux gated by CI green + Phase 2 server jobs.
+
+Tasks coverage (§1.1-1.12):
+- 1.1: needs verification - No explicit `grep delete\[\]` log artefact under `.review-evidence/p8tune-amg-pr-0/`; however the SHUD inner commit message `056a1dc` enumerates the targeted ~50 + 30+ pointers by class which is functionally equivalent. The grep was the means; the targeted scope is the deliverable, and the scope is fully documented in the commit body + `shud_source_fix.diff`. Acceptable, but a one-line `grep` capture file would be cleaner.
+- 1.2: MISSING - REQ-3 Scenario "valgrind clean acceptance" + tasks.md 1.2 wording `valgrind --tool=memcheck ... .review-evidence/p8tune-amg-pr-0/valgrind_keliya.log` was not produced as a pre-fix repro stack trace. The post-fix evidence file `valgrind_keliya_postfix.log` exists but it is the post-fix Mac ASan substitute, not a valgrind pre-fix repro. The pre-fix UB was instead diagnosed indirectly via heihe_x4 cn-node jobid 9793/9792 (referenced in the original `_exit(0)` comment in fd_color_jacobian.cpp pre-fix), not via valgrind keliya. Not a merge-blocker because the root cause is independently characterised in the SHUD commit body + design.md, but the spec literal step is unaddressed.
+- 1.3: DONE - SHUD `056a1dc` implements fix pattern (i) "ctor nullptr init" via NSDMI on every Model_Data + ElementHotData ptr field. All NSDMI-touched fields in `FreeData()` (MD_readin.cpp:526-689) are now `delete[]`-safe-on-nullptr. Diff visible in `shud_source_fix.diff`.
+- 1.4: partial - "valgrind 二次验证 keliya 0 errors 0 leaks" is Mac-substituted by shud_asan (EXIT=0, 0 ASan ERROR, 0 UBSan ERROR per evidence file lines 27-31). Same caveat as row (i): literal valgrind run is missing because no Darwin port; canonical Linux valgrind keliya is not in server_acceptance_cmds.sh (only valgrind heihe is). Suggest adding `valgrind ./shud keliya` Slurm job in Phase 2 runbook to literally satisfy spec.
+- 1.5: covered - server_acceptance_cmds.sh §3 = valgrind ./shud heihe on cn-node, with Slurm三铁律 compliance. DEFERRED to Phase 2 explicitly.
+- 1.6: DONE - `shud_fix_sha.txt` records fix SHA `056a1dce4b75e79779242b4796e178bebe89680b` on `openmp-baseline` branch, parent `710c00a` (FloodAlert fix). SHUD inner repo log confirms commit is on openmp-baseline (NOT master). Push to remote is in `server_acceptance_cmds.sh` runbook line 9 (orchestrator Phase 3 before outer push); not yet verified pushed, but procedurally documented.
+- 1.7: DONE - Outer commit `09a815d` includes `SHUD` submodule pointer bump `710c00a → 056a1dc` (verified via `git diff --stat`).
+- 1.8: DONE - `tools/p8tune.D/fd_color_jacobian.cpp` line 474 `_exit(0)` → `return 0` (verified in diff). `<unistd.h>` include comment updated to "chdir, optind" (correct: _exit no longer needed). Rationale comment block at lines 460-471 cites REQ-3 Scenario "_exit(0) workaround removal".
+- 1.9: DONE - `tools/p8tune.D/dump_adjacency.cpp` line 443 `_exit(ok ? 0 : 1)` → `return ok ? 0 : 1` (verified in diff). Same include + comment treatment.
+- 1.10: covered - `server_acceptance_cmds.sh` section [4/4] = `dump_adjacency heihe_x4` + `heihe_x16` Slurm job. DEFERRED to Phase 2 with explicit acceptance sentinel.
+- 1.11: DONE - `.github/workflows/serial-baseline.yml` ASAN_OPTIONS flipped `detect_leaks=0:halt_on_error=1:print_stacktrace=1` → `detect_leaks=1:halt_on_error=1:print_stacktrace=1:exitcode=0:print_suppressions=0` (lines 1413-1423), AND new grep gate at lines 1444-1466 hard-fails the job if `LEAK SUMMARY:` stderr line is absent. Comment block cites REQ-3 dtor coverage. Issue body 1.11 said `ci.yml` but the actual file is `serial-baseline.yml` — the wording in tasks.md/issue is loose; the file that hosts `asan-ubsan (keliya)` matrix entry is `serial-baseline.yml`, so this is the correct surface. Pre-merge push trigger validation deferred to GH Actions run (will gate the PR before merge).
+- 1.12: DONE - Outer commit `09a815d` ("fix(p8tune.F): resolve #386 SHUD Model_Data dtor uninit-ptr UB + workaround removal (#394)") contains all 4 mandated outer-repo changes: SHUD pointer bump + 2× tools/p8tune.D edits + serial-baseline.yml edit + evidence dir. Pushed to `feat/issue-394-p8tune-amg-spike` (origin tracked per `git status`).
+
+Findings:
+- Severity: minor
+  Failure class: spec-literal-vs-substitute drift
+  Contract or invariant: REQ-3 Scenario "valgrind clean acceptance" mandates `valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all ./shud keliya` produces 0 errors + 0 leaks; tasks.md 1.4 mirrors this.
+  Scenario or repro: Mac has no valgrind (documented constraint), so PR-0 substitutes `make shud_asan` + ASan/UBSan. Substitution is reasonable BUT canonical Linux valgrind keliya is not booked anywhere — `server_acceptance_cmds.sh` only runs `valgrind ./shud heihe`, not `valgrind ./shud keliya`. Net result: the literal "valgrind keliya 0 errors 0 leaks" gate is unmet on Mac AND not deferred-with-runbook on Linux.
+  Required test or evidence: Add a 4th Slurm block to `server_acceptance_cmds.sh` running `valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --error-exitcode=42 ./shud keliya` (NumY=1500, ~3 min job vs ~4h heihe), OR document explicitly in spec/PR body that Linux-CI ASan (already gated) is the canonical valgrind-equivalent for keliya and that valgrind keliya literal is intentionally deferred until cn-node has spare cycles.
+  Sibling surfaces: row (i) of Invariant Matrix; spec REQ-3 Scenario "valgrind clean acceptance" 2nd line.
+  Blocks merge: no
+  Impact: PR body Test Plan checkbox 4 ("Server valgrind ./shud heihe: 0 errors, 0 leaks") is the only valgrind line; reviewer reading spec literally will flag absence of valgrind keliya. Risk: future reviewer auditing post-merge may legitimately fault the spec literal not being met if the substitution rationale is buried in evidence files.
+  Requested fix: Either (a) extend `server_acceptance_cmds.sh` with valgrind keliya Slurm block (~15 lines, ~3 min cn-node), OR (b) add explicit one-liner to PR body / evidence header that REQ-3 Scenario row keliya is substituted by Mac ASan + Linux-CI ASan with rationale.
+
+- Severity: minor
+  Failure class: missing pre-fix repro artefact
+  Contract or invariant: tasks.md 1.2 mandates pre-fix valgrind stack trace deposited at `.review-evidence/p8tune-amg-pr-0/valgrind_keliya.log` for #386 reproduction.
+  Scenario or repro: The pre-fix bug was diagnosed via heihe_x4 cn-node jobid 9793/9792 history (cited in the original fd_color_jacobian.cpp `_exit(0)` rationale block) + analytical inspection of MD_readin.cpp:526 FreeData(). No valgrind output preserved either pre or post fix. The `valgrind_keliya_postfix.log` filename misleadingly contains "valgrind" while the file content is Mac ASan.
+  Required test or evidence: Either (a) add a section to `valgrind_keliya_postfix.log` linking to the original heihe_x4 jobid 9793 stderr (or its scrubbed extract showing `free(): invalid pointer` trace) so the historic root-cause evidence is one-click accessible, OR (b) note explicitly in evidence index that #386 was analytically diagnosed and no pre-fix valgrind repro exists.
+  Sibling surfaces: PR body line "Root bug: #386"; design.md §D5 PR-0 Surfaces -> Evidence/audit.
+  Blocks merge: no
+  Impact: Future reviewers / auditors cannot independently reproduce the pre-fix UB from the evidence directory; they would have to fetch SHUD git history + cn-node sacct logs to do so. Low operational risk because the analytical chain is solid (NSDMI + delete[] on nullptr defined no-op) but reduces evidence portability.
+  Requested fix: Rename `valgrind_keliya_postfix.log` to `mac_asan_keliya_postfix.log` (matches contents) + add a `386_repro_history.md` evidence file pointing to the original cn-node jobid + extracting the failing stack trace from the historic logs.
+
+- Severity: minor
+  Failure class: evidence filename vs content mismatch
+  Contract or invariant: Evidence filenames should advertise their content type so reviewers don't need to open every file to know what tool produced it.
+  Scenario or repro: `.review-evidence/p8tune-amg-pr-0/valgrind_keliya_postfix.log` contains zero valgrind output — its first 13 lines explain valgrind is unavailable on Apple Silicon and the file documents ASan + UBSan instead. Aggregator scripts or future reviewers grepping `valgrind_*.log` for valgrind-specific markers (`ERROR SUMMARY:`, `LEAK SUMMARY:`, `definitely lost:`) will get false-negative.
+  Required test or evidence: Rename to `mac_asan_keliya_postfix.log` or `keliya_postfix_memcheck.log` (tool-agnostic), update any orchestrator referrer.
+  Sibling surfaces: PR body Verification table cell points to `valgrind_keliya_postfix.log`; server_acceptance_cmds.sh does not reference it (so renaming is low-impact).
+  Blocks merge: no
+  Impact: Cosmetic / discoverability; misleading filename obscures the substitution.
+  Requested fix: Rename file + grep update PR body table reference.
+
+Non-blocking notes:
+- Praise: NSDMI fix is at the correct depth (class header, where ownership lives) instead of pushed shallow (delete-site nullcheck in MD_readin.cpp or `_exit` workaround in tool main). This is exactly the altitude lens the checklist demanded — fix at the deepest layer that contains the invariant.
+- Praise: Bitwise neutrality argument is rigorous: NSDMI writes are dead stores wherever the production happy-path `new` lands first, and the .hpp-only change touches no logic. Pre/post SHA256 self-compare on rivqdown.dat is a clean independent verification.
+- Praise: serial-baseline.yml dtor-coverage gate is a real long-term safeguard, not just a one-shot check — it catches any future regression that reintroduces `_exit(0)`/`abort()` in destructor paths, addressing the "shallow-layer workaround" anti-pattern at CI level.
+- Praise: NSDMI scope (all ~50 + ~30 ptrs, not just the one that crashed in heihe_x4) covers the sibling-surface invariant correctly — any future allocator OOM at any NumY scale on any of these ptrs becomes a defined no-op instead of UB. Audit-by-invariant rather than fix-by-symptom.
+- Scope creep check: No unintended files. Diff is exactly { SHUD .hpp x2, serial-baseline.yml, 2× p8tune.D tools, 5× evidence files }. No `tools/p8tune.F/` work, no Hypre, no master plan touch, no ADR touch, no SHUD master push — all aligned with REQ-3 carve-out and Out-of-Scope clauses in issue #394 body.
+- Test coverage by risk pack:
+  - Concurrency/shared state (dtor ordering): covered by NSDMI + FreeData symmetric-order audit (MD_readin.cpp:526-689; hot.* before Ele, lake-guarded NumLake>0 block); evidence in shud_source_fix.diff.
+  - Resource limits/large input (NumY>100k): server rows (iii)+(iv) DEFERRED with runbook in server_acceptance_cmds.sh; Mac keliya (NumY=1500) covered directly.
+  - Legacy compat (baseline bitwise neutral): row (v) covered analytically + SHA256 self-compare.
+  - Error handling/rollback (dtor exception path): NSDMI makes every dtor `delete[]` a defined no-op even mid-init exception; covered structurally.
+  - Bitwise reproducibility (domain pack): row (v) covered.
+  - Server/local partition (domain pack): row (vi) Mac done, Linux deferred-with-runbook + CI gated.
+- Tasks 1.13/1.14/1.15 are orchestrator-owned per user instructions and per issue #394 body; correctly excluded from this review.
+- AccT_surf / AccT_sub / ISFactor / windH / y2LakeArea / lake / flood NSDMI defaults are belt-and-suspenders (some have no `delete[]` site in `FreeData`) — harmless and consistent with the "all-pointers-default-nullptr" invariant; do not flag.

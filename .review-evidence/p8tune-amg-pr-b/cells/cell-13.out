@@ -1,0 +1,96 @@
+=== p8f_amg_spike array task 13 (NN=13) ===
+node=cn08 date_utc=2026-06-29T13:32:57Z
+run_id=p8f_amg_spike.9896
+run_dir=/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.F-runs/p8f_amg_spike.9896
+slurm_job_id=9910 slurm_array_job_id=9896
+
+=== CELL_HEADER NN=13 heihe_x16_interp14_coarsen10 ===
+date_utc:       2026-06-29T13:32:57Z
+hostname:       cn08
+run_id:         p8f_amg_spike.9896
+run_dir:        /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.F-runs/p8f_amg_spike.9896
+tool_dir:       /scratch/frd_muziyao/SHUD-OpenMP/tools/p8tune.F
+basin_root:     /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins
+cell_log:       /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.F-runs/p8f_amg_spike.9896/cell-13.log
+cell_time:      /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.F-runs/p8f_amg_spike.9896/cell-13.time
+case:           heihe_x16      (case_idx=3)
+interp_type:    14  (combo_idx=1)
+coarsen_type:   10
+
+INFO: pre-flight artifacts present (will skip dump_adjacency + fd_color_jacobian inside cpp)
+INFO:   /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x16/heihe_x16_adjacency.csc  (13808456 bytes)
+INFO:   /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x16/heihe_x16_numeric_J.bin (33660616 bytes)
+
+[amg] config: case=heihe_x16 interp_type=14 coarsen_type=10 n_solve=5 rhs_mode=ones
+[amg] loaded numeric J: NumY=485250 total_nnz=2481548 n_colors=20
+[amg] test matrix M = I - 1.000000 * J  (diagonal set on 485250 / 485250 cols)
+
+
+ Num MPI tasks = 1
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 2
+
+ Strength Threshold = 0.250000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = HMIS 
+ measures are determined locally
+
+ Interpolation = extended
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0  485250  2481548  0.000     3   20     5.1   2.422e-01   2.065e+02
+  1       2        2  0.500     1    1     1.0   1.084e+00   1.541e+00
+
+
+Interpolation Matrix Information:
+                      entries/row        min        max            row sums
+lev   rows x cols   min  max  avgW     weight      weight       min         max
+==================================================================================
+  0 485250 x 2        0    1   0.0   7.849e-02   9.415e-02   0.000e+00   1.000e+00
+
+
+     Complexity:   grid = 1.000004
+               operator = 1.000001
+                 memory = 1.000002
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         100 
+  Stopping Tolerance:               1.000000e-08 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            1    1     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:     13   14     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):   0
+                   Post-CG relaxation (up):   0
+                             Coarsest grid:   0
+
+CELL_SUMMARY_BEGIN
+case=heihe_x16 interp_type=14 coarsen_type=10 NumY=485250 nnz_A=2481548
+setup_wall_sec=0.041478 apply_wall_sec=0.079340 peak_rss_bytes=399769600
+cycle_complexity=2.0000 operator_complexity=1.0000 residual_reduction_v1=22538.0005
+verdict_class=PASS
+hypre_version=3.1.0 colpack_version=unknown shud_pin=1ab61c023ac2b93a178c2feb07aa3df509fe1a96
+CELL_SUMMARY_END
+
+=== CELL_FOOTER NN=13 heihe_x16_interp14_coarsen10 done exit=0 ===
+
+=== task 13 (NN=13) exit=0 ===

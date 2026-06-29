@@ -50,7 +50,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <unistd.h>  // _exit
+#include <unistd.h>  // chdir, optind
 #include <vector>
 
 #include <omp.h>
@@ -457,17 +457,25 @@ int main(int argc, char **argv) {
     std::printf("[fd_color] J binary written: %s  total_nnz=%llu n_zero=%d  |v|_min=%.3e |v|_max=%.3e\n",
                 out_path.c_str(), (unsigned long long)csc.total_nnz, n_zero, abs_min, abs_max);
 
-    // SHUD's Model_Data destructor chain (~Model_Data → FreeData → ~SubClass)
-    // contains uninit-pointer UB that triggers `free(): invalid pointer` at
-    // NumEle > ~30k on Linux + glibc. The FloodAlert::~FloodAlert() instance
-    // was fixed in SHUD 710c00a, but bisecting heihe_x4 (NumEle=40046) on
-    // cn-node (jobid 9793 + 9792) confirms ANOTHER uninit pointer surfaces
-    // in the destructor chain at large NumEle. Spike binaries are one-shot
-    // and the process exit reclaims all memory regardless, so `_exit(0)`
-    // safely sidesteps the destructor without changing the spike's verdict
-    // semantics (fill_ratio + RSS + wall are already written to stdout +
-    // J binary already flushed). Root-cause SHUD fix tracked as issue #386.
+    // P8-tune.F PR-0 (#394 / #386): SHUD Model_Data dtor uninit-ptr UB
+    // (the workaround removed below) has been resolved by NSDMI nullptr
+    // defaults for every pointer member of `Model_Data` + `ElementHotData`
+    // in SHUD/src/ModelData/Model_Data.hpp + MD_layout.hpp. The dtor chain
+    // `~Model_Data → FreeData → delete[] *` is now a defined no-op for any
+    // pointer that malloc_EleRiv() / MD_Lake / MD_readin failed to assign
+    // (NumY > 100k OOM in mid-allocation, exception mid-init, etc.). Per
+    // spec amg-pattern-spike-verdict REQ-3 Scenario "_exit(0) workaround
+    // removal", switch back to `return ok ? 0 : 1` so the C++ destructor
+    // chain runs to completion (delivers leak-summary signal to ASan +
+    // valgrind for future regression protection).
     std::fflush(stdout);
     std::fflush(stderr);
-    _exit(0);
+    // Explicit success-path heap release: mirror the error-path convention
+    // (`delete MD; delete fout; delete fin; return 1;` at L308/L318/L432)
+    // so the ~Model_Data() → FreeData() chain fires on the happy path too.
+    // Phase 6 round-1 cross-review F1 closure.
+    delete MD;
+    delete fout;
+    delete fin;
+    return 0;
 }

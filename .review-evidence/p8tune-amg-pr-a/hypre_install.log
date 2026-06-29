@@ -1,0 +1,52 @@
+=== Hypre brew info ===
+==> hypre: stable 3.1.0 (bottled), HEAD
+Library featuring parallel multigrid methods for grid problems
+https://computing.llnl.gov/projects/hypre-scalable-linear-solvers-multigrid-methods
+Installed (on request)
+From: https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/h/hypre.rb
+License: MIT OR Apache-2.0
+==> Installed Kegs and Versions
+hypre 3.1.0 (56 files, 5.4MB) [Linked]
+
+=== Hypre dylib deps ===
+/opt/homebrew/opt/hypre/lib/libHYPRE.dylib:
+	/opt/homebrew/opt/hypre/lib/libHYPRE.301.dylib (compatibility version 301.0.0, current version 3.1.0)
+	/opt/homebrew/opt/open-mpi/lib/libmpi.40.dylib (compatibility version 81.0.0, current version 81.7.0)
+	/opt/homebrew/opt/openblas/lib/libopenblas.0.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
+
+=== nm libHYPRE BoomerAMG symbols (count + sample) ===
+Total BoomerAMG public symbols: 224
+Required-by-cell-tool symbols:
+0000000000246ef8 T _HYPRE_BoomerAMGCreate
+0000000000246f48 T _HYPRE_BoomerAMGDestroy
+0000000000246f4c T _HYPRE_BoomerAMGSetup
+0000000000246f88 T _HYPRE_BoomerAMGSolve
+00000000002470f0 T _HYPRE_BoomerAMGSetInterpType
+00000000002470fc T _HYPRE_BoomerAMGSetMaxIter
+0000000000247104 T _HYPRE_BoomerAMGSetCoarsenType
+0000000000247178 T _HYPRE_BoomerAMGSetTol
+0000000000247404 T _HYPRE_BoomerAMGSetPrintLevel
+0000000000247418 T _HYPRE_BoomerAMGGetNumIterations
+0000000000247424 T _HYPRE_BoomerAMGGetFinalRelativeResidualNorm
+00000000002475ec T _HYPRE_BoomerAMGSetCumNnzAP
+00000000002475f0 T _HYPRE_BoomerAMGGetCumNnzAP
+
+=== nm libHYPRE IJ + ParCSR core symbols ===
+00000000001d57e8 T _HYPRE_ParCSRMatrixCreate
+00000000001d5838 T _HYPRE_ParCSRMatrixDestroy
+00000000001d583c T _HYPRE_ParCSRMatrixInitialize
+0000000000203c78 T _HYPRE_IJMatrixCreate
+0000000000203f38 T _HYPRE_IJMatrixDestroy
+0000000000203fc8 T _HYPRE_IJMatrixInitialize
+00000000002040ac T _HYPRE_IJMatrixSetValues
+0000000000204614 T _HYPRE_IJMatrixAssemble
+000000000020491c T _HYPRE_IJMatrixSetObjectType
+0000000000204a30 T _HYPRE_IJMatrixGetObject
+00000000002050ec T _HYPRE_IJVectorCreate
+00000000002052f8 T _HYPRE_IJVectorDestroy
+00000000002054d8 T _HYPRE_IJVectorInitialize
+000000000020562c T _HYPRE_IJVectorSetValues
+00000000002057b4 T _HYPRE_IJVectorAssemble
+00000000002059ac T _HYPRE_IJVectorSetObjectType
+0000000000205a80 T _HYPRE_IJVectorGetObject

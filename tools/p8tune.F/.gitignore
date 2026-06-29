@@ -1,0 +1,22 @@
+# tools/p8tune.F/.gitignore — exclude build artifacts, symlinks, and per-run outputs
+#
+# Source files: *.cpp / *.h / Makefile / README.md (committed)
+# Everything else is a build artifact, symlink, or run output and SHALL NOT be committed.
+
+# Compiled binaries
+boomeramg_setup_solve
+
+# Symlinks to p8tune.D (created by `make all`)
+dump_adjacency
+fd_color_jacobian
+
+# macOS debug-info bundles
+*.dSYM/
+
+# Per-cell run outputs
+output/
+*.csc
+*.bin
+
+# Object files (shouldn't appear here but for safety)
+*.o
