@@ -1,0 +1,261 @@
+=== spike_run.sh keliya_natural_btf1 ===
+date_utc: 2026-06-28T11:52:35Z
+hostname: cn24
+basin_root: /scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins
+--- stage 1: dump_adjacency ---
+		 * openMP disabled.
+* 	 Project name: keliya
+* 	 Project input folder: input/keliya
+* 	 Project output folder: output/keliya.out
+1 	 Reading file: input/keliya/keliya.cfg.para
+2 	 Reading file: input/keliya/keliya.sp.riv
+	The downstream of RIV 44 is negtive (Outlet, -3)
+	The downstream of RIV 64 is negtive (Outlet, -3)
+3 	 Reading file: input/keliya/keliya.sp.rivseg
+	Number of River segments: 534
+4 	 Reading file: input/keliya/keliya.sp.mesh
+5 	 Reading file: input/keliya/keliya.sp.att
+6 	 Reading file: input/keliya/keliya.para.soil
+7 	 Reading file: input/keliya/keliya.para.geol
+8 	 Reading file: input/keliya/keliya.para.lc
+9 	 Reading file: input/keliya/keliya.tsd.forc
+	Number of csv files: 32
+	 Reading 1/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.45Y36.25.csv
+	 Reading 2/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.55Y36.25.csv
+	 Reading 3/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.25.csv
+	 Reading 4/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.25.csv
+	 Reading 5/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.85Y36.25.csv
+	 Reading 6/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.95Y36.25.csv
+	 Reading 7/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X83.05Y36.25.csv
+	 Reading 8/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.45Y36.35.csv
+	 Reading 9/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.55Y36.35.csv
+	 Reading 10/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.35.csv
+	 Reading 11/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.35.csv
+	 Reading 12/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.85Y36.35.csv
+	 Reading 13/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.95Y36.35.csv
+	 Reading 14/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X83.05Y36.35.csv
+	 Reading 15/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.55Y36.45.csv
+	 Reading 16/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.45.csv
+	 Reading 17/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.45.csv
+	 Reading 18/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.85Y36.45.csv
+	 Reading 19/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.95Y36.45.csv
+	 Reading 20/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X83.05Y36.45.csv
+	 Reading 21/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.55Y36.55.csv
+	 Reading 22/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.55.csv
+	 Reading 23/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.55.csv
+	 Reading 24/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.85Y36.55.csv
+	 Reading 25/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.95Y36.55.csv
+	 Reading 26/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.65.csv
+	 Reading 27/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.65.csv
+	 Reading 28/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.75.csv
+	 Reading 29/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.75.csv
+	 Reading 30/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.85.csv
+	 Reading 31/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.85.csv
+	 Reading 32/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.95.csv
+10 	 Reading file: input/keliya/keliya.tsd.lai
+11 	 Reading file: input/keliya/keliya.tsd.mf
+12 	 Reading file: input/keliya/keliya.cfg.calib
+
+Initializing data structure ... 
+[NUMA] first-touch skipped: OMP_PROC_BIND unset (3 sites: hot.soa, QeleSurf_flat, Ele_AoS)
+WARNING:: Aqd of Node(18) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(19) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(22) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(23) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(28) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(116) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(185) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(188) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(190) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(191) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(197) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(206) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(208) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(209) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(226) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(237) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(266) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(275) = 0.000000
+Press anykey to continue ...
+Warning: remove sink on 5, from 3544.00 to 3615.33. dz = 71.33
+Warning: remove sink on 6, from 594.00 to 1161.00. dz = 567.00
+Warning: remove sink on 22, from 747.33 to 1470.67. dz = 723.33
+Warning: remove sink on 28, from 3421.67 to 3739.33. dz = 317.67
+Warning: remove sink on 39, from 3066.33 to 3145.67. dz = 79.33
+Warning: remove sink on 46, from 4750.67 to 4792.33. dz = 41.67
+Warning: remove sink on 95, from 3863.33 to 3888.67. dz = 25.33
+Warning: remove sink on 145, from 3384.00 to 3499.00. dz = 115.00
+Warning: remove sink on 233, from 4551.67 to 4559.67. dz = 8.00
+Warning: remove sink on 294, from 3708.67 to 3805.33. dz = 96.67
+Warning: remove sink on 346, from 723.33 to 1419.33. dz = 696.00
+Warning: remove sink on 348, from 1766.00 to 1892.00. dz = 126.00
+Warning: remove sink on 353, from 696.00 to 1368.00. dz = 672.00
+Warning: remove sink on 359, from 1327.33 to 1368.00. dz = 40.67
+Warning: remove sink on 363, from 1915.00 to 3615.33. dz = 1700.33
+Warning: remove sink on 394, from 5453.67 to 5472.33. dz = 18.67
+Warning: remove sink on 412, from 1307.00 to 2718.00. dz = 1411.00
+Warning: remove sink on 429, from 3256.33 to 3321.33. dz = 65.00
+Warning: remove sink on 437, from 1854.00 to 3641.33. dz = 1787.33
+Warning: remove sink on 481, from 3375.00 to 3503.33. dz = 128.33
+[dump_adjacency] loaded case=keliya: NumEle=484 NumRiv=333 NumLake=0 NumSegmt=534 NumY=1785
+[dump_adjacency] case_nnz_summary
+  NumEle=484  NumRiv=333  NumLake=0  NumY=1785  total_nnz=10255
+  per_block_nnz (row x col):
+    surf         1868         484         484         534           0
+    unsat         484         484         484           0           0
+    gw            484         484        1868         534           0
+    river         534           0         534         995           0
+    lake            0           0           0           0           0
+  output: keliya_adjacency.csc
+--- stage 2: fd_color_jacobian ---
+[fd_color] loaded CSC: NumY=1785 total_nnz=10255
+[fd_color] chromatic_number=16  (NumY=1785, density=0.00322)
+		 * openMP disabled.
+* 	 Project name: keliya
+* 	 Project input folder: input/keliya
+* 	 Project output folder: output/keliya.out
+1 	 Reading file: input/keliya/keliya.cfg.para
+2 	 Reading file: input/keliya/keliya.sp.riv
+	The downstream of RIV 44 is negtive (Outlet, -3)
+	The downstream of RIV 64 is negtive (Outlet, -3)
+3 	 Reading file: input/keliya/keliya.sp.rivseg
+	Number of River segments: 534
+4 	 Reading file: input/keliya/keliya.sp.mesh
+5 	 Reading file: input/keliya/keliya.sp.att
+6 	 Reading file: input/keliya/keliya.para.soil
+7 	 Reading file: input/keliya/keliya.para.geol
+8 	 Reading file: input/keliya/keliya.para.lc
+9 	 Reading file: input/keliya/keliya.tsd.forc
+	Number of csv files: 32
+	 Reading 1/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.45Y36.25.csv
+	 Reading 2/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.55Y36.25.csv
+	 Reading 3/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.25.csv
+	 Reading 4/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.25.csv
+	 Reading 5/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.85Y36.25.csv
+	 Reading 6/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.95Y36.25.csv
+	 Reading 7/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X83.05Y36.25.csv
+	 Reading 8/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.45Y36.35.csv
+	 Reading 9/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.55Y36.35.csv
+	 Reading 10/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.35.csv
+	 Reading 11/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.35.csv
+	 Reading 12/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.85Y36.35.csv
+	 Reading 13/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.95Y36.35.csv
+	 Reading 14/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X83.05Y36.35.csv
+	 Reading 15/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.55Y36.45.csv
+	 Reading 16/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.45.csv
+	 Reading 17/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.45.csv
+	 Reading 18/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.85Y36.45.csv
+	 Reading 19/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.95Y36.45.csv
+	 Reading 20/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X83.05Y36.45.csv
+	 Reading 21/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.55Y36.55.csv
+	 Reading 22/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.55.csv
+	 Reading 23/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.55.csv
+	 Reading 24/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.85Y36.55.csv
+	 Reading 25/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.95Y36.55.csv
+	 Reading 26/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.65.csv
+	 Reading 27/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.65.csv
+	 Reading 28/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.75.csv
+	 Reading 29/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.75.csv
+	 Reading 30/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.85.csv
+	 Reading 31/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.75Y36.85.csv
+	 Reading 32/32: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/keliya/forcing/X82.65Y36.95.csv
+10 	 Reading file: input/keliya/keliya.tsd.lai
+11 	 Reading file: input/keliya/keliya.tsd.mf
+12 	 Reading file: input/keliya/keliya.cfg.calib
+
+Initializing data structure ... 
+[NUMA] first-touch skipped: OMP_PROC_BIND unset (3 sites: hot.soa, QeleSurf_flat, Ele_AoS)
+WARNING:: Aqd of Node(18) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(19) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(22) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(23) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(28) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(116) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(185) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(188) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(190) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(191) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(197) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(206) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(208) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(209) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(226) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(237) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(266) = 0.000000
+Press anykey to continue ...
+WARNING:: Aqd of Node(275) = 0.000000
+Press anykey to continue ...
+Warning: remove sink on 5, from 3544.00 to 3615.33. dz = 71.33
+Warning: remove sink on 6, from 594.00 to 1161.00. dz = 567.00
+Warning: remove sink on 22, from 747.33 to 1470.67. dz = 723.33
+Warning: remove sink on 28, from 3421.67 to 3739.33. dz = 317.67
+Warning: remove sink on 39, from 3066.33 to 3145.67. dz = 79.33
+Warning: remove sink on 46, from 4750.67 to 4792.33. dz = 41.67
+Warning: remove sink on 95, from 3863.33 to 3888.67. dz = 25.33
+Warning: remove sink on 145, from 3384.00 to 3499.00. dz = 115.00
+Warning: remove sink on 233, from 4551.67 to 4559.67. dz = 8.00
+Warning: remove sink on 294, from 3708.67 to 3805.33. dz = 96.67
+Warning: remove sink on 346, from 723.33 to 1419.33. dz = 696.00
+Warning: remove sink on 348, from 1766.00 to 1892.00. dz = 126.00
+Warning: remove sink on 353, from 696.00 to 1368.00. dz = 672.00
+Warning: remove sink on 359, from 1327.33 to 1368.00. dz = 40.67
+Warning: remove sink on 363, from 1915.00 to 3615.33. dz = 1700.33
+Warning: remove sink on 394, from 5453.67 to 5472.33. dz = 18.67
+Warning: remove sink on 412, from 1307.00 to 2718.00. dz = 1411.00
+Warning: remove sink on 429, from 3256.33 to 3321.33. dz = 65.00
+Warning: remove sink on 437, from 1854.00 to 3641.33. dz = 1787.33
+Warning: remove sink on 481, from 3375.00 to 3503.33. dz = 128.33
+[NUMA] first-touch skipped: OMP_PROC_BIND unset (1 site: LoadIC)
+[fd_color] Model_Data init: NumY=1785 (CSC NumY=1785); t0=17356320.000000 StartTime=17356320.000000 SolverStep=20.000000
+[fd_color] color 1/16 (cols=198) probed
+[fd_color] color 9/16 (cols=104) probed
+[fd_color] J binary written: keliya_numeric_J.bin  total_nnz=10255 n_zero=7757  |v|_min=2.194e-13 |v|_max=6.733e+01
+--- stage 3: klu_analyze_factor ---
+[klu] loaded numeric J: NumY=1785 total_nnz=10255 n_colors=16
+[klu] test matrix M = I - 1.000000 * J  (diagonal set on 1785 / 1785 cols)
+[klu] PREFLIGHT_HINT pattern_est_bytes=770560 (advisory only; decisive check after klu_analyze)
+[klu] PREFLIGHT_AFTER_ANALYZE skipped (ordering=natural lnz=-1 unz=-1; AMD-only); relying on post-factor RSS check
+[klu] cell_summary
+  case=keliya ordering=natural btf=1
+  NumY=1785 Anz=10255
+  symbolic_lnz_est=-1 symbolic_unz_est=-1 est_flops=6.755e-310
+  nblocks=1 maxblock=1785 nzoff=0 symmetry=0.000000
+  numeric_lnz=1055998 numeric_unz=1055998 max_lnz_block=1055998 max_unz_block=1055998
+  fill_ratio=205.9479 (numeric_lnz+unz)/Anz
+  symbolic_wall_sec=0.000231 numeric_factor_wall_sec=0.913238
+  peak_rss_bytes=29491200 (CN_NODE_RAM_BYTES=185528156160)
+=== spike_run.sh keliya_natural_btf1 done ===
+log: /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.D-runs/pr-a-20260628-115234/_stage/cell-00/cell-keliya_natural_btf1.log

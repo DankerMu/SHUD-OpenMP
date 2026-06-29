@@ -1,0 +1,3 @@
+[fd_color] loaded CSC: NumY=1785 total_nnz=10255
+[fd_color] chromatic_number=16  (NumY=1785, density=0.00322)
+[fd_color] --report-chi-only mode: exiting after chromatic-number report.

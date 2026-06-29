@@ -1,0 +1,21 @@
+# tools/p8tune.D/.gitignore — exclude build artifacts and per-run outputs
+#
+# Source files: *.cpp / *.h / *.py / *.sh / *.sbatch / Makefile / README.md
+# Pinned headers: cn_node_ram.h / spgmr_baseline_walls.h
+# Everything else is a build artifact or run output and SHALL NOT be committed.
+
+# Compiled binaries
+dump_adjacency
+fd_color_jacobian
+klu_analyze_factor
+
+# macOS debug-info bundles
+*.dSYM/
+
+# Per-cell run outputs
+output/
+*.csc
+*.bin
+
+# Object files (shouldn't appear here but for safety)
+*.o
