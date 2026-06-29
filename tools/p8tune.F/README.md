@@ -50,17 +50,28 @@ ls /opt/homebrew/Cellar/hypre/3.1.0/include/HYPRE.h
 ls /opt/homebrew/Cellar/hypre/3.1.0/include/HYPRE_parcsr_ls.h
 ls /opt/homebrew/Cellar/hypre/3.1.0/include/HYPRE_IJ_mv.h
 
-# Symbol presence (BoomerAMG core API)
-nm /opt/homebrew/opt/hypre/lib/libHYPRE.dylib | grep HYPRE_BoomerAMG | head -10
-# expected: 130+ symbols total; the 8 we need are guaranteed:
-#   _HYPRE_BoomerAMGCreate
-#   _HYPRE_BoomerAMGDestroy
-#   _HYPRE_BoomerAMGSetup
-#   _HYPRE_BoomerAMGSolve
-#   _HYPRE_BoomerAMGSetInterpType
-#   _HYPRE_BoomerAMGSetCoarsenType
-#   _HYPRE_BoomerAMGSetCumNnzAP / _HYPRE_BoomerAMGGetCumNnzAP
-#   _HYPRE_BoomerAMGGetFinalRelativeResidualNorm
+# Symbol presence (BoomerAMG core API).
+# Replace generic `grep | head -10` (which returned the first 10 alphabetically
+# and didn't actually prove the required symbols were present — round-1 M11)
+# with explicit regex enumerating the 11 symbols we link against. Should
+# print exactly 11:
+nm /opt/homebrew/opt/hypre/lib/libHYPRE.dylib | \
+  grep -E '_HYPRE_BoomerAMG(Create|Destroy|Setup|Solve|SetInterpType|SetCoarsenType|SetMaxIter|SetTol|GetFinalRelativeResidualNorm|SetCumNnzAP|GetCumNnzAP)$' | \
+  sort | wc -l
+# expected: 11
+
+# Plus HYPRE_Version (round-1 M5 runtime probe) — should print 1:
+nm /opt/homebrew/opt/hypre/lib/libHYPRE.dylib | grep -E '_HYPRE_Version$' | wc -l
+# expected: 1
+
+# NOTE: HYPRE_BoomerAMGGetNumLevels is NOT in the Hypre 3.1.0 public
+# dylib surface (confirmed: only HYPRE_BoomerAMGGetMaxLevels and
+# HYPRE_BoomerAMGGetSmoothNumLevels are exported). The spec REQ-4
+# AMG_SETUP_DIVERGE Scenario "num_levels == 0" trigger is implemented
+# via the internal `hypre_ParAMGDataNumLevels` accessor macro on the
+# solver opaque pointer (included from <_hypre_parcsr_ls.h>). PR-B may
+# need to re-verify against a future Hypre version that adds the
+# public getter, but the macro is stable across 3.x.
 
 # Runtime dependency check
 otool -L /opt/homebrew/opt/hypre/lib/libHYPRE.dylib
@@ -209,7 +220,12 @@ Spec asks for Hypre 2.30.0; brew ships 3.1.0. Decision: use 3.1.0 + document. Ra
 - `HYPRE_BIGINT 1` (long long index) is compatible with our `HYPRE_BigInt` row/col usage
 - `HYPRE_Initialize`/`HYPRE_Finalize` honored
 - The complexity-getter gap (`GetCycleComplexity`/`GetOperatorComplexity` absent in 3.1.0 public API) is bridged via `SetCumNnzAP`/`GetCumNnzAP` → canonical operator complexity (Hypre design: `op_complexity = sum(nnz_A_level_l) / nnz_A_fine`); cycle complexity reported as `2 × op_complexity` per V-cycle pre+post smoothing standard convention
+- The hierarchy-size accessor gap (`HYPRE_BoomerAMGGetNumLevels` absent in 3.1.0 public dylib) is bridged via the internal `hypre_ParAMGDataNumLevels((hypre_ParAMGData *)solver)` macro from `<_hypre_parcsr_ls.h>` — required by spec REQ-4 AMG_SETUP_DIVERGE Scenario "num_levels == 0" trigger (round-1 H1)
 - Fallback if 3.1.0 binary surface issues surface in PR-B: source-build Hypre 2.30.0 (~20-40 min)
+
+### cycle_complexity axis-independence caveat (round-1 H3 disclosure)
+
+`cycle_complexity = 2 × operator_complexity` is a V-cycle estimate (1 pre-smoothing + 1 post-smoothing pass per level, weight=1), **NOT** an independent measurement. Hypre 3.1.0 has no `HYPRE_BoomerAMGGetCycleComplexity` public getter, so the spec's Axis 4 (`cycle_complexity < 1.5`) and Axis 5 (`operator_complexity < 2.0`) thresholds are **mechanically linked**: Axis 4 trips iff Axis 5 trips at `op_complex > 0.75`. PR-C ADR-0007 §Discussion + §Limitations MUST disclose this — Axis 4 and Axis 5 are NOT independent diagnostics under the Hypre-3.1.0-API constraint. The PR-C aggregator may need to amend the Axis 4 threshold (or drop Axis 4 as redundant) to reflect the 2× linkage. For W-cycles or aggressive coarsening the 2× estimate systematically under-counts the true cycle complexity — a Hypre source-build with the 2.30.0 public getter (or a Hypre 3.x version that re-introduces the getter) would unlock independent measurement.
 
 ---
 

@@ -75,12 +75,42 @@ SUITESPARSE_LIB ?= /opt/homebrew/lib
 COLPACK_INC ?= $(HOME)/.local/include/ColPack_headers
 COLPACK_LIB ?= $(HOME)/.local/lib/shared_library
 COLPACK_LIB_FALLBACK ?= $(HOME)/.local/lib/archive
+# ColPack version probe: ColPack ships a cmake ConfigVersion file with
+# the canonical PACKAGE_VERSION; no header macro exists. Parse the .cmake
+# file at build time; fall back to "unknown" if not found. This eliminates
+# the cell_summary `colpack_version=unknown` sentinel for any environment
+# that has a standard ColPack install (PR-A Mac, PR-B server post-#401).
+COLPACK_CMAKE_VERSION ?= $(HOME)/.local/lib/ColPack_libs/ColPackConfigVersion.cmake
+# grep the `set(PACKAGE_VERSION "X.Y.Z")` line and extract the quoted
+# value. Two-stage pipe (grep then cut) keeps the cmake `(` away from
+# Make's $(shell) parser which would interpret an unescaped open-paren.
+# Comment lines mentioning PACKAGE_VERSION in prose are filtered out
+# by grep's leading-^set anchor.
+COLPACK_VERSION := $(shell grep -E '^set.PACKAGE_VERSION' $(COLPACK_CMAKE_VERSION) 2>/dev/null | cut -d'"' -f2)
+ifeq ($(COLPACK_VERSION),)
+  COLPACK_VERSION := unknown
+endif
 
 # --- SHUD paths ---
 SHUD_DIR ?= ../../SHUD
 SHUD_SRC ?= $(SHUD_DIR)/src
 SHUD_LIB ?= $(SHUD_DIR)
 SHUD_LIBSHUD := $(SHUD_LIB)/libshud.a
+
+# SHUD submodule pin (compile-time embed). Eliminates the
+# cell_summary `shud_pin=runtime` sentinel — the PR-C aggregator strict
+# parser will see the actual 40-char SHA. `git rev-parse HEAD` runs on the
+# SHUD submodule HEAD at build time; falls back to "unknown" if not in a
+# git checkout (e.g. tarball install).
+SHUD_PIN_SHA := $(shell git -C $(SHUD_DIR) rev-parse HEAD 2>/dev/null)
+ifeq ($(SHUD_PIN_SHA),)
+  SHUD_PIN_SHA := unknown
+endif
+
+# Version-pin defines injected into the cpp build.
+VERSION_DEFINES := \
+  -DCOLPACK_VERSION_STR=\"$(COLPACK_VERSION)\" \
+  -DSHUD_PIN_SHA=\"$(SHUD_PIN_SHA)\"
 
 # --- SUNDIALS (resolved from SHUD's InstallSundials) ---
 SUNDIALS_DIR ?= $(SHUD_DIR)/InstallSundials
@@ -134,7 +164,13 @@ LIBS := \
 BINARIES := boomeramg_setup_solve
 SYMLINKS := dump_adjacency fd_color_jacobian
 
-.PHONY: shud_spike all clean
+# `dump_adjacency` / `fd_color_jacobian` are symlinks into ../p8tune.D/.
+# Declare them .PHONY so Make re-creates the symlink whenever upstream
+# changes (rather than treating the symlink-file existing as up-to-date
+# and leaving a dangling link when the upstream binary is rebuilt or
+# deleted by `make -C ../p8tune.D clean`). The recipes themselves are
+# idempotent (`ln -sf`). Cross-review-round-1 finding C3.
+.PHONY: shud_spike all clean dump_adjacency fd_color_jacobian
 
 shud_spike all: $(BINARIES) $(SYMLINKS)
 
@@ -143,12 +179,15 @@ shud_spike all: $(BINARIES) $(SYMLINKS)
 # (../../Makefile) recurses into SHUD first; invoking `make` from this
 # dir alone REQUIRES libshud.a to already exist.
 boomeramg_setup_solve: boomeramg_setup_solve.cpp $(SHUD_LIBSHUD)
-	$(CXX) $(CXXFLAGS) $(OMP_CFLAGS) $(INCLUDES) $< $(SHUD_LIBSHUD) $(LDFLAGS) $(LIBS) $(OMP_LFLAGS) $(RPATH) -o $@
+	$(CXX) $(CXXFLAGS) $(OMP_CFLAGS) $(VERSION_DEFINES) $(INCLUDES) $< $(SHUD_LIBSHUD) $(LDFLAGS) $(LIBS) $(OMP_LFLAGS) $(RPATH) -o $@
 
 # Symlink reuse of P8-tune.D binaries per REQ-2 shell-out convention:
 # p8tune.D source is frozen, so we cannot refactor those tools to a library
 # API; we shell out via subprocess. Symlinks under tools/p8tune.F/ keep
 # the invocation path stable from this directory's perspective.
+# Targets are .PHONY (see above) so the symlink is re-created on every
+# `make` — guards against a deleted upstream binary leaving a dangling
+# symlink that Make would otherwise consider up-to-date.
 dump_adjacency:
 	@if [ ! -x ../p8tune.D/dump_adjacency ]; then \
 	  echo "tools/p8tune.F: ERROR: ../p8tune.D/dump_adjacency not built; run 'make -C ../p8tune.D all' first" >&2; \

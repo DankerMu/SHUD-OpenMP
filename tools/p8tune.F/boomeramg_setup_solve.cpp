@@ -44,22 +44,30 @@
  *   8. Timed setup: HYPRE_BoomerAMGSetup(solver, A, b_par, x_par) →
  *      setup_wall_sec.
  *
- *   9. Loop n_solve times: reset x = 0, timed apply
- *      HYPRE_BoomerAMGSolve(solver, A, b_par, x_par) → average apply_wall_sec.
- *      Initial residual norm |b - A·0| = |b|. Final norm from
- *      HYPRE_BoomerAMGGetFinalRelativeResidualNorm. residual_reduction_v1
- *      = initial_norm / final_norm (the 1-step reduction ratio per design R3).
+ *   9. residual_reduction_v1: run ONE V-cycle (MaxIter=1, Tol=0) to capture
+ *      the true 1-step residual reduction ratio per spec REQ-4 Scenario
+ *      "AMG_SOLVE_DIVERGE marker on convergence failure". Then restore
+ *      MaxIter=100/Tol=1e-8 for the main timed solve loop. (Without this
+ *      separation, GetFinalRelativeResidualNorm returns the post-convergence
+ *      ratio ~1e-8, making 1/r meaningless as a v1 metric — round-1 M1.)
  *
- *  10. HYPRE_BoomerAMGGetCumNnzAP → operator_complexity = cum_nnz_AP / nnz_A
+ *  10. Loop n_solve times: reset x = 0 via SetValues+Assemble ONLY (NO
+ *      Initialize call, per Hypre 3.1.0 IJ docs — Initialize is for
+ *      first-use only; calling on an assembled vector is UB — round-1 C1),
+ *      timed apply HYPRE_BoomerAMGSolve → average apply_wall_sec.
+ *
+ *  11. HYPRE_BoomerAMGGetCumNnzAP → operator_complexity = cum_nnz_AP / nnz_A
  *      (Hypre canonical definition: sum of nnz across all A-level operators
  *      divided by fine-grid nnz).
- *      cycle_complexity = 2.0 × operator_complexity (estimate, V-cycle does
- *      pre + post smoothing on each level; Hypre 3.1.0 has no direct
- *      getter — see README.md §note for the Hypre version reconciliation).
+ *      cycle_complexity = 2.0 × operator_complexity is a V-cycle estimate
+ *      (1 pre-smoothing + 1 post-smoothing pass per level, weight=1) — NOT
+ *      a measurement. Hypre 3.1.0 public API has no direct GetCycleComplexity;
+ *      see README.md §6 and PR-C ADR-0007 §Discussion for the axis-independence
+ *      caveat (Axis 4 mechanically tracks Axis 5 — round-1 H3).
  *
- *  11. peak_rss_bytes from mach (Mac) / getrusage (Linux).
+ *  12. peak_rss_bytes from mach (Mac) / getrusage (Linux).
  *
- *  12. Emit REQ-4 cell_summary KV block to stdout (fixed order for
+ *  13. Emit REQ-4 cell_summary KV block to stdout (fixed order for
  *      aggregator parser stability):
  *        CELL_SUMMARY_BEGIN
  *        case=<C> interp_type=<I> coarsen_type=<S> NumY=<N> nnz_A=<NNZ>
@@ -68,13 +76,21 @@
  *        verdict_class=<PASS|AMG_OOM|AMG_SETUP_DIVERGE|AMG_SOLVE_DIVERGE|AMG_WALL_OVERFLOW>
  *        hypre_version=<HV> colpack_version=<CV> shud_pin=<SHA>
  *        CELL_SUMMARY_END
+ *      hypre_version probed at runtime via HYPRE_Version() (round-1 M5);
+ *      colpack_version + shud_pin embedded at compile time via Makefile
+ *      preprocessor defines (round-1 M6).
  *
- *  13. Marker emission paths (REQ-4 Scenarios 2-5):
- *      - HYPRE_BoomerAMGSetup nonzero return  → MARKER:AMG_SETUP_DIVERGE_DETECTED
+ *  14. Marker emission paths (REQ-4 Scenarios 2-5):
+ *      - HYPRE_BoomerAMGSetup nonzero return OR num_levels==0 OR
+ *        setup_wall_sec > 2.0×WALL_BUDGET_SETUP_SEC
+ *                                             → MARKER:AMG_SETUP_DIVERGE_DETECTED
  *                                              + verdict_class=AMG_SETUP_DIVERGE
+ *        (round-1 H1: nlevels==0 + wall-budget triggers added per spec REQ-4)
  *      - HYPRE_BoomerAMGSolve nonzero return OR final_res > 1.0
+ *        OR residual_reduction_v1 < 2.0
  *                                             → MARKER:AMG_SOLVE_DIVERGE_DETECTED
  *                                              + verdict_class=AMG_SOLVE_DIVERGE
+ *        (round-1 H2: residual_reduction_v1<2.0 trigger added per spec REQ-4)
  *      - std::bad_alloc OR peak_rss > 8 GiB pin (Mac PR-A scale; PR-B server
  *        replaces with CN_NODE_RAM_BYTES probe)
  *                                             → MARKER:AMG_OOM_DETECTED
@@ -102,6 +118,7 @@
  */
 
 #include <algorithm>
+#include <cerrno>       // errno for fork/execvp diagnostics (C2)
 #include <chrono>
 #include <cmath>
 #include <csignal>
@@ -109,10 +126,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <new>     // std::bad_alloc
+#include <fcntl.h>      // open() for fork/execvp dev/null redirect (C2)
+#include <new>          // std::bad_alloc
 #include <random>
 #include <string>
 #include <sys/stat.h>
+#include <sys/wait.h>   // waitpid / WIFEXITED / WEXITSTATUS (C2)
+#include <unistd.h>     // fork / execvp / dup2 / _exit (C2)
 #include <vector>
 
 #include <mpi.h>
@@ -123,12 +143,17 @@
 #include "HYPRE_parcsr_ls.h"
 #include "HYPRE_parcsr_mv.h"
 #include "HYPRE_utilities.h"
+// Internal Hypre header: needed for hypre_ParAMGDataNumLevels accessor
+// macro (Hypre 3.1.0 omits the HYPRE_BoomerAMGGetNumLevels public getter
+// that the spec REQ-4 AMG_SETUP_DIVERGE Scenario references; the macro
+// reads the same `num_levels` field directly from the hypre_ParAMGData
+// struct). Round-1 H1.
+#include "_hypre_parcsr_ls.h"
 
 #ifdef __APPLE__
 #include <mach/mach.h>
 #else
 #include <sys/resource.h>
-#include <unistd.h>
 #endif
 
 namespace {
@@ -139,12 +164,24 @@ constexpr int      DEFAULT_N_SOLVE = 5;
 // Mac PR-A peak-RSS pin (PR-B replaces with CN_NODE_RAM_BYTES * 0.95):
 constexpr size_t   MAC_OOM_PIN_BYTES = 8ULL * 1024 * 1024 * 1024;  // 8 GiB
 
-// Hypre version string for cell_summary (compile-time pinned).
-#define HYPRE_VERSION_STR "3.1.0"
-// ColPack version not directly queryable at compile time; pin "unknown" and
-// document in README.md §version-probing — PR-B precheck_env.sh will probe
-// + emit ColPack version from header constants if available.
+// Setup wall budget for AMG_SETUP_DIVERGE trigger (spec REQ-4 Scenario
+// "AMG_SETUP_DIVERGE marker on hierarchy build failure"). Derived per
+// spec REQ-5: WALL_BUDGET_SETUP_SEC = 1.5 × 0.7 × SPGMR_PER_STEP_SEC
+// where SPGMR_PER_STEP_SEC = 0.226579 (P8-tune.D heihe_x4 N=1 maxl=5 3-rep
+// median; pinned in tools/p8tune.D/spgmr_baseline_walls.h). PR-B/PR-C will
+// replace this hardcode by including the shared header. Round-1 H1.
+constexpr double WALL_BUDGET_SETUP_SEC = 1.5 * 0.7 * 0.226579;  // ≈ 0.237908 s
+
+// ColPack version + SHUD pin defines: injected by Makefile via
+// -DCOLPACK_VERSION_STR=... + -DSHUD_PIN_SHA=... at compile time
+// (round-1 M6). Fall back to "unknown" sentinel if undefined (e.g.,
+// hand-invoked g++ outside the project Makefile).
+#ifndef COLPACK_VERSION_STR
 #define COLPACK_VERSION_STR "unknown"
+#endif
+#ifndef SHUD_PIN_SHA
+#define SHUD_PIN_SHA "unknown"
+#endif
 
 struct JBin {
     uint64_t NumY = 0, total_nnz = 0, n_colors = 0;
@@ -153,6 +190,12 @@ struct JBin {
     std::vector<double> values;
 };
 
+// Read JBin binary with full short-read detection. Every std::fread return
+// is checked against the expected element count; on mismatch, emit a
+// precise error (path + which field truncated) and close+return false.
+// Prevents truncated .bin files (NFS hiccup, disk-full mid-write, SIGKILL
+// mid-fd_color_jacobian) from silently feeding stale heap garbage into
+// HYPRE_BoomerAMGSetup. Round-1 C5 (R5 + R1 + R2 + R3 convergent finding).
 bool read_jbin(const std::string &path, JBin &j) {
     FILE *fp = std::fopen(path.c_str(), "rb");
     if (!fp) {
@@ -160,26 +203,55 @@ bool read_jbin(const std::string &path, JBin &j) {
         return false;
     }
     uint32_t magic = 0, version = 0;
-    std::fread(&magic, sizeof(magic), 1, fp);
+    if (std::fread(&magic, sizeof(magic), 1, fp) != 1) {
+        std::fprintf(stderr, "[amg] ERROR: short read on magic in %s\n", path.c_str());
+        std::fclose(fp); return false;
+    }
     if (magic != JBIN_MAGIC) {
         std::fprintf(stderr, "[amg] ERROR: bad magic 0x%08x in %s (expected 0x%08x NDNJ)\n",
                      magic, path.c_str(), JBIN_MAGIC);
         std::fclose(fp); return false;
     }
-    std::fread(&version, sizeof(version), 1, fp);
+    if (std::fread(&version, sizeof(version), 1, fp) != 1) {
+        std::fprintf(stderr, "[amg] ERROR: short read on version in %s\n", path.c_str());
+        std::fclose(fp); return false;
+    }
     if (version != 1u) {
         std::fprintf(stderr, "[amg] ERROR: unsupported JBin version %u (expected 1)\n", version);
         std::fclose(fp); return false;
     }
-    std::fread(&j.NumY, sizeof(uint64_t), 1, fp);
-    std::fread(&j.total_nnz, sizeof(uint64_t), 1, fp);
-    std::fread(&j.n_colors, sizeof(uint64_t), 1, fp);
+    if (std::fread(&j.NumY, sizeof(uint64_t), 1, fp) != 1) {
+        std::fprintf(stderr, "[amg] ERROR: short read on NumY in %s\n", path.c_str());
+        std::fclose(fp); return false;
+    }
+    if (std::fread(&j.total_nnz, sizeof(uint64_t), 1, fp) != 1) {
+        std::fprintf(stderr, "[amg] ERROR: short read on total_nnz in %s\n", path.c_str());
+        std::fclose(fp); return false;
+    }
+    if (std::fread(&j.n_colors, sizeof(uint64_t), 1, fp) != 1) {
+        std::fprintf(stderr, "[amg] ERROR: short read on n_colors in %s\n", path.c_str());
+        std::fclose(fp); return false;
+    }
     j.col_ptr.resize(j.NumY + 1);
-    std::fread(j.col_ptr.data(), sizeof(int64_t), j.NumY + 1, fp);
+    if (std::fread(j.col_ptr.data(), sizeof(int64_t), j.NumY + 1, fp) != (j.NumY + 1)) {
+        std::fprintf(stderr, "[amg] ERROR: short read on col_ptr (expected %llu entries) in %s\n",
+                     (unsigned long long)(j.NumY + 1), path.c_str());
+        std::fclose(fp); return false;
+    }
     j.row_idx.resize(j.total_nnz);
-    std::fread(j.row_idx.data(), sizeof(int32_t), j.total_nnz, fp);
+    if (j.total_nnz > 0 &&
+        std::fread(j.row_idx.data(), sizeof(int32_t), j.total_nnz, fp) != j.total_nnz) {
+        std::fprintf(stderr, "[amg] ERROR: short read on row_idx (expected %llu entries) in %s\n",
+                     (unsigned long long)j.total_nnz, path.c_str());
+        std::fclose(fp); return false;
+    }
     j.values.resize(j.total_nnz);
-    std::fread(j.values.data(), sizeof(double), j.total_nnz, fp);
+    if (j.total_nnz > 0 &&
+        std::fread(j.values.data(), sizeof(double), j.total_nnz, fp) != j.total_nnz) {
+        std::fprintf(stderr, "[amg] ERROR: short read on values (expected %llu entries) in %s\n",
+                     (unsigned long long)j.total_nnz, path.c_str());
+        std::fclose(fp); return false;
+    }
     std::fclose(fp);
     return true;
 }
@@ -220,15 +292,71 @@ bool file_exists_nonempty(const std::string &path) {
 // `./dump_adjacency` + `./fd_color_jacobian` → `../p8tune.D/<binary>`.
 // The default --basin-root=../../SHUD/Basins resolves correctly from that
 // CWD. The subprocess inherits CWD; the p8tune.D binaries chdir internally.
+//
+// Implementation: fork() + execvp() rather than std::system() so that
+// case_name and basin_root flow as argv tokens — the shell is bypassed
+// entirely, eliminating the shell-injection class (round-1 C2). Child
+// silences stdout/stderr via dup2 to /dev/null. Parent waits + reports
+// exit code (WIFEXITED + WEXITSTATUS for signal-vs-exit distinction —
+// round-1 L1 bonus). Returns 0 on clean exit-0; non-zero (exit code
+// or 128+signo) otherwise.
 int shell_out_preflight(const std::string &binary_name,
                         const std::string &case_name,
                         const std::string &basin_root) {
-    std::string cmd = "./" + binary_name +
-                      " --case " + case_name +
-                      " --basin-root " + basin_root +
-                      " > /dev/null 2>&1";
-    int rc = std::system(cmd.c_str());
-    return rc;
+    const std::string binary_path = "./" + binary_name;
+    pid_t pid = fork();
+    if (pid < 0) {
+        std::fprintf(stderr, "[amg] ERROR: fork() failed for %s: %s\n",
+                     binary_name.c_str(), std::strerror(errno));
+        return -1;
+    }
+    if (pid == 0) {
+        // child: silence stdout/stderr by redirecting to /dev/null, then
+        // execvp the spike subprocess. argv tokens bypass any shell parsing.
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+        // execvp signature requires non-const char *; cast away const for
+        // the argv array — POSIX-defined safe pattern (the strings are not
+        // mutated by execvp's lookup).
+        char *argv[] = {
+            const_cast<char *>(binary_path.c_str()),
+            const_cast<char *>("--case"),
+            const_cast<char *>(case_name.c_str()),
+            const_cast<char *>("--basin-root"),
+            const_cast<char *>(basin_root.c_str()),
+            nullptr
+        };
+        execvp(argv[0], argv);
+        // execvp only returns on failure.
+        _exit(127);
+    }
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) {
+        std::fprintf(stderr, "[amg] ERROR: waitpid() failed for %s: %s\n",
+                     binary_name.c_str(), std::strerror(errno));
+        return -1;
+    }
+    if (WIFEXITED(status)) {
+        const int rc = WEXITSTATUS(status);
+        if (rc != 0) {
+            std::fprintf(stderr, "[amg] ERROR: %s exited with status %d\n",
+                         binary_name.c_str(), rc);
+        }
+        return rc;
+    }
+    if (WIFSIGNALED(status)) {
+        const int signo = WTERMSIG(status);
+        std::fprintf(stderr, "[amg] ERROR: %s killed by signal %d\n",
+                     binary_name.c_str(), signo);
+        return 128 + signo;
+    }
+    std::fprintf(stderr, "[amg] ERROR: %s exited abnormally (status=0x%x)\n",
+                 binary_name.c_str(), status);
+    return -1;
 }
 
 // Bracketed marker emission for stdout. Per REQ-4 marker-vs-class
@@ -236,6 +364,26 @@ int shell_out_preflight(const std::string &binary_name,
 void emit_marker(const char *marker_class) {
     std::printf("MARKER:%s_DETECTED\n", marker_class);
     std::fflush(stdout);
+}
+
+// Probe Hypre version at runtime via HYPRE_Version(). Returns a
+// transient C-string (Hypre allocates with hypre_TAlloc on first call,
+// reuses on subsequent calls — no caller free). On unexpected NULL the
+// fallback "unknown" sentinel is emitted. Round-1 M5 — eliminates the
+// hardcoded HYPRE_VERSION_STR "3.1.0" which silently lied if brew bumped.
+const char *hypre_version_runtime() {
+    char *ver = nullptr;
+    if (HYPRE_Version(&ver) != 0 || ver == nullptr) {
+        return "unknown";
+    }
+    // Hypre's HYPRE_Version writes something like "HYPRE Release Version 3.1.0".
+    // Aggregator cares about the dotted version triple — strip leading
+    // boilerplate so the cell_summary KV stays compact + machine-parseable.
+    // Search for the first digit; if found, use the suffix from there.
+    for (const char *p = ver; *p; ++p) {
+        if (*p >= '0' && *p <= '9') return p;
+    }
+    return ver;
 }
 
 // Emit cell_summary KV block (REQ-4 Scenario "cell_summary KV block schema").
@@ -257,13 +405,13 @@ void emit_cell_summary(const std::string &case_name,
     std::printf("cycle_complexity=%.4f operator_complexity=%.4f residual_reduction_v1=%.4f\n",
                 cycle_complexity, operator_complexity, residual_reduction_v1);
     std::printf("verdict_class=%s\n", verdict_class);
+    // hypre_version: runtime probe via HYPRE_Version() (round-1 M5).
+    // colpack_version / shud_pin: compile-time embed via Makefile
+    // -DCOLPACK_VERSION_STR + -DSHUD_PIN_SHA (round-1 M6). Both default
+    // to "unknown" if the Makefile probe failed or the cpp is built
+    // outside the project Makefile.
     std::printf("hypre_version=%s colpack_version=%s shud_pin=%s\n",
-                HYPRE_VERSION_STR, COLPACK_VERSION_STR,
-                // SHUD pin: not compile-time-stable; PR-B precheck_env.sh
-                // emits the actual SHA from `git -C SHUD rev-parse HEAD` and
-                // cross-checks against per-cell logs. Here we emit "runtime"
-                // sentinel — aggregator handles substitution.
-                "runtime");
+                hypre_version_runtime(), COLPACK_VERSION_STR, SHUD_PIN_SHA);
     std::printf("CELL_SUMMARY_END\n");
     std::fflush(stdout);
 }
@@ -285,6 +433,14 @@ void print_usage(const char *prog) {
 // SIGTERM trap — Slurm wall-overflow → emit AMG_WALL_OVERFLOW marker + KV
 // + exit 0 (per REQ-4 Scenario "SIGTERM trap"). PR-A keliya scale this
 // path is dormant; PR-B exercises it under the 8h Slurm budget.
+//
+// Async-signal-safety (round-1 C4): the handler MUST NOT touch printf,
+// fflush, malloc, std::string, mach_task_self, or any of the std::* I/O
+// helpers — none are listed in POSIX.1-2017 §2.4.3 as async-signal-safe.
+// Instead, the handler only flips a volatile sig_atomic_t flag. The main
+// thread polls the flag at safe points (top of solve loop iterations,
+// just after Setup, and after the V-cycle-1 probe) and emits the marker
+// + cell_summary there, where stdio mutexes are guaranteed to be quiescent.
 struct CellState {
     std::string case_name;
     int interp_type = -1;
@@ -297,15 +453,27 @@ struct CellState {
 };
 CellState g_cell;
 
-void sigterm_handler(int /*signo*/) {
+volatile sig_atomic_t g_sigterm_pending = 0;
+
+extern "C" void sigterm_handler(int /*signo*/) {
+    // Only async-signal-safe operation: a volatile sig_atomic_t store.
+    g_sigterm_pending = 1;
+}
+
+// Poll g_sigterm_pending at safe-point boundaries. If set, emit the
+// AMG_WALL_OVERFLOW marker + cell_summary block (now safe — main thread
+// context, no signal-handler-stack constraints) and exit 0 per REQ-4.
+// emit_marker / emit_cell_summary are defined above in this namespace.
+void check_sigterm_at_safe_point() {
+    if (g_sigterm_pending == 0) return;
     emit_marker("AMG_WALL_OVERFLOW");
     emit_cell_summary(g_cell.case_name, g_cell.interp_type, g_cell.coarsen_type,
                       g_cell.NumY, g_cell.nnz_A,
                       g_cell.setup_wall_sec, g_cell.apply_wall_sec,
                       peak_rss_bytes(), 0.0, 0.0, 0.0,
                       "AMG_WALL_OVERFLOW");
-    std::_Exit(0);  // _Exit (not _exit): no destructors, no atexit; SIGTERM
-                    // handler context — POSIX says we cannot run normal exit.
+    std::exit(0);  // normal exit OK from main thread context; destructors
+                   // + atexit run; SIGTERM handler did NOT touch them.
 }
 
 }  // namespace
@@ -537,6 +705,19 @@ int main(int argc, char **argv) {
         g_cell.setup_wall_sec = std::chrono::duration<double>(t1_setup - t0_setup).count();
         g_cell.setup_done = true;
 
+        // SIGTERM safe point: just after Setup completes. If a Slurm wall
+        // overflow arrived during the (long) Setup phase, emit marker now
+        // rather than continue into Solve. Round-1 C4.
+        check_sigterm_at_safe_point();
+
+        // Probe AMG hierarchy size via internal accessor — Hypre 3.1.0
+        // public API omits HYPRE_BoomerAMGGetNumLevels; the
+        // hypre_ParAMGDataNumLevels macro on the solver opaque pointer
+        // (cast to hypre_ParAMGData*) reads the same `num_levels` field.
+        // Required for AMG_SETUP_DIVERGE trigger per spec REQ-4. Round-1 H1.
+        const HYPRE_Int num_levels =
+            hypre_ParAMGDataNumLevels((hypre_ParAMGData *)solver);
+
         // Check post-setup RSS for Mac OOM pin (PR-A 8 GiB; PR-B overrides).
         const size_t rss_after_setup = peak_rss_bytes();
         if (rss_after_setup > MAC_OOM_PIN_BYTES) {
@@ -552,7 +733,21 @@ int main(int argc, char **argv) {
             return 0;
         }
 
-        if (setup_rc != 0) {
+        // AMG_SETUP_DIVERGE per spec REQ-4 Scenario: OR'd triggers
+        //   (a) nonzero setup return
+        //   (b) num_levels == 0  (hierarchy collapse)
+        //   (c) setup_wall_sec > 2.0 × WALL_BUDGET_SETUP_SEC (budget overflow
+        //                                                     but not yet
+        //                                                     Slurm SIGTERM)
+        // Round-1 H1.
+        const bool setup_diverge = (setup_rc != 0)
+                                || (num_levels == 0)
+                                || (g_cell.setup_wall_sec > 2.0 * WALL_BUDGET_SETUP_SEC);
+        if (setup_diverge) {
+            std::fprintf(stderr,
+                         "[amg] AMG_SETUP_DIVERGE: setup_rc=%d num_levels=%d setup_wall_sec=%.6f budget=%.6f\n",
+                         (int)setup_rc, (int)num_levels,
+                         g_cell.setup_wall_sec, 2.0 * WALL_BUDGET_SETUP_SEC);
             emit_marker("AMG_SETUP_DIVERGE");
             emit_cell_summary(case_name, interp_type, coarsen_type, j.NumY, j.total_nnz,
                               g_cell.setup_wall_sec, 0.0, rss_after_setup,
@@ -565,15 +760,108 @@ int main(int argc, char **argv) {
             return 0;
         }
 
+        // --- V-cycle-1 probe for residual_reduction_v1 (round-1 M1) ---
+        // The main timed solve loop uses MaxIter=100 + Tol=1e-8 to measure
+        // apply_wall_sec at convergence. Calling
+        // GetFinalRelativeResidualNorm AFTER that returns ~1e-8 (post-
+        // convergence ratio), so 1.0/r is ~1e8 — meaningless as the
+        // 1-step reduction ratio the spec REQ-4 AMG_SOLVE_DIVERGE Scenario
+        // calls for (< 2.0 threshold). Run ONE V-cycle here in isolation
+        // (MaxIter=1, Tol=1e-300 so the convergence check never fires and
+        // x_par actually receives the V-cycle update) and compute the true
+        // residual norm via Hypre vector ops — GetFinalRelativeResidualNorm
+        // is unreliable for this case (returns 0 when Hypre's internal
+        // residual computation is skipped, which happens at MaxIter=1).
+        HYPRE_BoomerAMGSetMaxIter(solver, 1);
+        HYPRE_BoomerAMGSetTol(solver, 1e-300);
+        // Reset x_par = 0 via SetValues + Assemble only (no Initialize
+        // re-call on an assembled vector — round-1 C1).
+        HYPRE_IJVectorSetValues(x_ij, n, indices.data(), x_vals.data());
+        HYPRE_IJVectorAssemble(x_ij);
+        HYPRE_IJVectorGetObject(x_ij, (void **)&x_par);
+        HYPRE_Int v1_rc = HYPRE_BoomerAMGSolve(solver, A_par, b_par, x_par);
+        // v1_rc==HYPRE_ERROR_CONV(256) is EXPECTED here — we deliberately
+        // set Tol=1e-300 so the convergence check never passes; the V-cycle
+        // still ran + x_par updated. Treat the probe as successful so long
+        // as the rc is 0 or pure HYPRE_ERROR_CONV (no other bits set).
+        const bool v1_ok = (v1_rc == 0) || (v1_rc == HYPRE_ERROR_CONV);
+
+        // Manually compute residual_reduction_v1 = ||b|| / ||b - A*x_v1||.
+        // We need a scratch ParVector for r = b - A*x. Allocate via IJ so it
+        // owns its own storage; destroy after probing.
+        HYPRE_IJVector r_ij = nullptr;
+        HYPRE_ParVector r_par = nullptr;
+        HYPRE_IJVectorCreate(MPI_COMM_SELF, 0, n - 1, &r_ij);
+        HYPRE_IJVectorSetObjectType(r_ij, HYPRE_PARCSR);
+        HYPRE_IJVectorInitialize(r_ij);
+        // Initialize r := 0 via SetValues + Assemble.
+        std::vector<double> r_zeros(n, 0.0);
+        HYPRE_IJVectorSetValues(r_ij, n, indices.data(), r_zeros.data());
+        HYPRE_IJVectorAssemble(r_ij);
+        HYPRE_IJVectorGetObject(r_ij, (void **)&r_par);
+
+        // r = b
+        HYPRE_ParVectorCopy(b_par, r_par);
+        // r = -A*x + 1*r = b - A*x
+        HYPRE_ParCSRMatrixMatvec(-1.0, A_par, x_par, 1.0, r_par);
+
+        // ||b||_2  and  ||r||_2
+        HYPRE_Real b_dot = 0.0, r_dot = 0.0;
+        HYPRE_ParVectorInnerProd(b_par, b_par, &b_dot);
+        HYPRE_ParVectorInnerProd(r_par, r_par, &r_dot);
+        const double b_norm = std::sqrt((double)b_dot);
+        const double r_norm = std::sqrt((double)r_dot);
+
+        // V-cycle-1 reduction ratio: well-conditioned matrices give 5-50;
+        // very stiff preconditioners on tiny matrices may yield much larger
+        // values (1 V-cycle nukes residual to machine zero). Both are valid
+        // PASS cases — only values < 2.0 trigger AMG_SOLVE_DIVERGE.
+        double residual_reduction_v1 = 0.0;
+        if (v1_ok && r_norm > 0.0 && b_norm > 0.0) {
+            residual_reduction_v1 = b_norm / r_norm;
+        } else if (v1_ok && r_norm == 0.0) {
+            // Residual exact zero — converged in 1 V-cycle (machine precision).
+            // Cap at 1e12 so the KV stays a printable double, well above the
+            // < 2.0 SOLVE_DIVERGE threshold.
+            residual_reduction_v1 = 1e12;
+        }
+        // (else: v1 probe had a non-CONV Hypre error — leave
+        //  residual_reduction_v1 = 0.0; the SOLVE_DIVERGE trigger below
+        //  will catch it via the < 2.0 check.)
+
+        HYPRE_IJVectorDestroy(r_ij);
+
+        // Restore convergence settings for the main timed loop.
+        HYPRE_BoomerAMGSetMaxIter(solver, 100);
+        HYPRE_BoomerAMGSetTol(solver, 1e-8);
+
+        // Clear Hypre's accumulated error flag. The probe deliberately ran
+        // with Tol=1e-300 + MaxIter=1, so Hypre raised HYPRE_ERROR_CONV
+        // (256) into the global flag. Without clearing, every subsequent
+        // Hypre call (Solve, GetCumNnzAP, HYPRE_Version inside our cell-
+        // summary emit) inherits the flag and returns non-zero, which the
+        // main timed loop would mis-interpret as a SOLVE_DIVERGE.
+        HYPRE_ClearAllErrors();
+
+        // SIGTERM safe point: after the V-cycle-1 probe. Round-1 C4.
+        check_sigterm_at_safe_point();
+
         // --- Timed solve loop (average over n_solve) ---
+        // Per Hypre 3.1.0 IJ docs, HYPRE_IJVectorInitialize is for
+        // first-use only; re-calling on an assembled vector inside the
+        // loop is UB and was making apply_wall_sec from iter 2+ unreliable
+        // — round-1 C1. Reset x via SetValues + Assemble only.
         double apply_wall_sum = 0.0;
         HYPRE_Real final_res_rel = 0.0;
         HYPRE_Int solve_rc_last = 0;
         for (int iter = 0; iter < n_solve; ++iter) {
-            // Reset x = 0 each iteration so each Solve sees a fresh problem.
-            HYPRE_IJVectorInitialize(x_ij);
+            // SIGTERM safe point: between solve iterations. Round-1 C4.
+            check_sigterm_at_safe_point();
+
+            // Reset x = 0 each iteration via SetValues+Assemble ONLY.
             HYPRE_IJVectorSetValues(x_ij, n, indices.data(), x_vals.data());
             HYPRE_IJVectorAssemble(x_ij);
+            HYPRE_IJVectorGetObject(x_ij, (void **)&x_par);
 
             auto t0_apply = std::chrono::steady_clock::now();
             HYPRE_Int rc = HYPRE_BoomerAMGSolve(solver, A_par, b_par, x_par);
@@ -586,19 +874,16 @@ int main(int argc, char **argv) {
 
         HYPRE_BoomerAMGGetFinalRelativeResidualNorm(solver, &final_res_rel);
 
-        // residual_reduction_v1: 1-step reduction ratio.
-        // Hypre's GetFinalRelativeResidualNorm returns |r_final| / |b|, so
-        // residual_reduction_v1 = 1.0 / final_res_rel (initial / final).
-        // Guard against division by zero / negative.
-        double residual_reduction_v1 = 0.0;
-        if (final_res_rel > 0.0) residual_reduction_v1 = 1.0 / final_res_rel;
-        else residual_reduction_v1 = 1e12;  // sentinel: converged to machine zero
-
-        // Verdict path: AMG_SOLVE_DIVERGE if solve nonzero return OR final
-        // relative residual > 1.0 (iteration diverged) per REQ-4 Scenario
-        // "AMG_SOLVE_DIVERGE marker on convergence failure".
+        // AMG_SOLVE_DIVERGE per spec REQ-4 Scenario: OR'd triggers
+        //   (a) nonzero solve return
+        //   (b) final_res_rel > 1.0  (iteration diverged from initial guess)
+        //   (c) residual_reduction_v1 < 2.0  (V-cycle stagnating below
+        //       canonical convergence threshold per design R3)
+        // Round-1 H2.
         const size_t rss_final = peak_rss_bytes();
-        bool solve_diverge = (solve_rc_last != 0) || (final_res_rel > 1.0);
+        const bool solve_diverge = (solve_rc_last != 0)
+                                 || (final_res_rel > 1.0)
+                                 || (residual_reduction_v1 < 2.0);
 
         // Operator complexity from CumNnzAP / nnz_A (Hypre canonical).
         HYPRE_Real cum_nnz_AP = 0.0;
@@ -606,13 +891,27 @@ int main(int argc, char **argv) {
         double operator_complexity = (j.total_nnz > 0)
             ? (cum_nnz_AP / static_cast<double>(j.total_nnz))
             : 0.0;
-        // Cycle complexity: Hypre 3.1.0 omits the direct getter. Standard
-        // V-cycle estimate: 2× operator_complexity (pre + post smoothing
-        // on each level; see README.md §6).
+        // Cycle complexity: Hypre 3.1.0 omits the direct getter
+        // (HYPRE_BoomerAMGGetCycleComplexity is absent from public headers).
+        // Standard V-cycle estimate: 2 × operator_complexity (1 pre-smoothing
+        // + 1 post-smoothing pass per level, weight=1). KNOWN LIMITATION
+        // (round-1 H3): for W-cycles or aggressive coarsening this
+        // systematically under-counts; PR-C aggregator's Axis 4 (cycle
+        // complexity < 1.5) mechanically tracks Axis 5 (operator complexity
+        // < 2.0) here at 2× linkage. ADR-0007 §Discussion must disclose
+        // this as a definitional caveat — Axis 4 and Axis 5 are NOT
+        // independent diagnostics under the Hypre-3.1.0-API constraint.
+        // See README.md §6 and openspec/changes/p8tune-amg-spike/design.md D2.
         double cycle_complexity = 2.0 * operator_complexity;
 
         const char *verdict = solve_diverge ? "AMG_SOLVE_DIVERGE" : "PASS";
-        if (solve_diverge) emit_marker("AMG_SOLVE_DIVERGE");
+        if (solve_diverge) {
+            std::fprintf(stderr,
+                         "[amg] AMG_SOLVE_DIVERGE: solve_rc=%d final_res_rel=%.6e residual_reduction_v1=%.6f\n",
+                         (int)solve_rc_last, (double)final_res_rel,
+                         residual_reduction_v1);
+            emit_marker("AMG_SOLVE_DIVERGE");
+        }
 
         emit_cell_summary(case_name, interp_type, coarsen_type, j.NumY, j.total_nnz,
                           g_cell.setup_wall_sec, g_cell.apply_wall_sec, rss_final,
