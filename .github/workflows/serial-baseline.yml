@@ -675,6 +675,41 @@ jobs:
           ./configure
 
       # -----------------------------------------------------------------------
+      # Step 5b — Hypre / OpenMPI / OpenBLAS runtime deps (P8-tune.G0 PR-0)
+      # -----------------------------------------------------------------------
+      # SHUD's Makefile now links -lHYPRE -lmpi -lopenblas unconditionally
+      # (link-always; opt-in via SHUD_LINSOL=amg at runtime). The packages
+      # ship with Ubuntu jammy (22.04) main repository:
+      #   libhypre-dev      — pulls libhypre runtime + headers (Ubuntu 22.04 = 2.28)
+      #   libopenmpi-dev    — pulls libopenmpi3 runtime + headers
+      #   libopenblas-dev   — pulls libopenblas0 runtime + headers
+      #
+      # The wrapper's `HYPRE_RELEASE_NUMBER >= 30000` gate handles the
+      # 2.x vs 3.x API split (Ubuntu 22.04 ships 2.28, brew/server are 3.1.0).
+      #
+      # Explicit `=<version>-*` apt pinning across image refreshes is
+      # fragile (versions tick forward); instead we record the installed
+      # versions to `hypre-versions.txt` (artifact-uploadable) so failures
+      # can be correlated to a specific (libhypre-dev, libopenmpi-dev,
+      # libopenblas-dev) triple. A later PR may cross-check against an
+      # expected manifest if Hypre ABI churn becomes a problem.
+      - name: Install Hypre / OpenMPI / OpenBLAS (P8-tune.G0 link deps)
+        if: steps.skip_check.outputs.skipped != 'true'
+        working-directory: SHUD
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            libhypre-dev \
+            libopenmpi-dev \
+            libopenblas-dev
+          dpkg -l libhypre-dev libopenmpi-dev libopenblas-dev | tail -3 \
+            | tee hypre-versions.txt
+          echo
+          echo "Hypre include dir contents:"
+          ls -la /usr/include/hypre 2>/dev/null | head -5 || \
+            ls -la /usr/include | grep -i hypre | head -5
+
+      # -----------------------------------------------------------------------
       # Step 6 — build three SHUD binaries (single axis post-S2 capstone)
       # -----------------------------------------------------------------------
       # PR-8 (#152) retired the LEGACY_RHS axis; we build the 3 binary modes
@@ -691,12 +726,18 @@ jobs:
       # Flag names match SHUD/Makefile: SHUD_DUMP_RHS, SHUD_ENABLE_PROFILE.
       # Both are guarded by `$(error … must be 0 or 1, got 'X')` rules so
       # explicit `FOO=0` is required.
+      # HYPRE_INCDIR / HYPRE_LIBDIR are forwarded to the Makefile so the
+       # Ubuntu apt install paths override the Mac brew defaults baked into
+       # SHUD/Makefile (L408-410). libhypre-dev installs headers at
+       # /usr/include/hypre (subdir mode) and shared libs at the multiarch
+       # /usr/lib/x86_64-linux-gnu/. Verified via dpkg -L libhypre-dev.
       - name: Build default
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 shud 2>&1 | tee build_default.log
+          make HYPRE_INCDIR=/usr/include/hypre HYPRE_LIBDIR=/usr/lib/x86_64-linux-gnu \
+               SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=0 shud 2>&1 | tee build_default.log
           cp shud shud_default
 
       - name: Build profile-on
@@ -704,7 +745,8 @@ jobs:
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1 shud 2>&1 | tee build_profile.log
+          make HYPRE_INCDIR=/usr/include/hypre HYPRE_LIBDIR=/usr/lib/x86_64-linux-gnu \
+               SHUD_DUMP_RHS=0 SHUD_ENABLE_PROFILE=1 shud 2>&1 | tee build_profile.log
           cp shud shud_profile
 
       - name: Build dump-on
@@ -712,7 +754,8 @@ jobs:
         working-directory: SHUD
         run: |
           make clean
-          make SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 shud 2>&1 | tee build_dump.log
+          make HYPRE_INCDIR=/usr/include/hypre HYPRE_LIBDIR=/usr/lib/x86_64-linux-gnu \
+               SHUD_DUMP_RHS=1 SHUD_ENABLE_PROFILE=0 shud 2>&1 | tee build_dump.log
           cp shud shud_dump
 
       # -----------------------------------------------------------------------
@@ -745,7 +788,8 @@ jobs:
         if: steps.skip_check.outputs.skipped != 'true'
         working-directory: SHUD
         run: |
-          make test_adjacency_fallback 2>&1 | tee test_adjacency_fallback.log
+          make HYPRE_INCDIR=/usr/include/hypre HYPRE_LIBDIR=/usr/lib/x86_64-linux-gnu \
+               test_adjacency_fallback 2>&1 | tee test_adjacency_fallback.log
           # Defense in depth: re-grep the log for the OK marker even if
           # the recipe's `&& exit 1` was somehow short-circuited.
           if ! grep -q "OK: adjacency fallback unit test PASS" test_adjacency_fallback.log; then
@@ -1365,12 +1409,28 @@ jobs:
           chmod +x ./configure
           ./configure
 
+      # P8-tune.G0 PR-0 — Hypre / OpenMPI / OpenBLAS link deps (asan job).
+      # Mirrors Step 5b above; SHUD/Makefile LK_FLAGS links -lHYPRE -lmpi
+      # -lopenblas unconditionally, so the asan build needs these too.
+      - name: Install Hypre / OpenMPI / OpenBLAS (asan job)
+        if: steps.skip_check.outputs.skipped != 'true' && steps.case_gate.outputs.active == 'true'
+        working-directory: SHUD
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            libhypre-dev \
+            libopenmpi-dev \
+            libopenblas-dev
+          dpkg -l libhypre-dev libopenmpi-dev libopenblas-dev | tail -3 \
+            | tee hypre-versions-asan.txt
+
       - name: Build shud_asan (ASan + UBSan)
         if: steps.skip_check.outputs.skipped != 'true' && steps.case_gate.outputs.active == 'true'
         working-directory: SHUD
         run: |
           make clean
-          make shud_asan 2>&1 | tee build_asan.log
+          make HYPRE_INCDIR=/usr/include/hypre HYPRE_LIBDIR=/usr/lib/x86_64-linux-gnu \
+               shud_asan 2>&1 | tee build_asan.log
 
       - name: Probe ${{ matrix.case }} data availability
         if: steps.skip_check.outputs.skipped != 'true' && steps.case_gate.outputs.active == 'true'
