@@ -675,6 +675,26 @@ jobs:
           ./configure
 
       # -----------------------------------------------------------------------
+      # Step 5b — Hypre + OpenMPI + OpenBLAS (P8-tune.G0 PR-0 #409)
+      # -----------------------------------------------------------------------
+      # Required by SHUD/src/Equations/sunlinsol_hypre.{h,cpp} (BoomerAMG
+      # wrapper). Ubuntu 22.04 ships hypre 2.28; the wrapper's
+      # `HYPRE_RELEASE_NUMBER >= 30000` gate falls through to `HYPRE_Init()`
+      # so 2.28 is link- and runtime-compatible. apt-installed paths exported
+      # to $GITHUB_ENV so the SHUD Makefile (HYPRE_INCDIR/HYPRE_LIBDIR env-
+      # overridable, brew-default per macOS) picks them up for the Ubuntu
+      # runner. Server (cn-node Slurm) uses /scratch/.../hypre-3.1.0/ via
+      # explicit env passthrough in sbatch templates; not relevant here.
+      - name: Install Hypre + OpenMPI + OpenBLAS (Ubuntu apt)
+        if: steps.skip_check.outputs.skipped != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libhypre-dev libopenmpi-dev libopenblas-dev
+          dpkg -l libhypre-dev | tail -1
+          echo "HYPRE_INCDIR=/usr/include/hypre" >> $GITHUB_ENV
+          echo "HYPRE_LIBDIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+
+      # -----------------------------------------------------------------------
       # Step 6 — build three SHUD binaries (single axis post-S2 capstone)
       # -----------------------------------------------------------------------
       # PR-8 (#152) retired the LEGACY_RHS axis; we build the 3 binary modes
