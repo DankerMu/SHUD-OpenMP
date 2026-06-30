@@ -1,0 +1,9 @@
+task_id	amg_tol	epslin	run_label	verdict_class	exit_code	wall_total_sec	wall_ratio_vs_spgmr_baseline	n_cvode_steps	nst_ratio_vs_spgmr_baseline	cvode_ncfn	ncfn_ratio_vs_spgmr_baseline	cvode_ncfl	cvode_nfe	cvode_nli	cvode_netf	hypre_release
+0	1e-7	default	0-tol1e-7-epsdefault	AMG_OK	0	27908	17.8149	251883	38.3267	98286	2005.8367	0	505338	989082	7	30100
+1	1e-9	default	1-tol1e-9-epsdefault	AMG_OK	0	28117	17.9483	253558	38.5816	99095	2022.3469	0	502425	983673	24	30100
+2	1e-11	default	2-tol1e-11-epsdefault	MALFORMED	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	30100
+3	1e-13	default	3-tol1e-13-epsdefault	MALFORMED	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	30100
+4	1e-7	0.005	4-tol1e-7-eps0.005	AMG_OK	0	28142	17.9643	257610	39.1981	104795	2138.6735	0	511020	1020138	1	30100
+5	1e-9	0.005	5-tol1e-9-eps0.005	AMG_OK	0	28553	18.2267	256525	39.0330	103970	2121.8367	0	510439	1019841	4	30100
+6	1e-11	0.005	6-tol1e-11-eps0.005	MALFORMED	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	30100
+7	1e-13	0.005	7-tol1e-13-eps0.005	AMG_OK	0	22871	14.5996	256138	38.9741	104390	2130.4082	0	509355	1525949	6	30100
