@@ -1,0 +1,8 @@
+[precheck] PASS condition=a detail=RUN_DIR=/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.G0-runs/g0-smoke-array.10014 under /scratch/frd_muziyao/SHUD-OpenMP/.p8tune.G0-runs (pwd=/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.G0-runs for context)
+[precheck] PASS condition=b detail=shud_omp present + executable at /scratch/frd_muziyao/SHUD-OpenMP/SHUD/shud_omp (2561456 bytes)
+[precheck] PASS condition=c detail=ldd /scratch/frd_muziyao/SHUD-OpenMP/SHUD/shud_omp shows libHYPRE linkage
+[precheck] PASS condition=d detail=all 4 case dirs present (keliya xinanjiang_upstream heihe_x4 heihe_x16)
+[precheck] PASS condition=e detail=telemetry symbol SUNLinSol_Hypre_DrainTelemetry present in /scratch/frd_muziyao/SHUD-OpenMP/SHUD/shud_omp
+[precheck] PASS condition=f detail=OMP_NUM_THREADS=1 (per OMP_CUTOFF AMG policy)
+[precheck] PASS condition=g detail=all 4 cfg.para END-START=90 (keliya xinanjiang_upstream heihe_x4 heihe_x16)
+[precheck] PASS conditions=7/7
