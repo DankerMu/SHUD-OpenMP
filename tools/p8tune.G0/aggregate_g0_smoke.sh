@@ -14,10 +14,15 @@
 #     nsetups/netf/nni/ncfn/ncfl) from the same file (PR-A runner
 #     emits these as NA sentinels in cell_summary; raw text holds them).
 #   - Parse per-cell telemetry TSV (`cell-<NAME>.telemetry.tsv`) if
-#     present (PR-B drain hook output); compute amg_telemetry_*,
-#     amg_total_setup_wall_sec, amg_total_solve_wall_sec; derive
+#     present (PR-B drain hook output, 10-col schema per
+#     PR-B #416 Phase 6 P0-2: step_idx, t_sim, setup_called,
+#     hypre_iters, hypre_op_count, operator_complexity, setup_wall_sec,
+#     solve_wall_sec, cvode_nli_step, cvode_nfeLS_step); compute
+#     amg_telemetry_*, amg_total_setup_wall_sec, amg_total_solve_wall_sec,
+#     operator_complexity (mean across non-NA rows); derive
 #     cycle_complexity = mean(hypre_op_count) / first_op_count from
-#     MARKER:AMG_TELEMETRY_REAL.
+#     MARKER:AMG_TELEMETRY_REAL. The ring-overflow drop count comment is
+#     captured into `amg_telemetry_dropped_overflow`.
 #   - Reject cells emitting verdict_class=PASS as malformed (G0 sentinel
 #     is AMG_OK; spec REQ "verdict_class enum semantics").
 #   - Evaluate G0-3 telemetry-real, G0-4 integrated-completes, G0-5
@@ -108,17 +113,24 @@ echo "[aggregate-G0] SPGMR_PER_STEP_HEIHE_X16_S = ${SPGMR_HEIHE_X16}"
 echo ""
 
 # ---------- Discover cells in run_dir ---------------------------------------
+# PR-B #416 Phase 6 P1-5: iterate over a canonical hardcoded list, not the
+# filesystem glob (which is iteration-order-dependent across OSes and
+# silently drops missing cells). Missing cells (no cell-<NAME>.out file)
+# are recorded as MARKER:G0_CELL_REJECTED_MALFORMED reason=cell_out_absent
+# so G0-4 catches them as evidence-missing rather than as silently absent.
+EXPECTED_CELLS_LIST=(keliya xinanjiang_upstream heihe_x4 heihe_x16)
 CELLS=()
-for cellfile in "${RUN_DIR}"/cell-*.out; do
-    [[ -f "${cellfile}" ]] || continue
-    base="$(basename "${cellfile}")"
-    cell="${base#cell-}"
-    cell="${cell%.out}"
-    CELLS+=("${cell}")
+for cell in "${EXPECTED_CELLS_LIST[@]}"; do
+    if [[ -f "${RUN_DIR}/cell-${cell}.out" ]]; then
+        CELLS+=("${cell}")
+    else
+        echo "MARKER:G0_CELL_REJECTED_MALFORMED case=${cell} reason=cell_out_absent"
+    fi
 done
 
 if [[ ${#CELLS[@]} -eq 0 ]]; then
-    echo "[aggregate-G0] FATAL: no cell-*.out found in ${RUN_DIR}" >&2
+    echo "[aggregate-G0] FATAL: no expected cell-*.out files found in ${RUN_DIR}" >&2
+    echo "[aggregate-G0] expected cells: ${EXPECTED_CELLS_LIST[*]}" >&2
     exit 2
 fi
 
@@ -158,6 +170,12 @@ declare -a CELL_OPERATOR_COMPLEXITY
 declare -a CELL_WALL_CONVENTION
 declare -a CELL_WALL_SIGNAL
 declare -a CELL_MALFORMED
+# PR-B #416 Phase 6 P1-2: ring overflow drop count per cell. Captured
+# from the `# entries_dropped_to_overflow=N` comment line emitted by
+# SUNLinSol_Hypre_DrainTelemetry. Non-zero values trigger
+# MARKER:G0_TELEMETRY_RING_OVERFLOW and bias wall_convention to
+# `telemetry_truncated`.
+declare -a CELL_TELEMETRY_DROPPED_OVERFLOW
 
 # Returns the first numeric value extracted from `<KEY>=<VAL>`-style KV lines
 # in the cell stdout cell_summary block. Used for fields embedded inside the
@@ -211,33 +229,55 @@ extract_cvode_stat() {
     ' "${cell_out}" 2>/dev/null
 }
 
-# Parse telemetry TSV. Columns:
+# Parse telemetry TSV. Columns (PR-B #416 Phase 6 P0-2 expanded schema):
 #   step_idx<TAB>t_sim<TAB>setup_called<TAB>hypre_iters<TAB>hypre_op_count
+#   <TAB>operator_complexity (NEW col 6)
 #   <TAB>setup_wall_sec<TAB>solve_wall_sec<TAB>cvode_nli_step<TAB>cvode_nfeLS_step
-# Header row + N data rows. We compute mean iters/op_count + sum
-# setup/solve walls + count of setup events.
+# Header row + N data rows. We compute mean iters/op_count +
+# mean operator_complexity (skipping NA rows) + sum setup/solve walls +
+# count of setup events. The `# entries_dropped_to_overflow=N` comment
+# is captured separately so P1-2 ring-overflow markers can surface.
 parse_telemetry_tsv() {
     local tsv="$1"
     # Outputs (whitespace-separated, single line):
-    #   mean_iters mean_op_count setup_calls total_setup_wall_sec total_solve_wall_sec n_rows
+    #   mean_iters mean_op_count mean_op_complexity setup_calls
+    #   total_setup_wall_sec total_solve_wall_sec n_rows dropped_overflow
     awk -F'\t' '
         NR == 1 { next }       # skip header
-        /^#/    { next }       # skip overflow-count comment line
-        NF >= 7 {
+        # Capture overflow drop count from comment line before skip.
+        /^# entries_dropped_to_overflow=/ {
+            split($0, a, "=")
+            dropped = a[2] + 0
+            next
+        }
+        /^#/ { next }          # skip other comment lines
+        NF >= 8 {
             iters_sum  += $4
             op_sum     += $5
-            setup_wall += $6
-            solve_wall += $7
+            # operator_complexity (col 6) may be "NA" — skip in mean.
+            if ($6 != "NA" && $6 != "") {
+                opc_sum += $6
+                opc_n++
+            }
+            setup_wall += $7
+            solve_wall += $8
             if ($3 == "1") setup_calls++
             n++
         }
         END {
             if (n == 0) {
-                print "NA NA 0 NA NA 0"
+                printf "NA NA NA 0 NA NA 0 %d\n", dropped+0
             } else {
-                printf "%.6f %.6f %d %.6e %.6e %d\n",
-                    iters_sum/n, op_sum/n, setup_calls,
-                    setup_wall, solve_wall, n
+                if (opc_n > 0) {
+                    opc_mean = opc_sum / opc_n
+                    printf "%.6f %.6f %.6f %d %.6e %.6e %d %d\n",
+                        iters_sum/n, op_sum/n, opc_mean, setup_calls,
+                        setup_wall, solve_wall, n, dropped+0
+                } else {
+                    printf "%.6f %.6f NA %d %.6e %.6e %d %d\n",
+                        iters_sum/n, op_sum/n, setup_calls,
+                        setup_wall, solve_wall, n, dropped+0
+                }
             }
         }
     ' "${tsv}" 2>/dev/null
@@ -249,14 +289,27 @@ NUM_FAIL=0
 
 for CELL in "${CELLS[@]}"; do
     CELL_OUT="${RUN_DIR}/cell-${CELL}.out"
+    CELL_ERR="${RUN_DIR}/cell-${CELL}.err"
     CELL_TSV="${RUN_DIR}/cell-${CELL}.telemetry.tsv"
     CELL_NAMES+=("${CELL}")
 
     # Detect cell_summary BEGIN/END delimiters.
     if ! grep -q "^CELL_SUMMARY_BEGIN" "${CELL_OUT}" 2>/dev/null; then
-        echo "MARKER:G0_CELL_REJECTED_MALFORMED case=${CELL} reason=cell_summary_missing"
+        # PR-B #416 Phase 6 P1-4: distinguish "MALFORMED (no summary)" from
+        # "wall-overflow inferred from SIGKILL". When the stderr sidecar has
+        # Slurm's `CANCELLED AT ... DUE TO TIME LIMIT` line, the cell was
+        # killed before run_smoke_cell.sh could write its cell_summary
+        # footer. Surface this as AMG_WALL_OVERFLOW_INFERRED_SIGKILL so
+        # G0-4 reason markers reflect the cause.
+        if [[ -f "${CELL_ERR}" ]] && \
+           grep -qE "CANCELLED AT.*DUE TO TIME LIMIT|slurmstepd: error.*CANCELLED" "${CELL_ERR}" 2>/dev/null; then
+            echo "MARKER:G0_CELL_REJECTED_MALFORMED case=${CELL} reason=wall_overflow_inferred_sigkill"
+            CELL_VERDICT_CLASS+=("AMG_WALL_OVERFLOW_INFERRED_SIGKILL")
+        else
+            echo "MARKER:G0_CELL_REJECTED_MALFORMED case=${CELL} reason=cell_summary_missing"
+            CELL_VERDICT_CLASS+=("MALFORMED")
+        fi
         CELL_REJECTED_COUNT=$((CELL_REJECTED_COUNT + 1))
-        CELL_VERDICT_CLASS+=("MALFORMED")
         CELL_MALFORMED+=("1")
     else
         CELL_MALFORMED+=("0")
@@ -314,22 +367,34 @@ for CELL in "${CELLS[@]}"; do
     CELL_FIRST_ITERS+=("${FI:-NA}")
     CELL_FIRST_OP_COUNT+=("${FOC:-NA}")
 
-    # Operator complexity is currently not emitted by the wrapper (gap
-    # documented in PR-B summary, deferred to wrapper hot-fix); cell_summary
-    # KV `operator_complexity=NA` from PR-A runner.
-    CELL_OPERATOR_COMPLEXITY+=("NA")
+    # PR-B #416 Phase 6 P0-2: operator_complexity is now emitted by the
+    # wrapper TSV (col 6, see SUNLinSol_Hypre_DrainTelemetry). It's
+    # derived via hypre_ParAMGDataAArray + hypre_ParCSRMatrixNumNonzeros
+    # (private API; Hypre 3.1.0 public exposes neither
+    # GetOperatorComplexity nor a per-level NNZ accessor). Filled below
+    # from parse_telemetry_tsv output (defaults to NA if TSV absent or
+    # Hypre release predates 2.23).
 
     # Telemetry TSV parse
     if [[ -f "${CELL_TSV}" ]]; then
         CELL_TELEMETRY_PRESENT+=("1")
         TSV_PARSED=$(parse_telemetry_tsv "${CELL_TSV}")
-        # Format: mean_iters mean_op_count setup_calls total_setup_wall total_solve_wall n_rows
-        read -r MI MOC SC TSU TSO NR <<< "${TSV_PARSED}"
+        # Format (PR-B #416 Phase 6 P0-2 expanded):
+        #   mean_iters mean_op_count mean_op_complexity setup_calls
+        #   total_setup_wall total_solve_wall n_rows dropped_overflow
+        read -r MI MOC MOPC SC TSU TSO NR DROPPED <<< "${TSV_PARSED}"
         CELL_AMG_TELEMETRY_MEAN_ITERS+=("${MI}")
         CELL_AMG_TELEMETRY_MEAN_OP_COUNT+=("${MOC}")
+        CELL_OPERATOR_COMPLEXITY+=("${MOPC}")
         CELL_AMG_TELEMETRY_SETUP_CALLS+=("${SC}")
         CELL_AMG_TOTAL_SETUP_WALL_SEC+=("${TSU}")
         CELL_AMG_TOTAL_SOLVE_WALL_SEC+=("${TSO}")
+        CELL_TELEMETRY_DROPPED_OVERFLOW+=("${DROPPED:-0}")
+
+        # PR-B #416 Phase 6 P1-2: surface ring overflow drops.
+        if [[ "${DROPPED:-0}" != "0" ]]; then
+            echo "MARKER:G0_TELEMETRY_RING_OVERFLOW case=${CELL} dropped=${DROPPED} retained=${NR}"
+        fi
 
         # cycle_complexity = mean(hypre_op_count) / first_op_count
         # Spec amendment 2026-06-29 semantics: STATIC hierarchy-size ratio,
@@ -347,21 +412,33 @@ for CELL in "${CELLS[@]}"; do
         CELL_TELEMETRY_PRESENT+=("0")
         CELL_AMG_TELEMETRY_MEAN_ITERS+=("NA")
         CELL_AMG_TELEMETRY_MEAN_OP_COUNT+=("NA")
+        CELL_OPERATOR_COMPLEXITY+=("NA")
         CELL_AMG_TELEMETRY_SETUP_CALLS+=("NA")
         CELL_AMG_TOTAL_SETUP_WALL_SEC+=("NA")
         CELL_AMG_TOTAL_SOLVE_WALL_SEC+=("NA")
         CELL_CYCLE_COMPLEXITY+=("NA")
+        CELL_TELEMETRY_DROPPED_OVERFLOW+=("0")
     fi
 
-    # amg_wall_per_step_sec — convention setup_included per PR-0 spike 1.2:
-    #   if telemetry TSV present:
-    #     = (total_setup_wall + total_solve_wall) / nst
-    #   else (PR-A evidence only, no TSV yet):
-    #     fall back to wall_total_sec / nst (best available signal; not
-    #     strictly setup_included since wall_total includes process
-    #     startup + output write, but this is the only signal pre-PR-B
-    #     drain hook and is documented as such in the wall_signal column)
-    CELL_WALL_CONVENTION+=("setup_included")
+    # amg_wall_per_step_sec — PR-B #416 Phase 6 P0-3: per-row
+    # wall_convention now honestly distinguishes the formula used:
+    #
+    #   TSV-derived path (preferred): wall_convention=setup_plus_solve_only
+    #     APS = (total_setup_wall + total_solve_wall) / nst
+    #     This is the "AMG setup + AMG solve" portion only — excludes
+    #     SHUD startup, mesh-load, ET physics, output write.
+    #
+    #   Fallback path (no TSV):       wall_convention=wall_total_proxy
+    #     APS = wall_total_sec / nst
+    #     This INCLUDES SHUD startup + mesh-load + ET physics + output
+    #     write — NOT a clean setup_included signal. SPGMR baselines
+    #     pinned in spgmr_baseline_walls_g0.h are also wall_total_proxy
+    #     (see header L60-70: `WALL_TOTAL_SEC / nst`), so AMG-vs-SPGMR
+    #     comparison stays apples-to-apples within this convention.
+    #
+    #   P1-2 amendment: when telemetry exists but ring-overflow dropped
+    #   entries, the setup/solve sums under-count the truncated tail;
+    #   wall_convention=telemetry_truncated to surface the bias.
     if [[ "${NST:-NA}" != "NA" && "${NST}" != "0" ]]; then
         if [[ "${CELL_AMG_TOTAL_SETUP_WALL_SEC[$((${#CELL_AMG_TOTAL_SETUP_WALL_SEC[@]}-1))]}" != "NA" && "${CELL_AMG_TOTAL_SOLVE_WALL_SEC[$((${#CELL_AMG_TOTAL_SOLVE_WALL_SEC[@]}-1))]}" != "NA" ]]; then
             APS=$(awk -v su="${CELL_AMG_TOTAL_SETUP_WALL_SEC[$((${#CELL_AMG_TOTAL_SETUP_WALL_SEC[@]}-1))]}" \
@@ -369,17 +446,26 @@ for CELL in "${CELLS[@]}"; do
                        -v nst="${NST}" \
                        'BEGIN { printf "%.6f\n", (su + so) / nst }')
             CELL_WALL_SIGNAL+=("telemetry")
+            DROPPED_HERE="${CELL_TELEMETRY_DROPPED_OVERFLOW[$((${#CELL_TELEMETRY_DROPPED_OVERFLOW[@]}-1))]}"
+            if [[ "${DROPPED_HERE:-0}" != "0" ]]; then
+                CELL_WALL_CONVENTION+=("telemetry_truncated")
+            else
+                CELL_WALL_CONVENTION+=("setup_plus_solve_only")
+            fi
         elif [[ "${WT:-NA}" != "NA" ]]; then
             APS=$(awk -v wt="${WT}" -v nst="${NST}" \
                        'BEGIN { printf "%.6f\n", wt / nst }')
             CELL_WALL_SIGNAL+=("wall_total_proxy")
+            CELL_WALL_CONVENTION+=("wall_total_proxy")
         else
             APS="NA"
             CELL_WALL_SIGNAL+=("unavailable")
+            CELL_WALL_CONVENTION+=("unavailable")
         fi
     else
         APS="NA"
         CELL_WALL_SIGNAL+=("nst_unavailable")
+        CELL_WALL_CONVENTION+=("nst_unavailable")
     fi
     CELL_AMG_WALL_PER_STEP_SEC+=("${APS}")
 
@@ -392,42 +478,64 @@ for CELL in "${CELLS[@]}"; do
 done
 
 # ---------- G0-3 telemetry-real assertion ----------------------------------
-# Spec G0-3 PASS = MARKER:AMG_TELEMETRY_REAL present in ≥1 cell AND for each
-# AMG_OK cell, cycle_complexity is telemetry-derived (TSV available + value
-# non-NA). Cells without TSV are NA — they don't fail the assertion if no
-# AMG_OK cell has TSV, but the marker must still be present.
+# PR-B #416 Phase 6 P0-1 tightened semantics. Spec G0-3 line 10 requires
+# the CONJUNCTION:
+#   (1) MARKER:AMG_TELEMETRY_REAL present on at least one AMG_OK cell
+#       (i.e., the marker came from a healthy AMG path, not from a
+#       diverged-then-malformed cell).
+#   (2) AT LEAST ONE AMG_OK cell has telemetry-derived cycle_complexity
+#       (TSV present + value non-NA). The prior "cells without TSV are
+#       exempt" carve-out was unsound — it let G0-3 PASS purely on the
+#       marker line even when no telemetry TSV had been drained.
+#
+# Failure modes (distinct markers):
+#   G0_3_NO_AMG_OK_CELL_HAS_TELEMETRY — no AMG_OK cell with TSV+CC; the
+#     marker may still be present but the per-Setup attestation is missing.
+#   G0_3_TELEMETRY_MARKER_ABSENT — no AMG_OK cell emitted the marker at
+#     all (suggests the wrapper never reached a successful Solve).
+#   G0_3_CYCLE_COMPLEXITY_PARSE_FAIL — an AMG_OK cell has TSV present but
+#     cycle_complexity is NA (CumNnzAP not exposed on this Hypre release,
+#     or first_op_count was 0 — both indicate wrapper telemetry parse
+#     failure rather than spec compliance).
+
+# P1-3: restrict marker presence check to AMG_OK cells only. A diverged
+# cell may have first_op_count set during a transient successful Solve
+# before divergence; that should not satisfy the "marker present" gate.
 MARKER_PRESENT=0
 for i in "${!CELL_NAMES[@]}"; do
-    if [[ "${CELL_FIRST_OP_COUNT[$i]}" != "NA" ]]; then
+    if [[ "${CELL_VERDICT_CLASS[$i]}" == "AMG_OK" && "${CELL_FIRST_OP_COUNT[$i]}" != "NA" ]]; then
         MARKER_PRESENT=1
         break
     fi
 done
 
-# Stricter: if any AMG_OK cell has TSV but CC is NA, that's a parse fail.
-# Per spec amendment + IA: the AMG_OK cells without TSV are exempt from
-# the cycle_complexity assertion; only AMG_OK cells WITH TSV are required
-# to have a telemetry-derived (non-NA) cycle_complexity.
-CC_DERIVED_OK=1
+# P0-1: require at least ONE AMG_OK cell to have telemetry-derived CC.
+HAS_TELEMETRY_CC=0
+HAS_TSV_BUT_CC_NA=0
 for i in "${!CELL_NAMES[@]}"; do
     if [[ "${CELL_VERDICT_CLASS[$i]}" == "AMG_OK" && "${CELL_TELEMETRY_PRESENT[$i]}" == "1" ]]; then
-        if [[ "${CELL_CYCLE_COMPLEXITY[$i]}" == "NA" ]]; then
-            CC_DERIVED_OK=0
-            break
+        if [[ "${CELL_CYCLE_COMPLEXITY[$i]}" != "NA" ]]; then
+            HAS_TELEMETRY_CC=1
+        else
+            HAS_TSV_BUT_CC_NA=1
         fi
     fi
 done
 
-if [[ "${MARKER_PRESENT}" == "1" && "${CC_DERIVED_OK}" == "1" ]]; then
+if [[ "${MARKER_PRESENT}" == "1" && "${HAS_TELEMETRY_CC}" == "1" ]]; then
     G0_3="PASS"
     G0_3_REASON=""
 elif [[ "${MARKER_PRESENT}" == "0" ]]; then
     G0_3="FAIL"
-    G0_3_REASON="AMG_TELEMETRY_MARKER_ABSENT"
+    G0_3_REASON="G0_3_TELEMETRY_MARKER_ABSENT"
+elif [[ "${HAS_TSV_BUT_CC_NA}" == "1" ]]; then
+    G0_3="FAIL"
+    G0_3_REASON="G0_3_CYCLE_COMPLEXITY_PARSE_FAIL"
 else
     G0_3="FAIL"
-    G0_3_REASON="CYCLE_COMPLEXITY_NOT_DERIVED_FROM_TELEMETRY"
+    G0_3_REASON="G0_3_NO_AMG_OK_CELL_HAS_TELEMETRY"
 fi
+echo "MARKER:${G0_3_REASON:-G0_3_PASS} marker_present=${MARKER_PRESENT} has_telemetry_cc=${HAS_TELEMETRY_CC} has_tsv_but_cc_na=${HAS_TSV_BUT_CC_NA}"
 
 # ---------- G0-4 integrated-completes --------------------------------------
 # Spec G0-4 PASS = all 4 expected cells {keliya, xinanjiang_upstream,
@@ -480,16 +588,34 @@ for i in "${!CELL_NAMES[@]}"; do
     fi
 done
 
+# PR-B #416 Phase 6 P1-1: emit a distinct marker when the AMG value is NA
+# (vs. baseline being unknown). Helps PR-C verdict doc surface "evidence
+# missing" cases separately from "baseline pinning incomplete" cases.
+
+# Helper: locate the wall_convention column value for a cell.
+get_wall_convention_for() {
+    local case_name="$1"
+    for i in "${!CELL_NAMES[@]}"; do
+        if [[ "${CELL_NAMES[$i]}" == "${case_name}" ]]; then
+            echo "${CELL_WALL_CONVENTION[$i]:-unknown}"
+            return
+        fi
+    done
+    echo "absent"
+}
+
 # heihe_x4 evaluation
 if [[ "${SPGMR_HEIHE_X4}" == "WALL_SIGNAL_UNKNOWN" || "${SPGMR_HEIHE_X4}" == "MISSING" ]]; then
     echo "MARKER:G0_5_BASELINE_UNKNOWN case=heihe_x4 reason=spgmr_baseline_wall_signal_unknown"
     AMG_X4_IMPROVE="excluded"
 elif [[ "${AMG_X4_APS}" == "NA" ]]; then
+    echo "MARKER:G0_5_AMG_VALUE_UNAVAILABLE case=heihe_x4 reason=amg_per_step_na"
     AMG_X4_IMPROVE="excluded"
 else
     AMG_X4_IMPROVE=$(awk -v amg="${AMG_X4_APS}" -v spgmr="${SPGMR_HEIHE_X4}" \
         'BEGIN { print (amg < spgmr) ? "true" : "false" }')
-    echo "MARKER:G0_5_WALL_PER_STEP case=heihe_x4 amg=${AMG_X4_APS} spgmr=${SPGMR_HEIHE_X4} improves=${AMG_X4_IMPROVE} wall_convention=setup_included"
+    AMG_X4_CONV=$(get_wall_convention_for "heihe_x4")
+    echo "MARKER:G0_5_WALL_PER_STEP case=heihe_x4 amg=${AMG_X4_APS} spgmr=${SPGMR_HEIHE_X4} improves=${AMG_X4_IMPROVE} wall_convention=${AMG_X4_CONV}"
 fi
 
 # heihe_x16 evaluation
@@ -497,11 +623,13 @@ if [[ "${SPGMR_HEIHE_X16}" == "WALL_SIGNAL_UNKNOWN" || "${SPGMR_HEIHE_X16}" == "
     echo "MARKER:G0_5_BASELINE_UNKNOWN case=heihe_x16 reason=spgmr_baseline_wall_signal_unknown"
     AMG_X16_IMPROVE="excluded"
 elif [[ "${AMG_X16_APS}" == "NA" ]]; then
+    echo "MARKER:G0_5_AMG_VALUE_UNAVAILABLE case=heihe_x16 reason=amg_per_step_na"
     AMG_X16_IMPROVE="excluded"
 else
     AMG_X16_IMPROVE=$(awk -v amg="${AMG_X16_APS}" -v spgmr="${SPGMR_HEIHE_X16}" \
         'BEGIN { print (amg < spgmr) ? "true" : "false" }')
-    echo "MARKER:G0_5_WALL_PER_STEP case=heihe_x16 amg=${AMG_X16_APS} spgmr=${SPGMR_HEIHE_X16} improves=${AMG_X16_IMPROVE} wall_convention=setup_included"
+    AMG_X16_CONV=$(get_wall_convention_for "heihe_x16")
+    echo "MARKER:G0_5_WALL_PER_STEP case=heihe_x16 amg=${AMG_X16_APS} spgmr=${SPGMR_HEIHE_X16} improves=${AMG_X16_IMPROVE} wall_convention=${AMG_X16_CONV}"
 fi
 
 if [[ "${AMG_X4_IMPROVE}" == "true" || "${AMG_X16_IMPROVE}" == "true" ]]; then
@@ -536,8 +664,10 @@ if [[ "${AMG_X4_IMPROVE}" == "false" && "${AMG_X16_IMPROVE}" == "false" ]]; then
         echo ""
         echo "## Aggregator-observed AMG per-step walls"
         echo ""
-        echo "- heihe_x4: \`amg_wall_per_step_sec = ${AMG_X4_APS}\` (convention: setup_included)"
-        echo "- heihe_x16: \`amg_wall_per_step_sec = ${AMG_X16_APS}\` (convention: setup_included)"
+        AMG_X4_CONV_DBG=$(get_wall_convention_for "heihe_x4")
+        AMG_X16_CONV_DBG=$(get_wall_convention_for "heihe_x16")
+        echo "- heihe_x4: \`amg_wall_per_step_sec = ${AMG_X4_APS}\` (convention: ${AMG_X4_CONV_DBG})"
+        echo "- heihe_x16: \`amg_wall_per_step_sec = ${AMG_X16_APS}\` (convention: ${AMG_X16_CONV_DBG})"
         echo ""
         echo "## Drift hypothesis"
         echo ""
@@ -586,13 +716,15 @@ fi
 # ---------- aggregate.tsv emission -----------------------------------------
 AGGREGATE_TSV="${RUN_DIR}/aggregate.tsv"
 {
-    # Header (20 columns)
+    # Header (21 columns) — PR-B #416 Phase 6 P1-2 adds
+    # amg_telemetry_dropped_overflow at the tail.
     printf "cell\tverdict_class\texit_code\twall_total_sec\tn_cvode_steps"
     printf "\tamg_wall_per_step_sec\tcycle_complexity\toperator_complexity"
     printf "\tcvode_nfe\tcvode_nli\tcvode_nfeLS\tcvode_ncfn\tcvode_ncfl\tcvode_netf"
     printf "\tamg_telemetry_mean_iters\tamg_telemetry_mean_op_count"
     printf "\tamg_total_setup_wall_sec\tamg_total_solve_wall_sec"
-    printf "\twall_convention\twall_signal\thypre_release\n"
+    printf "\twall_convention\twall_signal\thypre_release"
+    printf "\tamg_telemetry_dropped_overflow\n"
 
     for i in "${!CELL_NAMES[@]}"; do
         printf "%s\t%s\t%s\t%s\t%s" \
@@ -617,10 +749,11 @@ AGGREGATE_TSV="${RUN_DIR}/aggregate.tsv"
             "${CELL_AMG_TELEMETRY_MEAN_OP_COUNT[$i]}" \
             "${CELL_AMG_TOTAL_SETUP_WALL_SEC[$i]}" \
             "${CELL_AMG_TOTAL_SOLVE_WALL_SEC[$i]}"
-        printf "\t%s\t%s\t%s\n" \
+        printf "\t%s\t%s\t%s" \
             "${CELL_WALL_CONVENTION[$i]}" \
             "${CELL_WALL_SIGNAL[$i]}" \
             "${CELL_HYPRE_RELEASE[$i]}"
+        printf "\t%s\n" "${CELL_TELEMETRY_DROPPED_OVERFLOW[$i]:-0}"
     done
 } > "${AGGREGATE_TSV}"
 

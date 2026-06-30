@@ -1,0 +1,269 @@
+
+___________________________________________________________________________________________
+    SSSSSSSSSSSSSSS   HHHHHHHHH     HHHHHHHHH  UUUUUUUU     UUUUUUUU  DDDDDDDDDDDDD        
+  SS:::::::::::::::S  H:::::::H     H:::::::H  U::::::U     U::::::U  D::::::::::::DDD     
+ S:::::SSSSSS::::::S  H:::::::H     H:::::::H  U::::::U     U::::::U  D:::::::::::::::DD   
+ S:::::S     SSSSSSS  HH::::::H     H::::::HH  UU:::::U     U:::::UU  DDD:::::DDDDD:::::D  
+ S:::::S                H:::::H     H:::::H     U:::::U     U:::::U     D:::::D    D:::::D 
+ S:::::S                H:::::H     H:::::H     U:::::D     D:::::U     D:::::D     D:::::D
+  S::::SSSS             H::::::HHHHH::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+   SS::::::SSSSS        H:::::::::::::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+     SSS::::::::SS      H:::::::::::::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+        SSSSSS::::S     H::::::HHHHH::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+             S:::::S    H:::::H     H:::::H     U:::::D     D:::::U     D:::::D     D:::::D
+             S:::::S    H:::::H     H:::::H     U::::::U   U::::::U     D:::::D    D:::::D 
+ SSSSSSS     S:::::S  HH::::::H     H::::::HH   U:::::::UUU:::::::U   DDD:::::DDDDD:::::D  
+ S::::::SSSSSS:::::S  H:::::::H     H:::::::H    UU:::::::::::::UU    D:::::::::::::::DD   
+ S:::::::::::::::SS   H:::::::H     H:::::::H      UU:::::::::UU      D::::::::::::DDD     
+  SSSSSSSSSSSSSSS     HHHHHHHHH     HHHHHHHHH        UUUUUUUUU        DDDDDDDDDDDDD        
+
+                  Simulator for Hydrologic Unstructured Domains v2.0  2022                      
+___________________________________________________________________________________________
+
+
+
+
+		 * openMP enabled. Maximum Threads = 1
+[NUMA] OMP_PROC_BIND=unset
+[NUMA] WARNING: OMP_PROC_BIND unset - skipping first-touch optimization for determinism guarantee.
+* 	 Project name: xinanjiang
+* 	 Project input folder: input/xinanjiang
+* 	 Project output folder: output/xinanjiang.out
+1 	 Reading file: input/xinanjiang/xinanjiang.cfg.para
+2 	 Reading file: input/xinanjiang/xinanjiang.sp.riv
+	The downstream of RIV 4 is negtive (Outlet, -3)
+3 	 Reading file: input/xinanjiang/xinanjiang.sp.rivseg
+	Number of River segments: 584
+4 	 Reading file: input/xinanjiang/xinanjiang.sp.mesh
+5 	 Reading file: input/xinanjiang/xinanjiang.sp.att
+6 	 Reading file: input/xinanjiang/xinanjiang.para.soil
+7 	 Reading file: input/xinanjiang/xinanjiang.para.geol
+8 	 Reading file: input/xinanjiang/xinanjiang.para.lc
+9 	 Reading file: input/xinanjiang/xinanjiang.tsd.forc
+	Number of csv files: 50
+	 Reading 1/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.05Y29.45.csv
+	 Reading 2/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.15Y29.45.csv
+	 Reading 3/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.25Y29.45.csv
+	 Reading 4/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.35Y29.45.csv
+	 Reading 5/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.65Y29.55.csv
+	 Reading 6/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.75Y29.55.csv
+	 Reading 7/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.85Y29.55.csv
+	 Reading 8/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.95Y29.55.csv
+	 Reading 9/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.05Y29.55.csv
+	 Reading 10/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.15Y29.55.csv
+	 Reading 11/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.25Y29.55.csv
+	 Reading 12/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.35Y29.55.csv
+	 Reading 13/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.45Y29.55.csv
+	 Reading 14/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.55Y29.55.csv
+	 Reading 15/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.65Y29.65.csv
+	 Reading 16/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.75Y29.65.csv
+	 Reading 17/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.85Y29.65.csv
+	 Reading 18/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.95Y29.65.csv
+	 Reading 19/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.05Y29.65.csv
+	 Reading 20/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.15Y29.65.csv
+	 Reading 21/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.25Y29.65.csv
+	 Reading 22/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.35Y29.65.csv
+	 Reading 23/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.45Y29.65.csv
+	 Reading 24/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.55Y29.65.csv
+	 Reading 25/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.65Y29.75.csv
+	 Reading 26/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.75Y29.75.csv
+	 Reading 27/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.85Y29.75.csv
+	 Reading 28/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.95Y29.75.csv
+	 Reading 29/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.05Y29.75.csv
+	 Reading 30/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.15Y29.75.csv
+	 Reading 31/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.25Y29.75.csv
+	 Reading 32/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.35Y29.75.csv
+	 Reading 33/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.45Y29.75.csv
+	 Reading 34/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.75Y29.85.csv
+	 Reading 35/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.85Y29.85.csv
+	 Reading 36/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.95Y29.85.csv
+	 Reading 37/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.05Y29.85.csv
+	 Reading 38/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.15Y29.85.csv
+	 Reading 39/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.25Y29.85.csv
+	 Reading 40/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.35Y29.85.csv
+	 Reading 41/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.85Y29.95.csv
+	 Reading 42/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.95Y29.95.csv
+	 Reading 43/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.05Y29.95.csv
+	 Reading 44/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.15Y29.95.csv
+	 Reading 45/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.25Y29.95.csv
+	 Reading 46/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.85Y30.05.csv
+	 Reading 47/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X117.95Y30.05.csv
+	 Reading 48/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.05Y30.05.csv
+	 Reading 49/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.15Y30.05.csv
+	 Reading 50/50: 	/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/xinanjiang_upstream/forcing/X118.05Y30.15.csv
+10 	 Reading file: input/xinanjiang/xinanjiang.tsd.lai
+11 	 Reading file: input/xinanjiang/xinanjiang.tsd.mf
+12 	 Reading file: input/xinanjiang/xinanjiang.cfg.calib
+
+Initializing data structure ... 
+[NUMA] first-touch skipped: OMP_PROC_BIND unset (3 sites: hot.soa, QeleSurf_flat, Ele_AoS)
+
+openMP NVector: ON. No of Threads = 2
+
+Global Implicit Mode: ON
+[NUMA] first-touch skipped: OMP_PROC_BIND unset (1 site: LoadIC)
+[shud] linsol=amg source=env
+
+========================================================
+Summary:
+	Project name:	 xinanjiang
+ 	Input path:	 input/xinanjiang
+	Output path:	 output/xinanjiang.out
+	Calibration file:	 input/xinanjiang/xinanjiang.cfg.calib
+	Parameter file:	 input/xinanjiang/xinanjiang.cfg.para
+	Model starts at: 0.00 day
+	Model ends at: 90.00 day
+	Model time step(max): 20.00 minutes
+	Model total number of steps(minimum): 6480 
+	Size of model: 	Ncell = 801 	Nriver = 216	 NSeg = 584
+
+	OpenMP enable. No of threads = 2
+
+========================================================
+
+Model Starting ... 
+
+0.00 day 	 0.00% 	 15778366.16 s 	 15778366.16 s 	 0 
+[shud-amg] Hypre threads=1 state=UNKNOWN-OVERSUBSCRIBE-RISK omp_max=2 OMP_NUM_THREADS=1
+[shud-amg] Setup probe bw_effective=7 total_atimes_calls=2619
+MARKER:AMG_TELEMETRY_REAL hypre_release=30100 first_iters=3 first_op_count=9066
+1.00 day 	 1.11% 	 2.74 s 	 2.74 s 	 3162 
+2.00 day 	 2.22% 	 0.73 s 	 0.73 s 	 390 
+3.00 day 	 3.33% 	 0.69 s 	 0.69 s 	 371 
+4.00 day 	 4.44% 	 0.69 s 	 0.69 s 	 372 
+5.00 day 	 5.56% 	 0.70 s 	 0.70 s 	 371 
+6.00 day 	 6.67% 	 0.70 s 	 0.70 s 	 371 
+7.00 day 	 7.78% 	 0.69 s 	 0.69 s 	 371 
+8.00 day 	 8.89% 	 0.73 s 	 0.73 s 	 410 
+9.00 day 	 10.00% 	 1.44 s 	 1.44 s 	 979 
+10.00 day 	 11.11% 	 1.46 s 	 1.46 s 	 978 
+11.00 day 	 12.22% 	 1.38 s 	 1.38 s 	 944 
+12.00 day 	 13.33% 	 1.37 s 	 1.37 s 	 902 
+13.00 day 	 14.44% 	 1.19 s 	 1.19 s 	 765 
+14.00 day 	 15.56% 	 0.62 s 	 0.62 s 	 288 
+15.00 day 	 16.67% 	 0.61 s 	 0.61 s 	 288 
+16.00 day 	 17.78% 	 0.60 s 	 0.60 s 	 288 
+17.00 day 	 18.89% 	 0.62 s 	 0.62 s 	 288 
+18.00 day 	 20.00% 	 0.61 s 	 0.61 s 	 288 
+19.00 day 	 21.11% 	 0.60 s 	 0.60 s 	 288 
+20.00 day 	 22.22% 	 0.60 s 	 0.60 s 	 288 
+21.00 day 	 23.33% 	 0.69 s 	 0.69 s 	 288 
+22.00 day 	 24.44% 	 0.61 s 	 0.61 s 	 288 
+23.00 day 	 25.56% 	 0.61 s 	 0.61 s 	 288 
+24.00 day 	 26.67% 	 0.66 s 	 0.66 s 	 288 
+25.00 day 	 27.78% 	 0.62 s 	 0.62 s 	 288 
+26.00 day 	 28.89% 	 0.62 s 	 0.62 s 	 288 
+27.00 day 	 30.00% 	 0.61 s 	 0.61 s 	 288 
+28.00 day 	 31.11% 	 0.62 s 	 0.62 s 	 288 
+29.00 day 	 32.22% 	 0.62 s 	 0.62 s 	 288 
+30.00 day 	 33.33% 	 0.63 s 	 0.63 s 	 288 
+31.00 day 	 34.44% 	 0.62 s 	 0.62 s 	 288 
+32.00 day 	 35.56% 	 0.63 s 	 0.63 s 	 288 
+33.00 day 	 36.67% 	 0.62 s 	 0.62 s 	 288 
+34.00 day 	 37.78% 	 0.62 s 	 0.62 s 	 288 
+35.00 day 	 38.89% 	 0.70 s 	 0.70 s 	 288 
+36.00 day 	 40.00% 	 0.62 s 	 0.62 s 	 290 
+37.00 day 	 41.11% 	 1.61 s 	 1.61 s 	 1090 
+38.00 day 	 42.22% 	 1.57 s 	 1.57 s 	 1053 
+39.00 day 	 43.33% 	 1.53 s 	 1.53 s 	 1027 
+40.00 day 	 44.44% 	 1.46 s 	 1.46 s 	 988 
+41.00 day 	 45.56% 	 1.40 s 	 1.40 s 	 929 
+42.00 day 	 46.67% 	 1.42 s 	 1.42 s 	 937 
+43.00 day 	 47.78% 	 1.39 s 	 1.39 s 	 943 
+44.00 day 	 48.89% 	 0.73 s 	 0.73 s 	 398 
+45.00 day 	 50.00% 	 0.72 s 	 0.72 s 	 390 
+46.00 day 	 51.11% 	 0.74 s 	 0.74 s 	 390 
+47.00 day 	 52.22% 	 0.72 s 	 0.72 s 	 390 
+48.00 day 	 53.33% 	 0.73 s 	 0.73 s 	 390 
+49.00 day 	 54.44% 	 0.72 s 	 0.72 s 	 390 
+50.00 day 	 55.56% 	 0.72 s 	 0.72 s 	 390 
+51.00 day 	 56.67% 	 0.72 s 	 0.72 s 	 390 
+52.00 day 	 57.78% 	 0.72 s 	 0.72 s 	 390 
+53.00 day 	 58.89% 	 0.73 s 	 0.73 s 	 390 
+54.00 day 	 60.00% 	 0.76 s 	 0.76 s 	 422 
+55.00 day 	 61.11% 	 0.64 s 	 0.64 s 	 288 
+56.00 day 	 62.22% 	 0.62 s 	 0.62 s 	 288 
+57.00 day 	 63.33% 	 0.81 s 	 0.81 s 	 457 
+58.00 day 	 64.44% 	 1.37 s 	 1.37 s 	 885 
+59.00 day 	 65.56% 	 0.82 s 	 0.82 s 	 432 
+60.00 day 	 66.67% 	 0.81 s 	 0.81 s 	 432 
+61.00 day 	 67.78% 	 0.81 s 	 0.81 s 	 431 
+62.00 day 	 68.89% 	 1.06 s 	 1.06 s 	 617 
+63.00 day 	 70.00% 	 1.46 s 	 1.46 s 	 976 
+64.00 day 	 71.11% 	 1.51 s 	 1.51 s 	 1007 
+65.00 day 	 72.22% 	 1.44 s 	 1.44 s 	 951 
+66.00 day 	 73.33% 	 1.45 s 	 1.45 s 	 957 
+67.00 day 	 74.44% 	 1.37 s 	 1.37 s 	 922 
+68.00 day 	 75.56% 	 1.40 s 	 1.40 s 	 926 
+69.00 day 	 76.67% 	 1.38 s 	 1.38 s 	 924 
+70.00 day 	 77.78% 	 1.18 s 	 1.18 s 	 741 
+71.00 day 	 78.89% 	 1.38 s 	 1.38 s 	 882 
+72.00 day 	 80.00% 	 1.49 s 	 1.49 s 	 980 
+73.00 day 	 81.11% 	 1.21 s 	 1.21 s 	 758 
+74.00 day 	 82.22% 	 1.21 s 	 1.21 s 	 782 
+75.00 day 	 83.33% 	 1.21 s 	 1.21 s 	 770 
+76.00 day 	 84.44% 	 1.45 s 	 1.45 s 	 955 
+77.00 day 	 85.56% 	 1.60 s 	 1.60 s 	 1061 
+78.00 day 	 86.67% 	 1.51 s 	 1.51 s 	 1030 
+79.00 day 	 87.78% 	 1.53 s 	 1.53 s 	 1029 
+80.00 day 	 88.89% 	 1.48 s 	 1.48 s 	 999 
+81.00 day 	 90.00% 	 1.46 s 	 1.46 s 	 996 
+82.00 day 	 91.11% 	 1.39 s 	 1.39 s 	 932 
+83.00 day 	 92.22% 	 1.20 s 	 1.20 s 	 784 
+84.00 day 	 93.33% 	 0.58 s 	 0.58 s 	 295 
+85.00 day 	 94.44% 	 0.58 s 	 0.58 s 	 295 
+86.00 day 	 95.56% 	 0.50 s 	 0.50 s 	 239 
+87.00 day 	 96.67% 	 0.43 s 	 0.43 s 	 195 
+88.00 day 	 97.78% 	 0.42 s 	 0.42 s 	 193 
+89.00 day 	 98.89% 	 0.42 s 	 0.42 s 	 195 
+90.00 day 	 100.00% 	 0.43 s 	 0.43 s 	 194 
+
+========================================================
+Summary:
+	Project name:	 xinanjiang
+ 	Input path:	 input/xinanjiang
+	Output path:	 output/xinanjiang.out
+	Calibration file:	 input/xinanjiang/xinanjiang.cfg.calib
+	Parameter file:	 input/xinanjiang/xinanjiang.cfg.para
+	Model starts at: 0.00 day
+	Model ends at: 90.00 day
+	Model time step(max): 20.00 minutes
+	Model total number of steps(minimum): 6480 
+	Size of model: 	Ncell = 801 	Nriver = 216	 NSeg = 584
+
+	OpenMP enable. No of threads = 2
+
+========================================================
+
+	Number of calls of f function:	 53107 
+
+	Time used by model:	 86.892 seconds.
+
+
+The successful end. 
+
+
+Final Statistics.. 
+
+lenrw   = 34136     leniw   =    53
+lenrwLS = 10478     leniwLS =  2667
+nst     = 33223
+nfe     = 50488     nfeLS   =  2619
+nni     = 50487     nli     = 151528
+nsetups =     0     netf    =     0
+npe     =     0     nps     =     0
+ncfn    =  5264     ncfl    =     0
+
+
+CELL_SUMMARY_BEGIN
+case=xinanjiang_upstream interp_type=6 coarsen_type=8 NumY=NA nnz_A=NA
+setup_wall_sec=NA apply_wall_sec=NA peak_rss_bytes=NA
+cycle_complexity=NA operator_complexity=NA
+verdict_class=AMG_OK
+hypre_version=NA colpack_version=absent shud_pin=NA
+cvode_nfe=NA cvode_nli=NA cvode_nfeLS=NA cvode_ncfn=NA cvode_ncfl=NA cvode_netf=NA
+amg_telemetry_mean_iters=NA amg_telemetry_mean_op_count=NA amg_telemetry_setup_calls=NA amg_total_setup_wall_sec=NA amg_total_solve_wall_sec=NA
+n_cvode_steps=33223 amg_wall_per_step_sec=NA
+CELL_SUMMARY_END
+
+[shud-G0] cell=xinanjiang_upstream exit_code=0 wall_total_sec=90 verdict_class=AMG_OK
