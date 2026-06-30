@@ -57,28 +57,31 @@
 /*
  * heihe_x4 case-specific SPGMR per-step wall (seconds).
  *
- * Initial PR-0 ship value: WALL_SIGNAL_UNKNOWN.
- * Hotfix replacement target: float value from
- *   .p8tune.G0-runs/heihe-x4-spgmr-baseline/cell-00.{out,log,time}
- * on /scratch/frd_muziyao/SHUD-OpenMP/ cn-node Slurm job (NumEle=40046,
- * --time=12:00:00, OMP_NUM_THREADS=1, BDF/Newton/SPGMR, 90-day SHORT).
- * Convention: setup_included.
+ * Hot-patched 2026-06-30 from Slurm job 10012 baseline run on cn23:
+ *   .p8tune.G0-runs/heihe_x4-spgmr-baseline/{wall-total.txt,cvode_stats.txt}
+ *   WALL_TOTAL_SEC = 1566.5518531799316
+ *   nst             = 6572
+ *   per_step        = 1566.5518531799316 / 6572 = 0.238369 s
+ *
+ * Convention: setup_included (per PR-0 spike 1.2).
+ * Provenance: heihe_x4 NumEle=40046, OMP_NUM_THREADS=1, BDF/Newton/SPGMR,
+ *   90-day SHORT, exit 0, Slurm wall=00:26:08.
  */
-#define SPGMR_PER_STEP_HEIHE_X4_S   (WALL_SIGNAL_UNKNOWN)
+#define SPGMR_PER_STEP_HEIHE_X4_S   (0.238369)
 
 /*
  * heihe_x16 case-specific SPGMR per-step wall (seconds).
  *
- * Initial PR-0 ship value: WALL_SIGNAL_UNKNOWN.
- * Hotfix replacement target: float value from
- *   .p8tune.G0-runs/heihe-x16-spgmr-baseline/cell-00.{out,log,time}
- * on /scratch/frd_muziyao/SHUD-OpenMP/ cn-node Slurm job (NumEle=~160k,
- * 6.3× heihe_x4 NumEle, --time=24:00:00, OMP_NUM_THREADS=1, BDF/Newton/
- * SPGMR, 90-day SHORT). Convention: setup_included.
+ * Hot-patched 2026-06-30 from Slurm job 10013 baseline run on cn23:
+ *   .p8tune.G0-runs/heihe_x16-spgmr-baseline/{wall-total.txt,cvode_stats.txt}
+ *   WALL_TOTAL_SEC = 6244.509971141815
+ *   nst             = 6556
+ *   per_step        = 6244.509971141815 / 6556 = 0.952489 s
  *
- * If the Slurm job overruns --time=24:00:00 wall budget, this constant
- * stays at WALL_SIGNAL_UNKNOWN per IA-8 contingency.
+ * Convention: setup_included.
+ * Provenance: heihe_x16 NumEle≈252K (6.3× heihe_x4), OMP_NUM_THREADS=1,
+ *   BDF/Newton/SPGMR, 90-day SHORT, exit 0, Slurm wall=01:44:08.
  */
-#define SPGMR_PER_STEP_HEIHE_X16_S  (WALL_SIGNAL_UNKNOWN)
+#define SPGMR_PER_STEP_HEIHE_X16_S  (0.952489)
 
 #endif /* P8TUNE_G0_SPGMR_BASELINE_WALLS_G0_H */

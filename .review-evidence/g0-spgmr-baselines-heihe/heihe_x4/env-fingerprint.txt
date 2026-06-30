@@ -1,0 +1,14 @@
+=== sbatch env fingerprint ===
+JOB_ID=10012
+NODE=cn23
+DATE=2026-06-30T11:07:58+08:00
+SHUD_PIN=2ec4c00 fix(p8tune.G0): reorder dlopen candidates by hot-path frequency + Mac-friendly FATAL hint
+SHUD_BRANCH=
+SHUD_LINSOL=spgmr
+OMP_NUM_THREADS=1
+LD_LIBRARY_PATH=/scratch/frd_muziyao/local/hypre-3.1.0/lib:/scratch/frd_muziyao/local/openblas/lib:
+	libsundials_cvode.so.6 => /scratch/frd_muziyao/SHUD-OpenMP/SHUD/InstallSundials/lib/libsundials_cvode.so.6 (0x000078ca02b1b000)
+	libHYPRE-3.1.0.so => /scratch/frd_muziyao/local/hypre-3.1.0/lib/libHYPRE-3.1.0.so (0x000078ca025b7000)
+	libmpi.so.40 => /lib/x86_64-linux-gnu/libmpi.so.40 (0x000078ca02479000)
+	libmpi_cxx.so.40 => /lib/x86_64-linux-gnu/libmpi_cxx.so.40 (0x000078ca02460000)
+	libsundials_nvecopenmp.so.6 => /scratch/frd_muziyao/SHUD-OpenMP/SHUD/InstallSundials/lib/libsundials_nvecopenmp.so.6 (0x000078ca0243c000)
