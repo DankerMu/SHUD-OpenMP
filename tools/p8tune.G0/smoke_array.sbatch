@@ -16,8 +16,13 @@
 # Slurm 三铁律 compliance (per CLAUDE.md):
 #   1) sbatch SHALL be invoked from /scratch/.../.p8tune.G0-runs/<RUN_ID>/
 #      (the orchestrator sets up RUN_DIR + cd's before sbatch)
-#   2) --output / --error use absolute /scratch/... paths so Slurm doesn't
-#      drop the per-task .out / .err on the compute node's /tmp
+#   2) Slurm meta-logs default to slurm-<jobid>.out under invocation cwd
+#      (which IS /scratch/.../.p8tune.G0-runs/<RUN_ID>/ per rule 1). We
+#      deliberately do NOT use `#SBATCH --output=...` because (a) absolute
+#      static paths collide across submissions, (b) Slurm doesn't mkdir,
+#      and (c) run_smoke_cell.sh's tee to ${RUN_DIR}/cell-<cell>.out already
+#      captures per-cell stdout/stderr — the Slurm meta-log is sufficient
+#      as the array-level summary file.
 #   3) all referenced scripts (run_smoke_cell.sh, precheck_env.sh,
 #      shud_omp binary) resolve under /scratch/frd_muziyao/SHUD-OpenMP/
 #
@@ -62,8 +67,11 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
 #SBATCH --time=08:00:00
-#SBATCH --output=/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.G0-runs/g0-smoke-array/cell-%a.out
-#SBATCH --error=/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.G0-runs/g0-smoke-array/cell-%a.err
+# Intentionally omitting --output / --error: Slurm defaults to
+# slurm-<jobid>_<array-task>.out under the sbatch invocation cwd
+# (= /scratch/.../.p8tune.G0-runs/<RUN_ID>/ per 三铁律 rule 1, on shared
+# scratch tier). Per-cell stdout/stderr are also tee'd to
+# ${RUN_DIR}/cell-<cell>.{out,err} by run_smoke_cell.sh. See header §2.
 
 set -uo pipefail
 
@@ -148,12 +156,17 @@ trap emit_wall_overflow TERM
 
 # ---------- precheck_env.sh gate (TASK_ID=0 inline) ------------------------
 # Per issue #410 task 6.3 + P8-tune.F H1 fix: precheck runs BEFORE cell
-# body, only on TASK_ID=0 (environment-invariant across the 4 cells).
-# Other tasks proceed without re-paying the precheck cost. On failure,
-# this cell aborts; peer cells continue (Slurm doesn't cancel array on
-# one-task fail unless explicitly requested).
-cd "${SHUD_DIR}" || { echo "ERROR: cannot cd to ${SHUD_DIR}" >&2; exit 1; }
-
+# body, only on TASK_ID=0. Conditions (d) and (g) iterate over all 4
+# cells per P1-2 reviewer, so this single invocation validates the full
+# array. Other tasks proceed without re-paying the precheck cost. On
+# failure this cell aborts; peer cells continue (Slurm doesn't cancel
+# array on one-task fail unless explicitly requested).
+#
+# precheck runs BEFORE `cd ${SHUD_DIR}` so its (a) condition can inspect
+# the sbatch-invocation cwd (= /scratch/.../.p8tune.G0-runs/<RUN_ID>/)
+# while still resolving shud_omp via /scratch/.../SHUD/shud_omp fallback.
+# Note: (a) is now RUN_DIR-based (P0-2 fix), so this ordering is
+# semantically optional but kept for clarity.
 if [[ ${TASK_ID} -eq 0 ]]; then
     PRECHECK_LOG="${RUN_DIR}/precheck.log"
     bash "${TOOL_DIR}/precheck_env.sh" > "${PRECHECK_LOG}" 2>&1
@@ -169,6 +182,7 @@ fi
 # ---------- Invoke run_smoke_cell.sh ---------------------------------------
 # RUN_DIR exported above is consumed by run_smoke_cell.sh for the
 # per-cell .out / .err sidecar files. cwd is SHUD/ so ./shud_omp resolves.
+cd "${SHUD_DIR}" || { echo "ERROR: cannot cd to ${SHUD_DIR}" >&2; exit 1; }
 bash "${TOOL_DIR}/run_smoke_cell.sh" "${CELL}"
 RC=$?
 

@@ -62,6 +62,19 @@ case "${CELL}" in
         ;;
 esac
 
+# ---------- Basin folder -> SHUD project name mapping -----------------------
+# Per CLAUDE.md §双端实验环境 + docs/case_deployment_map.md §1: SHUD `./shud_omp
+# <name>` expects the *project* name, not the *basin folder* name. They match
+# for keliya/heihe_x4/heihe_x16; xinanjiang_upstream maps to project name
+# `xinanjiang` (its cfg.para lives at input/xinanjiang/xinanjiang.cfg.para).
+declare -A SHUD_PROJECT_NAME=(
+    ["keliya"]="keliya"
+    ["xinanjiang_upstream"]="xinanjiang"
+    ["heihe_x4"]="heihe_x4"
+    ["heihe_x16"]="heihe_x16"
+)
+PROJECT_NAME="${SHUD_PROJECT_NAME[${CELL}]:-${CELL}}"
+
 # ---------- Environment -----------------------------------------------------
 # AMG path selector (defense-in-depth: also set in smoke_array.sbatch).
 # Wrapper-side reads SHUD_LINSOL via parse_linsol_env() in cvode_config.cpp.
@@ -73,26 +86,26 @@ export SHUD_LINSOL=amg
 export OMP_NUM_THREADS=1
 
 # ---------- Locate cell artifacts -------------------------------------------
-# SHUD CLI invokes `./shud_omp <cell>` from inside the basin project dir
-# (Basins/<cell>/), where it expects `input/<cell>/<cell>.cfg.para`. Auto-cd
-# to the basin dir if currently sitting one level up at SHUD/. Per CLAUDE.md
-# convention, cfg.para is auto-discovered via find (handles basin-folder ≠
-# SHUD project name cases like kashigeer=ksge).
-if [[ -d "Basins/${CELL}" && ! -d "input/${CELL}" ]]; then
+# SHUD CLI invokes `./shud_omp <project>` from inside the basin project dir
+# (Basins/<cell>/), where it expects `input/<project>/<project>.cfg.para`.
+# Auto-cd to the basin dir if currently sitting one level up at SHUD/. Per
+# CLAUDE.md convention, cfg.para is auto-discovered via `find input/`
+# (handles basin-folder ≠ SHUD project name like xinanjiang_upstream=xinanjiang).
+if [[ -d "Basins/${CELL}" && ! -d "input/${PROJECT_NAME}" ]]; then
     cd "Basins/${CELL}" || {
         echo "[shud-G0] FATAL: cannot cd to Basins/${CELL}" >&2
         exit 2
     }
 fi
 
-if [[ ! -d "input/${CELL}" ]]; then
-    echo "[shud-G0] FATAL: input/${CELL}/ not found under $(pwd) — case not deployed (cwd should be basin project dir)" >&2
+if [[ ! -d "input/${PROJECT_NAME}" ]]; then
+    echo "[shud-G0] FATAL: input/${PROJECT_NAME}/ not found under $(pwd) — case not deployed (cwd should be basin project dir; cell=${CELL} project=${PROJECT_NAME})" >&2
     exit 2
 fi
 
-CFG_PARA="$(find "input/${CELL}" -name '*.cfg.para' 2>/dev/null | head -n 1)"
+CFG_PARA="$(find "input/${PROJECT_NAME}" -name '*.cfg.para' 2>/dev/null | head -n 1)"
 if [[ -z "${CFG_PARA}" || ! -f "${CFG_PARA}" ]]; then
-    echo "[shud-G0] FATAL: no *.cfg.para under input/${CELL}/ — case not deployed" >&2
+    echo "[shud-G0] FATAL: no *.cfg.para under input/${PROJECT_NAME}/ — case not deployed (cell=${CELL})" >&2
     exit 2
 fi
 
@@ -129,6 +142,8 @@ echo "=== run_smoke_cell.sh cell=${CELL} ==="
 echo "date_utc:        $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "hostname:        $(hostname)"
 echo "cwd:             $(pwd)"
+echo "cell:            ${CELL}"
+echo "project_name:    ${PROJECT_NAME}"
 echo "cfg_para:        ${CFG_PARA}"
 echo "end_start_delta: ${END_START_DELTA} (90-day precondition PASS)"
 echo "shud_linsol:     ${SHUD_LINSOL}"
@@ -173,11 +188,21 @@ START_WALL=$(date +%s)
 # Tee stdout and stderr to per-cell files while preserving exit code via
 # pipefail. Use process substitution so both streams are recorded plus
 # also surfaced to the Slurm-managed --output / --error capture.
+#
+# NOTE: shud_omp is invoked with the SHUD *project name* (PROJECT_NAME), not
+# the basin folder name (CELL). They differ for xinanjiang_upstream
+# (basin=xinanjiang_upstream → project=xinanjiang). The SHUD CLI hands its
+# argument to sprintf "input/%s" in CommandIn.cpp, so passing CELL there
+# would resolve to a non-existent input/xinanjiang_upstream/ directory.
 set +e
-"${SHUD_BIN_RESOLVED}" "${CELL}" \
+"${SHUD_BIN_RESOLVED}" "${PROJECT_NAME}" \
     > >(tee "${CELL_OUT}") \
     2> >(tee "${CELL_ERR}" >&2)
 RC=$?
+# Block until both background tee processes finish flushing their output to
+# the sidecar files. Without this wait, the subsequent grep extractors at
+# L210+ may run before tee drains the FIFO and miss real markers/fields.
+wait
 set -e
 END_WALL=$(date +%s)
 WALL_TOTAL=$((END_WALL - START_WALL))

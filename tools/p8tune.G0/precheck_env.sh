@@ -45,6 +45,16 @@ CELLS=(keliya xinanjiang_upstream heihe_x4 heihe_x16)
 EXPECTED_PWD_PREFIX="/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.G0-runs/"
 TELEMETRY_SYMBOL="SUNLinSol_Hypre_DrainTelemetry"
 
+# Basin folder -> SHUD project name mapping, mirroring run_smoke_cell.sh.
+# Per CLAUDE.md §双端实验环境 + docs/case_deployment_map.md §1:
+# xinanjiang_upstream's cfg.para lives under input/xinanjiang/.
+declare -A SHUD_PROJECT_NAME=(
+    ["keliya"]="keliya"
+    ["xinanjiang_upstream"]="xinanjiang"
+    ["heihe_x4"]="heihe_x4"
+    ["heihe_x16"]="heihe_x16"
+)
+
 # Slurm-array task -> cell mapping; if SLURM_ARRAY_TASK_ID unset (Mac
 # local dry-run / smoke_single_test pre-flight), default to task 0.
 TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
@@ -53,6 +63,7 @@ if [[ ${TASK_ID} -lt 0 || ${TASK_ID} -ge ${#CELLS[@]} ]]; then
     exit 1
 fi
 CELL="${CELLS[${TASK_ID}]}"
+PROJECT_NAME="${SHUD_PROJECT_NAME[${CELL}]:-${CELL}}"
 
 fail=0
 pass_count=0
@@ -65,18 +76,26 @@ emit_fail() {
     fail=1
 }
 
-# ---------- (a) cwd under .p8tune.G0-runs/ ---------------------------------
-# Per CLAUDE.md Slurm 三铁律 rule 1: sbatch invoked from /scratch/.../.p8tune.G0-runs/
-# On Mac local dry-run, $EXPECTED_PWD_PREFIX won't match; emit INFO + PASS so
-# scripts can be linted on Mac without faking server state. The check is
-# binding for Slurm submission (where pwd MUST be the server scratch run dir).
-cur_pwd="$(pwd)"
+# ---------- (a) $RUN_DIR under .p8tune.G0-runs/ ----------------------------
+# Per CLAUDE.md Slurm 三铁律 rule 1: sbatch must operate under
+# /scratch/.../.p8tune.G0-runs/. Originally this checked pwd, but sbatch
+# bodies cd into SHUD/ before calling precheck — and pwd would then no
+# longer be under .p8tune.G0-runs/. Check the *RUN_DIR* env var instead
+# (set by sbatch from RUN_ID); this is semantically what we actually care
+# about (the run-artifact root is on the shared /scratch tier, not /tmp).
+#
+# On Mac local dry-run, RUN_DIR is unset → emit INFO + PASS (deferred to
+# server).
 EXPECTED_PWD_PREFIX_STRIP="${EXPECTED_PWD_PREFIX%/}"
+cur_pwd="$(pwd)"
+RUN_DIR_PROBE="${RUN_DIR:-}"
 if [[ -n "${SLURM_JOB_ID:-}" ]]; then
-    if [[ "${cur_pwd}" == "${EXPECTED_PWD_PREFIX_STRIP}"* ]]; then
-        emit_pass "a" "cwd=${cur_pwd} under ${EXPECTED_PWD_PREFIX_STRIP}"
+    if [[ -z "${RUN_DIR_PROBE}" ]]; then
+        emit_fail "a" "RUN_DIR unset under Slurm job ${SLURM_JOB_ID} (sbatch must export RUN_DIR per template)"
+    elif [[ "${RUN_DIR_PROBE}" == "${EXPECTED_PWD_PREFIX_STRIP}"* ]]; then
+        emit_pass "a" "RUN_DIR=${RUN_DIR_PROBE} under ${EXPECTED_PWD_PREFIX_STRIP} (pwd=${cur_pwd} for context)"
     else
-        emit_fail "a" "cwd=${cur_pwd} not under ${EXPECTED_PWD_PREFIX_STRIP} (Slurm 三铁律 rule 1)"
+        emit_fail "a" "RUN_DIR=${RUN_DIR_PROBE} not under ${EXPECTED_PWD_PREFIX_STRIP} (Slurm 三铁律 rule 1)"
     fi
 else
     echo "[precheck] INFO: SLURM_JOB_ID unset (Mac local dry-run); skipping (a) per dry-run convention" >&2
@@ -124,21 +143,36 @@ else
     emit_pass "c" "ldd/otool unavailable; deferred to runtime dlopen probe in wrapper"
 fi
 
-# ---------- (d) case dir exists for selected cell --------------------------
+# ---------- (d) case dirs exist for ALL 4 cells ----------------------------
 # Resolve case dir from current cwd: SHUD/ root -> Basins/<cell>; basin dir
 # -> input/<cell>; .p8tune.G0-runs/ -> /scratch/.../SHUD/Basins/<cell>.
-CASE_DIR=""
-for cand in "Basins/${CELL}" "/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/${CELL}"; do
-    if [[ -d "${cand}" ]]; then
-        CASE_DIR="${cand}"
-        break
+# Iterate over all 4 cells (not just SLURM_ARRAY_TASK_ID's) so that one
+# precheck invocation validates the entire array — caught by P1-2 reviewer.
+# CASE_DIRS map stores the resolved path per cell for (g) below.
+declare -A CASE_DIRS=()
+case_d_fail=0
+for cell in "${CELLS[@]}"; do
+    found=""
+    for cand in "Basins/${cell}" "/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/${cell}"; do
+        if [[ -d "${cand}" ]]; then
+            found="${cand}"
+            break
+        fi
+    done
+    if [[ -n "${found}" ]]; then
+        CASE_DIRS["${cell}"]="${found}"
+    else
+        case_d_fail=1
+        emit_fail "d" "case dir for cell=${cell} missing (checked Basins/ + /scratch/.../SHUD/Basins/)"
     fi
 done
-if [[ -n "${CASE_DIR}" ]]; then
-    emit_pass "d" "case dir ${CASE_DIR} present (task=${TASK_ID} cell=${CELL})"
-else
-    emit_fail "d" "case dir for cell=${CELL} missing (checked Basins/ + /scratch/.../SHUD/Basins/)"
+if [[ ${case_d_fail} -eq 0 ]]; then
+    emit_pass "d" "all 4 case dirs present (${CELLS[*]})"
 fi
+
+# Also retain CASE_DIR for the selected cell so (g) can fall back to a
+# clearer error if the per-cell loop below doesn't catch it.
+CASE_DIR="${CASE_DIRS[${CELL}]:-}"
 
 # ---------- (e) telemetry symbol attestation -------------------------------
 # Per design.md D6/D7: wrapper exposes SUNLinSol_Hypre_DrainTelemetry as
@@ -170,17 +204,33 @@ else
     emit_fail "f" "OMP_NUM_THREADS=${omp_threads} != 1 (per CLAUDE.md OMP_CUTOFF / issue 10.5)"
 fi
 
-# ---------- (g) 90-day cfg.para precondition for selected cell (IA-7) -----
+# ---------- (g) 90-day cfg.para precondition for ALL 4 cells (IA-7) -------
 # Mirrors run_smoke_cell.sh awk one-liner; per issue #410 task 6.2 + 10.4.
-# CASE_DIR may be SHUD/Basins/<cell>/ (top-level basin dir); its input/
-# contains the inner <cell>/<cell>.cfg.para.
-CFG_PARA=""
-if [[ -n "${CASE_DIR}" ]]; then
-    CFG_PARA="$(find "${CASE_DIR}/input" -name '*.cfg.para' 2>/dev/null | head -n 1)"
-fi
-if [[ -z "${CFG_PARA}" || ! -f "${CFG_PARA}" ]]; then
-    emit_fail "g" "no *.cfg.para under ${CASE_DIR}/input/ — case not deployed"
-else
+# Iterate over all 4 cells (P1-2 reviewer): one precheck invocation
+# validates the entire array. CASE_DIRS["<cell>"] is the basin folder
+# resolved by (d) above; its input/<project>/<project>.cfg.para is the
+# auto-discovery target (find handles basin-folder ≠ project name like
+# xinanjiang_upstream=xinanjiang).
+case_g_fail=0
+for cell in "${CELLS[@]}"; do
+    case_dir="${CASE_DIRS[${cell}]:-}"
+    if [[ -z "${case_dir}" ]]; then
+        # (d) above already emitted the fail; skip without double-counting
+        case_g_fail=1
+        continue
+    fi
+    pname="${SHUD_PROJECT_NAME[${cell}]:-${cell}}"
+    cfg_para="$(find "${case_dir}/input/${pname}" -name '*.cfg.para' 2>/dev/null | head -n 1)"
+    if [[ -z "${cfg_para}" || ! -f "${cfg_para}" ]]; then
+        # Fallback to whole input/ tree (handles future cases where
+        # project-name mapping isn't seeded yet).
+        cfg_para="$(find "${case_dir}/input" -name '*.cfg.para' 2>/dev/null | head -n 1)"
+    fi
+    if [[ -z "${cfg_para}" || ! -f "${cfg_para}" ]]; then
+        case_g_fail=1
+        emit_fail "g" "no *.cfg.para under ${case_dir}/input/ — case=${cell} not deployed"
+        continue
+    fi
     # SHUD cfg.para uses `KEY<whitespace>VALUE`, not `KEY=VALUE`; adapted
     # from issue body §6.2 `-F'='` form to whitespace-separated fields.
     # Mirrors run_smoke_cell.sh.
@@ -194,12 +244,14 @@ else
             } else {
                 print (kv["END"] - kv["START"]) + 0
             }
-        }' "${CFG_PARA}")
-    if [[ "${delta}" == "90" ]]; then
-        emit_pass "g" "cfg.para END-START=90 for case=${CELL} (cfg=${CFG_PARA})"
-    else
-        emit_fail "g" "cfg.para END-START=${delta} for case=${CELL} (expected 90 per CLAUDE.md 项目级铁律)"
+        }' "${cfg_para}")
+    if [[ "${delta}" != "90" ]]; then
+        case_g_fail=1
+        emit_fail "g" "cfg.para END-START=${delta} for case=${cell} (expected 90 per CLAUDE.md 项目级铁律; cfg=${cfg_para})"
     fi
+done
+if [[ ${case_g_fail} -eq 0 ]]; then
+    emit_pass "g" "all 4 cfg.para END-START=90 (${CELLS[*]})"
 fi
 
 # ---------- Final verdict --------------------------------------------------

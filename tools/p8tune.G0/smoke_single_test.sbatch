@@ -12,7 +12,9 @@
 #
 # Slurm 三铁律 compliance (per CLAUDE.md):
 #   1) sbatch from /scratch/.../.p8tune.G0-runs/<RUN_ID>/
-#   2) --output / --error use absolute /scratch/... paths
+#   2) Slurm meta-log defaults to slurm-<jobid>.out under invocation cwd
+#      (= /scratch/.../.p8tune.G0-runs/<RUN_ID>/ per rule 1). No `#SBATCH
+#      --output=...` — see smoke_array.sbatch header §2 for rationale.
 #   3) referenced scripts under /scratch/frd_muziyao/SHUD-OpenMP/
 #
 # Submit (from server):
@@ -33,8 +35,10 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
 #SBATCH --time=00:30:00
-#SBATCH --output=/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.G0-runs/g0-smoke-single/cell-%a.out
-#SBATCH --error=/scratch/frd_muziyao/SHUD-OpenMP/.p8tune.G0-runs/g0-smoke-single/cell-%a.err
+# Intentionally omitting --output / --error: Slurm defaults to
+# slurm-<jobid>_<array-task>.out under sbatch invocation cwd (shared
+# /scratch tier per 三铁律 rule 1). Per-cell stdout/stderr are also
+# tee'd to ${RUN_DIR}/cell-<cell>.{out,err} by run_smoke_cell.sh.
 
 set -uo pipefail
 
@@ -101,8 +105,11 @@ emit_wall_overflow() {
 trap emit_wall_overflow TERM
 
 # ---------- precheck_env.sh gate -------------------------------------------
-cd "${SHUD_DIR}" || { echo "ERROR: cannot cd to ${SHUD_DIR}" >&2; exit 1; }
-
+# precheck runs BEFORE `cd ${SHUD_DIR}` so its (a) condition operates on
+# the sbatch-invocation cwd (= /scratch/.../.p8tune.G0-runs/<RUN_ID>/) and
+# its iterating (d) + (g) conditions cover all 4 cells. After P0-2 fix
+# (RUN_DIR-based check) the ordering is semantically optional but kept
+# for clarity.
 PRECHECK_LOG="${RUN_DIR}/precheck.log"
 bash "${TOOL_DIR}/precheck_env.sh" > "${PRECHECK_LOG}" 2>&1
 PRECHECK_RC=$?
@@ -114,6 +121,7 @@ fi
 echo "[single_test] precheck_env.sh 7/7 PASS (log: ${PRECHECK_LOG})"
 
 # ---------- Invoke run_smoke_cell.sh ---------------------------------------
+cd "${SHUD_DIR}" || { echo "ERROR: cannot cd to ${SHUD_DIR}" >&2; exit 1; }
 bash "${TOOL_DIR}/run_smoke_cell.sh" "${CELL}"
 RC=$?
 
