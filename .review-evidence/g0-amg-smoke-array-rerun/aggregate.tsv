@@ -1,0 +1,5 @@
+cell	verdict_class	exit_code	wall_total_sec	n_cvode_steps	amg_wall_per_step_sec	cycle_complexity	operator_complexity	cvode_nfe	cvode_nli	cvode_nfeLS	cvode_ncfn	cvode_ncfl	cvode_netf	amg_telemetry_mean_iters	amg_telemetry_mean_op_count	amg_total_setup_wall_sec	amg_total_solve_wall_sec	wall_convention	wall_signal	hypre_release	amg_telemetry_dropped_overflow
+keliya	AMG_OK	0	179	124913	0.000153	1.000000	1.002945	246759	1726579	1785	30640	0	3	6.996452	5472.000000	0.000000e+00	1.905341e+01	telemetry_truncated	telemetry	30100	115656
+xinanjiang_upstream	AMG_OK	0	90	33223	0.002709	NA	NA	50488	151528	2619	5264	0	0	NA	NA	NA	NA	wall_total_proxy	wall_total_proxy	30100	0
+heihe_x4	AMG_OK	0	23660	254756	0.092873	NA	NA	502982	983928	124395	100138	0	2	NA	NA	NA	NA	wall_total_proxy	wall_total_proxy	30100	0
+heihe_x16	MALFORMED	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	NA	nst_unavailable	nst_unavailable	NA	0
