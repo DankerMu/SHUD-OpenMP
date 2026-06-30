@@ -258,6 +258,57 @@ GPU sparse / domain decomposition (§P8-tune.H) is NOT scheduled by this amendme
 
 See: `SHUD_openMP_master_plan.md` §P8-tune.G (G0/G1/G2 sub-anchors) for the canonical living anchor; `docs/p8tune/p8tune_f_academic_summary.md` §9 Future Work for the academic framing.
 
+## Amendment 2026-06-30 (G0 verdict)
+
+### G0 verdict_class enum amendment
+
+Per spec REQ "verdict_class enum semantics" (`openspec/changes/p8tune-g0-instrumented-amg-smoke/specs/amg-integrated-smoke-verdict/spec.md`), the G0 smoke harness uses `AMG_OK` as the per-cell success sentinel, **NOT** `PASS` as in the archived P8-tune.F spec `amg-pattern-spike-verdict` REQ-2. This rename is intentional and motivated by the semantic difference between the two epics:
+
+- P8-tune.F `PASS`: pattern-only assertion — Hypre BoomerAMG hierarchy build + single-cycle V-cycle apply completed without divergence/OOM/wall-overflow markers. Does NOT assert CVODE integration or wall-signal validity.
+- G0 `AMG_OK`: integrated assertion — `SHUD_LINSOL=amg` CVODE 90-day SHORT run completed without crash AND `cell_summary` block emitted with 27 fields populated. Strictly stronger than P8-tune.F `PASS` because it implies both end-to-end CVODE convergence AND per-cell wall measurement validity.
+
+The G0 aggregator (`tools/p8tune.G0/aggregate_g0_smoke.sh`) enforces this rename by rejecting cells with `verdict_class=PASS` as `MARKER:VERDICT_CLASS_MALFORMED expected=AMG_OK got=PASS case=<name>`. The G0 enum is `{AMG_OK, AMG_SETUP_DIVERGE, AMG_SOLVE_DIVERGE, AMG_OOM, AMG_WALL_OVERFLOW}` plus the parser-side sentinel `MALFORMED` (used when `cell_summary` is missing entirely, e.g., SIGKILL pre-trap).
+
+### G0 outcome: NO-GO-G0
+
+Six-gate evaluation (full details: `docs/p8tune/amg_g0_verdict.md`):
+
+| Gate | Result | One-line evidence |
+|---|---|---|
+| G0-1 default-compat | PASS | `SHUD_LINSOL` unset / `=spgmr` bit-identical to pre-G0 SPGMR baseline on `keliya` 90-day SHORT (PR-0 #414) |
+| G0-2 build | PASS | `make shud_omp HYPRE=1` green on Mac (brew Hypre 3.1.x) + Ubuntu CI + server (`/scratch/.../hypre-3.1.0/`) |
+| G0-3 telemetry-real | PASS | keliya `cycle_complexity=1.000000` + `operator_complexity=1.002945` from `HYPRE_BoomerAMGGetCumNnzAP` + `HYPRE_BoomerAMGGetOperatorComplexity` (real Hypre API, NOT P8-tune.F `2 × operator_complexity` hardcoded estimate) |
+| G0-4 integrated-completes | **FAIL** | `heihe_x16` MALFORMED — Slurm SIGKILL at 8h budget fired before SIGTERM trap could emit cell_summary. Server array re-run with 24h budget + post-Phase-6 drain hook remains as Future Work but **does not change** overall G0 verdict (heihe_x4 15.1× wall regression independently shows AMG-not-beneficial) |
+| G0-5 wall-signal | PASS (per-step) | `heihe_x4` AMG per-step `0.092873s` < SPGMR baseline `0.238369s` (0.39× per-step). HOWEVER **total wall 15.1× WORSE** due to 38.8× more CVODE steps (`ncfn=100138` Newton control failures driving step inflation) |
+| G0-6 solver-stats | PASS | `nfe / nli / nfeLS / ncfn / ncfl / netf` non-NA for all 3 AMG_OK cells (`keliya`, `xinanjiang_upstream`, `heihe_x4`); `heihe_x16` MALFORMED exempt per spec |
+
+**`g0_verdict_branch = NO-GO-G0`** per spec REQ "G0 verdict evaluates six PASS/FAIL gates" Scenario "Any gate FAIL produces NO-GO-G0". AMG is empirically **not beneficial** on the SHUD hydrology matrix shape at the `heihe_x4` (NumY ≈124K) scale: the per-cycle V-cycle apply is faster than per-cycle SPGMR Krylov, but the AMG-preconditioned Newton iteration exhibits a 39× control-failure rate (`ncfn`) that wipes out the per-step advantage at the integrated-CVODE level.
+
+Anchor block (byte-identical to `tools/p8tune.G0/aggregate_g0_smoke.sh` stdout per spec REQ "G0 verdict byte-identical anchor contract"):
+
+```
+MARKER:G0_VERDICT_BEGIN
+G0_3=PASS
+G0_4=FAIL reason=heihe_x16:MALFORMED
+G0_5=PASS
+G0_6=PASS
+G0_OVERALL=NO-GO
+MARKER:G0_VERDICT_END
+```
+
+### Forward action update (supersedes prior 2026-06-29 single-epic §G framing)
+
+The 2026-06-29 framing amendment (above this block) established §P8-tune.G as a three-gate sequence G0 → G1 → G2 with §P8-tune.H GPU sparse as fallback. The G0 verdict closes the first gate with NO-GO, which under spec REQ "Master plan §P8-tune.G0 anchor closes on both PASS and NO-GO outcomes" causes:
+
+- **§P8-tune.G0 anchor**: `[OPEN, HIGH]` → `[CLOSED]` with NO-GO-G0 verdict marker.
+- **§P8-tune.G1 + §P8-tune.G2 anchors**: → `[CLOSED-DEFERRED, pending P8-tune.H GPU sparse fallback evaluation]`. The AMG-integrated-production path is closed; G1 18-cell benchmark and G2 A5 hydrology equivalence are NOT scheduled.
+- **§P8-tune.H GPU sparse fallback**: becomes the active investigation per the original §Forward action L25 escape hatch. The strict-vs-amended ADR-0007 §Decision is preserved (strict NO-GO-both / amended GO); this G0 amendment adds integrated-CVODE evidence confirming the strict reading at the production-substrate level.
+- **`SHUD_LINSOL=spgmr` default preserved**: zero user-facing behavior change. `SHUD_LINSOL=amg` remains an opt-in research knob, NOT recommended for production large-case runs.
+
+This amendment does **not** modify ADR-0007 §Status bullet at L3 (`- **Status**: Accepted ...`) or `## Decision` L2 header per spec REQ "G0 verdict does NOT modify §Status bullet or §Decision section" — the pre-G0 ADR decision stands; the G0 verdict adds dated evidence to the §Forward action ledger.
+
+See: `docs/p8tune/amg_g0_verdict.md` (verdict source-of-truth); `docs/p8tune/p8tune_g0_academic_summary.md` (academic framing); `SHUD_openMP_master_plan.md` §P8-tune.G0 (anchor close).
+
 ---
 
 ## References

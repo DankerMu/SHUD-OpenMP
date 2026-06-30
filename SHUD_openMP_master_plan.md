@@ -2594,7 +2594,9 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 
 **Anchor**: ADR-0007 §Forward action + §Forward action Amendment 2026-06-29 block (canonical reference); ADR-0007 §Consequences §Negative item 1 (Axis 4 instrumentation issue, demoted to hierarchy-quality diagnostic).
 
-###### §P8-tune.G0 — Axis-4 telemetry + integrated AMG smoke
+###### §P8-tune.G0 — Axis-4 telemetry + integrated AMG smoke [CLOSED]
+
+**Verdict (2026-06-30)**: [NO-GO-G0 verdict 2026-06-30; AMG production path closed per ADR-0007 §Decision + Amendment 2026-06-30; see `docs/p8tune/amg_g0_verdict.md`; P8-tune.H GPU sparse fallback may be invoked]
 
 **Goal**: eliminate the hard-coded Axis 4 estimate AND verify SUNLinSol_Hypre/CVODE integration works end-to-end.
 
@@ -2624,7 +2626,9 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 - integrated wall improves → enter §P8-tune.G1.
 - no improvement or unstable → CLOSE AMG production path; retain pattern-only result; consider alternative (GPU sparse / domain decomposition).
 
-###### §P8-tune.G1 — AMG 18-cell integrated benchmark
+###### §P8-tune.G1 — AMG 18-cell integrated benchmark [CLOSED-DEFERRED, pending P8-tune.H GPU sparse fallback evaluation]
+
+**Status (2026-06-30)**: Deferred per G0 NO-GO-G0 verdict (see `docs/p8tune/amg_g0_verdict.md` + ADR-0007 §Amendment 2026-06-30). AMG production path is closed at the G0 gate; the integrated 18-cell benchmark is NOT scheduled. Section text below preserved for historical context and for re-activation if P8-tune.H GPU sparse fallback evaluation re-opens the AMG path.
 
 **Goal**: verify pattern-only 78 ms setup / 18 ms apply advantage translates to real SHUD integrated wall reduction.
 
@@ -2650,7 +2654,9 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 - wall pass → enter §P8-tune.G2 A5.
 - wall fail → AMG NOT into production; consider GPU sparse / domain decomposition (§P8-tune.H fallback).
 
-###### §P8-tune.G2 — A5 hydrology equivalence
+###### §P8-tune.G2 — A5 hydrology equivalence [CLOSED-DEFERRED, pending P8-tune.H GPU sparse fallback evaluation]
+
+**Status (2026-06-30)**: Deferred per G0 NO-GO-G0 verdict (see `docs/p8tune/amg_g0_verdict.md` + ADR-0007 §Amendment 2026-06-30). G1 18-cell benchmark prerequisite is not run; A5 hydrology equivalence on AMG is therefore not exercised. Section text below preserved for historical context.
 
 **Goal**: verify AMG trajectory drift is hydrologically acceptable on the cases where G1 wall improvement is shown.
 
