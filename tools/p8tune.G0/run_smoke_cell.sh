@@ -162,9 +162,19 @@ fi
 mkdir -p "${RUN_DIR_RESOLVED}"
 CELL_OUT="${RUN_DIR_RESOLVED}/cell-${CELL}.out"
 CELL_ERR="${RUN_DIR_RESOLVED}/cell-${CELL}.err"
-echo "run_dir:         ${RUN_DIR_RESOLVED}"
-echo "cell_out:        ${CELL_OUT}"
-echo "cell_err:        ${CELL_ERR}"
+
+# PR-B (#411 task 7.2): export SHUD_TELEMETRY_TSV per-cell so shud_omp
+# drains the wrapper's ring buffer on shutdown (see SHUD/src/Model/shud.cpp
+# coupled-path drain hook). The drain is a no-op when SHUD_LINSOL!=amg
+# (DrainTelemetry probes the LS opaque getid and returns 0 for non-AMG
+# wrappers). Tee-output ${CELL_OUT} is the cell stdout sidecar; the TSV
+# is a separate per-cell artifact picked up by aggregate_g0_smoke.sh.
+export SHUD_TELEMETRY_TSV="${RUN_DIR_RESOLVED}/cell-${CELL}.telemetry.tsv"
+
+echo "run_dir:           ${RUN_DIR_RESOLVED}"
+echo "cell_out:          ${CELL_OUT}"
+echo "cell_err:          ${CELL_ERR}"
+echo "telemetry_tsv:     ${SHUD_TELEMETRY_TSV}"
 echo ""
 
 # ---------- Binary preflight -----------------------------------------------
