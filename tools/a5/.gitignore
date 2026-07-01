@@ -1,0 +1,12 @@
+# A5 tool — scoped ignores.
+# uv creates the venv here on `uv sync`; do not commit it.
+.venv/
+# pytest / build byproducts.
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+# Fixture .dat files are regenerated deterministically by conftest.py on
+# first test run; committing them would be redundant and platform-specific
+# (endianness is fixed but we prefer text-only diffs in review).
+tests/fixtures/*.dat

@@ -1,0 +1,47 @@
+# A5 hydrology-acceptance thresholds (default).
+#
+# Consumed by tools/a5 CLI. Each entry maps a metric name to bounds and
+# a weight in [0, 1]. Overall PASS requires:
+#   1. Weighted score (sum(w*pass) / sum(w)) >= 0.85
+#   2. No metric with weight >= 0.75 individually fails
+#
+# Per-metric families:
+#   min-only:      nse, kge                    -> value >= min is PASS
+#   max-only:      monthly_bias_mae,           -> value <= max is PASS
+#                  water_balance_residual
+#   interval:      peak_magnitude_ratio,       -> min <= value <= max is PASS
+#                  runoff_volume_ratio
+#   abs-max:       peak_timing_offset          -> |value| <= max_abs_steps is PASS
+#
+# Rationale: values calibrated to SHUD daily-output cadence over a 90-day
+# run window (per CLAUDE.md project-wide 90-day truncation).
+
+nse:
+  min: 0.90        # NSE >= 0.90 is "acceptable"; NSE >= 0.95 is "excellent"
+  weight: 1.0
+
+kge:
+  min: 0.85
+  weight: 1.0
+
+peak_magnitude_ratio:
+  min: 0.90
+  max: 1.10
+  weight: 0.75
+
+peak_timing_offset:
+  max_abs_steps: 4   # tolerate +/-4 timesteps (1-2 days at 6-12h output cadence)
+  weight: 0.5
+
+runoff_volume_ratio:
+  min: 0.97
+  max: 1.03
+  weight: 1.0
+
+monthly_bias_mae:
+  max: 0.05          # 5% mean absolute error on monthly totals
+  weight: 0.5
+
+water_balance_residual:
+  max: 0.05
+  weight: 0.75
