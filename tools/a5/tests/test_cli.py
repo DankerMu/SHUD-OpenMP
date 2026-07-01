@@ -170,3 +170,94 @@ def test_cli_help_smoke() -> None:
     assert result.returncode == 0
     assert "hydrology-acceptance" in result.stdout.lower()
     assert "--reference" in result.stdout
+
+
+# ---------- PR-Y2: water_balance fallback wiring at CLI layer ---------------
+
+
+def test_cli_water_balance_falls_back_to_nan_without_mesh_metadata_pr_y2(
+    paired_case_dirs, capsys, tmp_path: Path
+) -> None:
+    """CLI end-to-end: without mesh metadata (.sp / .att / .mesh) in the
+    reference tree, water_balance_residual must be reported as NaN and the
+    overall verdict PASSes (informational-downgrade path per PR-Y2).
+
+    Regression pin: pre-PR-Y2 this run produced a spurious ~1e13
+    water_balance_residual and overall FAIL (a5_weighted_score=0.8636).
+    """
+    ref_dir, cand_dir = paired_case_dirs
+    out_dir = tmp_path / "a5-report-y2"
+    cfg = Path(__file__).parent.parent / "config" / "a5_thresholds.default.yaml"
+
+    rc = main(
+        [
+            "--reference",
+            str(ref_dir),
+            "--candidate",
+            str(cand_dir),
+            "--config",
+            str(cfg),
+            "--case-name",
+            "syn_y2",
+            "--out",
+            str(out_dir),
+        ]
+    )
+    stdout = capsys.readouterr().out
+    assert rc == 0, f"expected PASS exit 0 under PR-Y2 fallback; got {rc}"
+    # MARKER emitted with water_balance_residual=NaN
+    assert "water_balance_residual=NaN" in stdout
+    assert "verdict=PASS" in stdout
+
+    # Report JSON: water_balance_residual value = "NaN" (JSON sentinel),
+    # pass=True (informational), and status="unavailable_no_mesh_metadata".
+    payload = json.loads((out_dir / "a5_metrics.json").read_text())
+    wb = payload["metrics"]["water_balance_residual"]
+    assert wb["value"] == "NaN"
+    assert wb["pass"] is True
+    assert wb["status"] == "unavailable_no_mesh_metadata"
+    # Overall verdict PASS + weighted_score reflects other metrics only.
+    assert payload["overall"]["verdict"] == "PASS"
+    assert payload["overall"]["weighted_score"] > 0.85
+
+
+def test_cli_water_balance_never_emits_1e13_scale_nonsense_pr_y2(
+    paired_case_dirs, capsys, tmp_path: Path
+) -> None:
+    """Regression pin: no CLI invocation should ever emit a
+    water_balance_residual anywhere near the pre-Y2 1e13 blowup.
+
+    This assertion holds unconditionally under PR-Y2 because the CLI
+    either (a) emits NaN via the fallback, or (b) emits a finite bounded
+    residual via the Tier-2 area-weighted computation. In neither branch
+    is the raw metric fed dimensionally inconsistent inputs.
+    """
+    ref_dir, cand_dir = paired_case_dirs
+    out_dir = tmp_path / "a5-report-y2-nonsense"
+    cfg = Path(__file__).parent.parent / "config" / "a5_thresholds.default.yaml"
+
+    rc = main(
+        [
+            "--reference",
+            str(ref_dir),
+            "--candidate",
+            str(cand_dir),
+            "--config",
+            str(cfg),
+            "--case-name",
+            "syn_no_nonsense",
+            "--out",
+            str(out_dir),
+        ]
+    )
+    assert rc in (0, 1)  # do not care about verdict; only that we ran
+    payload = json.loads((out_dir / "a5_metrics.json").read_text())
+    wb_val = payload["metrics"]["water_balance_residual"]["value"]
+    if wb_val == "NaN":
+        return  # NaN fallback → definitionally not 1e13
+    # If a finite value ever appears (Tier-2 path), it must be bounded.
+    assert isinstance(wb_val, (int, float))
+    assert abs(float(wb_val)) < 1000.0, (
+        f"water_balance_residual={wb_val} exceeded PR-Y2 sanity ceiling; "
+        f"the pre-Y2 bug produced 1e13-scale values — regression."
+    )

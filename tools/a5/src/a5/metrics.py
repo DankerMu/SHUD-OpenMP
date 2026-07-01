@@ -177,31 +177,53 @@ def monthly_bias_mae(
 
 
 def water_balance_residual(
-    runoff_out: np.ndarray,
-    precip: np.ndarray,
-    et: np.ndarray,
-    storage_change: np.ndarray,
+    runoff_volume_out: np.ndarray,
+    precip_volume_in: np.ndarray,
+    et_volume_out: np.ndarray,
+    storage_change_volume: np.ndarray,
 ) -> float:
     """Water-balance residual = |Q_out - (P - ET - dS)| summed, divided by total P.
 
-    All four arrays share the same aligned time axis. Each entry is a
-    volume (or volume-flux) in consistent units.
+    All four arrays share the same aligned time axis. **All entries must be
+    volumes in consistent units** (e.g. m^3 per timestep, or mm-km^2 per
+    timestep). Passing rate-like inputs (m/s, mm/hr) mixed with discharge
+    (m^3/s) produces a dimensionally inconsistent result that can trivially
+    blow up to arbitrarily large magnitudes; this contract makes the caller
+    responsible for the unit reconciliation (typically via area-weighting).
 
-        residual = |sum(runoff_out) - (sum(precip) - sum(et) - sum(storage_change))|
-                   / sum(precip)
+    Semantic:
+
+        residual = |sum(runoff_volume_out)
+                    - (sum(precip_volume_in) - sum(et_volume_out)
+                       - sum(storage_change_volume))|
+                   / sum(precip_volume_in)
 
     Ideal <= 0.05 (5% closure error).
 
-    Returns NaN when total precipitation is 0.
+    Args:
+        runoff_volume_out:     [volume]/step, outlet discharge integrated over dt
+                               (i.e. m^3 per timestep at basin outlet).
+        precip_volume_in:      [volume]/step, precipitation area-integrated
+                               over the basin (i.e. sum over elements of
+                               rate * element_area * dt).
+        et_volume_out:         [volume]/step, evapotranspiration area-integrated.
+        storage_change_volume: [volume]/step, delta of subsurface storage
+                               integrated over the basin (i.e. sum over
+                               elements of dGW * area * porosity).
+
+    Returns:
+        Dimensionless closure residual as float; NaN when total precipitation
+        volume is 0.
     """
-    q = np.asarray(runoff_out, dtype=np.float64)
-    p = np.asarray(precip, dtype=np.float64)
-    e = np.asarray(et, dtype=np.float64)
-    ds = np.asarray(storage_change, dtype=np.float64)
+    q = np.asarray(runoff_volume_out, dtype=np.float64)
+    p = np.asarray(precip_volume_in, dtype=np.float64)
+    e = np.asarray(et_volume_out, dtype=np.float64)
+    ds = np.asarray(storage_change_volume, dtype=np.float64)
     shapes = {q.shape, p.shape, e.shape, ds.shape}
     if len(shapes) != 1:
         raise ValueError(
-            "runoff_out, precip, et, storage_change must all share the same shape; "
+            "runoff_volume_out, precip_volume_in, et_volume_out, "
+            "storage_change_volume must all share the same shape; "
             f"got {q.shape}, {p.shape}, {e.shape}, {ds.shape}"
         )
     total_p = float(p.sum())

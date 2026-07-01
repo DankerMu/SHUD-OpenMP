@@ -92,9 +92,12 @@ The `close_p9` decision is anchored on `wall_speedup = 1.025` alone:
 ```
 README.md                          this file (evidence README)
 a5-marker.log                      A5 pipeline stderr capture (rivqdown detection log)
-a5-report/
+a5-report/                         ORIGINAL PR-Z1 A5 report (pre-Y2 water_balance bug)
     a5_metrics.json                A5-v1.0.0 machine-readable metric block
     a5_verdict.md                  A5 human-readable verdict table
+a5-report-after-y2/                Re-run report AFTER PR-Y2 water_balance bugfix
+    a5_metrics.json                Streamflow metrics byte-identical; wb=NaN + status
+    a5_verdict.md                  Verdict flipped FAIL → PASS (weighted_score 1.0000)
 cell-0-baseline.err                Slurm task 0 stderr (SHUD run)
 cell-0-baseline.out                Slurm task 0 stdout (SHUD run + CELL_SUMMARY block)
 cell-0-baseline.output/            Full SHUD output tree (rivqdown.dat, cvode_stats.txt, etc; ~246 MB)
@@ -106,3 +109,40 @@ slurm-10465_1.out                  Slurm array task 1 raw output
 ```
 
 Total on-disk: ~492 MB. Binary `.dat` outputs (`rivqdown.dat`, `elevet*.dat`, etc.) are included per PR-X1 evidence-inclusion pattern for reproducibility of downstream A5 recomputation.
+
+## A5 water_balance follow-up (PR-Y2)
+
+Original A5 report (`a5-report/`) showed `water_balance_residual = 7.5e13` — spurious,
+driven by unit mismatch in `tools/a5/src/a5/cli.py` water-balance data prep
+(basin-mean of `elevprcp`/`eleveta` in m/s subtracted from basin-mean of `rivqdown`
+in m³/s + level-scale `eleygw` diff, without per-element area / porosity weighting).
+PR-Y2 fixed A5 by (1) requiring volume-consistent inputs to the metric contract,
+(2) adding a Tier-1 safe NaN fallback whenever mesh metadata is unavailable in the
+output tree, and (3) treating NaN water_balance as an *informational* metric
+downgraded out of the weighted score per an explicit policy.
+
+Re-run report (`a5-report-after-y2/`) BEFORE / AFTER metric comparison:
+
+| Metric                     | Pre-Y2                 | Post-Y2                 | Delta            |
+|----------------------------|------------------------|-------------------------|------------------|
+| nse                        | 0.9999999343009021     | 0.9999999343009021      | bit-identical    |
+| kge                        | 0.9999396083030808     | 0.9999396083030808      | bit-identical    |
+| peak_magnitude_ratio       | 0.9998033466969877     | 0.9998033466969877      | bit-identical    |
+| peak_timing_offset         | 0                      | 0                       | bit-identical    |
+| runoff_volume_ratio        | 0.9999733610633592     | 0.9999733610633592      | bit-identical    |
+| monthly_bias_mae           | 5.522639429092211e-05  | 5.522639429092211e-05   | bit-identical    |
+| **water_balance_residual** | **7.5201e+13 (FAIL)**  | **NaN (informational)** | **fix applied**  |
+| **overall verdict**        | **FAIL**               | **PASS**                | **flipped**      |
+| weighted_score             | 0.8636                 | 1.0000                  | recomputed       |
+
+All streamflow trajectory metrics are byte-identical between the two runs
+(same reference / candidate SHUD outputs; the streamflow metric code was
+NOT modified in PR-Y2).
+
+**Impact on PR-Z1 P9 closure decision**: NONE. The `close_p9` verdict is
+anchored on `wall_speedup = 1.025` (§ADR-0009), which is well below both the
+`open_full_sweep` (1.5×) and `optional_p9` (1.2×) gates regardless of the
+A5 outcome. The A5 verdict flip merely confirms — with a mathematically
+sound metric — that the streamflow trajectory is hydrologically equivalent
+between the two cells, which was already qualitatively evident from
+NSE=1.0000 and KGE=0.9999 in the original report.

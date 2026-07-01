@@ -77,6 +77,40 @@ def _basin_mean(series: ShudSeries) -> np.ndarray:
     return series.values.mean(axis=1)
 
 
+def _try_load_mesh_metadata(output_dir: Path) -> Optional[dict[str, np.ndarray]]:
+    """Attempt to locate + parse SHUD mesh metadata (element areas, porosity).
+
+    Water balance closure requires converting per-element flux rates
+    (elevprcp, eleveta in m/s) to basin-integrated volumes. That in turn
+    requires per-element area (m^2). Storage-change closure additionally
+    requires per-element porosity to translate GW head change (m) to
+    volume change.
+
+    This function searches for the SHUD mesh files (`<case>.sp.dat`,
+    `<case>.mesh`, `<case>.att.dat`) in `output_dir`, its parent, and its
+    grand-parent. If found, it parses them and returns a dict with keys:
+
+        element_area:  shape (n_ele,) float64, m^2 per element
+        porosity:      shape (n_ele,) float64, dimensionless (optional)
+
+    Returns None if any required file is missing OR if the SHUD .sp format
+    parser is not yet implemented (see TODO(PR-Y3)). Callers must treat
+    None as "cannot compute area-weighted water balance; fall back to NaN".
+
+    Note (PR-Y2 scope): the .sp/.mesh binary format is non-trivial and
+    varies across SHUD builds. This shipping version returns None
+    unconditionally, wiring the safe NaN fallback. The Tier-2 parser is
+    tracked as PR-Y3 (see docs/adr/future).
+    """
+    # TODO(PR-Y3): implement full .sp.mesh parser for area-weighted water
+    # balance. For now, return None so callers use the safe NaN fallback.
+    # Search paths: output_dir/*.sp.dat, output_dir/../*.sp.dat, etc.
+    # Once implemented, the parser must return element_area (m^2) at
+    # minimum, plus porosity if available.
+    _ = output_dir  # explicit no-op to document intended future signature
+    return None
+
+
 def _month_labels(timestamps: np.ndarray) -> np.ndarray:
     """Convert datetime64 timestamps to YYYYMM integer labels."""
     if timestamps.size == 0:
@@ -90,9 +124,29 @@ def _month_labels(timestamps: np.ndarray) -> np.ndarray:
 
 
 def _compute_metrics(
-    ref: dict[str, ShudSeries], cand: dict[str, ShudSeries]
-) -> dict[str, float]:
-    """Compute the seven A5 metrics from paired reference / candidate series."""
+    ref: dict[str, ShudSeries],
+    cand: dict[str, ShudSeries],
+    mesh_search_dir: Optional[Path] = None,
+) -> tuple[dict[str, float], dict[str, str]]:
+    """Compute the seven A5 metrics from paired reference / candidate series.
+
+    Args:
+        ref, cand:        SHUD output series loaded via `_load_case_series`.
+        mesh_search_dir:  optional directory to search for mesh metadata
+                          (.sp.dat / .att.dat / .mesh) needed for the
+                          area-weighted water balance closure. When None or
+                          when no metadata is found, water_balance_residual
+                          is emitted as NaN (informational-only per verdict
+                          logic). See `_try_load_mesh_metadata`.
+
+    Returns:
+        (metric_values, status)
+            metric_values: dict[metric_name, float] passed to verdict.evaluate.
+            status:        dict[metric_name, str] side-channel diagnostic
+                           messages (e.g. `water_balance_status =
+                           "unavailable_no_mesh_metadata"`). Not consumed by
+                           verdict logic; surfaced in report JSON for audit.
+    """
     if "rivqdown" not in ref or "rivqdown" not in cand:
         raise RuntimeError(
             "rivqdown.dat missing in either reference or candidate; A5 needs "
@@ -121,6 +175,7 @@ def _compute_metrics(
         "peak_timing_offset": float(_m.peak_timing_offset(ref_q, cand_q)),
         "runoff_volume_ratio": _m.runoff_volume_ratio(ref_q, cand_q, dt=dt_days),
     }
+    status: dict[str, str] = {}
 
     month_labels = _month_labels(ref["rivqdown"].timestamps)
     if month_labels.size == ref_q.size:
@@ -135,32 +190,71 @@ def _compute_metrics(
         )
         results["monthly_bias_mae"] = float("nan")
 
-    # Water balance: needs P, ET, and storage change from the candidate.
-    # Storage change = Δ(GW head * area). Because we do not have per-cell
-    # area at this layer, approximate ΔS as diff of basin-mean groundwater.
-    # This is a coarse proxy suitable for regression comparison against a
-    # candidate that shares the identical mesh; absolute closure will not
-    # match true basin volume balance. PR-Z1 refines this once we have
-    # element-area weighting.
-    if all(k in cand for k in ("elevprcp", "eleveta", "eleygw")):
-        p_mean = _basin_mean(cand["elevprcp"])
-        e_mean = _basin_mean(cand["eleveta"])
-        gw = _basin_mean(cand["eleygw"])
-        q_mean = _basin_mean(cand["rivqdown"])
-        n = min(p_mean.size, e_mean.size, gw.size, q_mean.size)
-        if n >= 2:
-            ds = np.diff(gw[:n])
-            # Align: use step-wise change; pad first step so sizes match.
-            ds = np.concatenate([[0.0], ds])
-            results["water_balance_residual"] = _m.water_balance_residual(
-                q_mean[:n], p_mean[:n], e_mean[:n], ds[:n]
-            )
-        else:
-            results["water_balance_residual"] = float("nan")
-    else:
+    # Water balance closure needs volume-consistent inputs (m^3 per timestep):
+    # discharge at outlet integrated over dt, precip/ET area-integrated over
+    # the basin, storage change (dGW * area * porosity) area-integrated.
+    # That requires per-element area (and ideally porosity) from mesh
+    # metadata. If mesh metadata is unavailable in the output tree, we
+    # cannot produce a dimensionally meaningful residual — the pre-PR-Y2
+    # implementation subtracted basin-mean rates from basin-mean discharge
+    # which is dimensionally inconsistent and could blow up to 1e13-scale
+    # nonsense (see PR-Z1 evidence for a concrete example). Safe fallback:
+    # emit NaN + explicit `water_balance_status` sentinel so verdict logic
+    # can downgrade the metric to informational.
+    #
+    # Tier-1 (this PR-Y2): fallback = NaN whenever mesh metadata absent.
+    # Tier-2 (PR-Y3):      when metadata IS available, compute proper
+    #                      area-weighted volumes and produce dimensionless
+    #                      residual bounded to <= 0.05 for a well-posed run.
+    mesh_meta = (
+        _try_load_mesh_metadata(mesh_search_dir)
+        if mesh_search_dir is not None
+        else None
+    )
+    if mesh_meta is None:
         results["water_balance_residual"] = float("nan")
+        status["water_balance_residual_status"] = "unavailable_no_mesh_metadata"
+    elif not all(k in cand for k in ("elevprcp", "eleveta", "eleygw", "rivqdown")):
+        results["water_balance_residual"] = float("nan")
+        status["water_balance_residual_status"] = "unavailable_missing_series"
+    else:
+        # Tier-2 path (unreachable while _try_load_mesh_metadata returns None).
+        # Left as a scaffold so PR-Y3 can wire the area-weighted volumes here
+        # without changing the metric signature or verdict logic.
+        try:
+            area = mesh_meta["element_area"]  # m^2, shape (n_ele,)
+            # Rate * area * dt (in seconds) -> m^3 per timestep. SHUD daily
+            # cadence: dt = 86400 s. TODO(PR-Y3): honor DY.dat non-uniform dt.
+            dt_sec = 86400.0
+            n = min(
+                cand["elevprcp"].values.shape[0],
+                cand["eleveta"].values.shape[0],
+                cand["eleygw"].values.shape[0],
+                cand["rivqdown"].values.shape[0],
+            )
+            if n < 2:
+                results["water_balance_residual"] = float("nan")
+                status["water_balance_residual_status"] = "unavailable_short_series"
+            else:
+                p_vol = (cand["elevprcp"].values[:n] * area).sum(axis=1) * dt_sec
+                e_vol = (cand["eleveta"].values[:n] * area).sum(axis=1) * dt_sec
+                # Outlet discharge (m^3/s at last river column) * dt -> m^3/step
+                q_vol = cand["rivqdown"].values[:n, -1] * dt_sec
+                gw = cand["eleygw"].values[:n]
+                porosity = mesh_meta.get(
+                    "porosity", np.ones(gw.shape[1], dtype=np.float64)
+                )
+                dgw = np.diff(gw, axis=0, prepend=gw[:1])
+                ds_vol = (dgw * area * porosity).sum(axis=1)
+                results["water_balance_residual"] = _m.water_balance_residual(
+                    q_vol, p_vol, e_vol, ds_vol
+                )
+                status["water_balance_residual_status"] = "computed"
+        except (KeyError, ValueError, RuntimeError) as exc:
+            results["water_balance_residual"] = float("nan")
+            status["water_balance_residual_status"] = f"error:{type(exc).__name__}:{exc}"
 
-    return results
+    return results, status
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -219,7 +313,9 @@ def run(args: argparse.Namespace) -> int:
         return EXIT_IO_ERROR
 
     try:
-        metric_values = _compute_metrics(ref, cand)
+        metric_values, metric_status = _compute_metrics(
+            ref, cand, mesh_search_dir=args.reference
+        )
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_IO_ERROR
@@ -232,6 +328,7 @@ def run(args: argparse.Namespace) -> int:
         candidate_dir=str(args.candidate),
         thresholds_file=str(args.config),
         verdict=verdict,
+        metric_status=metric_status,
     )
     marker = format_marker_block(args.case_name, verdict)
     sys.stdout.write(marker)

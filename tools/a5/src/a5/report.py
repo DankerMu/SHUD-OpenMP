@@ -28,17 +28,31 @@ def build_metrics_json(
     candidate_dir: str,
     thresholds_file: str,
     verdict: OverallVerdict,
+    metric_status: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Assemble the a5_metrics.json payload."""
+    """Assemble the a5_metrics.json payload.
+
+    Args:
+        metric_status: optional side-channel dict of diagnostic strings keyed
+            by metric name (e.g. `water_balance_status =
+            "unavailable_no_mesh_metadata"`). Merged into each metric's block
+            under a `status` field; absent when the metric has no status.
+    """
     metrics_block: dict[str, dict[str, Any]] = {}
     for name, r in verdict.per_metric.items():
-        metrics_block[name] = {
+        entry: dict[str, Any] = {
             "value": _sanitize(r.value),
             "pass": bool(r.passed),
             "threshold": r.threshold,
             "weight": r.weight,
             "reason": r.reason,
         }
+        # Water balance follow-up (PR-Y2): if the metric has a side-channel
+        # status message (e.g. "unavailable_no_mesh_metadata"), attach it.
+        status_key = f"{name}_status"
+        if metric_status and status_key in metric_status:
+            entry["status"] = metric_status[status_key]
+        metrics_block[name] = entry
     return {
         "schema_version": "A5-v1.0.0",
         "case": case,
@@ -121,6 +135,7 @@ def write_reports(
     candidate_dir: str,
     thresholds_file: str,
     verdict: OverallVerdict,
+    metric_status: dict[str, str] | None = None,
 ) -> tuple[Path, Path]:
     """Write a5_metrics.json + a5_verdict.md into out_dir."""
     out_dir = Path(out_dir)
@@ -134,6 +149,7 @@ def write_reports(
         candidate_dir=candidate_dir,
         thresholds_file=thresholds_file,
         verdict=verdict,
+        metric_status=metric_status,
     )
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, sort_keys=False)
