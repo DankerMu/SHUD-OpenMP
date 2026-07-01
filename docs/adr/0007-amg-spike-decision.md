@@ -309,6 +309,30 @@ This amendment does **not** modify ADR-0007 §Status bullet at L3 (`- **Status**
 
 See: `docs/p8tune/amg_g0_verdict.md` (verdict source-of-truth); `docs/p8tune/p8tune_g0_academic_summary.md` (academic framing); `SHUD_openMP_master_plan.md` §P8-tune.G0 (anchor close).
 
+### Amendment 2026-06-30 — G0-RCA outcome (PR-X1 #420)
+
+PR-X1 #420 tested the one remaining hypothesis for AMG path rescue: that the G0
+NO-GO `ncfn=100138` Newton-control-failure explosion was caused by Hypre solve
+tolerance (`SHUD_AMG_TOL`) + CVODE EpsLin (`SHUD_CVODE_EPSLIN`) mismatch.
+
+An 8-cell heihe_x4 90-day Slurm array (job 10248) swept `AMG_TOL ∈ {1e-7, 1e-9,
+1e-11, 1e-13}` × `EpsLin ∈ {0.05 default, 0.005}`. Outcome:
+
+| Metric  | Range across all 5 completed cells | G0 baseline | SPGMR baseline |
+|---------|-----------------------------------|-------------|----------------|
+| `ncfn`  | 98,286 – 104,795                  | 100,138     | 49             |
+| `nst`   | 251,883 – 257,610                 | 254,756     | 6,572          |
+| `ncfl`  | 0 across all                      | 0           | 0              |
+
+**Hypothesis REFUTED.** Across 4 orders-of-magnitude in `AMG_TOL` × 10× change in
+`EpsLin`, `ncfn` stays in a tight 6% window. Hypre/CVODE inner-solve tolerance
+has zero leverage on outer Newton control failure rate. The ncfn explosion is
+intrinsic to the CVODE outer Newton + step controller when AMG replaces SPGMR.
+
+This closes the AMG path as a CPU-side production option. Combined with the G0
+verdict, the full P8 solver-substitution research line is now closed; see
+**ADR-0008** for the consolidated closure decision.
+
 ---
 
 ## References
