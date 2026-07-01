@@ -2594,9 +2594,9 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 
 **Anchor**: ADR-0007 §Forward action + §Forward action Amendment 2026-06-29 block (canonical reference); ADR-0007 §Consequences §Negative item 1 (Axis 4 instrumentation issue, demoted to hierarchy-quality diagnostic).
 
-###### §P8-tune.G0 — Axis-4 telemetry + integrated AMG smoke [CLOSED]
+###### §P8-tune.G0 — Axis-4 telemetry + integrated AMG smoke [CLOSED-FINAL post-G0-RCA per PR #420 + ADR-0008 (2026-06-30)]
 
-**Verdict (2026-06-30)**: [NO-GO-G0 verdict 2026-06-30; AMG production path closed per ADR-0007 §Decision + Amendment 2026-06-30; see `docs/p8tune/amg_g0_verdict.md`; P8-tune.H GPU sparse fallback may be invoked]
+**Verdict (2026-06-30, post-PR-X1 #420)**: [CLOSED-FINAL — G0 NO-GO confirmed by PR-X1 G0-RCA tolerance × EpsLin matrix; H4 hypothesis (tolerance mismatch as ncfn root cause) REFUTED across 4 orders-of-magnitude in `SHUD_AMG_TOL` × 10× in `SHUD_CVODE_EPSLIN`; ncfn ∈ [98,286, 104,795] window vs SPGMR baseline 49; AMG path fully closed per **ADR-0008 (2026-06-30)** consolidating §P8-tune.{B,C,D,E,F,G0} solver-substitution research line closure. ADR-0007 §Status + §Decision preserved byte-identical (Amendment 2026-06-30 — G0-RCA outcome appended at end of §Forward action). See `docs/p8tune/amg_g0_verdict.md` (G0 verdict) + `docs/p8tune/p8_retrospective_academic_summary.md` (PR-X2 academic retrospective). `SHUD_LINSOL=amg` opt-in research knob remains in codebase; production CPU baseline = P1e StrictOMP RHS + `SHUD_SPGMR_MAXL=30` small-case opt-in.]
 
 **Goal**: eliminate the hard-coded Axis 4 estimate AND verify SUNLinSol_Hypre/CVODE integration works end-to-end.
 
@@ -2626,9 +2626,9 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 - integrated wall improves → enter §P8-tune.G1.
 - no improvement or unstable → CLOSE AMG production path; retain pattern-only result; consider alternative (GPU sparse / domain decomposition).
 
-###### §P8-tune.G1 — AMG 18-cell integrated benchmark [CLOSED-DEFERRED, pending P8-tune.H GPU sparse fallback evaluation]
+###### §P8-tune.G1 — AMG 18-cell integrated benchmark [CLOSED-FINAL — G0-RCA refuted the only remaining AMG-rescue hypothesis; AMG path fully closed per ADR-0008 (2026-06-30)]
 
-**Status (2026-06-30)**: Deferred per G0 NO-GO-G0 verdict (see `docs/p8tune/amg_g0_verdict.md` + ADR-0007 §Amendment 2026-06-30). AMG production path is closed at the G0 gate; the integrated 18-cell benchmark is NOT scheduled. Section text below preserved for historical context and for re-activation if P8-tune.H GPU sparse fallback evaluation re-opens the AMG path.
+**Status (2026-06-30, post-PR-X1 #420)**: Closed FINAL. The prior `[CLOSED-DEFERRED, pending P8-tune.H GPU sparse fallback]` framing is superseded — PR-X1 G0-RCA tolerance × EpsLin matrix refuted the last viable AMG-rescue hypothesis (ncfn-driven nst inflation is NOT addressable by inner-solve tolerance tuning). Combined with the G0 verdict, the integrated 18-cell benchmark is permanently NOT scheduled; AMG productionization is closed per **ADR-0008 (2026-06-30)** consolidating §P8-tune.{B,C,D,E,F,G0} solver-substitution research line closure. Section text below preserved for historical context and as a template for any future architectural-substrate spike that warrants integrated CVODE benchmarking.
 
 **Goal**: verify pattern-only 78 ms setup / 18 ms apply advantage translates to real SHUD integrated wall reduction.
 
@@ -2654,9 +2654,9 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 - wall pass → enter §P8-tune.G2 A5.
 - wall fail → AMG NOT into production; consider GPU sparse / domain decomposition (§P8-tune.H fallback).
 
-###### §P8-tune.G2 — A5 hydrology equivalence [CLOSED-DEFERRED, pending P8-tune.H GPU sparse fallback evaluation]
+###### §P8-tune.G2 — A5 hydrology equivalence [CLOSED-FINAL — G0-RCA refuted the only remaining AMG-rescue hypothesis; AMG path fully closed per ADR-0008 (2026-06-30)]
 
-**Status (2026-06-30)**: Deferred per G0 NO-GO-G0 verdict (see `docs/p8tune/amg_g0_verdict.md` + ADR-0007 §Amendment 2026-06-30). G1 18-cell benchmark prerequisite is not run; A5 hydrology equivalence on AMG is therefore not exercised. Section text below preserved for historical context.
+**Status (2026-06-30, post-PR-X1 #420)**: Closed FINAL. The prior `[CLOSED-DEFERRED, pending P8-tune.H GPU sparse fallback]` framing is superseded — G1 18-cell benchmark prerequisite is permanently not scheduled (per §P8-tune.G1 closure above); A5 hydrology equivalence on AMG is therefore permanently not exercised under any AMG variant. The A5 indicator framework (NSE / KGE / peak magnitude / peak timing / runoff / water-balance) is **NOT** abandoned, however — it is moved to standalone infrastructure scope under new **§A5-infra** anchor (PR-Y1, see below), decoupled from any specific solver substrate so future acceleration tiers can be validated. Section text below preserved for historical context and as a methodology template that the standalone §A5-infra epic will adapt.
 
 **Goal**: verify AMG trajectory drift is hydrologically acceptable on the cases where G1 wall improvement is shown.
 
@@ -2680,7 +2680,93 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 
 **Scope notes**:
 - This three-gate §G sequence is **separate** from the verdict_branch-mapped G/H epics defined in spec REQ-7 Scenario "Conditional next-epic anchor per verdict_branch" (which are SUSPENDED until G2 passes or fails — see §P8-tune.F closure §Forward action revised paragraph).
-- §P8-tune.H GPU sparse spike is NOT scheduled by this PR-D; consider only as fallback if §G1 wall fails or §G2 A5 fails.
+- §P8-tune.H GPU sparse spike — see §P8-tune.H below; CLOSED-FINAL per ADR-0008 (2026-06-30); GPU substrate is NOT pursued per PR-X1 user direction.
+
+###### §P8-tune.H — GPU sparse / domain-decomposition fallback [CLOSED-FINAL — GPU substrate NOT pursued per ADR-0008 (2026-06-30)]
+
+**Status (2026-06-30, post-PR-X1 #420)**: Closed FINAL. The prior `[fallback if §G1 wall fails or §G2 A5 fails]` framing is superseded — PR-X1 G0-RCA refuted the AMG inner-tolerance rescue hypothesis, and the user direction at PR-X1 closure mandates CPU-first acceleration with GPU explicitly deferred indefinitely. §P8-tune.H GPU sparse spike (e.g., cuSPARSE direct, Hypre `cusparse_use=1`, GPU AMG mixed-precision) is permanently NOT scheduled by this closure per **ADR-0008 (2026-06-30)** §Decision + §Forward action item 4 (GPU NOT pursued).
+
+**Re-opening criteria** (documented for completeness; require new ADR-NNNN):
+- Fresh GPU hardware audit (cn-nodes lack GPU; `gn01` partition is single-node and at risk of resource contention) + cost-benefit analysis vs CPU §P9 + §P10 forward paths.
+- Empirical evidence that the SHUD hydrology BDF/Newton outer-loop control-failure mode (ncfn ≈ 100k under AMG; see PR-X1 evidence) does NOT recur on GPU sparse substrate — likely requires upstream Hypre or SUNDIALS work outside this project's scope.
+
+##### §A5-infra — Hydrology-Acceptance Validation Pipeline (standalone infra, PR-Y1 anchor) [OPEN, HIGH priority per ADR-0008 (2026-06-30)]
+
+**Anchor**: ADR-0008 §Forward action item 1 (PR-Y1). Anchored 2026-06-30 in PR-X2.
+
+**Scope**: standalone NSE / KGE / peak-magnitude / peak-timing / runoff / water-balance metric extraction pipeline, **decoupled from any solver substrate**. Usable as the hydrology-acceptance gate for ANY future acceleration tier (P9 SPGMR policy tuning, P10 decomposition, future architectural-substrate spikes if any).
+
+**Rationale**: §P8-tune.G2 (A5 hydrology equivalence) was originally scoped as AMG-specific A5 gate; per ADR-0008 closure of solver-substitution research line, the A5 indicator framework outlives the AMG-specific scope and warrants standalone infrastructure. PR-Y1 lifts the A5 indicator framework from the (now CLOSED-FINAL) G2 anchor and re-packages it as solver-agnostic infrastructure.
+
+**Indicator framework** (inherited from §P8-tune.G2 indicator table, formalized as a reusable spec):
+
+| Indicator | Threshold | Status |
+|---|---|---|
+| total runoff volume Δ | ≤ 1-3% vs reference | gate |
+| water balance residual | NOT degraded vs reference | gate |
+| daily NSE / KGE | ≥ 0.95 vs reference | gate |
+| peak magnitude Δ | ≤ 5-10% vs reference | gate |
+| peak timing | ≤ 1 output interval vs reference | gate |
+| zero/nonzero mismatch | documented (not single-blocker) | diagnostic |
+| low-flow relerr | stratified, NOT mixed with flood peak | diagnostic |
+
+**PR-Y1 deliverables** (forthcoming openspec change `a5-infra-pipeline`, ~2-3 PR sequence, estimated 2-3 weeks budget):
+
+| PR | scope | depends on |
+|---|---|---|
+| PR-0 | Metric extraction tooling — read paired `*.rivqdown.dat` + `*.stage.dat`; compute NSE/KGE/peak/timing/runoff/water-balance KV-block per case; emit machine-readable `a5_indicators.tsv` + per-case PASS/FAIL verdict | None (standalone) |
+| PR-A | Reference fixture generation — pin a SPGMR PREC_NONE B1b-tier reference run per case (keliya + heihe + heihe_x4 + heihe_x16); archive under `.review-evidence/a5-infra-pr-a/` as the golden hydrology reference | PR-0 merged |
+| PR-B | Aggregator + capstone — `tools/a5-infra/aggregate_a5_indicators.sh` + reviewer-friendly `docs/a5-infra/a5_indicator_methodology.md` | PR-A merged |
+
+**Out of scope** (PR-Y1): solver substrate (any substrate is valid input to the validation pipeline); cross-platform A5 (Mac libomp vs server libgomp A5 deferred to future epic); long-window production validation (90-day window per project rule, with optional 4-year sample at user request).
+
+**Exit gate**: PR-Y1 capstone with reference fixture pinned + aggregator producing PASS/FAIL verdict per indicator at 4-case smoke. Acts as gating prerequisite for PR-Z1 (§P9) and any future acceleration claim that needs A5 acceptance.
+
+##### §P9 — CVODE Outer-Policy Tuning (Hydrology-Equivalence Spot Check) [OPEN, MEDIUM priority per ADR-0008 (2026-06-30)]
+
+**Anchor**: ADR-0008 §Forward action item 2 (PR-Z1). Anchored 2026-06-30 in PR-X2. Depends on §A5-infra (PR-Y1) for validation harness.
+
+**Scope**: bounded sweep of CVODE outer-loop policy parameters on the **existing SPGMR PREC_NONE baseline** (NOT solver substitution). Parameters considered:
+
+- `CVodeSetReltol` — `reltol ∈ {1e-4, 1e-5, 1e-6}`
+- `CVodeSetMaxStep` — `MaxStep ∈ {default, 3600s, 1800s}`
+- `CVodeSetMaxNonlinIters` — `MaxNonlinIters ∈ {3, 4, 5}`
+- `CVodeSetNonlinConvCoef` — `NonlinConvCoef ∈ {0.1, 0.05, 0.01}`
+- `N_VAbstol` vector vs scalar `abstol` — per-state-component tolerance (surface / unsat / GW / river / lake have widely different time constants per §P8-precond.1; vector `abstol` may enable looser tolerance on slow components without trajectory drift)
+
+**Rationale**: P8 solver-substitution research line (ADR-0008) closed without finding a CPU substrate that beats SPGMR. The remaining tunable axis on the existing baseline is the CVODE outer policy — step controller + Newton control + tolerance. PR-X1 evidence shows that `ncfn` (Newton control failure rate) dominates wall scaling on heihe_x4 under AMG; analogously, the SPGMR baseline `ncfn ≈ 49` may have headroom for tighter step control yielding fewer total steps OR looser per-component tolerance yielding faster per-step convergence. PR-Z1 is an upper-bound spot check to settle this question without opening a multi-epic budget.
+
+**PR-Z1 deliverables** (forthcoming openspec change `p9-cvode-policy-spot-check`, ~1-2 PR sequence, estimated 1-2 weeks budget):
+
+| PR | scope | depends on |
+|---|---|---|
+| PR-0 | Env-var hooks in `cvode_config.cpp` for the 5 axes (`SHUD_CVODE_RELTOL` / `SHUD_CVODE_MAX_STEP` / `SHUD_CVODE_MAX_NONLIN_ITERS` / `SHUD_CVODE_NONLIN_CONV_COEF` / `SHUD_CVODE_ABSTOL_VECTOR`); default behavior preserved (zero env → zero change) | PR-Y1 PR-A merged (reference fixture available) |
+| PR-A | Server Slurm array spot check on heihe_x4 — small grid sweep (~12-24 cells) covering meaningful axis combinations; emit wall + nst + ncfn + ncfl + nfe + nli per cell; validate trajectory under PR-Y1 §A5-infra | PR-0 merged + PR-Y1 PR-A merged |
+| PR-B | Aggregator + capstone + ADR-NNNN — verdict GO (≥ 1.5× wall improvement under A5 PASS) / Optional (gain but A5 borderline) / NO-GO (no gain or A5 fail); update master plan §P9 anchor + trigger §P10 design re-evaluation IF NO-GO | PR-A complete |
+
+**Gate**: ≥ 1.5× heihe_x4 wall improvement under A5 PASS (PR-Y1 reference fixture). Below 1.5× → close §P9 as no-action and re-evaluate §P10 design.
+
+**Out of scope** (PR-Z1): KLU / AMG / GPU substrate (closed per ADR-0005 / ADR-0007 / ADR-0008); A5 hydrology equivalence at heihe_x16 (deferred unless PR-A heihe_x4 verdict is borderline and motivates wider validation); cross-platform A5 (per §A5-infra out-of-scope).
+
+##### §P10 — CPU Domain Decomposition (DESIGN-ONLY) [DESIGN-ONLY anchor per ADR-0008 (2026-06-30)]
+
+**Anchor**: ADR-0008 §Forward action item 3. Anchored 2026-06-30 in PR-X2. NO implementation commitment.
+
+**Scope (DESIGN-ONLY)**: document architectural scoping for SHUD hydrology decomposition without committing to any implementation epic. Candidate decomposition strategies:
+
+- **Subbasin / river-network natural decomposition**: partition the state vector along river segment topology (river upstream subtree + flanking element bands + lake compartments). Inter-subdomain coupling restricted to interface flux fluxes (downstream river outflow + lateral GW connections at subbasin boundary).
+- **Per-subdomain local solver**: each subdomain runs local KLU (per ADR-0005 Case-aware verdict; small subdomains likely satisfy KLU wall budget) OR local SPGMR PREC_NONE with tighter `maxl` since subdomain N is reduced.
+- **Inter-subdomain coupling**: interface flux substitution + outer Schwarz-style iteration OR coarse-grid global correction step.
+
+**Rationale**: ADR-0008 closes solver-substitution research line because SPGMR substitution does not deliver. Decomposition is an **architecture restructuring** path, NOT solver substitution — it preserves SPGMR locally but partitions the problem. If §P9 (PR-Z1 CVODE policy spot check) fails to deliver ≥ 1.5× under A5, §P10 design becomes the highest-priority forward thought; until then, it is design-only.
+
+**Status criteria** (per ADR-0008 §Forward action item 3): NO implementation epic opens until BOTH:
+1. PR-Y1 (§A5-infra) merged with validated reference fixture; AND
+2. PR-Z1 (§P9) returns NO-GO or Optional with no clear improvement path.
+
+If both are satisfied, a new ADR-NNNN authoring epic + decomposition spike epic would be evaluated; until then, this anchor remains DESIGN-ONLY.
+
+**Out of scope** (DESIGN-ONLY): implementation, validation, performance measurement, A5 of any decomposition prototype. Scope = architectural ledger only.
 
 ##### P8-tune.E.small-only — KLU env-var mini-prototype for small cases ([OPEN, anchor — OPTIONAL/medium] per 2026-06-29 + GPT Pro F4)
 
