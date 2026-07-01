@@ -1,0 +1,62 @@
+# JSON Schema (yaml-encoded) for A5 threshold configuration files.
+#
+# Not enforced by an external validator inside a5 (verdict.load_thresholds
+# does hand-rolled checks that produce more actionable error messages),
+# but documented here so editors and CI linting tools can validate
+# threshold files at rest.
+$schema: "http://json-schema.org/draft-07/schema#"
+title: "A5 thresholds"
+type: object
+additionalProperties: false
+properties:
+  nse:
+    type: object
+    required: [min, weight]
+    additionalProperties: false
+    properties:
+      min: { type: number }
+      weight: { type: number, minimum: 0.0, maximum: 1.0 }
+  kge:
+    type: object
+    required: [min, weight]
+    additionalProperties: false
+    properties:
+      min: { type: number }
+      weight: { type: number, minimum: 0.0, maximum: 1.0 }
+  peak_magnitude_ratio:
+    type: object
+    required: [min, max, weight]
+    additionalProperties: false
+    properties:
+      min: { type: number }
+      max: { type: number }
+      weight: { type: number, minimum: 0.0, maximum: 1.0 }
+  peak_timing_offset:
+    type: object
+    required: [max_abs_steps, weight]
+    additionalProperties: false
+    properties:
+      max_abs_steps: { type: number, minimum: 0 }
+      weight: { type: number, minimum: 0.0, maximum: 1.0 }
+  runoff_volume_ratio:
+    type: object
+    required: [min, max, weight]
+    additionalProperties: false
+    properties:
+      min: { type: number }
+      max: { type: number }
+      weight: { type: number, minimum: 0.0, maximum: 1.0 }
+  monthly_bias_mae:
+    type: object
+    required: [max, weight]
+    additionalProperties: false
+    properties:
+      max: { type: number, minimum: 0.0 }
+      weight: { type: number, minimum: 0.0, maximum: 1.0 }
+  water_balance_residual:
+    type: object
+    required: [max, weight]
+    additionalProperties: false
+    properties:
+      max: { type: number, minimum: 0.0 }
+      weight: { type: number, minimum: 0.0, maximum: 1.0 }
