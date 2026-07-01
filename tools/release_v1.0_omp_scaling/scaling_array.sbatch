@@ -129,14 +129,37 @@ fi
 N="${NTHREADS_LIST[${TASK_ID}]}"
 export OMP_NUM_THREADS="${N}"
 
-# HOTFIX 2026-07-01: OMP_NUM_THREADS alone is NOT enough. SHUD ExecPolicy
-# defaults to Serial unless SHUD_ENABLE_OPENMP_RHS=1 (see SHUD src/Model/f.cpp
-# L55-L65 + src/Model/shud.cpp L154-L166). SHUD_RHS_THREADS is the canonical
-# knob for RHS thread count; fall back to omp_get_max_threads() if unset.
-# First scaling run (Slurm 10578) had this missing → all 5 cells wall≈1180s
-# regardless of N (RHS ran serial). Set BOTH env vars to activate StrictOMP.
-export SHUD_ENABLE_OPENMP_RHS=1
+# ROOT-CAUSE 2026-07-01 (Slurm 10578 v1 + 10601 v2 both flat @ ~1180s):
+# SHUD_ENABLE_OPENMP_RHS is a *compile-time* macro (#ifdef in
+# SHUD/src/Model/f.cpp L55-L65 + Makefile L140-158 gate), NOT a runtime env.
+# The default `make shud_omp HYPRE=1` build produces Config A (Serial NVec +
+# Serial RHS) regardless of runtime env, so both v1 (no runtime env) and v2
+# (runtime SHUD_ENABLE_OPENMP_RHS=1 exported) showed no speedup.
+#
+# Fix: rebuild with `make shud_omp SHUD_ENABLE_OPENMP_RHS=1 HYPRE=1 ...`
+# which defines -DSHUD_ENABLE_OPENMP_RHS=1 at compile time and gets Config C
+# (Serial NVec + StrictOMP RHS). Then at runtime SHUD_RHS_THREADS is the
+# canonical RHS thread knob (mode C looks only at this; falls back to
+# omp_get_max_threads() if unset — see SHUD src/Model/shud.cpp L154-L166).
 export SHUD_RHS_THREADS="${N}"
+
+# ---------- PREFLIGHT: verify shud_omp was built with mode C ---------------
+# The `P1e startup: SHUD_RHS_THREADS=...` log-format string only exists in
+# the binary if SHUD_RHS_THREADS_STARTUP_LOG was compiled in — a proxy for
+# `-DSHUD_ENABLE_OPENMP_RHS=1`. If missing, the binary is Config A and
+# scaling would be flat regardless of runtime env; hard-abort so we don't
+# waste another Slurm array on a serial binary.
+SHUD_OMP_BIN="/scratch/frd_muziyao/SHUD-OpenMP/SHUD/shud_omp"
+# NB: use `grep -c ... || true` (count-based) not `grep -q` — with set -uo
+# pipefail, grep -q short-circuits on first match, SIGPIPEs `strings`, and
+# pipefail flips the pipeline exit code non-zero → false-positive PREFLIGHT_FAIL.
+preflight_match_count=$(strings "${SHUD_OMP_BIN}" 2>/dev/null | grep -c "SHUD_RHS_THREADS" || true)
+if [[ "${preflight_match_count:-0}" -eq 0 ]]; then
+    echo "MARKER:RELEASE_V1_SCALING_PREFLIGHT_FAIL binary=${SHUD_OMP_BIN} missing_symbol=SHUD_RHS_THREADS" >&2
+    echo "  Config A (serial RHS) detected — rebuild with:" >&2
+    echo "  make shud_omp SHUD_ENABLE_OPENMP_RHS=1 HYPRE=1 HYPRE_INCDIR=... HYPRE_LIBDIR=... OPENBLAS_LIBDIR=..." >&2
+    exit 3
+fi
 
 # Cell is ALWAYS heihe_x4 (release scaling scope lock).
 CELL="heihe_x4"
@@ -149,7 +172,7 @@ echo "run_id=${RUN_ID}  run_dir=${RUN_DIR}"
 echo "shud_dir=${SHUD_DIR}  tool_dir=${TOOL_DIR}"
 echo "slurm_job_id=${SLURM_JOB_ID:-unset} slurm_array_job_id=${SLURM_ARRAY_JOB_ID:-unset}"
 echo "omp_num_threads=${OMP_NUM_THREADS} shud_linsol=${SHUD_LINSOL}"
-echo "shud_enable_openmp_rhs=${SHUD_ENABLE_OPENMP_RHS} shud_rhs_threads=${SHUD_RHS_THREADS}"
+echo "shud_rhs_threads=${SHUD_RHS_THREADS} (compile-time SHUD_ENABLE_OPENMP_RHS verified via preflight)"
 echo "omp_proc_bind=${OMP_PROC_BIND} omp_places=${OMP_PLACES}"
 echo "shud_amg_tol=${SHUD_AMG_TOL:-<unset:production>}"
 echo "shud_cvode_epslin=${SHUD_CVODE_EPSLIN:-<unset:production>}"
