@@ -150,6 +150,82 @@ def test_evaluate_nan_metric_treated_as_fail(default_thresholds: dict) -> None:
     assert "NaN" in v.per_metric["nse"].reason
 
 
+# ---------- PR-Y2: water_balance NaN → informational downgrade --------------
+
+
+def test_evaluate_nan_water_balance_is_informational_pass_overall_pr_y2(
+    default_thresholds: dict,
+) -> None:
+    """Overall verdict PASS when water_balance_residual is NaN and every
+    other required metric PASSes. Metric is skipped from weighted_score
+    and does NOT trigger critical-fail (its weight is 0.75, which would
+    otherwise be a critical-weight FAIL under the pre-PR-Y2 rule).
+    """
+    metrics = _perfect_metrics()
+    metrics["water_balance_residual"] = float("nan")
+    v = evaluate(metrics, default_thresholds)
+    assert v.verdict == "PASS"
+    # Water balance appears in per_metric with passed=True + informational
+    # reason.
+    wb = v.per_metric["water_balance_residual"]
+    assert wb.passed is True
+    assert "informational" in wb.reason.lower()
+    # Weighted score should be exactly 1.0 (the other 6 metrics all pass
+    # and water_balance is skipped from the denominator).
+    assert v.weighted_score == pytest.approx(1.0)
+
+
+def test_evaluate_finite_water_balance_still_gated_pr_y2(
+    default_thresholds: dict,
+) -> None:
+    """When water_balance_residual is a FINITE number (Tier-2 wired), the
+    normal threshold gate applies unchanged — the informational-downgrade
+    path only fires when the value is NaN.
+    """
+    metrics = _perfect_metrics()
+    metrics["water_balance_residual"] = 1.0  # far above max=0.05
+    v = evaluate(metrics, default_thresholds)
+    # weight = 0.75 is critical → overall FAIL
+    assert v.verdict == "FAIL"
+    wb = v.per_metric["water_balance_residual"]
+    assert wb.passed is False
+    assert "max" in wb.reason or "out" in wb.reason.lower()
+
+
+def test_evaluate_nan_water_balance_not_treated_as_fail_when_other_ok_pr_y2(
+    default_thresholds: dict,
+) -> None:
+    """A critical-weight metric (e.g. NSE) still forces FAIL even when
+    water_balance is NaN-downgraded — the informational status of water
+    balance must not mask a real failure elsewhere.
+    """
+    metrics = _perfect_metrics()
+    metrics["water_balance_residual"] = float("nan")
+    metrics["nse"] = 0.1  # actual failure
+    v = evaluate(metrics, default_thresholds)
+    assert v.verdict == "FAIL"
+    assert v.per_metric["nse"].passed is False
+    # Water balance stays informational (passed=True) regardless.
+    assert v.per_metric["water_balance_residual"].passed is True
+
+
+def test_marker_block_shows_nan_water_balance_pr_y2(
+    default_thresholds: dict,
+) -> None:
+    """MARKER block emits `water_balance_residual=NaN` when the metric is
+    the informational-downgrade case. Byte-format lines/order remain
+    unchanged so downstream aggregators keep working.
+    """
+    metrics = _perfect_metrics()
+    metrics["water_balance_residual"] = float("nan")
+    v = evaluate(metrics, default_thresholds)
+    out = format_marker_block("heihe_x4", v)
+    assert "water_balance_residual=NaN" in out
+    assert "verdict=PASS" in out
+    assert "MARKER:A5_VERDICT_BEGIN" in out
+    assert "MARKER:A5_VERDICT_END" in out
+
+
 # ---------- MARKER block ----------------------------------------------------
 
 

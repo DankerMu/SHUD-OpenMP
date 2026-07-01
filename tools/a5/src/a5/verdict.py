@@ -30,6 +30,14 @@ _ALL_METRICS = (
 _OVERALL_SCORE_MIN = 0.85
 _CRITICAL_WEIGHT_MIN = 0.75
 
+# Metrics that are downgraded to informational-only when the pipeline
+# emits NaN (PR-Y2). Rationale: A5's water balance closure requires mesh
+# area / porosity metadata that is often absent from a SHUD output tree,
+# so treating a NaN residual as a hard FAIL misrepresents the situation.
+# When the metric IS a finite number (Tier-2 area-weighted computation
+# wired up), the normal threshold gate applies unchanged.
+_INFORMATIONAL_WHEN_NAN = {"water_balance_residual"}
+
 
 class MalformedThresholdError(ValueError):
     """Raised when the thresholds YAML fails schema validation."""
@@ -202,6 +210,30 @@ def evaluate(
 
         value = float(metrics[name])
         weight = float(spec["weight"])
+        # PR-Y2: informational-only downgrade. When water_balance_residual
+        # returns NaN (mesh metadata unavailable), skip it from the
+        # weighted_score AND the critical-fail gate. The metric is still
+        # emitted in the per-metric block with passed=True and a reason
+        # explaining the downgrade so downstream reports remain auditable.
+        if (
+            name in _INFORMATIONAL_WHEN_NAN
+            and isinstance(value, float)
+            and math.isnan(value)
+        ):
+            per[name] = MetricResult(
+                name=name,
+                value=value,
+                passed=True,
+                threshold=dict(spec),
+                weight=weight,
+                reason=(
+                    "informational: metric returned NaN (mesh metadata "
+                    "unavailable for area-weighted closure); excluded from "
+                    "weighted score per PR-Y2 policy"
+                ),
+            )
+            continue
+
         passed, reason = _check_one(name, value, spec)
         per[name] = MetricResult(
             name=name,
