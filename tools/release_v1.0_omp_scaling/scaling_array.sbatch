@@ -129,6 +129,15 @@ fi
 N="${NTHREADS_LIST[${TASK_ID}]}"
 export OMP_NUM_THREADS="${N}"
 
+# HOTFIX 2026-07-01: OMP_NUM_THREADS alone is NOT enough. SHUD ExecPolicy
+# defaults to Serial unless SHUD_ENABLE_OPENMP_RHS=1 (see SHUD src/Model/f.cpp
+# L55-L65 + src/Model/shud.cpp L154-L166). SHUD_RHS_THREADS is the canonical
+# knob for RHS thread count; fall back to omp_get_max_threads() if unset.
+# First scaling run (Slurm 10578) had this missing → all 5 cells wall≈1180s
+# regardless of N (RHS ran serial). Set BOTH env vars to activate StrictOMP.
+export SHUD_ENABLE_OPENMP_RHS=1
+export SHUD_RHS_THREADS="${N}"
+
 # Cell is ALWAYS heihe_x4 (release scaling scope lock).
 CELL="heihe_x4"
 RUN_LABEL="${TASK_ID}-nthreads-${N}"
@@ -140,6 +149,7 @@ echo "run_id=${RUN_ID}  run_dir=${RUN_DIR}"
 echo "shud_dir=${SHUD_DIR}  tool_dir=${TOOL_DIR}"
 echo "slurm_job_id=${SLURM_JOB_ID:-unset} slurm_array_job_id=${SLURM_ARRAY_JOB_ID:-unset}"
 echo "omp_num_threads=${OMP_NUM_THREADS} shud_linsol=${SHUD_LINSOL}"
+echo "shud_enable_openmp_rhs=${SHUD_ENABLE_OPENMP_RHS} shud_rhs_threads=${SHUD_RHS_THREADS}"
 echo "omp_proc_bind=${OMP_PROC_BIND} omp_places=${OMP_PLACES}"
 echo "shud_amg_tol=${SHUD_AMG_TOL:-<unset:production>}"
 echo "shud_cvode_epslin=${SHUD_CVODE_EPSLIN:-<unset:production>}"
