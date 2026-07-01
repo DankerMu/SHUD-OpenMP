@@ -1,0 +1,86 @@
+{
+  "schema_version": "A5-v1.0.0",
+  "case": "heihe_x4",
+  "reference_dir": "/Users/danker/Desktop/Hydro-SHUD/openMP/.review-evidence/release-v1.0-scaling-configC/cell-0-nthreads-1.output",
+  "candidate_dir": "/Users/danker/Desktop/Hydro-SHUD/openMP/.review-evidence/release-v1.0-scaling-configC/cell-1-nthreads-2.output",
+  "thresholds_file": "config/a5_thresholds.default.yaml",
+  "metrics": {
+    "nse": {
+      "value": 1.0,
+      "pass": true,
+      "threshold": {
+        "min": 0.9,
+        "weight": 1.0
+      },
+      "weight": 1.0,
+      "reason": ""
+    },
+    "kge": {
+      "value": 1.0,
+      "pass": true,
+      "threshold": {
+        "min": 0.85,
+        "weight": 1.0
+      },
+      "weight": 1.0,
+      "reason": ""
+    },
+    "peak_magnitude_ratio": {
+      "value": 1.0,
+      "pass": true,
+      "threshold": {
+        "min": 0.9,
+        "max": 1.1,
+        "weight": 0.75
+      },
+      "weight": 0.75,
+      "reason": ""
+    },
+    "peak_timing_offset": {
+      "value": 0.0,
+      "pass": true,
+      "threshold": {
+        "max_abs_steps": 4,
+        "weight": 0.5
+      },
+      "weight": 0.5,
+      "reason": ""
+    },
+    "runoff_volume_ratio": {
+      "value": 1.0,
+      "pass": true,
+      "threshold": {
+        "min": 0.97,
+        "max": 1.03,
+        "weight": 1.0
+      },
+      "weight": 1.0,
+      "reason": ""
+    },
+    "monthly_bias_mae": {
+      "value": 0.0,
+      "pass": true,
+      "threshold": {
+        "max": 0.05,
+        "weight": 0.5
+      },
+      "weight": 0.5,
+      "reason": ""
+    },
+    "water_balance_residual": {
+      "value": "NaN",
+      "pass": true,
+      "threshold": {
+        "max": 0.05,
+        "weight": 0.75
+      },
+      "weight": 0.75,
+      "reason": "informational: metric returned NaN (mesh metadata unavailable for area-weighted closure); excluded from weighted score per PR-Y2 policy",
+      "status": "unavailable_no_mesh_metadata"
+    }
+  },
+  "overall": {
+    "verdict": "PASS",
+    "weighted_score": 1.0
+  }
+}
