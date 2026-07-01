@@ -2584,6 +2584,8 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 
 **Decision input**: `aggregate_verdict.txt` from PR-B [#387](https://github.com/DankerMu/SHUD-OpenMP/pull/387) (KV block: `heihe_x4_recommended_action = use-future-amg` + `heihe_x16_recommended_action = use-future-amg`)。**Note** (per GPT Pro F2): 原 `heihe_x4_recommended_next_epic = p8-tune.E-klu-impl` decisive-cell pointer 与 `use-future-amg` 矛盾,已被 ADR-0005 retrospective amendment 撤回;统一 heihe_x4 主路径 = P8-tune.F。
 
+> **See [ADR-0010](docs/adr/0010-cpu-acceleration-status-and-p10-decision.md) for the consolidated program status and P10 decision framing.**
+
 ##### P8-tune.G — AMG productionization three-gate sequence G0 → G1 → G2 ([OPEN, HIGH priority] per 2026-06-29 post-Linus-review framing amendment, supersedes prior single-epic "AMG Axis-4 instrumentation" anchor)
 
 **Status**: Open 2026-06-29; HIGH priority. Post-merge Linus-style review of P8-tune.F surfaced two flaws in the original single-epic §G framing: (i) pattern-only spike achieved its target (BoomerAMG runs cleanly on 4 case × 4 combo with healthy setup/apply/RSS/operator complexity) but did NOT wire up CVODE, integrate SHUD, run hydrology A5, or use real HYPRE Axis-4 telemetry — so "operationally GO" only means "GO to integrated prototype epic", NOT "GO to AMG production solver"; (ii) the Axis 4 `< 1.5` threshold itself is likely wrong because per Saad 2003 §13 pure V-cycle work is typically ≈ 2× operator_complexity (the `< 1.5` threshold presupposes Krylov acceleration). §G is therefore split into three sequential gates G0 → G1 → G2.
@@ -2690,6 +2692,8 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 - Fresh GPU hardware audit (cn-nodes lack GPU; `gn01` partition is single-node and at risk of resource contention) + cost-benefit analysis vs CPU §P9 + §P10 forward paths.
 - Empirical evidence that the SHUD hydrology BDF/Newton outer-loop control-failure mode (ncfn ≈ 100k under AMG; see PR-X1 evidence) does NOT recur on GPU sparse substrate — likely requires upstream Hypre or SUNDIALS work outside this project's scope.
 
+> **See [ADR-0010](docs/adr/0010-cpu-acceleration-status-and-p10-decision.md) for the consolidated program status and P10 decision framing.**
+
 ##### §A5-infra — Hydrology-Acceptance Validation Pipeline (standalone infra, PR-Y1 anchor) [OPEN, HIGH priority per ADR-0008 (2026-06-30)]
 
 **Anchor**: ADR-0008 §Forward action item 1 (PR-Y1). Anchored 2026-06-30 in PR-X2.
@@ -2722,6 +2726,8 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 
 **Exit gate**: PR-Y1 capstone with reference fixture pinned + aggregator producing PASS/FAIL verdict per indicator at 4-case smoke. Acts as gating prerequisite for PR-Z1 (§P9) and any future acceleration claim that needs A5 acceptance.
 
+> **See [ADR-0010](docs/adr/0010-cpu-acceleration-status-and-p10-decision.md) for the consolidated program status and P10 decision framing.**
+
 ##### §P9 — CVODE Outer-Policy Tuning (Hydrology-Equivalence Spot Check) [CLOSED — PR-Z1 heihe_x4 spot check returned wall_speedup=1.025 (<1.2× gate); reltol 1e-4 → 1e-3 gave A5-passing but production-insignificant improvement per ADR-0009 (2026-07-01)]
 
 **Anchor**: ADR-0008 §Forward action item 2 (PR-Z1). Anchored 2026-06-30 in PR-X2. Closed 2026-07-01 by ADR-0009 (`docs/adr/0009-p9-cvode-outer-policy-closure.md`) post PR-Z1 #423 2-cell heihe_x4 spot check evidence (`.review-evidence/p9-spot-pr-z1/`, Slurm job 10465). Depended on §A5-infra (PR-Y1) for validation harness — retained as production gate infrastructure.
@@ -2747,6 +2753,8 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 **Gate**: ≥ 1.5× heihe_x4 wall improvement under A5 PASS (PR-Y1 reference fixture). Below 1.5× → close §P9 as no-action and re-evaluate §P10 design.
 
 **Out of scope** (PR-Z1): KLU / AMG / GPU substrate (closed per ADR-0005 / ADR-0007 / ADR-0008); A5 hydrology equivalence at heihe_x16 (deferred unless PR-A heihe_x4 verdict is borderline and motivates wider validation); cross-platform A5 (per §A5-infra out-of-scope).
+
+> **See [ADR-0010](docs/adr/0010-cpu-acceleration-status-and-p10-decision.md) for the consolidated program status and P10 decision framing.**
 
 ##### §P10 — CPU Domain Decomposition (DESIGN-ONLY) [design-only, POST-P9-CLOSURE — decision to open implementation deferred; requires explicit future-work planning turn given ~6-12 month engineering cost + P8/P9 both closed]
 
