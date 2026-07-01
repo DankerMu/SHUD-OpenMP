@@ -2722,9 +2722,9 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 
 **Exit gate**: PR-Y1 capstone with reference fixture pinned + aggregator producing PASS/FAIL verdict per indicator at 4-case smoke. Acts as gating prerequisite for PR-Z1 (§P9) and any future acceleration claim that needs A5 acceptance.
 
-##### §P9 — CVODE Outer-Policy Tuning (Hydrology-Equivalence Spot Check) [OPEN, MEDIUM priority per ADR-0008 (2026-06-30)]
+##### §P9 — CVODE Outer-Policy Tuning (Hydrology-Equivalence Spot Check) [CLOSED — PR-Z1 heihe_x4 spot check returned wall_speedup=1.025 (<1.2× gate); reltol 1e-4 → 1e-3 gave A5-passing but production-insignificant improvement per ADR-0009 (2026-07-01)]
 
-**Anchor**: ADR-0008 §Forward action item 2 (PR-Z1). Anchored 2026-06-30 in PR-X2. Depends on §A5-infra (PR-Y1) for validation harness.
+**Anchor**: ADR-0008 §Forward action item 2 (PR-Z1). Anchored 2026-06-30 in PR-X2. Closed 2026-07-01 by ADR-0009 (`docs/adr/0009-p9-cvode-outer-policy-closure.md`) post PR-Z1 #423 2-cell heihe_x4 spot check evidence (`.review-evidence/p9-spot-pr-z1/`, Slurm job 10465). Depended on §A5-infra (PR-Y1) for validation harness — retained as production gate infrastructure.
 
 **Scope**: bounded sweep of CVODE outer-loop policy parameters on the **existing SPGMR PREC_NONE baseline** (NOT solver substitution). Parameters considered:
 
@@ -2748,9 +2748,9 @@ ADR-0005 在 PR-D #389 capstone-merge 后由 GPT Pro 独立 retrospective 评审
 
 **Out of scope** (PR-Z1): KLU / AMG / GPU substrate (closed per ADR-0005 / ADR-0007 / ADR-0008); A5 hydrology equivalence at heihe_x16 (deferred unless PR-A heihe_x4 verdict is borderline and motivates wider validation); cross-platform A5 (per §A5-infra out-of-scope).
 
-##### §P10 — CPU Domain Decomposition (DESIGN-ONLY) [DESIGN-ONLY anchor per ADR-0008 (2026-06-30)]
+##### §P10 — CPU Domain Decomposition (DESIGN-ONLY) [design-only, POST-P9-CLOSURE — decision to open implementation deferred; requires explicit future-work planning turn given ~6-12 month engineering cost + P8/P9 both closed]
 
-**Anchor**: ADR-0008 §Forward action item 3. Anchored 2026-06-30 in PR-X2. NO implementation commitment.
+**Anchor**: ADR-0008 §Forward action item 3 + ADR-0009 §Forward action item 4 (post-P9-closure deferral). Anchored 2026-06-30 in PR-X2; deferral affirmed 2026-07-01 in PR-Z2 post-§P9 closure. NO implementation commitment. With both §P8 (ADR-0008) and §P9 (ADR-0009) closed, §P10 is the only remaining CPU-side acceleration option, but the ~6-12 month engineering cost + interface-coupling risk (rivers + lakes + subbasin state boundaries) has NOT decreased. Opening §P10 implementation requires a new ADR-NNNN authoring + design-doc PR sequence as an explicit future-work planning turn — not a downstream consequence of P9 closure.
 
 **Scope (DESIGN-ONLY)**: document architectural scoping for SHUD hydrology decomposition without committing to any implementation epic. Candidate decomposition strategies:
 
