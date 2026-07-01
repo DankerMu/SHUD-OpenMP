@@ -2,7 +2,7 @@
 
 **Tag**: `cpu-accel-v1.0`  
 **Outer commit**: `d127edc` (release branch tip `release/cpu-accel-v1.0`)  
-**SHUD submodule pin**: `openmp-baseline/6bae35d`  
+**SHUD submodule pin**: `openmp-baseline/f8adea4` (Makefile default flip → Config C for `make shud_omp`)  
 **Released**: 2026-07-01
 
 ---
@@ -13,7 +13,7 @@ This release ships the **first-phase CPU acceleration** for the SHUD fully-coupl
 
 Deliverables:
 
-- **P1e StrictOMP RHS** — deterministic parallel RHS evaluation on `heihe_x4` (40,046 elements). Measured N∈{1,2,4,8,16} scaling on release binary: **1.64× @ N=8, 1.90× @ N=16** with **A5 PASS** at every thread count (NSE=KGE=1.0000, trajectory-identical to serial reference). See §Scaling profile.
+- **P1e StrictOMP RHS** — deterministic parallel RHS evaluation on `heihe_x4` (40,046 elements). Measured N∈{1,2,4,8,16} scaling on release Config C binary: **1.80× @ N=8, 1.95× @ N=16** with **A5 PASS** at every thread count (NSE=KGE=1.0000, trajectory-identical to serial reference). `make shud_omp` produces the Config C binary by default — no compile flags required. See §Scaling profile.
 - **`SHUD_SPGMR_MAXL` small-case opt-in** — an env-driven knob for keliya-like small cases.
 - **A5 hydrology-acceptance pipeline** (`tools/a5/`) — reusable NSE/KGE/peak/timing/runoff validator.
 - **Decision archive** — ADR-0001 through ADR-0010 documenting what was tried, what was retained, what was closed, and what is deferred.
@@ -55,31 +55,35 @@ Everything else in the tree is either infrastructure (benchmarks, snapshot tools
 
 ## Scaling profile (`heihe_x4`, 40,046 elements, 90-day, SPGMR, Config C)
 
-Measured 2026-07-01 on node-exclusive Linux `cn05/10/14/15/16` (Intel Xeon, 40 physical
-cores/node), Slurm array 10648. Every non-baseline cell was validated against the N=1
-serial reference via the A5 hydrology-acceptance pipeline. Aggregator verdict:
-**CONDITIONAL** — "all N A5=PASS and 1.5 ≤ speedup(N=8) < 2.5× — parallel gain OK but modest".
+Measured 2026-07-01 on node-exclusive Linux `cn04/05/14/15/16` (Intel Xeon, 40 physical
+cores/node), Slurm array 10764. Binary built with `make shud_omp HYPRE=1 …` — release
+default Config C (Serial NVec + StrictOMP RHS). Every non-baseline cell validated
+against the N=1 serial reference via the A5 hydrology-acceptance pipeline. Aggregator
+verdict: **CONDITIONAL** — "all N A5=PASS and 1.5 ≤ speedup(N=8) < 2.5× — parallel
+gain OK but modest".
 
 | N (threads) | wall total (s) | speedup | efficiency | A5 verdict | NSE / KGE |
 |---:|---:|---:|---:|:---|:---|
-| 1  | 1161 | 1.000× |  100%  | reference | — |
-| 2  |  837 | 1.387× |  69.4% | PASS | 1.0000 / 1.0000 |
-| 4  |  907 | 1.280× |  32.0% | PASS | 1.0000 / 1.0000 |
-| 8  |  706 | 1.644× |  20.6% | PASS | 1.0000 / 1.0000 |
-| 16 |  611 | 1.900× |  11.9% | PASS | 1.0000 / 1.0000 |
+| 1  | 1317 | 1.000× |  100%  | reference | — |
+| 2  |  973 | 1.353× |  67.7% | PASS | 1.0000 / 1.0000 |
+| 4  |  824 | 1.598× |  40.0% | PASS | 1.0000 / 1.0000 |
+| 8  |  730 | 1.804× |  22.6% | PASS | 1.0000 / 1.0000 |
+| 16 |  677 | 1.946× |  12.2% | PASS | 1.0000 / 1.0000 |
 
-CVODE solve invariants across all thread counts: `nst=6572, ncfn=49, ncfl=3660` —
+CVODE solve invariants across all thread counts: `nst=6575, ncfn=51, ncfl=3620` —
 identical trajectory, confirming StrictOMP is strictly deterministic (see ADR-0002).
 
-**Interpretation.** Amdahl parallel fraction ≈ 0.50 back-solved from
-`sp@16 = 1/(1−f + f/16) = 1.900`; residual sequential work (CVODE outer, non-RHS
-kernels) caps the theoretical ceiling near 2×. The N=4 dip (1.28× vs N=2 1.39×)
-is memory-bandwidth / NUMA jitter; N=8 and N=16 recover monotonically. Rationale
-for shipping despite CONDITIONAL: the workload is Amdahl-bound (not a defect),
-determinism is exact (A5 PASS), and the alternative is single-threaded execution.
+**Interpretation.** Amdahl parallel fraction ≈ 0.51 back-solved from
+`sp@16 = 1/(1−f + f/16) = 1.946`; residual sequential work (CVODE outer, non-RHS
+kernels) caps the theoretical ceiling near 2×. Rationale for shipping despite
+CONDITIONAL: the workload is Amdahl-bound (not a defect), determinism is exact
+(A5 PASS at every N), and the alternative is single-threaded execution. Sp@8 =
+1.80× closely tracks the P1e capstone measurement of 1.729× (heihe_x4, Phase 2
+mode C, 36-cell design of experiments; see `docs/p1e/p1e_academic_summary.md`
+§Configuration Matrix, Table 6).
 
-**Evidence**: `.review-evidence/release-v1.0-scaling-v4/` — per-cell Slurm logs
-(`slurm-10648_{0..4}.out`), CVODE stats (`cell-*/cvode_stats.txt`), A5 reports
+**Evidence**: `.review-evidence/release-v1.0-scaling-configC/` — per-cell Slurm logs
+(`slurm-10764_{0..4}.out`), CVODE stats (`cell-*/cvode_stats.txt`), A5 reports
 (`a5-report-nthreads-{2,4,8,16}/`), and full aggregator output
 (`scaling_verdict.txt`, `MARKER:RELEASE_V1_0_SCALING_VERDICT` block).
 
@@ -142,34 +146,24 @@ Per ADR-0010:
 
 ### Production build
 
-**IMPORTANT**: The parallelized RHS (the 1.7× speedup on `heihe_x4`) is gated
-by a **compile-time macro** `SHUD_ENABLE_OPENMP_RHS`. The default
-`make shud_omp` produces a binary with `ExecPolicy::Serial` RHS (Config A)
-and will NOT exhibit parallel speedup regardless of runtime env. Use Config C
-for production:
-
 ```bash
 cd SHUD
 ./configure          # downloads SUNDIALS + CVODE 6.0.0
-make shud_omp SHUD_ENABLE_OPENMP_RHS=1    # Config C: Serial NVec + StrictOMP RHS
+make shud_omp        # production Config C: Serial NVec + StrictOMP RHS
 ```
 
-Verify the build got the macro (a `SHUD_RHS_THREADS` startup log string
-appears in the binary only if `SHUD_ENABLE_OPENMP_RHS=1` was set at compile):
-
-```bash
-strings SHUD/shud_omp | grep SHUD_RHS_THREADS   # should print at least 1 line
-```
+`make shud_omp` produces the release Config C binary out of the box —
+Serial NVector + StrictOMP RHS (ADR-0002 Path 1 winner). No compile-time
+flags to remember.
 
 Runtime:
 ```bash
 export OMP_NUM_THREADS=<physical cores>
-export SHUD_RHS_THREADS=<physical cores>   # canonical RHS thread knob for Config C
 ./shud_omp <case-name>
 ```
 
-`SHUD_RHS_THREADS` unset falls back to `omp_get_max_threads()`, which honors
-`OMP_NUM_THREADS`. Setting both explicitly is the safest pattern.
+Optional: `SHUD_RHS_THREADS=<n>` overrides the RHS thread count explicitly
+(default falls back to `omp_get_max_threads()`, which honors `OMP_NUM_THREADS`).
 
 For `SHUD_SPGMR_MAXL` opt-in on small cases:
 ```bash
@@ -202,8 +196,9 @@ uv run a5 --reference <ref/output/case.out> \
 
 Emits `a5_metrics.json` + `a5_verdict.md` + `MARKER:A5_VERDICT` block.
 
-### Research AMG build (not for production)
+### Research builds (not for production)
 
+**AMG path** (ADR-0007/0008 evidence reproduction, requires Hypre + OpenBLAS):
 ```bash
 cd SHUD
 make shud_omp HYPRE=1 HYPRE_INCDIR=/path/to/hypre/include \
@@ -211,6 +206,14 @@ make shud_omp HYPRE=1 HYPRE_INCDIR=/path/to/hypre/include \
               OPENBLAS_LIBDIR=/path/to/openblas/lib
 export SHUD_LINSOL=amg
 ./shud_omp <case>
+```
+
+**P1e A/B/D configuration matrix** (ADR-0002 reproducibility):
+```bash
+make shud                                          # Config A (canonical serial)
+make shud_omp SHUD_ENABLE_OPENMP_RHS=0             # Config A/B (serial RHS via shud_omp target)
+make shud_omp SHUD_USE_OPENMP_NVECTOR=1            # Config D (Serial NVec off, OpenMP NVec on, StrictOMP RHS on)
+make shud SHUD_ENABLE_OPENMP_RHS=1                 # Config C via shud target (equivalent to make shud_omp default)
 ```
 
 Not recommended for production; retained for ADR-0007 reproducibility only.
