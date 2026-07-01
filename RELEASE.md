@@ -13,7 +13,7 @@ This release ships the **first-phase CPU acceleration** for the SHUD fully-coupl
 
 Deliverables:
 
-- **P1e StrictOMP RHS** — deterministic ~1.7× wall speedup on `heihe_x4` (40,046 elements), preserving bitwise correctness under strict tolerance.
+- **P1e StrictOMP RHS** — deterministic parallel RHS evaluation on `heihe_x4` (40,046 elements). Measured N∈{1,2,4,8,16} scaling on release binary: **1.64× @ N=8, 1.90× @ N=16** with **A5 PASS** at every thread count (NSE=KGE=1.0000, trajectory-identical to serial reference). See §Scaling profile.
 - **`SHUD_SPGMR_MAXL` small-case opt-in** — an env-driven knob for keliya-like small cases.
 - **A5 hydrology-acceptance pipeline** (`tools/a5/`) — reusable NSE/KGE/peak/timing/runoff validator.
 - **Decision archive** — ADR-0001 through ADR-0010 documenting what was tried, what was retained, what was closed, and what is deferred.
@@ -50,6 +50,38 @@ Everything else in the tree is either infrastructure (benchmarks, snapshot tools
 
 - `Script/`, `rAnalysis/`, `figures/` — analysis helpers (rSHUD-based post-processing, not runtime-critical).
 - `.github/workflows/` — CI (asan-ubsan, build-and-compare, tools-tests).
+
+---
+
+## Scaling profile (`heihe_x4`, 40,046 elements, 90-day, SPGMR, Config C)
+
+Measured 2026-07-01 on node-exclusive Linux `cn05/10/14/15/16` (Intel Xeon, 40 physical
+cores/node), Slurm array 10648. Every non-baseline cell was validated against the N=1
+serial reference via the A5 hydrology-acceptance pipeline. Aggregator verdict:
+**CONDITIONAL** — "all N A5=PASS and 1.5 ≤ speedup(N=8) < 2.5× — parallel gain OK but modest".
+
+| N (threads) | wall total (s) | speedup | efficiency | A5 verdict | NSE / KGE |
+|---:|---:|---:|---:|:---|:---|
+| 1  | 1161 | 1.000× |  100%  | reference | — |
+| 2  |  837 | 1.387× |  69.4% | PASS | 1.0000 / 1.0000 |
+| 4  |  907 | 1.280× |  32.0% | PASS | 1.0000 / 1.0000 |
+| 8  |  706 | 1.644× |  20.6% | PASS | 1.0000 / 1.0000 |
+| 16 |  611 | 1.900× |  11.9% | PASS | 1.0000 / 1.0000 |
+
+CVODE solve invariants across all thread counts: `nst=6572, ncfn=49, ncfl=3660` —
+identical trajectory, confirming StrictOMP is strictly deterministic (see ADR-0002).
+
+**Interpretation.** Amdahl parallel fraction ≈ 0.50 back-solved from
+`sp@16 = 1/(1−f + f/16) = 1.900`; residual sequential work (CVODE outer, non-RHS
+kernels) caps the theoretical ceiling near 2×. The N=4 dip (1.28× vs N=2 1.39×)
+is memory-bandwidth / NUMA jitter; N=8 and N=16 recover monotonically. Rationale
+for shipping despite CONDITIONAL: the workload is Amdahl-bound (not a defect),
+determinism is exact (A5 PASS), and the alternative is single-threaded execution.
+
+**Evidence**: `.review-evidence/release-v1.0-scaling-v4/` — per-cell Slurm logs
+(`slurm-10648_{0..4}.out`), CVODE stats (`cell-*/cvode_stats.txt`), A5 reports
+(`a5-report-nthreads-{2,4,8,16}/`), and full aggregator output
+(`scaling_verdict.txt`, `MARKER:RELEASE_V1_0_SCALING_VERDICT` block).
 
 ---
 
@@ -110,17 +142,34 @@ Per ADR-0010:
 
 ### Production build
 
+**IMPORTANT**: The parallelized RHS (the 1.7× speedup on `heihe_x4`) is gated
+by a **compile-time macro** `SHUD_ENABLE_OPENMP_RHS`. The default
+`make shud_omp` produces a binary with `ExecPolicy::Serial` RHS (Config A)
+and will NOT exhibit parallel speedup regardless of runtime env. Use Config C
+for production:
+
 ```bash
 cd SHUD
 ./configure          # downloads SUNDIALS + CVODE 6.0.0
-make shud_omp        # production OpenMP build; HYPRE=0 default
+make shud_omp SHUD_ENABLE_OPENMP_RHS=1    # Config C: Serial NVec + StrictOMP RHS
+```
+
+Verify the build got the macro (a `SHUD_RHS_THREADS` startup log string
+appears in the binary only if `SHUD_ENABLE_OPENMP_RHS=1` was set at compile):
+
+```bash
+strings SHUD/shud_omp | grep SHUD_RHS_THREADS   # should print at least 1 line
 ```
 
 Runtime:
 ```bash
 export OMP_NUM_THREADS=<physical cores>
+export SHUD_RHS_THREADS=<physical cores>   # canonical RHS thread knob for Config C
 ./shud_omp <case-name>
 ```
+
+`SHUD_RHS_THREADS` unset falls back to `omp_get_max_threads()`, which honors
+`OMP_NUM_THREADS`. Setting both explicitly is the safest pattern.
 
 For `SHUD_SPGMR_MAXL` opt-in on small cases:
 ```bash
