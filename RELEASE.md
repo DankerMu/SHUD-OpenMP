@@ -1,9 +1,16 @@
 # SHUD-OpenMP CPU Acceleration Release v1.0
 
-**Tag**: `cpu-accel-v1.0`  
-**Outer commit**: `d127edc` (release branch tip `release/cpu-accel-v1.0`)  
+**Current tag**: `cpu-accel-v1.0.1` (release branch tip `release/cpu-accel-v1.0`)  
+**Initial tag**: `cpu-accel-v1.0` (outer `479526b` + SHUD `6bae35d`, immutable v1.0 launch point)  
 **SHUD submodule pin**: `openmp-baseline/f8adea4` (Makefile default flip → Config C for `make shud_omp`)  
-**Released**: 2026-07-01
+**Released**: 2026-07-01 (v1.0) / patched same day (v1.0.1 — Config C default + real scaling table)
+
+## Patch history
+
+| Patch | PR | Outer commit | SHUD commit | Summary |
+|---|---|---|---|---|
+| v1.0   | (init) | `479526b` | `6bae35d` | Initial release manifest (RELEASE.md + double tag) |
+| v1.0.1 | [#429](https://github.com/DankerMu/SHUD-OpenMP/pull/429), [#430](https://github.com/DankerMu/SHUD-OpenMP/pull/430) | `181b8a1` | `f8adea4` | `make shud_omp` defaults to Config C (no compile flag); real Config C scaling table (heihe_x4 N∈{1,2,4,8,16}, A5 all PASS, sp@8 = 1.80×) |
 
 ---
 
@@ -224,20 +231,26 @@ Not recommended for production; retained for ADR-0007 reproducibility only.
 
 ### Outer
 
-- Tag: `cpu-accel-v1.0`
+- Tags: `cpu-accel-v1.0` (initial, `479526b`) and `cpu-accel-v1.0.1` (current, `181b8a1`)
 - Branch: `release/cpu-accel-v1.0`
-- Commit: `d127edc` (base) — check `git describe --tags` after fetch for authoritative resolution
+- `git describe --tags` after fetch resolves whichever tag applies
 
 ### SHUD submodule
 
-- Tag: `cpu-accel-v1.0` on `openmp-baseline`
-- Commit: `6bae35d`
+- Tags: `cpu-accel-v1.0` (initial, `6bae35d`) and `cpu-accel-v1.0.1` (current, `f8adea4`) on `openmp-baseline`
 - Upstream: `https://github.com/SHUD-System/SHUD.git`
 
-To reproduce this exact release:
+To reproduce the current patch release (v1.0.1 — recommended):
 ```bash
 git clone <outer-repo>
 cd <outer-repo>
+git checkout cpu-accel-v1.0.1
+git submodule update --init --recursive
+cd SHUD && git checkout cpu-accel-v1.0.1
+```
+
+To reproduce the immutable v1.0 launch point (older Config B `shud_omp` semantics):
+```bash
 git checkout cpu-accel-v1.0
 git submodule update --init --recursive
 cd SHUD && git checkout cpu-accel-v1.0
