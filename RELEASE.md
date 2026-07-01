@@ -10,7 +10,8 @@
 | Patch | PR | Outer commit | SHUD commit | Summary |
 |---|---|---|---|---|
 | v1.0   | (init) | `479526b` | `6bae35d` | Initial release manifest (RELEASE.md + double tag) |
-| v1.0.1 | [#429](https://github.com/DankerMu/SHUD-OpenMP/pull/429), [#430](https://github.com/DankerMu/SHUD-OpenMP/pull/430) | `181b8a1` | `f8adea4` | `make shud_omp` defaults to Config C (no compile flag); real Config C scaling table (heihe_x4 N∈{1,2,4,8,16}, A5 all PASS, sp@8 = 1.80×) |
+| v1.0.1 | [#429](https://github.com/DankerMu/SHUD-OpenMP/pull/429), [#430](https://github.com/DankerMu/SHUD-OpenMP/pull/430), [#431](https://github.com/DankerMu/SHUD-OpenMP/pull/431) | `6133a41` | `f8adea4` | `make shud_omp` defaults to Config C (no compile flag); real Config C scaling table (heihe_x4 N∈{1,2,4,8,16}, A5 all PASS, sp@8 = 1.80×); tag metadata + patch history |
+| v1.0.2 | [#432](https://github.com/DankerMu/SHUD-OpenMP/pull/432) | (filled at tag time) | `db4ccdb` | SHUD README `§OpenMP parallel build (v1.0.1+)` — runtime threading runbook (env-var priority, thread-count guidance, Slurm template, common pitfalls, P1e A/B/D reproducibility). Docs-only; no runtime code change. |
 
 ---
 
