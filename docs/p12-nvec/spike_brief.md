@@ -2,7 +2,7 @@
 
 ```yaml
 epic: P12-nvec
-status: PR-N2 CLOSED — TIER1_ADOPT + TIER2_GO (PR-N3 Tier-2 unblocked)
+status: EPIC CLOSED (capstone 2026-07-02) — TIER1_ADOPT + TIER2_GO + G-E4 PASS (Config E2 certified)
 date: 2026-07-02
 branches:
   outer: research/p12-nvec   (from main d4ec052, post-P11-osc capstone)
@@ -12,7 +12,8 @@ verdict:
   g_e1: PASS (PR-N1 keliya bitwise; PR-N2 heihe_x4 C≡E identical counters + rivqdown SHA at N∈{1,8,16})
   g_e2: TIER1_ADOPT (heihe_x4 speedup(E/C) ≥ 1.10× at N=8 and N=16; bar 1.10× pinned)
   g_e3: TIER2_GO ((i) TIER1_ADOPT ∧ (ii) reduction share 35.68%/30.46% ≥ 10% ∧ (iii) Amdahl proj ≥ 1.15×)
-  authority: docs/p12-nvec/tier1_verdict.md + docs/adr/0011-p12-nvec-tier1-verdict-and-tier2-gate.md
+  g_e4: PASS (PR-N3: keliya prod-B/forced-B256 + heihe_x4 cross-N bitwise → A4 documented → A5 tightened nse=1.0000/kge=0.9999; E2/E wall 1.377×@N8 / 1.369×@N16, projection delta −0.42%; re-baseline accepted)
+  authority: docs/p12-nvec/tier1_verdict.md + docs/adr/0011-p12-nvec-tier1-verdict-and-tier2-gate.md + docs/p12-nvec/pr_n3_ge4_verdict.md + docs/p12-nvec/pr_n3_rebaseline_decision.md
 ```
 
 ## One-sentence goal
