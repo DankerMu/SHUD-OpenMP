@@ -105,8 +105,15 @@ knob = OMP_NUM_THREADS). All cells: nst=6575 nfe=6741 ncfn=51 ncfl=3620 netf=0
 |---|---|---|---|
 | C | 1288.953 | 724.325 | 694.343 |
 | E | 890.502 | 553.194 | 491.618 |
-| speedup(E/C) | 1.4474× | 1.3094× | 1.4124× |
+| speedup(E/C) | 1.4474×¹ | 1.3094× | 1.4124× |
 <!-- OUTCOME_TABLE_END -->
+
+¹ The N=1 column is NOT an equal-threads comparison and is informational
+only: Config E at cfg N=1 runs the OpenMP NVector at the 2-thread floor
+(`max(CS.num_threads, pf floor)`; run log `p12_E_n1-11341.out` reports
+`No of Threads = 2`) while Config C at N=1 is genuinely serial. The 1.4474×
+therefore reflects 2-thread element-wise parallelism, not a zero-parallelism
+codegen win. The gate cells (N=8, N=16) run matched thread counts.
 
 Bitwise cross-check (equal-N C@N vs E@N): PASS at N∈{1,8,16} — identical
 counters + equal `rivqdown` SHA `b5e4b0a2…` (single value across ALL 18 wall

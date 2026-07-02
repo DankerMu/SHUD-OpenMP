@@ -58,6 +58,12 @@ gate (G-E3). Verdict doc: `docs/p12-nvec/tier1_verdict.md`; decision ADR:
 | E_n16 prof  | 11342 | cn16 | shud_omp_E_prof | 16 |
 <!-- JOBMAP_END -->
 
+Node hardware homogeneity (load-bearing for cross-node C/E ratios): all 7
+nodes are the identical Intel Xeon Gold 6133 @ 2.50GHz SKU (40 logical CPUs,
+2500 MHz ± <0.01%), captured per-node via Slurm job 11344 →
+[`node_homogeneity.txt`](node_homogeneity.txt). The exclusive-node isolation
+above rules out contention; this rules out hardware confounding.
+
 Reproduce: `sbatch --export=ALL,CONFIG={C|E},N={1|8|16}[,PROF=1,NREPS=1]
 .p12-nvec-runs/matrix/matrix_cell.sbatch`.
 

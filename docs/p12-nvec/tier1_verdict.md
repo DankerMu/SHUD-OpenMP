@@ -42,6 +42,15 @@ Config C sp@8 = C_n1/C_n8 = 1.780×, sp@16 = C_n1/C_n16 = 1.856× (Amdahl
 ceiling, cf RELEASE.md sp@8=1.804/sp@16=1.946 — same regime). Config E sp@8 =
 E_n1/E_n8 = 1.610×, sp@16 = E_n1/E_n16 = 1.812×. All 18 wall runs rc==0.
 
+> **N=1 caveat (informational row only)**: E_n1 is NOT an equal-threads
+> comparison against C_n1 — Config E at cfg N=1 runs the OpenMP NVector at
+> the 2-thread floor (`max(CS.num_threads, pf floor)`; log `p12_E_n1-11341.out`
+> reports `No of Threads = 2`) while C_n1 is genuinely serial. speedup(E/C)
+> @ N=1 = 1.4474× therefore reflects 2-thread element-wise parallelism, not a
+> zero-parallelism codegen win, and the E sp@ figures above are floored
+> accordingly. The G-E2 gate cells (N=8, N=16) run matched thread counts and
+> are unaffected.
+
 ## Bitwise cross-check (equal-N: C@N vs E@N)
 
 Rule: at each N∈{1,8,16}, Config C and Config E must produce identical
