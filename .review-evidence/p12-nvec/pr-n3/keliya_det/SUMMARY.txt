@@ -1,0 +1,14 @@
+P12-nvec PR-N3 — keliya G-E4(1) cross-thread determinism (Mac clang, SHUD ce4bcef)
+keliya NY = 3*NumEle + NumRiv + NumLake = 3*484 + 534 + 0 = 1986
+  production B=4096 -> ceil(1986/4096)=1 block (DEGENERATE single block => plain fold == Config C)
+  forced-small B=256 -> ceil(1986/256)=8 blocks => 3 combine levels (multi-level tree exercised)
+
+LEG          N    BLOCKS    manifest_sha32                     NVEC_CONFIG
+C_n8         8    -serial   801c2f798aae163f154c464bc2b8730c   Config C serial NVector
+E_n8         8    1=C       801c2f798aae163f154c464bc2b8730c   Config E (serial reduction overrides; DE
+E2_n1        1    1         801c2f798aae163f154c464bc2b8730c   Config E2 (fixed-tree deterministic redu
+E2_n2        2    1         801c2f798aae163f154c464bc2b8730c   Config E2 (fixed-tree deterministic redu
+E2_n4        4    1         801c2f798aae163f154c464bc2b8730c   Config E2 (fixed-tree deterministic redu
+E2_n8        8    1         801c2f798aae163f154c464bc2b8730c   Config E2 (fixed-tree deterministic redu
+E2b256_n1    1    8         8d742592dde01cda66ee51976f870ff5   Config E2 (fixed-tree deterministic redu
+E2b256_n8    8    8         8d742592dde01cda66ee51976f870ff5   Config E2 (fixed-tree deterministic redu

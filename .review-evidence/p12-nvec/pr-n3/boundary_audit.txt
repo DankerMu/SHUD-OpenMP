@@ -1,0 +1,21 @@
+P12-nvec PR-N3 — boundary audit (spec §8: f.cpp / MD_rhs_core.cpp / cvode_config.cpp ZERO diff)
+SHUD commit range: d8f736c (PR-N1 tip) -> ce4bcef (PR-N3)
+
+=== full diff --stat d8f736c..ce4bcef ===
+ Makefile                     |  60 ++++++-
+ src/Model/MD_nvec_hybrid.cpp | 398 +++++++++++++++++++++++++++++++++++++++++--
+ src/Model/MD_nvec_hybrid.hpp |  22 ++-
+ src/Model/shud.cpp           |   9 +
+ 4 files changed, 465 insertions(+), 24 deletions(-)
+
+=== boundary files: explicit zero-diff check ===
+  src/Model/f.cpp : 0 diff lines (ZERO — untouched)
+  src/ModelData/MD_f.cpp : 0 diff lines (ZERO — untouched)
+  src/Model/MD_rhs_core.cpp : 0 diff lines (ZERO — untouched)
+  src/Equations/cvode_config.cpp : 0 diff lines (ZERO — untouched)
+
+=== files actually changed by PR-N3 ===
+Makefile
+src/Model/MD_nvec_hybrid.cpp
+src/Model/MD_nvec_hybrid.hpp
+src/Model/shud.cpp
