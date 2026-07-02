@@ -1,0 +1,23 @@
+===== P12-nvec PR-N3 A5-pair generator (heihe_x4 N=16) =====
+host=cn14 date=2026-07-02T14:47:07Z jobid=11349
+shud=ce4bcef
+--- C (shud_omp_C) ---
+  cfg NUM_OPENMP=16 window_delta=90
+  rc=0 wall_s=671.467 rivqdown_sha=b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4
+  identity: serial
+  cvode: nfe=6741 netf=0 nst=6575 ncfn=51 ncfl=3620 
+--- E (shud_omp_E) ---
+  cfg NUM_OPENMP=16 window_delta=90
+  rc=0 wall_s=499.445 rivqdown_sha=b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4
+  identity: NVEC config: Config E (serial reduction overrides; DETRED=off)
+  cvode: nfe=6741 netf=0 nst=6575 ncfn=51 ncfl=3620 
+--- E2 (shud_omp_E2) ---
+  cfg NUM_OPENMP=16 window_delta=90
+  rc=0 wall_s=398.025 rivqdown_sha=f70209c477cb80db09381cecd0e33f0bf0e899d09e70b2bb4774522b5a7a0527
+  identity: NVEC config: Config E2 (fixed-tree deterministic reductions; B=4096, Neumaier=0)
+  cvode: nfe=6728 netf=0 nst=6574 ncfn=50 ncfl=3688 
+=== A5-pair outputs ===
+/scratch/frd_muziyao/SHUD-OpenMP/.p12-nvec-runs/a5pair/C.out
+/scratch/frd_muziyao/SHUD-OpenMP/.p12-nvec-runs/a5pair/E2.out
+/scratch/frd_muziyao/SHUD-OpenMP/.p12-nvec-runs/a5pair/E.out
+A5PAIR_DONE

@@ -1,0 +1,4 @@
+Full heihe_x4 outputs (rivqdown/eleveta/eleygw/elevprcp .dat) retained on server:
+  /scratch/frd_muziyao/SHUD-OpenMP/.p12-nvec-runs/a5pair/{C,E,E2}.out/
+  /scratch/frd_muziyao/SHUD-OpenMP/.p12-nvec-runs/matrix/results_n3/E2_n{8,16}/
+Identity here via rivqdown.run*.sha manifests (per PR-N1/N2 evidence convention).

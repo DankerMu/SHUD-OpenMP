@@ -1,0 +1,130 @@
+{
+  "schema_version": "OSC_DIAG-v1.0.0",
+  "case": "qinyijiang",
+  "project_name": "nanlin",
+  "solverstep_min": 20.0,
+  "trace": {
+    "rows_total": 6480,
+    "rows_skipped_delta_nst_zero": 0,
+    "rows_used": 6480,
+    "total_nst": 156580
+  },
+  "gate_inputs": {
+    "burst_share_60s": 0.9941946608762294,
+    "burst_share_10s": 0.0,
+    "top1pct_concentration": 0.036618399934653365,
+    "spearman_rho": -0.37525849076476736
+  },
+  "concentration_detail": {
+    "n_ele": 3155,
+    "top_k": 32,
+    "total_ele_flips": 452969,
+    "riv_flips_total_reported_separately": 90967,
+    "top_element_ids": [
+      144,
+      81,
+      86,
+      157,
+      152,
+      85,
+      173,
+      108,
+      141,
+      143,
+      162,
+      2245,
+      2468,
+      1787,
+      2831,
+      2830,
+      2510,
+      2916,
+      2598,
+      2987,
+      1085,
+      1829,
+      784,
+      2161,
+      2507,
+      1180,
+      1827,
+      1812,
+      1847,
+      1531,
+      2802,
+      1571
+    ],
+    "top_element_flips": [
+      1077,
+      1067,
+      1056,
+      1049,
+      1006,
+      990,
+      916,
+      825,
+      824,
+      750,
+      566,
+      475,
+      431,
+      413,
+      353,
+      347,
+      318,
+      312,
+      309,
+      309,
+      305,
+      283,
+      275,
+      275,
+      275,
+      269,
+      262,
+      257,
+      251,
+      249,
+      247,
+      246
+    ]
+  },
+  "spearman_detail": {
+    "n_days_joined": 90,
+    "dropped_trailing_partial_day_index": 456
+  },
+  "histogram": [
+    {
+      "bin": "[0,10)",
+      "interval_count": 0,
+      "nst_share": 0.0
+    },
+    {
+      "bin": "[10,60)",
+      "interval_count": 6344,
+      "nst_share": 0.9941946608762294
+    },
+    {
+      "bin": "[60,300)",
+      "interval_count": 79,
+      "nst_share": 0.004457785157746839
+    },
+    {
+      "bin": "[300,600)",
+      "interval_count": 57,
+      "nst_share": 0.0013475539660237578
+    },
+    {
+      "bin": "[600,1200)",
+      "interval_count": 0,
+      "nst_share": 0.0
+    },
+    {
+      "bin": "[1200,inf)",
+      "interval_count": 0,
+      "nst_share": 0.0
+    }
+  ],
+  "verdict": "REAL_DYNAMICS",
+  "proxy_limitation": "D2 flip counts are an accepted-boundary state-delta proxy at SolverStep resolution; they conservatively UNDER-count sub-interval oscillation (design R3), biasing against OSC_CONFIRMED, never toward it."
+}

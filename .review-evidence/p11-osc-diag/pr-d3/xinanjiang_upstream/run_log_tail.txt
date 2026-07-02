@@ -1,0 +1,30 @@
+	Parameter file:	 input/xinanjiang/xinanjiang.cfg.para
+	Model starts at: 0.00 day
+	Model ends at: 90.00 day
+	Model time step(max): 20.00 minutes
+	Model total number of steps(minimum): 6480 
+	Size of model: 	Ncell = 801 	Nriver = 216	 NSeg = 584
+	OpenMP disable
+========================================================
+
+	Number of calls of f function:	 25005 
+
+	Time used by model:	 4.866 seconds.
+
+
+The successful end. 
+
+
+Final Statistics.. 
+
+lenrw   = 34136     leniw   =    53
+lenrwLS = 31482     leniwLS =    42
+nst     =  6775
+nfe     =  7182     nfeLS   = 17823
+nni     =  7181     nli     = 17823
+nsetups =     0     netf    =     3
+npe     =     0     nps     =     0
+ncfn    =     3     ncfl    =    20
+
+end_epoch=1782964270 end_iso=2026-07-02T03:51:10Z
+exit_code=0 wall_seconds=6

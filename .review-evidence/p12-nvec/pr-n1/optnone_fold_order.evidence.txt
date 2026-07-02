@@ -1,0 +1,71 @@
+P12-nvec PR-N1 — CORRECTED root-cause + fix evidence (supersedes the earlier
+"-O2 reassociation" narrative, which was mechanically wrong: IEEE FP-add
+reassociation is illegal at plain -O2 without -ffast-math and neither clang nor
+gcc performs it).
+
+TRUE MECHANISM: SHUD's -ffp-contract=off (B0 IEEE-754 lockdown) makes a
+SHUD-compiled generic-API serial reduction diverge from the vendored SUNDIALS
+*_Serial reductions ONLY on Apple clang / ARM, via two codegen effects:
+  (1) it STRIPS the scalar FMA the vendored lib uses by default (no -ffp-contract
+      flag in the lib build) — two roundings vs one;
+  (2) at -O2 the non-FMA reduction auto-vectorizes into a different fold order.
+On x86_64 / gcc the gcc-built lib is scalar non-FMA and -O2 -ffp-contract=off
+already produces the same scalar non-FMA fold → the plain override matches.
+SHUD_NVEC_NOOPT (optnone on clang / optimize("O0","no-tree-vectorize") on gcc)
+is REQUIRED on clang/ARM and correctness-INERT on gcc/x86.
+================================================================================
+
+## (1) vendored SUNDIALS build type (no -ffp-contract flag; default contraction ON)
+CMAKE_BUILD_TYPE:STRING=
+CMAKE_C_FLAGS:STRING=
+
+## (2) MAC / Apple clang / ARM — numerical divergence, EXACT shipped flags
+   (-O2 -ffp-contract=off -fno-fast-math), override bodies vs library, 5000 datasets:
+   no-attr              : wsqrsum-vs-lib diverge=1819/5000  dot-vs-lib diverge=4785/5000
+   optnone (SHIPPED)    : wsqrsum-vs-lib diverge=0/5000  dot-vs-lib diverge=0/5000
+   -ffp-contract=on only: wsqrsum-vs-lib diverge=1823/5000  dot-vs-lib diverge=4769/5000
+   -ffp-contract=fast   : wsqrsum-vs-lib diverge=1823/5000  dot-vs-lib diverge=4769/5000
+
+## (3) MAC clang FMA-state disassembly of the REAL shipped TU (shud_dotprod in
+##     MD_nvec_hybrid.cpp @ d8f736c; otool -tv, count fmadd/fmla + .2d SIMD lanes).
+##     [Regenerated post-review 2026-07-02: the original block committed a failed
+##      command's shell error and mislabeled the optnone line ("0 / scalar fadd");
+##      values below are from a clean re-run against the shipped source.]
+   no-attr override            : fmadd=0  simd(.2d)=4   (non-FMA, -O2-vectorized -> different fold)
+   optnone override (SHIPPED)  : fmadd=1  simd(.2d)=0   (scalar fmadd; optnone drops -ffp-contract=off -> FMA restored)
+   library N_VDotProd_Serial   : fmadd=1  simd(.2d)=0   (scalar fmadd — the reference; matches shipped override)
+
+## KEY: on clang, -ffp-contract=on ALONE still diverges (still vectorized);
+   only scalar+FMA together (optnone, or default-contract + -fno-vectorize) -> 0/5000.
+
+## (4) SERVER / x86_64 / gcc-13 — numerical divergence, EXACT shipped flags
+   (-O2 -ffp-contract=off -fno-fast-math), override bodies vs gcc-built library,
+   5000 datasets (NumEle 6335). ALL variants match — the plain override already
+   agrees with the library on gcc/x86 (no FMA on either side):
+     no-attr  : wsqrsum=0/5000 dot=0/5000
+     optnone  : wsqrsum=0/5000 dot=0/5000
+     o0novec  : wsqrsum=0/5000 dot=0/5000
+
+## (5) SERVER gcc-13 FMA disassembly of the REAL Config E override symbols vs library:
+## GCC-13 (x86_64) — FMA state of the REAL Config E override symbols vs library
+# override symbols in shud_omp_E (grep the mangled name; count fmadd/vfmadd):
+  shud_dotprod : 0000000000025e70 <_ZL12shud_dotprodP17_generic_N_VectorS0_>:  fmadd=0 scalar(mulsd/addsd)=2
+  shud_wsqrsum : 0000000000025fd0 <_ZL12shud_wsqrsumP17_generic_N_VectorS0_>:  fmadd=0 scalar(mulsd/addsd)=3
+# library reference:
+  lib N_VDotProd_Serial : fmadd=0 scalar(mulsd/addsd)=2
+  lib N_VWSqrSumLocal_Serial : fmadd=0 scalar(mulsd/addsd)=3
+# VERDICT: override and library both scalar non-FMA on x86_64/gcc -> they match without contraction tricks.
+
+## (6) SERVER gcc G-E1 spot leg (heihe 90d, Config C & E, N in {1,8}) — full run:
+   see gcc_spot_leg/gcc_spot_run.log ; verdict:
+GCC-SPOT G-E1: PASS (Config C & E, N in {1,8}, all bitwise-identical on gcc)
+
+## (7) POST-REVIEW ADDENDUM (2026-07-02): shipped gcc attribute compile-validated.
+   Reviewer Note-2: the spot-leg binaries were built at 3e0ab23 (old attribute
+   optimize("O0")); the shipped optimize("O0","no-tree-vectorize") had no gcc
+   build coverage. Closed: server g++ 13.3.0, SHUD @ d8f736c, full object
+   compile of src/Model/MD_nvec_hybrid.cpp with shipped flags
+   (-O2 -ffp-contract=off -fno-fast-math -std=c++14 -fopenmp
+    -DSHUD_USE_OPENMP_NVECTOR=1 -DSHUD_NVEC_HYBRID=1) -> SYNTAX_OK + COMPILE_OK.
+   (Correctness on gcc is attribute-independent per (4)/(5); this closes the
+   compile-coverage gap only. PR-N2's server Config E build re-covers it E2E.)

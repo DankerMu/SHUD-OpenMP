@@ -1,0 +1,5 @@
+OMP_NESTED env               = (unset)
+OMP_MAX_ACTIVE_LEVELS env    = (unset)
+omp_get_max_active_levels()  = 1
+nested-region active threads = 1  (1 => nesting default-off, no 2nd active level)
+VERDICT: nesting-default-off = CONFIRMED

@@ -1,0 +1,23 @@
+== CHECK1: Sum(delta_nst) == cvode_stats nst ==
+  Sum(delta_nst)=111130  cvode_stats nst=111130
+  PASS
+== CHECK2: trace row_count == CVode driver-loop invocations ==
+  rows=6480  expected=(END-START)*1440/SolverStep=6480
+  PASS
+== CHECK3: every delta_* >= 0 ==
+  rows with a negative delta = 0
+  PASS
+== CHECK4: flip CSV schema (row counts, typed rows, 1-based ids) ==
+  ele rows=484 (id max=484)  riv rows=333 (id max=333)
+  ele-with-nonzero-stage=0  riv-with-nonzero-ele-family=0
+  PASS
+== CHECK5: daily flips_total == sf+us+gw+stage; daily total == per-entity total ==
+  daily rows with inconsistent total=0  daily_total=62382  per_entity_total=62382
+  PASS
+== CHECK6: headers carry required metadata ==
+  dt header:   # project_name=keliya solverstep_min=20
+  flip header: # project_name=keliya solverstep_min=20 epsilon_m=1e-06
+== CHECK7: model-output SHA (enabled run) == baseline ==
+  PASS (bitwise-neutral even when enabled)
+
+SELFCHECK: ALL PASS
