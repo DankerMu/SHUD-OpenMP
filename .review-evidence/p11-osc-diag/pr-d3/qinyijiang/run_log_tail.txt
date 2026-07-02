@@ -1,0 +1,30 @@
+	Parameter file:	 input/nanlin/nanlin.cfg.para
+	Model starts at: 366.00 day
+	Model ends at: 456.00 day
+	Model time step(max): 20.00 minutes
+	Model total number of steps(minimum): 6480 
+	Size of model: 	Ncell = 3155 	Nriver = 319	 NSeg = 1384
+	OpenMP disable
+========================================================
+
+	Number of calls of f function:	 451712 
+
+	Time used by model:	 285.603 seconds.
+
+
+The successful end. 
+
+
+Final Statistics.. 
+
+lenrw   = 127281     leniw   =    53
+lenrwLS = 117462     leniwLS =    42
+nst     = 156580
+nfe     = 157386     nfeLS   = 294326
+nni     = 157385     nli     = 294326
+nsetups =     0     netf    =     0
+npe     =     0     nps     =     0
+ncfn    =   115     ncfl    =    57
+
+end_epoch=1782964514 end_iso=2026-07-02T03:55:14Z
+exit_code=0 wall_seconds=293

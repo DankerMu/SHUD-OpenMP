@@ -1,0 +1,84 @@
+{
+  "schema_version": "OSC_DIAG-v1.0.0",
+  "case": "xinanjiang_upstream",
+  "project_name": "xinanjiang",
+  "solverstep_min": 20.0,
+  "trace": {
+    "rows_total": 6480,
+    "rows_skipped_delta_nst_zero": 0,
+    "rows_used": 6480,
+    "total_nst": 6775
+  },
+  "gate_inputs": {
+    "burst_share_60s": 0.0,
+    "burst_share_10s": 0.0,
+    "top1pct_concentration": 0.2294411200180648,
+    "spearman_rho": "NaN"
+  },
+  "concentration_detail": {
+    "n_ele": 801,
+    "top_k": 9,
+    "total_ele_flips": 221425,
+    "riv_flips_total_reported_separately": 14748,
+    "top_element_ids": [
+      356,
+      553,
+      363,
+      508,
+      560,
+      595,
+      350,
+      550,
+      571
+    ],
+    "top_element_flips": [
+      5762,
+      5740,
+      5688,
+      5652,
+      5646,
+      5611,
+      5576,
+      5574,
+      5555
+    ]
+  },
+  "spearman_detail": {
+    "n_days_joined": 90,
+    "dropped_trailing_partial_day_index": 90
+  },
+  "histogram": [
+    {
+      "bin": "[0,10)",
+      "interval_count": 0,
+      "nst_share": 0.0
+    },
+    {
+      "bin": "[10,60)",
+      "interval_count": 0,
+      "nst_share": 0.0
+    },
+    {
+      "bin": "[60,300)",
+      "interval_count": 1,
+      "nst_share": 0.001033210332103321
+    },
+    {
+      "bin": "[300,600)",
+      "interval_count": 37,
+      "nst_share": 0.016531365313653137
+    },
+    {
+      "bin": "[600,1200)",
+      "interval_count": 214,
+      "nst_share": 0.06317343173431735
+    },
+    {
+      "bin": "[1200,inf)",
+      "interval_count": 6228,
+      "nst_share": 0.9192619926199262
+    }
+  ],
+  "verdict": "REAL_DYNAMICS",
+  "proxy_limitation": "D2 flip counts are an accepted-boundary state-delta proxy at SolverStep resolution; they conservatively UNDER-count sub-interval oscillation (design R3), biasing against OSC_CONFIRMED, never toward it."
+}
