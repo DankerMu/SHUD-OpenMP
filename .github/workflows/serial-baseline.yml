@@ -178,6 +178,14 @@ jobs:
         run: uv run tools/check_manifest.py --all
       - name: test_forcing_dir (union str|dict + null/malformed fixtures)
         run: uv run tools/check_manifest_tests/test_forcing_dir.py
+      # P11-osc PR-D2 (#435): osc_diag analyzer pytest suite. Standalone uv
+      # project (tools/osc_diag/); `--extra dev` installs pytest into the
+      # project venv so the src-layout editable install + `pythonpath = [src]`
+      # resolve from a cold checkout. Data-INDEPENDENT (synthetic fixtures
+      # only), runs in ~30 s.
+      - name: osc_diag analyzer pytest (P11-osc PR-D2 #435)
+        working-directory: tools/osc_diag
+        run: uv run --extra dev pytest
 
   # ---------------------------------------------------------------------------
   # Job 2 — build-and-compare: matrix consumer

@@ -1,0 +1,9 @@
+# osc_diag tool — scoped ignores.
+# uv creates the venv here on `uv sync`; do not commit it.
+.venv/
+# pytest / build byproducts.
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+__pycache__/

@@ -1,0 +1,37 @@
+[project]
+name = "osc_diag"
+version = "1.0.0"
+description = "P11-osc CVODE stepping oscillation diagnostic analyzer (dt histogram + burst share + flip concentration + Spearman + MARKER verdict)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "SHUD-OpenMP team" },
+]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+]
+
+[project.scripts]
+osc_diag = "osc_diag.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/osc_diag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
+# Put src/ on sys.path so the package imports whether or not the hatchling
+# editable-install MetaPathFinder is active in the run environment (uv run
+# pytest resolves pytest via a tool env that does not always load the
+# _editable_impl_*.pth finder). This mirrors a plain src-layout import.
+pythonpath = ["src"]
