@@ -1,0 +1,30 @@
+	Parameter file:	 input/keliya/keliya.cfg.para
+	Model starts at: 12053.00 day
+	Model ends at: 12143.00 day
+	Model time step(max): 20.00 minutes
+	Model total number of steps(minimum): 6480 
+	Size of model: 	Ncell = 484 	Nriver = 333	 NSeg = 534
+	OpenMP disable
+========================================================
+
+	Number of calls of f function:	 229214 
+
+	Time used by model:	 30.478 seconds.
+
+
+The successful end. 
+
+
+Final Statistics.. 
+
+lenrw   = 23294     leniw   =    53
+lenrwLS = 21474     leniwLS =    42
+nst     = 111130
+nfe     = 112463     nfeLS   = 116751
+nni     = 112462     nli     = 116751
+nsetups =     0     netf    =     7
+npe     =     0     nps     =     0
+ncfn    =   217     ncfl    =    27
+
+end_epoch=1782964259 end_iso=2026-07-02T03:50:59Z
+exit_code=0 wall_seconds=33

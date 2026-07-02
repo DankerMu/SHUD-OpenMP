@@ -1,0 +1,11 @@
+MARKER:OSC_DIAG_VERDICT_BEGIN
+case=qinyijiang
+verdict=REAL_DYNAMICS
+burst_share_60s=0.9942
+burst_share_60s_threshold=0.5000
+burst_share_10s=0.0000
+top1pct_concentration=0.0366
+top1pct_concentration_threshold=0.5000
+spearman_rho=-0.3753
+spearman_rho_threshold=0.5000
+MARKER:OSC_DIAG_VERDICT_END

@@ -1,0 +1,11 @@
+MARKER:OSC_DIAG_VERDICT_BEGIN
+case=xinanjiang_upstream
+verdict=REAL_DYNAMICS
+burst_share_60s=0.0000
+burst_share_60s_threshold=0.5000
+burst_share_10s=0.0000
+top1pct_concentration=0.2294
+top1pct_concentration_threshold=0.5000
+spearman_rho=NaN
+spearman_rho_threshold=0.5000
+MARKER:OSC_DIAG_VERDICT_END
