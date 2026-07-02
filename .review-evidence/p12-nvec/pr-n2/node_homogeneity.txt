@@ -1,0 +1,20 @@
+P12-nvec PR-N2 — node hardware homogeneity proof (reviewer Note-1)
+===================================================================
+The 6-cell wall matrix ran each cell on its own exclusive node (7 nodes
+total incl. profile leg). Cross-node C/E wall ratios are only valid if the
+nodes are hardware-homogeneous. Captured via Slurm job 11344 (srun -N7,
+one task per node, /proc/cpuinfo), 2026-07-02:
+
+cn10: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz | 40 logical CPUs | 2499.997 MHz | bogomips 5000.00
+cn11: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz | 40 logical CPUs | 2500.000 MHz | bogomips 5000.00
+cn12: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz | 40 logical CPUs | 2499.992 MHz | bogomips 5000.00
+cn14: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz | 40 logical CPUs | 2499.996 MHz | bogomips 5000.00
+cn15: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz | 40 logical CPUs | 2500.001 MHz | bogomips 5000.00
+cn16: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz | 40 logical CPUs | 2500.002 MHz | bogomips 5000.00
+cn22: Intel(R) Xeon(R) Gold 6133 CPU @ 2.50GHz | 40 logical CPUs | 2500.000 MHz | bogomips 5000.00
+
+VERDICT: all 7 nodes identical SKU (Xeon Gold 6133, 2x20 cores) at
+2500 MHz +/- <0.01% -> the cross-node speedup(E/C) ratios in the G-E2
+verdict are not hardware-confounded.
+Cell->node map: C_n1=cn14 E_n1=cn15 C_n8=cn11 E_n8=cn12 C_n16=cn22
+E_n16=cn10 E_prof16=cn16 (jobs 11336-11342).
