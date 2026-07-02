@@ -1,0 +1,18 @@
+===== P12-nvec PR-N3 matrix cell E_n16 =====
+host=cn10  date=2026-07-02T14:47:07Z  jobid=11346
+bin=shud_omp_E  N=16  NREPS=3
+shud=ce4bcef  outer=8dd4898
+cfg NUM_OPENMP -> NUM_OPENMP	16
+cfg window: START=1 END=91 delta=90 (MUST be 90)
+OMP_NUM_THREADS=16 SHUD_RHS_THREADS=<unset> SHUD_LINSOL=spgmr
+start_utc=2026-07-02T14:47:07Z
+--- rep 1/3 ---
+MARKER:P12N3 cell=E_n16 rep=1 wall_s=496.970 rc=0 nst=6575 nfe=6741 ncfn=51 ncfl=3620 netf=0 rivqdown_sha=b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4
+--- rep 2/3 ---
+MARKER:P12N3 cell=E_n16 rep=2 wall_s=493.611 rc=0 nst=6575 nfe=6741 ncfn=51 ncfl=3620 netf=0 rivqdown_sha=b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4
+--- rep 3/3 ---
+MARKER:P12N3 cell=E_n16 rep=3 wall_s=496.338 rc=0 nst=6575 nfe=6741 ncfn=51 ncfl=3620 netf=0 rivqdown_sha=b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4
+--- config identity (rep1) ---
+  openMP NVector: ON. No of Threads = 16
+end_utc=2026-07-02T15:11:55Z
+CELL_DONE E_n16

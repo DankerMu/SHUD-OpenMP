@@ -1,0 +1,20 @@
+=== heihe_x16 SHORT-window (10 model-days) share leg (Config C, PROFILE, SHUD_NVEC_PROF=1) ===
+cfg=/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe_x16/input/heihe_x16/heihe_x16.cfg.para
+batch_start=2026-07-02T07:02:35Z
+node=cn10
+SHORT window applied: START=1 END=11 (END-START=10, expect 10)
+=== p12_run_cell case=heihe_x16 N=16 prof=1 label=x16-n16-short ===
+host=cn10 cfg=input/heihe_x16/heihe_x16.cfg.para END-START=10
+OMP_NUM_THREADS=16 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=1
+git_outer=be1fedc shud=18f6319
+start_utc=2026-07-02T07:02:35Z
+end_utc=2026-07-02T07:07:29Z
+shud_exit=0 wall_s=294.660
+collected nvec_prof.csv
+collected profile_B0.yaml
+collected cvode_stats.txt
+MARKER:P12_CELL label=x16-n16-short case=heihe_x16 N=16 prof=1 wall_s=294.660 rc=0
+batch_end=2026-07-02T07:07:29Z
+MARKER:BATCH_DONE x16_n16_share
+restored original cfg.para from /scratch/frd_muziyao/SHUD-OpenMP/.p12-nvec-runs/results/x16_n16_share/cfg.para.orig
+post-restore END-START=90 (expect 90)

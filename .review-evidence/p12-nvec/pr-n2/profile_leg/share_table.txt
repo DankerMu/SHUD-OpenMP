@@ -1,0 +1,17 @@
+=== share table: E_n16_Config-E_gate-on ===
+project_name = heihe_x4
+NY           = 124395
+nthreads (N) = 16   backend = hybrid
+t_CVODE_raw  = 217.132878 s  (217132877946 ns)
+--------------------------------------------------------------------
+class                  calls          total_ns   share_of_tCVraw
+elementwise           545581       18913212090            8.710%
+reduction             276977      143366605392           66.027%
+other                     26            150242            0.000%
+NVector sum                       162279967724           74.738%
+non-NVector                        54852910222           25.262%
+--------------------------------------------------------------------
+G-E3(ii)  reduction share = 66.027% of t_CVODE_raw
+G-E3(iii) t_red (reduction total_ns) = 143366605392 ns (143.366605 s)
+G-E2      elementwise upside share = 8.710% of t_CVODE_raw
+

@@ -1,0 +1,27 @@
+original NUM_OPENMP=8
+=== Config E binary identity ===
+[NVEC_HYBRID] serial reduction overrides installed on ops table (dotprod/maxnorm/wrmsnorm[mask]/min/wl2norm/l1norm/invtest/constrmask/minquotient + aliased *local + wsqrsum[mask]local + dotprodmultilocal); element-wise ops stay stock-OpenMP.
+marker: present
+=== leg N=1 (NUM_OPENMP=1, OMP_NUM_THREADS=1, SHUD_RHS_THREADS unset) ===
+  [N=1] openMP NVector: ON. No of Threads = 2
+  [N=1] P1e startup: SHUD_RHS_THREADS=(unset) -> omp_set_num_threads(2); omp_get_max_threads=2
+=== leg N=2 (NUM_OPENMP=2, OMP_NUM_THREADS=2, SHUD_RHS_THREADS unset) ===
+  [N=2] openMP NVector: ON. No of Threads = 2
+  [N=2] P1e startup: SHUD_RHS_THREADS=(unset) -> omp_set_num_threads(2); omp_get_max_threads=2
+=== leg N=4 (NUM_OPENMP=4, OMP_NUM_THREADS=4, SHUD_RHS_THREADS unset) ===
+  [N=4] openMP NVector: ON. No of Threads = 4
+  [N=4] P1e startup: SHUD_RHS_THREADS=(unset) -> omp_set_num_threads(4); omp_get_max_threads=4
+=== leg N=8 (NUM_OPENMP=8, OMP_NUM_THREADS=8, SHUD_RHS_THREADS unset) ===
+  [N=8] openMP NVector: ON. No of Threads = 8
+  [N=8] P1e startup: SHUD_RHS_THREADS=(unset) -> omp_set_num_threads(8); omp_get_max_threads=8
+
+=== COMPARE (strip nothing; identical hash+name required) ===
+leg-n1 == leg-n1 : IDENTICAL
+leg-n2 == leg-n1 : IDENTICAL
+leg-n4 == leg-n1 : IDENTICAL
+leg-n8 == leg-n1 : IDENTICAL
+
+=== COMPARE vs Config C baseline (PR-N0 leg-a-baseline.sha) ===
+leg-n1 == Config C baseline : IDENTICAL
+
+G-E1: PASS (all four legs bitwise-identical to each other AND to Config C baseline)

@@ -1,0 +1,47 @@
+================================================================================================
+P12-nvec PR-N2 — heihe_x4 90-day scaling matrix (3-run medians)
+================================================================================================
+cell      reps  walls (s)                          median_wall     nst    nfe  ncfn  ncfl  netf
+C_n1      3     1290.05 1288.95 1279.34               1288.953    6575   6741    51  3620     0
+C_n8      3     724.33 723.97 728.66                   724.325    6575   6741    51  3620     0
+C_n16     3     686.28 694.34 696.70                   694.343    6575   6741    51  3620     0
+E_n1      3     893.07 886.71 890.50                   890.502    6575   6741    51  3620     0
+E_n8      3     553.19 554.15 552.93                   553.194    6575   6741    51  3620     0
+E_n16     3     500.91 490.37 491.62                   491.618    6575   6741    51  3620     0
+(all rc==0: YES)
+
+================================================================================================
+Equal-N bitwise cross-check (C@N vs E@N): identical cvode_stats counters + equal rivqdown SHA
+================================================================================================
+  N=1   counters_eq=True rivqdown_sha_eq=True -> PASS
+        C stats={'nst': '6575', 'nfe': '6741', 'ncfn': '51', 'ncfl': '3620', 'netf': '0'}  sha=['b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4']
+        E stats={'nst': '6575', 'nfe': '6741', 'ncfn': '51', 'ncfl': '3620', 'netf': '0'}  sha=['b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4']
+  N=8   counters_eq=True rivqdown_sha_eq=True -> PASS
+        C stats={'nst': '6575', 'nfe': '6741', 'ncfn': '51', 'ncfl': '3620', 'netf': '0'}  sha=['b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4']
+        E stats={'nst': '6575', 'nfe': '6741', 'ncfn': '51', 'ncfl': '3620', 'netf': '0'}  sha=['b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4']
+  N=16  counters_eq=True rivqdown_sha_eq=True -> PASS
+        C stats={'nst': '6575', 'nfe': '6741', 'ncfn': '51', 'ncfl': '3620', 'netf': '0'}  sha=['b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4']
+        E stats={'nst': '6575', 'nfe': '6741', 'ncfn': '51', 'ncfl': '3620', 'netf': '0'}  sha=['b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4']
+
+  [bonus] cross-N determinism within each config (expected identical, Tier-1):
+    C: distinct rivqdown SHA across N={1,8,16} = 1; distinct counter-tuples = 1 (identical)
+    E: distinct rivqdown SHA across N={1,8,16} = 1; distinct counter-tuples = 1 (identical)
+
+================================================================================================
+G-E2 verdict: TIER1_ADOPT iff speedup(E/C) >= 1.10 at N=8 OR N=16 AND bitwise PASS
+================================================================================================
+  speedup(E/C) @ N=8: 724.325s / 553.194s = 1.3094x (>= 1.1)
+  speedup(E/C) @ N=16: 694.343s / 491.618s = 1.4124x (>= 1.1)
+  bitwise_PASS=True  roi>=1.10(N8|N16)=True  ==> VERDICT = TIER1_ADOPT
+
+================================================================================================
+G-E3 Tier-2 gate: (i) Tier-1=ADOPT  (ii) reduction share>=10% on either  (iii) Amdahl>=1.15x
+================================================================================================
+  (i)   Tier-1 verdict = TIER1_ADOPT  -> PASS
+  (ii)  reduction share heihe_x4=35.677% heihe_x16=30.461% (>=10% on either) -> PASS
+  (iii) wall_E16=491.618s  t_red=142.860s  proj = 491.618 / (491.618 - 142.860*(1-1/16)) = 491.618/357.687 = 1.3744x (>= 1.15) -> PASS
+  ==> G-E3 = TIER2_GO  (all three must PASS for GO)
+
+================================================================================================
+SUMMARY: TIER1_ADOPT ; TIER2_GO
+================================================================================================

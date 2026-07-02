@@ -1,0 +1,17 @@
+P12-nvec PR-N3 — ASan+UBSan coverage of the Config E2 multi-block reduction path
+Build: make shud_asan SHUD_USE_OPENMP_NVECTOR=1 SHUD_NVEC_HYBRID=1 SHUD_NVEC_DETRED=1 EXTRA_CXXFLAGS=-DSHUD_NVEC_DETRED_B=256
+  (B=256 forces keliya NY=1986 -> 8 blocks -> the det_alloc_partials malloc + parallel block fold + tree combine)
+Run: keliya, N=8 (OMP_NUM_THREADS=8, cfg NUM_OPENMP=8), 90-day window; ASAN_OPTIONS=halt_on_error=1, UBSAN_OPTIONS=print_stacktrace=1
+SHUD commit: f78e031 (p12-nvec)
+
+  process exit: ASAN_RC=0
+  model completed: nst=100314
+  config identity: NVEC config: Config E2 (fixed-tree deterministic reductions; B=256, Neumaier=0)
+
+=== sanitizer diagnostics scan ===
+  ERROR: AddressSanitizer / runtime error: / SUMMARY / *-buffer-overflow / use-after-* lines: 0
+  -> CLEAN (0 sanitizer findings). All stderr content is model-domain warnings
+     (remove-sink / Aqd-of-Node / Press-anykey). The E2 multi-block malloc + free
+     path and the fixed-tree combine are memory-safe under ASan+UBSan.
+
+VERDICT: ASan/UBSan CLEAN on the Config E2 forced-small-B (multi-block) path.

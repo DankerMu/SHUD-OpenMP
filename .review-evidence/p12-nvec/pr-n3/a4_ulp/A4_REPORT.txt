@@ -1,0 +1,41 @@
+P12-nvec PR-N3 — G-E4(2) A4 max_ulp report: Config E2 vs Config E
+Method: .review-evidence/p12-nvec/pr-n3/tools/a4_ulp.py (uv-run, reuses tools/a5 SHUD reader);
+        elementwise IEEE-754 float64 ULP distance (monotone uint64 key, 0==bitwise) + max_abs_diff.
+No pass/fail threshold at this step (spec G-E4(2)); values inform the Neumaier decision.
+
+=== keliya (Mac clang), production B=4096 (NY=1986 -> 1 block, degenerate == plain fold) ===
+  rivqdown E2(prod)-vs-E:
+      max_ulp=0
+      max_abs_diff=0.000000e+00
+  interpretation: keliya production-B E2 == E BITWISE (single-block degenerate); the tree
+  combine is not exercised at production B on keliya -> the forced-small-B leg carries that.
+
+=== heihe_x4 (server gcc-13), production B=4096 (NY~120k -> ~30 blocks, ~5 combine levels) ===
+  per-output E2(prod)-vs-E (from a5pair E.out / E2.out):
+    rivqdown : identical=957/383130     max_ulp=4.579e18(*)  max_abs_diff=4.203e+04
+    eleveta  : identical=0/3604140      max_ulp=2.804e14(*)  max_abs_diff=1.036e-05
+    eleygw   : identical=1168547/3604140 max_ulp=1.134e16(*)  max_abs_diff=6.405e-04
+    elevprcp : identical=3604140/3604140 max_ulp=0            max_abs_diff=0.000e+00 (forcing input, solver-independent)
+
+  (*) NOTE the max_ulp magnitudes are DOMINATED by ref-value==0 vs candidate-tiny-nonzero
+      elements: ULP distance from exactly 0.0 to any small denormal/normal float spans
+      most of the uint64 range, so 'max_ulp' is not a faithful smallness measure when zeros
+      are present. max_abs_diff is the physically meaningful companion and is recorded above.
+
+  interpretation: the E2-vs-E divergence on heihe_x4 is NOT an in-block rounding effect. The
+  fixed-tree combine changes the WRMS error-norm summation ORDER, which perturbs CVODE's
+  adaptive step decisions (nst 6575->6574, ncfl 3620->3688; both deterministic across threads
+  per G-E4(1)); the resulting trajectory is a DIFFERENT-but-valid integration path. This is
+  the anticipated 'one-time summation-order shift' (design D4 / spec). The A5 hydrology gate
+  (G-E4(3)) certifies the shifted trajectory: nse=1.0000 kge=0.9999 (see A5_VERDICT).
+
+=== Neumaier decision (spec REQ 'fixed-tree ... Neumaier decision recorded from measured need') ===
+  DECISION: Neumaier compensation NOT enabled (SHUD_NVEC_DETRED_NEUMAIER stays 0; plain fold).
+  BASIS: Neumaier compensates summation ACCURACY WITHIN A FIXED ORDER (it reduces the rounding
+  error of a given accumulation sequence). The measured E2-vs-E difference is a STEP-SEQUENCE
+  divergence caused by the order CHANGE (tree vs serial fold), not by in-block rounding error;
+  Neumaier cannot make two different summation orders agree and would not shrink this delta.
+  Meanwhile the tightened A5 already PASSES at nse=1.0/kge=0.9999 with the plain tree, so there
+  is no accuracy deficit to compensate. Adding Neumaier would only slow the reduction (extra
+  FLOPs per element) for zero acceptance benefit. The compensated path is implemented and
+  compile-time-available (SHUD_NVEC_DETRED_NEUMAIER=1) should a future case ever demand it.

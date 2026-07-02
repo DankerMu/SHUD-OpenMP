@@ -1,0 +1,18 @@
+===== P12-nvec matrix cell E_n8 =====
+host=cn12  date=2026-07-02T12:57:40Z  jobid=11339
+bin=shud_omp_E  N=8  PROF=0  NREPS=3
+shud=d8f736c  outer=8dd4898
+cfg NUM_OPENMP -> NUM_OPENMP	8
+cfg window: START=1 END=91 delta=90 (MUST be 90)
+OMP_NUM_THREADS=8 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=<unset> SHUD_LINSOL=spgmr
+start_utc=2026-07-02T12:57:41Z
+--- rep 1/3 ---
+MARKER:P12N2 cell=E_n8 rep=1 wall_s=553.194 rc=0 nst=6575 nfe=6741 ncfn=51 ncfl=3620 netf=0 rivqdown_sha=b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4
+--- rep 2/3 ---
+MARKER:P12N2 cell=E_n8 rep=2 wall_s=554.149 rc=0 nst=6575 nfe=6741 ncfn=51 ncfl=3620 netf=0 rivqdown_sha=b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4
+--- rep 3/3 ---
+MARKER:P12N2 cell=E_n8 rep=3 wall_s=552.932 rc=0 nst=6575 nfe=6741 ncfn=51 ncfl=3620 netf=0 rivqdown_sha=b5e4b0a2cf83b2a4b97d6be5b40ea7e0580d59fb6934db73a95f366f5ffc72b4
+--- config identity (rep1) ---
+  openMP NVector: ON. No of Threads = 8
+end_utc=2026-07-02T13:25:21Z
+CELL_DONE E_n8

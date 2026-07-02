@@ -1,0 +1,20 @@
+=== Build PRE-PATCH binary (parent commit 75afb2b, commit-based) ===
+pre-patch shud built (parent 75afb2b).
+=== Restore PATCHED (HEAD) tree + build patched binary ===
+patched shud built (HEAD).
+=== leg-a: pre-patch baseline, run #1 and #2 (determinism) ===
+=== leg-b: patched, SHUD_NVEC_PROF unset ===
+leg-b: no nvec_prof.csv (correct)
+=== leg-c: patched, SHUD_NVEC_PROF=0 ===
+leg-c: no nvec_prof.csv (correct, strict =1 proven)
+=== leg-d: patched, SHUD_NVEC_PROF=1 ===
+leg-d: nvec_prof.csv created (correct)
+
+=== COMPARE manifests (strip filename col; compare hashes+names) ===
+leg-a run1 vs baseline (determinism): PASS
+leg-b (unset)   vs baseline: PASS
+leg-c (=0)      vs baseline: PASS
+leg-d (=1)      vs baseline: PASS
+
+model-output files in manifest:       13
+DONE.
