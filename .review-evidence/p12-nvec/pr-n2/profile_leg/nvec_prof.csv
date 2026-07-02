@@ -1,0 +1,36 @@
+# project_name=heihe_x4
+# NY=124395
+# nthreads=16
+# backend=hybrid
+op_name,op_class,calls,total_ns
+nvlinearsum,elementwise,289646,10921451783
+nvconst,elementwise,20101,570462337
+nvprod,elementwise,37245,1173160022
+nvdiv,elementwise,37245,1191116986
+nvscale,elementwise,141619,3776822018
+nvabs,elementwise,6575,924440689
+nvinv,elementwise,6575,185979006
+nvaddconst,elementwise,6575,169779249
+nvcompare,elementwise,0,0
+nvdotprod,reduction,221864,95201705157
+nvmaxnorm,reduction,0,0
+nvwrmsnorm,reduction,55113,48164900235
+nvwrmsnormmask,reduction,0,0
+nvmin,reduction,0,0
+nvwl2norm,reduction,0,0
+nvl1norm,reduction,0,0
+nvinvtest,reduction,0,0
+nvconstrmask,reduction,0,0
+nvminquotient,reduction,0,0
+nvdotprodlocal,reduction,0,0
+nvmaxnormlocal,reduction,0,0
+nvminlocal,reduction,0,0
+nvl1normlocal,reduction,0,0
+nvinvtestlocal,reduction,0,0
+nvconstrmasklocal,reduction,0,0
+nvminquotientlocal,reduction,0,0
+nvwsqrsumlocal,reduction,0,0
+nvwsqrsummasklocal,reduction,0,0
+nvdotprodmultilocal,reduction,0,0
+nvclone,other,25,150014
+nvcloneempty,other,1,228

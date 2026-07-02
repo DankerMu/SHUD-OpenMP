@@ -2,12 +2,17 @@
 
 ```yaml
 epic: P12-nvec
-status: OPEN (design phase)
+status: PR-N2 CLOSED — TIER1_ADOPT + TIER2_GO (PR-N3 Tier-2 unblocked)
 date: 2026-07-02
 branches:
   outer: research/p12-nvec   (from main d4ec052, post-P11-osc capstone)
-  shud:  p12-nvec            (from openmp-baseline 75afb2b)
+  shud:  p12-nvec            (from openmp-baseline 75afb2b; PR-N2 makes ZERO SHUD change, pointer @ d8f736c)
 decision_gates: TIER1_ADOPT | TIER1_CLOSE ; TIER2_GO | TIER2_NO-GO (nested, Tier 2 gated on Tier 1)
+verdict:
+  g_e1: PASS (PR-N1 keliya bitwise; PR-N2 heihe_x4 C≡E identical counters + rivqdown SHA at N∈{1,8,16})
+  g_e2: TIER1_ADOPT (heihe_x4 speedup(E/C) ≥ 1.10× at N=8 and N=16; bar 1.10× pinned)
+  g_e3: TIER2_GO ((i) TIER1_ADOPT ∧ (ii) reduction share 35.68%/30.46% ≥ 10% ∧ (iii) Amdahl proj ≥ 1.15×)
+  authority: docs/p12-nvec/tier1_verdict.md + docs/adr/0011-p12-nvec-tier1-verdict-and-tier2-gate.md
 ```
 
 ## One-sentence goal

@@ -2778,6 +2778,8 @@ If both are satisfied, a new ADR-NNNN authoring epic + decomposition spike epic 
 
 ##### §P11-osc — minute-scale stepping diagnosis (oscillation vs real dynamics) [CLOSED — REAL_DYNAMICS per `docs/p11-osc/diagnosis_verdict.md` (2026-07-02, epic #433, PR #437/#438/#439): qinyijiang burst_share_60s=0.9942 但 top-1% flip concentration=0.0366 ≪ 0.50（空间弥散，concentration disjunct）→ 分钟级步进为全流域真实快动力学而非可阻尼数值振荡，limiter/optimization 线不开；SHUD_DIAG_DT/SHUD_DIAG_OSC read-only 诊断 instrumentation（default-off、bitwise-neutral）保留并 merge-back `openmp-baseline` per verdict §9.2]
 
+##### §P12-nvec — deterministic hybrid NVector (Config E: OpenMP element-wise + serial reduction overrides) [TIER1_ADOPT + TIER2_GO per ADR-0011 + `docs/p12-nvec/tier1_verdict.md` (2026-07-02, epic #441, PR #447/#448/#TBD): heihe_x4 90-day matrix {C,E}×N∈{1,8,16} 3-run medians — G-E1 bitwise transfers to x4 scale (C≡E identical cvode_stats + rivqdown SHA b5e4b0a2… at all N), G-E2 speedup(E/C) 1.4124×@N16 / 1.3094×@N8 ≥ 1.10× pinned bar → TIER1_ADOPT (Config E opt-in build leg, release-tag promotion follow-up, release line cpu-accel-v1.0.x 不变); G-E3 三输入 (i)ADOPT (ii)reduction share 35.68%/30.46%≥10% either/OR (iii)Amdahl proj 1.3744×≥1.15× 全 PASS → TIER2_GO, PR-N3 fixed-tree (SHUD_NVEC_DETRED/Config E2) unblocked]
+
 ##### P8-tune.E.small-only — KLU env-var mini-prototype for small cases ([OPEN, anchor — OPTIONAL/medium] per 2026-06-29 + GPT Pro F4)
 
 **Trigger condition**: P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `keliya`+`heihe` 3 axes ALL PASS (pattern-feasible/prototype-worthy per GPT Pro F1 retrospective)。Forward path 仅 mini-prototype 验证 actual wall improvement, **不直接** 进 full integration + A5 (per GPT Pun F4 retrospective)。
