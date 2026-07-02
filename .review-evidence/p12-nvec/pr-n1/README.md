@@ -34,14 +34,23 @@ PR-N0. No tolerance fallback.
 | n8  | 8                | 8               | unset            | `14db6b3c53068314f30c8a0e` | IDENTICAL | IDENTICAL            |
 
 All four legs and the baseline share manifest SHA `14db6b3c…` (13 files each,
-including `keliya.rivqdown.dat` — the primary solver output). **G-E1: PASS.**
+including `keliya.rivqdown.dat` — the primary solver output). **G-E1: PASS**
+(Mac Apple clang / ARM).
+
+**Cross-toolchain validation (GCC).** Because the reduction-fold match is
+compiler-dependent (see the root-cause section), PR-N1 also carries a server
+**GCC-13 G-E1 spot leg** (`gcc_spot_leg/`): Config C and Config E on heihe
+(NumEle 6335, 90-day) each at N∈{1,8} → **E@N1 == E@N8 == C@N1 == C@N8**
+bitwise (sorted-manifest SHA `ff3e6b1d…`). **GCC-SPOT G-E1: PASS.** This covers
+the GCC production toolchain (CI `serial-baseline.yml` + the PR-N2 server
+matrix), not only Apple clang.
 
 Equivalence chain: Config C (Serial NVector) is bitwise thread-count-invariant
 (P1e StrictOMP RHS + no cross-thread NVector accumulation); the PR-N0
 `leg-a-baseline.sha` is that Config C/A reference. Config E reproduces it
 because (a) element-wise ops are index-fixed (identical FP order for any thread
 count and vs Serial) and (b) every reduction is a serial generic-API loop whose
-fold order is pinned to match the library (next section).
+codegen is pinned to reproduce the library's scalar fold (next section).
 
 ### Isolation requirement (evidence-integrity note)
 
@@ -53,47 +62,63 @@ capture). Re-run in isolation, all four legs are identical — the committed
 
 ---
 
-## Root cause + fix: reduction fold order pinned to `-O0`
+## Root cause + fix: scalar-FMA codegen match (platform-specific to clang/ARM)
 
-Mirroring the `nvector_serial.c` **source** is necessary but not sufficient for
-the bitwise-to-Config-C half of G-E1. Config C's reference reductions are the
-**SUNDIALS library** serial functions, and the vendored library is built with
-`CMAKE_BUILD_TYPE=""` → effectively **-O0** (`optnone_fold_order.evidence.txt`
-§1: `CMAKE_BUILD_TYPE:STRING=` empty; the `-O3` in `CMAKE_C_FLAGS_RELEASE` is
-inert without `BUILD_TYPE=Release`). SHUD compiles at `-O2 -ffp-contract=off`
-(B0 IEEE-754 lockdown). Compiling the *same* scalar serial loop at `-O2` lets
-the optimizer reassociate/reschedule the accumulation, drifting from the -O0
-library fold by ~1 ULP.
+**Correction:** an earlier version of this note attributed the divergence to
+"`-O2` reassociating the accumulation." That is mechanically wrong — IEEE
+FP-add reassociation is illegal at plain `-O2` without `-ffast-math`, and
+neither clang nor gcc does it (a `-O2 -ffp-contract=off` loop matches an
+`-O0`-same-flags loop 0/N). The true mechanism is FMA-contraction state plus
+auto-vectorization, and it is **platform-specific**.
 
-Measured (`optnone_fold_order.evidence.txt`, unit sweep of keliya-shaped data
-vs library `N_VWrmsNorm_Serial`):
+Config C's reference reductions are the **SUNDIALS library** serial functions
+(`N_VDotProd_Serial`, `N_VWSqrSumLocal_Serial`, …). SHUD's `-ffp-contract=off`
+(B0 IEEE-754 lockdown) forces two codegen choices on our override that the
+vendored library (built with **no `-ffp-contract` flag** → default contraction)
+does not make:
+1. **FMA stripped** — the library fuses `sum += x[i]*y[i]` into a single-rounding
+   `fma` on FMA targets; `-ffp-contract=off` splits it into two roundings.
+2. **Vectorization** — at `-O2` the non-FMA reduction auto-vectorizes into a
+   pairwise/tree fold order ≠ the library's sequential scalar loop.
 
-| override codegen | diverging datasets |
-|------------------|--------------------|
-| `-O2` (SHUD default) | **363 / 2000** |
-| `-O0` whole-TU (control) | 0 / 2000 |
-| `-O2` + `__attribute__((optnone))` per fn | **0 / 3000** |
-| `-O2` + `volatile` accumulator | 530 / 3000 (insufficient) |
+Measured (`optnone_fold_order.evidence.txt`, override bodies vs library, 5000
+datasets, EXACT shipped flags `-O2 -ffp-contract=off -fno-fast-math`):
 
-Before the fix, the `-O2` drift first appeared in `keliya.rivqdown.dat` at byte
-offset 3728 (reldiff 2.15e-16 = 1 ULP) and cascaded to 96.7% of values.
+| variant | Mac (Apple clang / ARM) | server (x86_64 / gcc-13) |
+|---------|--------------------------|--------------------------|
+| plain override (no attr) | **diverges** — dot 4785/5000, wsqrsum 1819/5000 | **matches** — 0/5000 |
+| `SHUD_NVEC_NOOPT` (shipped) | **matches** — 0/5000 | matches — 0/5000 |
+| `-ffp-contract=on` only | diverges — 4769/5000 (still vectorized) | — |
+| default-contract `-fno-vectorize` | matches — 0/5000 | — |
 
-**Fix (spec-faithful):** each FP-folding override carries `SHUD_NVEC_NOOPT`
-(`__attribute__((optnone))` on clang / `__attribute__((optimize("O0")))` on
-gcc), pinning its codegen to a strict source-order scalar fold that bit-matches
-the -O0 library. The bodies remain **plain serial loops over the generic API**
-(`N_VGetArrayPointer` / `N_VGetLength`) — NO `N_V*_Serial` call, NO
-content-struct macro (both spec-prohibited). The attribute only removes the
-optimizer's freedom to reassociate FP ops; it changes no source logic.
+FMA disassembly (`fmadd`/`fmla` in the reduction loop): Mac clang — library
+**scalar `fmadd`**, plain override **non-FMA + vectorized** (mismatch), optnone
+override **scalar, FMA restored** (match). Server gcc — library **scalar
+non-FMA** (`mulsd`+`addsd`), plain override **scalar non-FMA** (already
+matches). So the divergence exists only where the library uses FMA and SHUD's
+flag strips it — Apple clang / ARM; on x86_64/gcc both sides are scalar non-FMA
+and agree without any attribute.
 
-**Documented fragility:** the bitwise-to-C guarantee assumes the SUNDIALS
-library stays -O0-equivalent scalar. If `./configure` is ever changed to build
-it `-O3` (`CMAKE_BUILD_TYPE=Release`), Config C's reference reductions change
-and the pin would no longer match — the G-E1 gate is the backstop that catches
-it. (A construction-guaranteed alternative — copy into a Serial N_Vector and
-call the library `N_V*_Serial` — is **spec-prohibited** here: the spec forbids
-`N_V*_Serial` calls in the override implementations. The `-O0` pin is the only
-spec-compliant path to bitwise identity.)
+**Fix (spec-faithful):** each FP-folding override carries `SHUD_NVEC_NOOPT` —
+`__attribute__((optnone))` on clang (disables vectorization AND discards the
+function-level `-ffp-contract=off`, restoring default contraction → the library's
+scalar-FMA fold), `__attribute__((optimize("O0","no-tree-vectorize")))` on gcc
+(scalar + default contraction; not required for correctness on x86 but pins the
+intent and guards a future gcc that might vectorize). Bodies remain **plain
+serial loops over the generic API** (`N_VGetArrayPointer` / `N_VGetLength`) — NO
+`N_V*_Serial` call, NO content-struct macro (both spec-prohibited). The attribute
+only constrains codegen, not the source logic.
+
+**Honest fragility:** the bitwise-to-C guarantee rests on a **per-compiler
+codegen coincidence** — on clang, the `optnone`-restores-contraction side
+effect; on gcc, the fact that `-O2 -ffp-contract=off` already yields the
+library's scalar non-FMA fold. It does **NOT** rest on the library's `-O` level
+(the earlier note's claim). If a future toolchain changes the library's
+contraction default or clang's optnone behaviour, the G-E1 SHA gate (Mac clang +
+the PR-N2 server gcc matrix + CI GCC) is the backstop. The copy-into-Serial +
+library-call alternative is **spec-prohibited** here (no `N_V*_Serial` in
+overrides), so this codegen pin is the spec-compliant path. Cross-toolchain
+proof: `gcc_spot_leg/` (server gcc-13 G-E1 heihe verdict).
 
 ---
 
@@ -194,10 +219,11 @@ under ASan is this local leg.)
 
 | file | what |
 |------|------|
-| `ge1_bitwise.sh` / `ge1_run.log` | G-E1 runner + isolated PASS log |
+| `ge1_bitwise.sh` / `ge1_run.log` | Mac clang G-E1 runner + isolated PASS log |
 | `sha/leg-n{1,2,4,8}.sha` | four-leg model-output manifests (all == baseline) |
 | `leg-n{1,2,4,8}.std{out,err}.log` | per-leg run logs (topology recorded) |
-| `optnone_fold_order.evidence.txt` | `-O0` root-cause + fix unit-sweep evidence |
+| `gcc_spot_leg/` | server GCC-13 G-E1 spot leg (heihe C/E × N∈{1,8}) — PASS + FMA disasm |
+| `optnone_fold_order.evidence.txt` | corrected root-cause + fix, per-variant divergence + FMA disasm, BOTH toolchains |
 | `prof-hybrid-keliya.*` | PROF×HYBRID composition leg (csv + asserts) |
 | `omp_nesting_check.log` | nesting default-off probe |
 | `asan-hybrid-keliya.*` | Config E ASan/UBSan clean leg (bonus) |

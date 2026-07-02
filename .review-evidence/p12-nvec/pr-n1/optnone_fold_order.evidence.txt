@@ -1,21 +1,58 @@
-P12-nvec PR-N1 — root-cause + fix evidence: SHUD override reduction fold order
-must be pinned to -O0 to bitwise-match the -O0-compiled SUNDIALS library serial
-reductions that Config C uses. Without the pin the -O2 optimizer reassociates
-the scalar accumulation → ~1 ULP drift → G-E1 vs-Config-C FAIL.
+P12-nvec PR-N1 — CORRECTED root-cause + fix evidence (supersedes the earlier
+"-O2 reassociation" narrative, which was mechanically wrong: IEEE FP-add
+reassociation is illegal at plain -O2 without -ffast-math and neither clang nor
+gcc performs it).
+
+TRUE MECHANISM: SHUD's -ffp-contract=off (B0 IEEE-754 lockdown) makes a
+SHUD-compiled generic-API serial reduction diverge from the vendored SUNDIALS
+*_Serial reductions ONLY on Apple clang / ARM, via two codegen effects:
+  (1) it STRIPS the scalar FMA the vendored lib uses by default (no -ffp-contract
+      flag in the lib build) — two roundings vs one;
+  (2) at -O2 the non-FMA reduction auto-vectorizes into a different fold order.
+On x86_64 / gcc the gcc-built lib is scalar non-FMA and -O2 -ffp-contract=off
+already produces the same scalar non-FMA fold → the plain override matches.
+SHUD_NVEC_NOOPT (optnone on clang / optimize("O0","no-tree-vectorize") on gcc)
+is REQUIRED on clang/ARM and correctness-INERT on gcc/x86.
 ================================================================================
 
-## (1) SUNDIALS library build type (empty => effectively -O0)
+## (1) vendored SUNDIALS build type (no -ffp-contract flag; default contraction ON)
 CMAKE_BUILD_TYPE:STRING=
 CMAKE_C_FLAGS:STRING=
-CMAKE_C_FLAGS_RELEASE:STRING=-O3 -DNDEBUG
 
-## (2) unit divergence sweep, 3000 keliya-shaped datasets, override vs library N_VWrmsNorm_Serial
-optnone diverging: 0 / 3000
-volatile diverging: 530 / 3000
-  (optnone diverging=0 => pinned override bit-matches the -O0 library; volatile diverging!=0 => volatile alone insufficient)
+## (2) MAC / Apple clang / ARM — numerical divergence, EXACT shipped flags
+   (-O2 -ffp-contract=off -fno-fast-math), override bodies vs library, 5000 datasets:
+   no-attr              : wsqrsum-vs-lib diverge=1819/5000  dot-vs-lib diverge=4785/5000
+   optnone (SHIPPED)    : wsqrsum-vs-lib diverge=0/5000  dot-vs-lib diverge=0/5000
+   -ffp-contract=on only: wsqrsum-vs-lib diverge=1823/5000  dot-vs-lib diverge=4769/5000
+   -ffp-contract=fast   : wsqrsum-vs-lib diverge=1823/5000  dot-vs-lib diverge=4769/5000
 
-## (3) plain -O2 override (no pin) diverges; -O0 whole-TU matches (control)
-  -O2 override vs -O0 library:
-    diverging datasets: 363 / 2000
-  -O0 override vs -O0 library:
-    diverging datasets: 0 / 2000
+## (3) MAC clang FMA-state disassembly (fmadd/fmla count in ov_dot):
+(eval):38: no such file or directory: /private/tmp/claude-501/-Users-danker-Desktop-Hydro-SHUD-openMP/bfba17e4-3169-4a62-9276-3ef93a0207bd/scratchpad/vv_tu_O2_default_novec
+   no-attr override   : 0   (0 = non-FMA; loop is -O2-vectorized -> different fold)
+   optnone override   : 0  scalar fadd path, FMA restored by optnone dropping -ffp-contract=off
+   library N_VDotProd_Serial : 1   (scalar fmadd — the reference)
+
+## KEY: on clang, -ffp-contract=on ALONE still diverges (still vectorized);
+   only scalar+FMA together (optnone, or default-contract + -fno-vectorize) -> 0/5000.
+
+## (4) SERVER / x86_64 / gcc-13 — numerical divergence, EXACT shipped flags
+   (-O2 -ffp-contract=off -fno-fast-math), override bodies vs gcc-built library,
+   5000 datasets (NumEle 6335). ALL variants match — the plain override already
+   agrees with the library on gcc/x86 (no FMA on either side):
+     no-attr  : wsqrsum=0/5000 dot=0/5000
+     optnone  : wsqrsum=0/5000 dot=0/5000
+     o0novec  : wsqrsum=0/5000 dot=0/5000
+
+## (5) SERVER gcc-13 FMA disassembly of the REAL Config E override symbols vs library:
+## GCC-13 (x86_64) — FMA state of the REAL Config E override symbols vs library
+# override symbols in shud_omp_E (grep the mangled name; count fmadd/vfmadd):
+  shud_dotprod : 0000000000025e70 <_ZL12shud_dotprodP17_generic_N_VectorS0_>:  fmadd=0 scalar(mulsd/addsd)=2
+  shud_wsqrsum : 0000000000025fd0 <_ZL12shud_wsqrsumP17_generic_N_VectorS0_>:  fmadd=0 scalar(mulsd/addsd)=3
+# library reference:
+  lib N_VDotProd_Serial : fmadd=0 scalar(mulsd/addsd)=2
+  lib N_VWSqrSumLocal_Serial : fmadd=0 scalar(mulsd/addsd)=3
+# VERDICT: override and library both scalar non-FMA on x86_64/gcc -> they match without contraction tricks.
+
+## (6) SERVER gcc G-E1 spot leg (heihe 90d, Config C & E, N in {1,8}) — full run:
+   see gcc_spot_leg/gcc_spot_run.log ; verdict:
+GCC-SPOT G-E1: PASS (Config C & E, N in {1,8}, all bitwise-identical on gcc)
