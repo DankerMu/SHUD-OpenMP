@@ -1,9 +1,9 @@
-# SHUD-OpenMP CPU Acceleration Release v1.0
+# SHUD-OpenMP CPU Acceleration Release v1.1
 
-**Current tag**: `cpu-accel-v1.0.1` (release branch tip `release/cpu-accel-v1.0`)  
+**Current tag**: `cpu-accel-v1.1` (release branch tip `release/cpu-accel-v1.1`)  
 **Initial tag**: `cpu-accel-v1.0` (outer `479526b` + SHUD `6bae35d`, immutable v1.0 launch point)  
-**SHUD submodule pin**: `openmp-baseline/f8adea4` (Makefile default flip → Config C for `make shud_omp`)  
-**Released**: 2026-07-01 (v1.0) / patched same day (v1.0.1 — Config C default + real scaling table)
+**SHUD submodule pin**: `openmp-baseline/e37e26f` (P12-nvec Config E/E2 + README runbook)  
+**Released**: 2026-07-01 (v1.0) / 2026-07-02 (v1.1 — deterministic hybrid NVector, Config E/E2 opt-in)
 
 ## Patch history
 
@@ -12,6 +12,54 @@
 | v1.0   | (init) | `479526b` | `6bae35d` | Initial release manifest (RELEASE.md + double tag) |
 | v1.0.1 | [#429](https://github.com/DankerMu/SHUD-OpenMP/pull/429), [#430](https://github.com/DankerMu/SHUD-OpenMP/pull/430), [#431](https://github.com/DankerMu/SHUD-OpenMP/pull/431) | `6133a41` | `f8adea4` | `make shud_omp` defaults to Config C (no compile flag); real Config C scaling table (heihe_x4 N∈{1,2,4,8,16}, A5 all PASS, sp@8 = 1.80×); tag metadata + patch history |
 | v1.0.2 | [#432](https://github.com/DankerMu/SHUD-OpenMP/pull/432) | (filled at tag time) | `db4ccdb` | SHUD README `§OpenMP parallel build (v1.0.1+)` — runtime threading runbook (env-var priority, thread-count guidance, Slurm template, common pitfalls, P1e A/B/D reproducibility). Docs-only; no runtime code change. |
+| **v1.1** | [#447](https://github.com/DankerMu/SHUD-OpenMP/pull/447)–[#451](https://github.com/DankerMu/SHUD-OpenMP/pull/451) (epic [#441](https://github.com/DankerMu/SHUD-OpenMP/issues/441)) | (filled at tag time) | `e37e26f` | **P12-nvec deterministic hybrid NVector** — two compile-time opt-in legs: **Config E** (`SHUD_NVEC_HYBRID=1`: OpenMP element-wise NVector + serial reduction overrides, bitwise==C at every N; E/C **1.31×@N8 / 1.41×@N16**) and **Config E2** (`SHUD_NVEC_DETRED=1`: fixed-tree deterministic reductions B=4096, cross-thread bitwise by construction, one-time re-baselined golden, A5 nse=1.0000/kge=0.9999; E2/E **1.377×@N8 / 1.369×@N16**). Net `heihe_x4` @N16: **694 s (C) → 363 s (E2) = 1.915×** (≈3.55× vs serial). Default `make shud_omp` build byte-unchanged. Authority: ADR-0011 + `docs/p12-nvec/`. |
+
+## v1.1 — deterministic hybrid NVector (Config E / E2, opt-in)
+
+The v1.0 Amdahl ceiling (~2×, parallel fraction ~0.51) was set by the serial
+CVODE-internal NVector work (element-wise + reductions ≈ 86% of raw CVODE time
+at N=16 on `heihe_x4`, measured by the PR-N0 `SHUD_NVEC_PROF` profiler). v1.1
+attacks exactly that remainder with two nested opt-in legs:
+
+- **Config E** (`make shud_omp SHUD_USE_OPENMP_NVECTOR=1 SHUD_NVEC_HYBRID=1`)
+  parallelizes element-wise ops with the stock OpenMP NVector and pins all 20
+  reduction slots to SHUD-owned serial generic-API overrides
+  (`SHUD_NVEC_NOOPT` codegen pin: FMA-contraction/vectorization state matched
+  to the vendored library — platform-verified on Apple clang/ARM and gcc/x86).
+  **Determinism: bitwise-identical to Config C at every thread count** (G-E1:
+  keliya clang N∈{1,2,4,8} + heihe gcc N∈{1,8} + heihe_x4 N∈{1,8,16}, single
+  rivqdown SHA across 19 runs). Adopted per G-E2 (TIER1_ADOPT, ADR-0011).
+- **Config E2** (`… SHUD_NVEC_DETRED=1`) additionally parallelizes reductions
+  with fixed-tree deterministic summation (compile-time block size B=4096 via
+  `SHUD_NVEC_DETRED_B`; serial in-block index-order folds; fixed binary-tree
+  combine = pure function of (NY, B); dynamic thread→block mapping cannot
+  affect order; malloc-failure path aborts loudly rather than order-shift).
+  **Determinism: cross-thread bitwise by construction**, but a **one-time
+  summation-order shift vs C/E** → new golden lineage, certified by G-E4
+  (bitwise chain + A4 ulp report + tightened A5 `a5_thresholds.p12_tier2.yaml`:
+  nse=1.0000, kge=0.9999, peak_off=0, runoff=0.9999). A3a bitwise acceptance
+  applies WITHIN the E2 lineage, never across the C/E ↔ E2 boundary
+  (`docs/p12-nvec/pr_n3_rebaseline_decision.md`).
+
+Measured (`heihe_x4`, 90-day, 3-run medians, node-exclusive homogeneous
+Xeon Gold 6133, same-batch pairings):
+
+| Config | N=8 wall (s) | N=16 wall (s) | @N16 vs C | @N16 vs serial |
+|---|---:|---:|---:|---:|
+| C (v1.0 default) | 724.3 | 694.3 | 1.00× | 1.86× |
+| E  | 553.2 | 491.6 | 1.41× | 2.62× |
+| E2 | 431.7 | 362.7 | **1.915×** | **≈3.55×** |
+
+E2/E gain landed within **−0.42%** of the G-E3(iii) Amdahl projection
+(1.3744×) — the reduction-share model validated end-to-end. Thread knob for
+E/E2: NVector threads read cfg.para `NUM_OPENMP` — set it and
+`OMP_NUM_THREADS` to the same N (SHUD README §Config E / E2 runbook).
+
+Engineering notes: per-call block-partial `malloc` in E2 reductions measured
+at ~0.02% of E2@N16 wall (≈248 B × ~8×10⁵ calls) — a scratch-buffer hoist was
+evaluated and **rejected** (static state + full re-verification cost for an
+unmeasurable gain; KISS). Config E at cfg N=1 runs a 2-thread NVector floor
+(documented, informational only — gate cells N∈{8,16} are matched-threads).
 
 ---
 
