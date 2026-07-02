@@ -1,0 +1,21 @@
+P12-nvec PR-N1 — root-cause + fix evidence: SHUD override reduction fold order
+must be pinned to -O0 to bitwise-match the -O0-compiled SUNDIALS library serial
+reductions that Config C uses. Without the pin the -O2 optimizer reassociates
+the scalar accumulation → ~1 ULP drift → G-E1 vs-Config-C FAIL.
+================================================================================
+
+## (1) SUNDIALS library build type (empty => effectively -O0)
+CMAKE_BUILD_TYPE:STRING=
+CMAKE_C_FLAGS:STRING=
+CMAKE_C_FLAGS_RELEASE:STRING=-O3 -DNDEBUG
+
+## (2) unit divergence sweep, 3000 keliya-shaped datasets, override vs library N_VWrmsNorm_Serial
+optnone diverging: 0 / 3000
+volatile diverging: 530 / 3000
+  (optnone diverging=0 => pinned override bit-matches the -O0 library; volatile diverging!=0 => volatile alone insufficient)
+
+## (3) plain -O2 override (no pin) diverges; -O0 whole-TU matches (control)
+  -O2 override vs -O0 library:
+    diverging datasets: 363 / 2000
+  -O0 override vs -O0 library:
+    diverging datasets: 0 / 2000
