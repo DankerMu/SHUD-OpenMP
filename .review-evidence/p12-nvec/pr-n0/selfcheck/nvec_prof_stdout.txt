@@ -1,0 +1,2 @@
+[NVEC_PROF] clone-propagation smoke assert: base=31 N_VClone=31 N_VCloneEmpty=31 -> PASS
+[NVEC_PROF] dump output/keliya.out/nvec_prof.csv : wrapped_entries=31 invoked(calls>0)=12 backend=serial NY=1785 nthreads=8

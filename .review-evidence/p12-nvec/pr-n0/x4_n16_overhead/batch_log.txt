@@ -1,0 +1,70 @@
+=== heihe_x4 N=16 overhead gate: 3x gate-off + 3x gate-on (Config C, SHUD_ENABLE_PROFILE build) ===
+batch_start=2026-07-02T07:02:35Z
+node=cn22
+=== p12_run_cell case=heihe_x4 N=16 prof=0 label=off-rep1 ===
+host=cn22 cfg=input/heihe_x4/heihe_x4.cfg.para END-START=90
+OMP_NUM_THREADS=16 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=<unset>
+git_outer=be1fedc shud=18f6319
+start_utc=2026-07-02T07:02:35Z
+end_utc=2026-07-02T07:14:31Z
+shud_exit=0 wall_s=716.387
+collected profile_B0.yaml
+collected cvode_stats.txt
+MARKER:P12_CELL label=off-rep1 case=heihe_x4 N=16 prof=0 wall_s=716.387 rc=0
+=== p12_run_cell case=heihe_x4 N=16 prof=0 label=off-rep2 ===
+host=cn22 cfg=input/heihe_x4/heihe_x4.cfg.para END-START=90
+OMP_NUM_THREADS=16 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=<unset>
+git_outer=be1fedc shud=18f6319
+start_utc=2026-07-02T07:14:31Z
+end_utc=2026-07-02T07:26:11Z
+shud_exit=0 wall_s=699.435
+collected nvec_prof.csv
+collected profile_B0.yaml
+collected cvode_stats.txt
+MARKER:P12_CELL label=off-rep2 case=heihe_x4 N=16 prof=0 wall_s=699.435 rc=0
+=== p12_run_cell case=heihe_x4 N=16 prof=0 label=off-rep3 ===
+host=cn22 cfg=input/heihe_x4/heihe_x4.cfg.para END-START=90
+OMP_NUM_THREADS=16 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=<unset>
+git_outer=be1fedc shud=18f6319
+start_utc=2026-07-02T07:26:11Z
+end_utc=2026-07-02T07:37:49Z
+shud_exit=0 wall_s=698.418
+collected nvec_prof.csv
+collected profile_B0.yaml
+collected cvode_stats.txt
+MARKER:P12_CELL label=off-rep3 case=heihe_x4 N=16 prof=0 wall_s=698.418 rc=0
+=== p12_run_cell case=heihe_x4 N=16 prof=1 label=on-rep1 ===
+host=cn22 cfg=input/heihe_x4/heihe_x4.cfg.para END-START=90
+OMP_NUM_THREADS=16 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=1
+git_outer=be1fedc shud=18f6319
+start_utc=2026-07-02T07:37:49Z
+end_utc=2026-07-02T07:49:28Z
+shud_exit=0 wall_s=698.616
+collected nvec_prof.csv
+collected profile_B0.yaml
+collected cvode_stats.txt
+MARKER:P12_CELL label=on-rep1 case=heihe_x4 N=16 prof=1 wall_s=698.616 rc=0
+=== p12_run_cell case=heihe_x4 N=16 prof=1 label=on-rep2 ===
+host=cn22 cfg=input/heihe_x4/heihe_x4.cfg.para END-START=90
+OMP_NUM_THREADS=16 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=1
+git_outer=be1fedc shud=18f6319
+start_utc=2026-07-02T07:49:28Z
+end_utc=2026-07-02T08:01:05Z
+shud_exit=0 wall_s=696.929
+collected nvec_prof.csv
+collected profile_B0.yaml
+collected cvode_stats.txt
+MARKER:P12_CELL label=on-rep2 case=heihe_x4 N=16 prof=1 wall_s=696.929 rc=0
+=== p12_run_cell case=heihe_x4 N=16 prof=1 label=on-rep3 ===
+host=cn22 cfg=input/heihe_x4/heihe_x4.cfg.para END-START=90
+OMP_NUM_THREADS=16 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=1
+git_outer=be1fedc shud=18f6319
+start_utc=2026-07-02T08:01:05Z
+end_utc=2026-07-02T08:12:44Z
+shud_exit=0 wall_s=699.184
+collected nvec_prof.csv
+collected profile_B0.yaml
+collected cvode_stats.txt
+MARKER:P12_CELL label=on-rep3 case=heihe_x4 N=16 prof=1 wall_s=699.184 rc=0
+batch_end=2026-07-02T08:12:44Z
+MARKER:BATCH_DONE x4_n16_overhead
