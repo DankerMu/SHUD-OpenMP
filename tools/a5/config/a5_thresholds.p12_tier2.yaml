@@ -1,0 +1,57 @@
+# A5 hydrology-acceptance thresholds — P12-nvec Tier-2 (Config E2) TIGHTENED override.
+#
+# Delivered by P12-nvec PR-N3 (#445) for the G-E4(3) acceptance of Config E2
+# (fixed-tree deterministic reductions, SHUD_NVEC_DETRED). Config E2 introduces
+# a ONE-TIME summation-order shift vs Config E/C (the cross-block binary-tree
+# combine replaces the plain serial fold); the trajectory is otherwise the same
+# physics, so the acceptance bar is TIGHTENED far above the committed tool
+# defaults (nse 0.90 / kge 0.85 / peak-timing ±4 / runoff ±3%) — a
+# physics-adjacent-change bar, per the P11-osc verdict precedent
+# (docs/p11-osc/diagnosis_verdict.md, where nse/kge 0.99 were pinned for a
+# minute-scale-dynamics tightened threshold).
+#
+# Pinned values (design.md §D4 / spec tier2-det-reduction "G-E4 acceptance chain"):
+#   nse.min                        = 0.99   (tightened from 0.90)
+#   kge.min                        = 0.99   (tightened from 0.85)
+#   peak_timing_offset.max_abs_steps = 1    (<= 1 output interval; from 4)
+#   runoff_volume_ratio            ∈ [0.99, 1.01]  (<= 1%; from ±3%)
+#   water_balance_residual.max     = 0.05   (tool default cap — kept)
+#   all other metrics + weights    = tool defaults (a5_thresholds.default.yaml)
+#
+# Weights are UNCHANGED from the default config (only the bounds tighten); the
+# critical-weight (>= 0.75) gate + weighted-score >= 0.85 semantics apply as-is.
+#
+# NOTE (verdict layer): tools/a5 computes water_balance_residual PER RUN and has
+# no cross-run "non-degrading" semantic. The PR-N3 verdict doc records the
+# candidate (E2) vs reference (Config C) residuals SIDE-BY-SIDE and requires
+# candidate <= reference, in addition to this per-run cap.
+
+nse:
+  min: 0.99        # tightened: near-identical trajectory required (was 0.90)
+  weight: 1.0
+
+kge:
+  min: 0.99        # tightened (was 0.85)
+  weight: 1.0
+
+peak_magnitude_ratio:
+  min: 0.90        # default (unchanged)
+  max: 1.10
+  weight: 0.75
+
+peak_timing_offset:
+  max_abs_steps: 1   # tightened: <= 1 output interval (was 4)
+  weight: 0.5
+
+runoff_volume_ratio:
+  min: 0.99        # tightened: <= 1% volume drift (was 0.97)
+  max: 1.01        # tightened (was 1.03)
+  weight: 1.0
+
+monthly_bias_mae:
+  max: 0.05          # default (unchanged)
+  weight: 0.5
+
+water_balance_residual:
+  max: 0.05          # tool default cap (kept)
+  weight: 0.75

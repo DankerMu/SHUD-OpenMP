@@ -1,0 +1,60 @@
+
+___________________________________________________________________________________________
+    SSSSSSSSSSSSSSS   HHHHHHHHH     HHHHHHHHH  UUUUUUUU     UUUUUUUU  DDDDDDDDDDDDD        
+  SS:::::::::::::::S  H:::::::H     H:::::::H  U::::::U     U::::::U  D::::::::::::DDD     
+ S:::::SSSSSS::::::S  H:::::::H     H:::::::H  U::::::U     U::::::U  D:::::::::::::::DD   
+ S:::::S     SSSSSSS  HH::::::H     H::::::HH  UU:::::U     U:::::UU  DDD:::::DDDDD:::::D  
+ S:::::S                H:::::H     H:::::H     U:::::U     U:::::U     D:::::D    D:::::D 
+ S:::::S                H:::::H     H:::::H     U:::::D     D:::::U     D:::::D     D:::::D
+  S::::SSSS             H::::::HHHHH::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+   SS::::::SSSSS        H:::::::::::::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+     SSS::::::::SS      H:::::::::::::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+        SSSSSS::::S     H::::::HHHHH::::::H     U:::::D     D:::::U     D:::::D     D:::::D
+             S:::::S    H:::::H     H:::::H     U:::::D     D:::::U     D:::::D     D:::::D
+             S:::::S    H:::::H     H:::::H     U::::::U   U::::::U     D:::::D    D:::::D 
+ SSSSSSS     S:::::S  HH::::::H     H::::::HH   U:::::::UUU:::::::U   DDD:::::DDDDD:::::D  
+ S::::::SSSSSS:::::S  H:::::::H     H:::::::H    UU:::::::::::::UU    D:::::::::::::::DD   
+ S:::::::::::::::SS   H:::::::H     H:::::::H      UU:::::::::UU      D::::::::::::DDD     
+  SSSSSSSSSSSSSSS     HHHHHHHHH     HHHHHHHHH        UUUUUUUUU        DDDDDDDDDDDDD        
+
+                  Simulator for Hydrologic Unstructured Domains v2.0  2022                      
+___________________________________________________________________________________________
+
+
+
+
+		 * openMP enabled. Maximum Threads = 8
+[NUMA] OMP_PROC_BIND=close
+* 	 Project name: keliya
+* 	 Project input folder: input/keliya
+* 	 Project output folder: output/keliya.out
+1 	 Reading file: input/keliya/keliya.cfg.para
+2 	 Reading file: input/keliya/keliya.sp.riv
+	The downstream of RIV 44 is negtive (Outlet, -3)
+	The downstream of RIV 64 is negtive (Outlet, -3)
+3 	 Reading file: input/keliya/keliya.sp.rivseg
+	Number of River segments: 534
+4 	 Reading file: input/keliya/keliya.sp.mesh
+5 	 Reading file: input/keliya/keliya.sp.att
+6 	 Reading file: input/keliya/keliya.para.soil
+7 	 Reading file: input/keliya/keliya.para.geol
+8 	 Reading file: input/keliya/keliya.para.lc
+9 	 Reading file: input/keliya/keliya.tsd.forc
+	Number of csv files: 32
+	 Reading 1/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.45Y36.25.csv
+	 Reading 2/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.55Y36.25.csv
+	 Reading 3/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.25.csv
+	 Reading 4/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.25.csv
+	 Reading 5/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.85Y36.25.csv
+	 Reading 6/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.95Y36.25.csv
+	 Reading 7/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X83.05Y36.25.csv
+	 Reading 8/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.45Y36.35.csv
+	 Reading 9/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.55Y36.35.csv
+	 Reading 10/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.35.csv
+	 Reading 11/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.35.csv
+	 Reading 12/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.85Y36.35.csv
+	 Reading 13/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.95Y36.35.csv
+	 Reading 14/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X83.05Y36.35.csv
+	 Reading 15/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.55Y36.45.csv
+	 Reading 16/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.65Y36.45.csv
+	 Reading 17/32: 	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/Basins/keliya/forcing/X82.75Y36.45.csv
