@@ -57,13 +57,23 @@ P1e epic 关闭后（StrictOMP RHS 生产基线），并行 RHS 攻击的是**�
 无法触及**步数**。B0 archive 证据（90 天窗口，serial Config A）显示步数
 `nst` 是 forcing/physics 驱动而非 mesh 驱动：`heihe`（6,335 ele）与
 `heihe_x4`（40,046 ele）取几乎相同的 ~6.57k 步。真正的 ≥10× CPU 机会（在
-ADR-0008/0009/0010 三条线关闭后仅剩此一处）在于 `qinyijiang`（nst≈127k，
-est.）/ `keliya`（nst≈101k）的分钟级步进：若 nst 能降到 heihe-like ~6.5k，
-wall 缩约 19×。但这仅在**振荡为数值**时才是合法、physics-preserving 的加速；
-若为真实快动力学，阻尼即 falsify physics，该线必须关闭。
+ADR-0008/0009/0010 三条线关闭后仅剩此一处）在于 `qinyijiang`（B0
+nst=127,536）/ `keliya`（B0 nst=101,188）的分钟级步进：若 nst 能降到
+heihe-like ~6.5k，wall 缩约 19×。但这仅在**振荡为数值**时才是合法、
+physics-preserving 的加速；若为真实快动力学，阻尼即 falsify physics，
+该线必须关闭。
+
+> **B0 → 本次 run 步数漂移（诚实注记）**：本诊断 run（SHUD `75afb2b`）实测
+> nst=156,580（qinyijiang，+22.8% vs B0 127,536）/ 111,130（keliya，+9.8%
+> vs B0 101,188；同类漂移亦见 keliya netf 5→7）。B0 archive 采于更早的
+> SHUD 树，其后有 #401 内存泄漏修复等变更落树；本裁决只读**当前树**
+> （`75afb2b`）的行为，漂移 root-cause 超出本 spike 范围。漂移方向对裁决
+> 不变：nst 更高只会强化"分钟级步进为真"的前提，burst / 空间弥散 / 相关性
+> 三项 gate 输入均不依赖 B0 绝对步数。
 
 关键悖论（spike_brief §Motivating evidence 第 3 点）：CVODE 在 qinyijiang 上
-**并不 struggle**——netf=0、ncfn≈0.06%，误差控制器是"心满意足地"走 1 分钟步。
+**并不 struggle**——netf=0、ncfn≈0.06%（B0）/ 0.07%（本次 run，Tab.1），
+误差控制器是"心满意足地"走 1 分钟步。
 聚合统计无法区分两假设，需 read-only 的 dt/翻转诊断定位。
 
 ## §1.2 形式化假设（spike_brief）
@@ -300,16 +310,19 @@ qinyijiang 的 452,969 element flips 里 top-32 element 仅承载 3.66%——翻
 
 **qinyijiang（primary）**——翻转峰跟降雨峰走：
 
-**Tab.4** — qinyijiang top flip days vs 同日 basin-mean 降雨率。
+**Tab.4** — qinyijiang top-8 flip days（完整降序，无筛选）vs 同日
+basin-mean 降雨率。
 
 | day_index | flips_total | mean_precip (mm·d⁻¹) | 备注 |
 |---:|---:|---:|---|
 | 446 | 17,712 | 26.17 | flip #1 / precip #2 |
 | 447 | 16,028 | 30.58 | flip #2 / **precip #1** |
 | 445 | 14,594 | 9.78 | 降雨事件簇边缘 |
-| 397 | 13,221 | 10.63 | 次级降雨日 |
+| 397 | 13,221 | 10.63 | 簇外次级降雨日 |
+| 438 | 12,590 | 3.38 | 簇内（当日降雨小） |
 | 448 | 11,960 | 19.56 | precip #5 |
 | 451 | 11,742 | 7.10 | 事件簇尾 |
+| 405 | 11,454 | 4.33 | 簇外 |
 
 qinyijiang 翻转日 top-2 = 降雨日 top-2；day 438–452 是明显降雨事件簇，翻转
 top-8 中 6 天（446/447/445/438/448/451）落于此簇（仅 397/405 在外）。
