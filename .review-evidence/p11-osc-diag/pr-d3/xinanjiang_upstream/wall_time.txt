@@ -1,0 +1,3 @@
+start_epoch=1782964264 start_iso=2026-07-02T03:51:04Z
+end_epoch=1782964270 end_iso=2026-07-02T03:51:10Z
+exit_code=0 wall_seconds=6

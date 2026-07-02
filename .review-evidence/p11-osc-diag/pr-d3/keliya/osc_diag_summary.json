@@ -1,0 +1,76 @@
+{
+  "schema_version": "OSC_DIAG-v1.0.0",
+  "case": "keliya",
+  "project_name": "keliya",
+  "solverstep_min": 20.0,
+  "trace": {
+    "rows_total": 6480,
+    "rows_skipped_delta_nst_zero": 0,
+    "rows_used": 6480,
+    "total_nst": 111130
+  },
+  "gate_inputs": {
+    "burst_share_60s": 0.001889678754611716,
+    "burst_share_10s": 0.0,
+    "top1pct_concentration": 0.3766112246261959,
+    "spearman_rho": 0.12853589859110565
+  },
+  "concentration_detail": {
+    "n_ele": 484,
+    "top_k": 5,
+    "total_ele_flips": 52367,
+    "riv_flips_total_reported_separately": 10015,
+    "top_element_ids": [
+      437,
+      84,
+      453,
+      429,
+      28
+    ],
+    "top_element_flips": [
+      4131,
+      4126,
+      4097,
+      4077,
+      3291
+    ]
+  },
+  "spearman_detail": {
+    "n_days_joined": 90,
+    "dropped_trailing_partial_day_index": 12143
+  },
+  "histogram": [
+    {
+      "bin": "[0,10)",
+      "interval_count": 0,
+      "nst_share": 0.0
+    },
+    {
+      "bin": "[10,60)",
+      "interval_count": 10,
+      "nst_share": 0.001889678754611716
+    },
+    {
+      "bin": "[60,300)",
+      "interval_count": 6180,
+      "nst_share": 0.9890758571042922
+    },
+    {
+      "bin": "[300,600)",
+      "interval_count": 282,
+      "nst_share": 0.008890488616935121
+    },
+    {
+      "bin": "[600,1200)",
+      "interval_count": 8,
+      "nst_share": 0.00014397552416089266
+    },
+    {
+      "bin": "[1200,inf)",
+      "interval_count": 0,
+      "nst_share": 0.0
+    }
+  ],
+  "verdict": "REAL_DYNAMICS",
+  "proxy_limitation": "D2 flip counts are an accepted-boundary state-delta proxy at SolverStep resolution; they conservatively UNDER-count sub-interval oscillation (design R3), biasing against OSC_CONFIRMED, never toward it."
+}
