@@ -1,0 +1,10 @@
+# project_name=keliya solverstep_min=20 epsilon_m=1e-06
+entity_type,entity_id,flips_sf,flips_us,flips_gw,flips_stage
+ele,1,4,0,0,0
+ele,2,0,0,0,0
+ele,3,0,0,0,0
+ele,4,0,0,0,0
+...
+riv,331,0,0,0,23
+riv,332,0,0,0,17
+riv,333,0,0,0,21
