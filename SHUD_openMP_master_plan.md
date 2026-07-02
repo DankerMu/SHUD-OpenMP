@@ -2776,6 +2776,8 @@ If both are satisfied, a new ADR-NNNN authoring epic + decomposition spike epic 
 
 **Out of scope** (DESIGN-ONLY): implementation, validation, performance measurement, A5 of any decomposition prototype. Scope = architectural ledger only.
 
+##### §P11-osc — minute-scale stepping diagnosis (oscillation vs real dynamics) [CLOSED — REAL_DYNAMICS per `docs/p11-osc/diagnosis_verdict.md` (2026-07-02, epic #433, PR #437/#438/#439): qinyijiang burst_share_60s=0.9942 但 top-1% flip concentration=0.0366 ≪ 0.50（空间弥散，concentration disjunct）→ 分钟级步进为全流域真实快动力学而非可阻尼数值振荡，limiter/optimization 线不开；SHUD_DIAG_DT/SHUD_DIAG_OSC read-only 诊断 instrumentation（default-off、bitwise-neutral）保留并 merge-back `openmp-baseline` per verdict §9.2]
+
 ##### P8-tune.E.small-only — KLU env-var mini-prototype for small cases ([OPEN, anchor — OPTIONAL/medium] per 2026-06-29 + GPT Pro F4)
 
 **Trigger condition**: P8-tune.D Case-aware verdict (per ADR-0005 §Decision §Forward action) — `keliya`+`heihe` 3 axes ALL PASS (pattern-feasible/prototype-worthy per GPT Pro F1 retrospective)。Forward path 仅 mini-prototype 验证 actual wall improvement, **不直接** 进 full integration + A5 (per GPT Pun F4 retrospective)。

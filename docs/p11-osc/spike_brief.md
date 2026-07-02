@@ -2,8 +2,9 @@
 
 ```yaml
 epic: P11-osc
-status: OPEN (diagnosis phase)
-date: 2026-07-01
+status: CLOSED — verdict REAL_DYNAMICS (2026-07-02)
+verdict: REAL_DYNAMICS per docs/p11-osc/diagnosis_verdict.md (epic #433; PR #437/#438/#439; control sanity PASS)
+date: 2026-07-01 (opened) / 2026-07-02 (closed)
 branches:
   outer: research/p11-osc   (from main d127edc)
   shud:  p11-osc            (from openmp-baseline db4ccdb, v1.0.2 tip)
