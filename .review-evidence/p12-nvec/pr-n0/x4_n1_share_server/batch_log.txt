@@ -1,0 +1,16 @@
+=== heihe_x4 N=1 share leg (Config C, SHUD_ENABLE_PROFILE build, SHUD_NVEC_PROF=1) ===
+batch_start=2026-07-02T07:02:35Z
+node=cn21
+=== p12_run_cell case=heihe_x4 N=1 prof=1 label=n1-share ===
+host=cn21 cfg=input/heihe_x4/heihe_x4.cfg.para END-START=90
+OMP_NUM_THREADS=1 SHUD_RHS_THREADS=<unset> SHUD_NVEC_PROF=1
+git_outer=be1fedc shud=18f6319
+start_utc=2026-07-02T07:02:35Z
+end_utc=2026-07-02T07:24:24Z
+shud_exit=0 wall_s=1309.348
+collected nvec_prof.csv
+collected profile_B0.yaml
+collected cvode_stats.txt
+MARKER:P12_CELL label=n1-share case=heihe_x4 N=1 prof=1 wall_s=1309.348 rc=0
+batch_end=2026-07-02T07:24:24Z
+MARKER:BATCH_DONE x4_n1_share

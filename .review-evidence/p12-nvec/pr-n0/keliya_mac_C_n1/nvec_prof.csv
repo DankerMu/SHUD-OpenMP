@@ -1,0 +1,36 @@
+# project_name=keliya
+# NY=1785
+# nthreads=1
+# backend=serial
+op_name,op_class,calls,total_ns
+nvlinearsum,elementwise,1551191,2793761000
+nvconst,elementwise,336269,488595000
+nvprod,elementwise,229206,391863000
+nvdiv,elementwise,229206,396269000
+nvscale,elementwise,1418235,2043820000
+nvabs,elementwise,111130,176609000
+nvinv,elementwise,111130,154368000
+nvaddconst,elementwise,111130,152885000
+nvcompare,elementwise,0,0
+nvdotprod,reduction,814191,3031830000
+nvmaxnorm,reduction,0,0
+nvwrmsnorm,reduction,509659,4467461000
+nvwrmsnormmask,reduction,0,0
+nvmin,reduction,0,0
+nvwl2norm,reduction,0,0
+nvl1norm,reduction,0,0
+nvinvtest,reduction,0,0
+nvconstrmask,reduction,0,0
+nvminquotient,reduction,0,0
+nvdotprodlocal,reduction,0,0
+nvmaxnormlocal,reduction,0,0
+nvminlocal,reduction,0,0
+nvl1normlocal,reduction,0,0
+nvinvtestlocal,reduction,0,0
+nvconstrmasklocal,reduction,0,0
+nvminquotientlocal,reduction,0,0
+nvwsqrsumlocal,reduction,0,0
+nvwsqrsummasklocal,reduction,0,0
+nvdotprodmultilocal,reduction,0,0
+nvclone,other,25,9000
+nvcloneempty,other,1,1000
