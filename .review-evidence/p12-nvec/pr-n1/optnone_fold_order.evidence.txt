@@ -26,11 +26,14 @@ CMAKE_C_FLAGS:STRING=
    -ffp-contract=on only: wsqrsum-vs-lib diverge=1823/5000  dot-vs-lib diverge=4769/5000
    -ffp-contract=fast   : wsqrsum-vs-lib diverge=1823/5000  dot-vs-lib diverge=4769/5000
 
-## (3) MAC clang FMA-state disassembly (fmadd/fmla count in ov_dot):
-(eval):38: no such file or directory: /private/tmp/claude-501/-Users-danker-Desktop-Hydro-SHUD-openMP/bfba17e4-3169-4a62-9276-3ef93a0207bd/scratchpad/vv_tu_O2_default_novec
-   no-attr override   : 0   (0 = non-FMA; loop is -O2-vectorized -> different fold)
-   optnone override   : 0  scalar fadd path, FMA restored by optnone dropping -ffp-contract=off
-   library N_VDotProd_Serial : 1   (scalar fmadd — the reference)
+## (3) MAC clang FMA-state disassembly of the REAL shipped TU (shud_dotprod in
+##     MD_nvec_hybrid.cpp @ d8f736c; otool -tv, count fmadd/fmla + .2d SIMD lanes).
+##     [Regenerated post-review 2026-07-02: the original block committed a failed
+##      command's shell error and mislabeled the optnone line ("0 / scalar fadd");
+##      values below are from a clean re-run against the shipped source.]
+   no-attr override            : fmadd=0  simd(.2d)=4   (non-FMA, -O2-vectorized -> different fold)
+   optnone override (SHIPPED)  : fmadd=1  simd(.2d)=0   (scalar fmadd; optnone drops -ffp-contract=off -> FMA restored)
+   library N_VDotProd_Serial   : fmadd=1  simd(.2d)=0   (scalar fmadd — the reference; matches shipped override)
 
 ## KEY: on clang, -ffp-contract=on ALONE still diverges (still vectorized);
    only scalar+FMA together (optnone, or default-contract + -fno-vectorize) -> 0/5000.
@@ -56,3 +59,13 @@ CMAKE_C_FLAGS:STRING=
 ## (6) SERVER gcc G-E1 spot leg (heihe 90d, Config C & E, N in {1,8}) — full run:
    see gcc_spot_leg/gcc_spot_run.log ; verdict:
 GCC-SPOT G-E1: PASS (Config C & E, N in {1,8}, all bitwise-identical on gcc)
+
+## (7) POST-REVIEW ADDENDUM (2026-07-02): shipped gcc attribute compile-validated.
+   Reviewer Note-2: the spot-leg binaries were built at 3e0ab23 (old attribute
+   optimize("O0")); the shipped optimize("O0","no-tree-vectorize") had no gcc
+   build coverage. Closed: server g++ 13.3.0, SHUD @ d8f736c, full object
+   compile of src/Model/MD_nvec_hybrid.cpp with shipped flags
+   (-O2 -ffp-contract=off -fno-fast-math -std=c++14 -fopenmp
+    -DSHUD_USE_OPENMP_NVECTOR=1 -DSHUD_NVEC_HYBRID=1) -> SYNTAX_OK + COMPILE_OK.
+   (Correctness on gcc is attribute-independent per (4)/(5); this closes the
+   compile-coverage gap only. PR-N2's server Config E build re-covers it E2E.)
