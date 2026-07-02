@@ -1,0 +1,29 @@
+host=cn22 date=2026-07-02T12:16:51Z
+gcc: g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+shud C=3e0ab23
+cfg=/scratch/frd_muziyao/SHUD-OpenMP/SHUD/Basins/heihe/input/heihe/heihe.cfg.para  window: 14245 -> 14335 (90d)
+=== cell C_n1 (bin=shud_omp_C OMP_NUM_THREADS=1 SHUD_RHS_THREADS unset) ===
+  exit=0 elapsed=129s
+  openMP NVector: OFF (Serial backend)
+  manifest: 11 files -> sha/C_n1.sha
+=== cell C_n8 (bin=shud_omp_C OMP_NUM_THREADS=8 SHUD_RHS_THREADS unset) ===
+  exit=0 elapsed=89s
+  openMP NVector: OFF (Serial backend)
+  manifest: 11 files -> sha/C_n8.sha
+=== cell E_n1 (bin=shud_omp_E OMP_NUM_THREADS=1 SHUD_RHS_THREADS unset) ===
+  exit=0 elapsed=70s
+  openMP NVector: ON. No of Threads = 8
+  manifest: 11 files -> sha/E_n1.sha
+=== cell E_n8 (bin=shud_omp_E OMP_NUM_THREADS=8 SHUD_RHS_THREADS unset) ===
+  exit=0 elapsed=71s
+  openMP NVector: ON. No of Threads = 8
+  manifest: 11 files -> sha/E_n8.sha
+
+=== COMPARE (E@N1 == E@N8 == C@N1 == C@N8, sorted) ===
+  C_n1 == C_n1 : IDENTICAL
+  C_n8 == C_n1 : IDENTICAL
+  E_n1 == C_n1 : IDENTICAL
+  E_n8 == C_n1 : IDENTICAL
+
+GCC-SPOT G-E1: PASS (Config C & E, N in {1,8}, all bitwise-identical on gcc)
+done_utc=2026-07-02T12:22:50Z
