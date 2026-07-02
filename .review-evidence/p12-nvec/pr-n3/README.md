@@ -1,7 +1,22 @@
 # P12-nvec PR-N3 evidence — Config E2 fixed-tree deterministic reductions + G-E4
 
-**Issue:** #445 | **SHUD commit:** `ce4bcef` (p12-nvec) | **Outer base:** research/p12-nvec
+**Issue:** #445 | **SHUD commit:** `f78e031` (p12-nvec; G-E4 evidence generated at `ce4bcef`, see addendum) | **Outer base:** research/p12-nvec
 **Verdict:** G-E4 PASS → Config E2 certified (re-baseline recorded).
+
+## POST-REVIEW addendum (SHUD ce4bcef → f78e031, review Note-1)
+
+The full G-E4 evidence below was generated at SHUD **`ce4bcef`**. Review Note-1
+added a loud abort on the E2 block-partial malloc failure (`det_alloc_partials`,
+SHUD `f78e031`) — a branch on the malloc-FAILURE path only; the success path is
+byte-unchanged. Behavior-neutrality re-verified at `f78e031`:
+
+- keliya E2 prod-B N=8 → `801c2f79…` (== committed) ; E2 B=256 N=8 → `8d742592…`
+  (== committed). `keliya_det/sanity_E2*.manifest.sha` + SUMMARY.txt addendum.
+- ASan/UBSan CLEAN on the B=256 multi-block malloc path
+  (`asan_e2_b256/ASAN_VERDICT.txt`, 0 sanitizer findings).
+- CI `build-and-compare (keliya)` re-verifies the default-build bitwise gate.
+
+→ the ce4bcef G-E4 evidence remains valid for the shipped `f78e031` code.
 
 ## What Config E2 is
 
@@ -58,11 +73,13 @@ for all timed runs. 3-run median per cell, each cell on its own exclusive node.
 
 | path | contents |
 |---|---|
-| `keliya_det/` | G-E4(1) keliya: 8 leg manifests (`*.manifest.sha`) + `SUMMARY.txt` (prod four-leg + forced-B256 multi-level + E2-off==C) |
+| `keliya_det/` | G-E4(1) keliya: 8 leg manifests + 2 post-review sanity manifests (`*.manifest.sha`) + `SUMMARY.txt` (prod four-leg + forced-B256 multi-level + E2-off==C + f78e031 neutrality addendum) |
 | `server_matrix/` | G-E4(1) heihe_x4 cross-N + §4.3 wall matrix: `p12n3cell-*.out` (MARKER lines, all reps) + `E2_n8/`,`E2_n16/` (cvode_stats + rivqdown SHA per rep) |
 | `a4_ulp/A4_REPORT.txt` | G-E4(2) A4 max_ulp report (keliya + heihe_x4) + Neumaier decision + basis |
 | `a5report/E2_vs_C/`, `a5report/E_vs_C/` | G-E4(3) A5 verdict.md + metrics.json (tightened p12_tier2.yaml; E2 candidate + E control) |
 | `a5pair_meta/` | a5-pair generator slurm log (C/E/E2 heihe_x4 full-output runs, identity + cvode) |
+| `asan_e2_b256/` | POST-REVIEW: ASan+UBSan CLEAN on the E2 B=256 multi-block malloc path (`ASAN_VERDICT.txt` + `sanitizer_report.txt` + `run_head.txt`) |
+| `boundary_audit.txt` | f.cpp/MD_rhs_core.cpp/cvode_config.cpp ZERO diff (d8f736c..f78e031); all 4 changed files listed incl. shud.cpp |
 | `tools/a4_ulp.py` | the A4 ULP comparer (uv-run, reuses tools/a5 SHUD reader) |
 
 ## Results at a glance
@@ -92,9 +109,10 @@ hardware-confounded.
 
 ## Boundary audit (spec §8)
 
-`f.cpp` / `MD_rhs_core.cpp` / `cvode_config.cpp` ZERO diff at ce4bcef (only
-`Makefile`, `src/Model/MD_nvec_hybrid.{hpp,cpp}`, `src/Model/shud.cpp` changed).
-See `../pr-n3/boundary_audit.txt`.
+`f.cpp` / `MD_rhs_core.cpp` / `cvode_config.cpp` ZERO diff over d8f736c..f78e031
+(only `Makefile`, `src/Model/MD_nvec_hybrid.{hpp,cpp}`, `src/Model/shud.cpp`
+changed — all 4 enumerated in `boundary_audit.txt`, incl. shud.cpp's +9
+startup-banner lines). See `../pr-n3/boundary_audit.txt`.
 
 ## Docs
 

@@ -12,3 +12,11 @@ E2_n4        4    1         801c2f798aae163f154c464bc2b8730c   Config E2 (fixed-
 E2_n8        8    1         801c2f798aae163f154c464bc2b8730c   Config E2 (fixed-tree deterministic redu
 E2b256_n1    1    8         8d742592dde01cda66ee51976f870ff5   Config E2 (fixed-tree deterministic redu
 E2b256_n8    8    8         8d742592dde01cda66ee51976f870ff5   Config E2 (fixed-tree deterministic redu
+
+=== POST-REVIEW neutrality re-verification (SHUD f78e031, review Note-1 malloc-abort fix) ===
+The abort fix only adds a branch on the malloc-FAILURE path; success-path semantics unchanged.
+Re-ran two keliya sanity legs at f78e031:
+  sanity_E2_n8    (prod B=4096, N=8) manifest = 801c2f798aae163f154c464bc2b8730c -> == committed 801c2f79... (NEUTRAL)
+  sanity_E2b256_n8 (B=256, N=8)      manifest = 8d742592dde01cda66ee51976f870ff5 -> == committed 8d742592... (NEUTRAL)
+Full G-E4 evidence generated at ce4bcef remains valid; the delta commit is provably neutral
+on the success path (these sanity legs + CI build-and-compare re-verify).

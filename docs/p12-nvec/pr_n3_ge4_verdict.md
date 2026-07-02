@@ -6,7 +6,7 @@ doc: pr_n3_ge4_verdict
 date: 2026-07-02
 pr: PR-N3 (#445)
 gate: G-E4 (pinned order: cross-thread bitwise -> A4 ulp report -> full A5 tightened)
-shud_commit: ce4bcef            # p12-nvec branch
+shud_commit: f78e031            # p12-nvec (G-E4 evidence at ce4bcef; Note-1 abort fix + neutrality re-verify)
 config: Config E2 (SHUD_NVEC_DETRED=1; block B=4096; Neumaier=0/plain)
 verdict: G-E4 PASS -> Config E2 CERTIFIED (re-baseline recorded; see pr_n3_rebaseline_decision.md)
 ```
@@ -162,9 +162,34 @@ spec requires the residuals recorded side-by-side with candidate ≤ reference.
 
 Both are NaN under the identical mesh-metadata-unavailable state (heihe_x4 output
 tree lacks the area/porosity metadata A5's area-weighted closure needs — the same
-condition recorded in the P9 heihe_x4 A5 spot-check, PR-Z1). candidate ≤ reference
-holds trivially (NaN == NaN, both informational-downgraded, both excluded from the
-weighted score per PR-Y2 policy). No degradation introduced by E2.
+condition recorded in the P9 heihe_x4 A5 spot-check, PR-Z1). The candidate ≤
+reference requirement is therefore **unenforceable on heihe_x4**: both sides are
+NaN per the PR-Y2 informational downgrade (`unavailable_no_mesh_metadata`,
+ADR-0010:95 precedent), so neither a numeric comparison nor a degradation check is
+defined. The **six streamflow metrics are the operational A5 gate** here
+(nse/kge/peak_magnitude/peak_timing/runoff_volume/monthly_bias — all PASS at the
+tightened bars), and the WB residual contributes nothing to the weighted score.
+No degradation introduced by E2.
+
+## Post-review delta (SHUD ce4bcef → f78e031, review Note-1 + Note-2)
+
+The G-E4 evidence above was generated at SHUD `ce4bcef`. Two non-blocking review
+items were closed at `f78e031`, provably neutral on the shipped success path:
+
+- **Note-1 (robustness):** the four fixed-tree reductions now allocate the
+  block-partial array via `det_alloc_partials()`, which ABORTS LOUDLY
+  (`std::abort` after an stderr message) on malloc failure. Binding design
+  decision: NO silent serial fallback — a fallback would compute a different
+  summation order and silently break the determinism contract. `nb` is bounded
+  (heihe_x4 nb≈31 → ~248 bytes), so a failure is effectively OOM. This adds a
+  branch on the malloc-FAILURE path only; the success path is byte-unchanged.
+- **Note-2 (coverage):** ASan+UBSan CLEAN (0 findings) on the E2 B=256
+  multi-block malloc path (keliya N=8; `.../asan_e2_b256/ASAN_VERDICT.txt`).
+- **Behavior-neutrality re-verified at f78e031:** keliya E2 prod-B N=8 →
+  `801c2f79…` (== ce4bcef) and E2 B=256 N=8 → `8d742592…` (== ce4bcef)
+  (`.../keliya_det/sanity_E2*.manifest.sha`); CI `build-and-compare (keliya)`
+  re-verifies the default-build bitwise gate. → the ce4bcef G-E4 evidence
+  remains valid for the shipped `f78e031` code.
 
 ## Verdict
 
@@ -182,4 +207,4 @@ revert-to-Config-E / ADR-0011-amendment branch does NOT apply.
 - PR-N2 gate (TIER2_GO): `docs/p12-nvec/tier1_verdict.md` (G-E3 = 1.3744× projection)
 - Evidence: `.review-evidence/p12-nvec/pr-n3/` (keliya_det / server_matrix / a4_ulp / a5report)
 - Re-baseline: `docs/p12-nvec/pr_n3_rebaseline_decision.md`
-- SHUD commit: `ce4bcef` (p12-nvec)
+- SHUD commit: `f78e031` (p12-nvec; G-E4 evidence generated at `ce4bcef`, neutrality re-verified — see evidence README addendum)

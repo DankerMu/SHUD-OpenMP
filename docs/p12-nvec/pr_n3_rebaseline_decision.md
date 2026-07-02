@@ -6,7 +6,7 @@ doc: pr_n3_rebaseline_decision
 date: 2026-07-02
 pr: PR-N3 (#445)
 decision: RE-BASELINE ACCEPTED — Config E2 becomes the golden for the E2 lineage
-shud_commit: ce4bcef
+shud_commit: f78e031            # p12-nvec (G-E4 evidence at ce4bcef; Note-1 abort fix + neutrality re-verify)
 a3a_scope: A3a does NOT apply ACROSS the reduction-order change (C/E -> E2); applies WITHIN the E2 lineage thereafter
 ```
 
@@ -112,4 +112,4 @@ hardware-confounded, consistent with the PR-N2 discipline.
 - Precedent: ADR-0009 (P9 mode-C-tune re-baseline); PR-N2 `tier1_verdict.md`
 - Node pool: `.review-evidence/p12-nvec/pr-n2/node_homogeneity.txt`
 - Evidence: `.review-evidence/p12-nvec/pr-n3/server_matrix/`
-- SHUD commit: `ce4bcef` (p12-nvec)
+- SHUD commit: `f78e031` (p12-nvec; G-E4 evidence generated at `ce4bcef`, neutrality re-verified — see evidence README addendum)

@@ -1,12 +1,12 @@
 P12-nvec PR-N3 — boundary audit (spec §8: f.cpp / MD_rhs_core.cpp / cvode_config.cpp ZERO diff)
-SHUD commit range: d8f736c (PR-N1 tip) -> ce4bcef (PR-N3)
+SHUD commit range: d8f736c (PR-N1 tip) -> f78e031 (PR-N3, incl. review Note-1 malloc-abort fix)
 
-=== full diff --stat d8f736c..ce4bcef ===
+=== full diff --stat d8f736c..f78e031 ===
  Makefile                     |  60 ++++++-
- src/Model/MD_nvec_hybrid.cpp | 398 +++++++++++++++++++++++++++++++++++++++++--
+ src/Model/MD_nvec_hybrid.cpp | 417 +++++++++++++++++++++++++++++++++++++++++--
  src/Model/MD_nvec_hybrid.hpp |  22 ++-
  src/Model/shud.cpp           |   9 +
- 4 files changed, 465 insertions(+), 24 deletions(-)
+ 4 files changed, 484 insertions(+), 24 deletions(-)
 
 === boundary files: explicit zero-diff check ===
   src/Model/f.cpp : 0 diff lines (ZERO — untouched)
@@ -14,8 +14,12 @@ SHUD commit range: d8f736c (PR-N1 tip) -> ce4bcef (PR-N3)
   src/Model/MD_rhs_core.cpp : 0 diff lines (ZERO — untouched)
   src/Equations/cvode_config.cpp : 0 diff lines (ZERO — untouched)
 
-=== files actually changed by PR-N3 ===
+=== files actually changed by PR-N3 (all 4) ===
 Makefile
 src/Model/MD_nvec_hybrid.cpp
 src/Model/MD_nvec_hybrid.hpp
 src/Model/shud.cpp
+
+note: shud.cpp (+9 startup-banner lines: 'NVEC config: Config E/E2 ...') and MD_nvec_hybrid.hpp
+(+E2 accessor decls) are the non-Makefile/.cpp changes; the E2 reduction bodies + abort helper
+live in MD_nvec_hybrid.cpp; the flag wiring in Makefile. None touch the RHS/solver boundary.
