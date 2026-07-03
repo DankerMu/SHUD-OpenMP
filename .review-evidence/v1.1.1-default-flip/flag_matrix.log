@@ -1,0 +1,67 @@
+### v1.1.1 flag-matrix (v2) — Fri Jul  3 08:14:12 EDT 2026
+### SHUD HEAD: c7404df0ebaffd67ea267bce32fff36ba36f6cfe (tracked-dirty files: 0)
+### v2 note: regenerated post-review (PR #452 Minors 1+2). Both
+###   'NVEC config:' format literals compile into ANY hybrid binary
+###   (runtime if/else, SHUD/src/Model/shud.cpp) — strings(1) cannot
+###   discriminate Config E vs E2; presence of the E2 literal in an E
+###   binary is EXPECTED. The runtime stdout marker is the
+###   authoritative discriminator and is asserted per hybrid leg.
+----------------------------------------------------------------
+PASS  1 default 'make shud_omp' -> Config E
+   cmd: make clean && make -j8 shud_omp; cd Basins/keliya && OMP_NUM_THREADS=2 ../../shud_omp keliya
+   ok: build rc=0
+   ok: link: nvecopenmp LINKED (expected for E)
+   ok: link: libomp LINKED
+   ok: strings: E literal present (hybrid TU compiled in)
+   ok: strings: E2 literal ALSO present — EXPECTED (both literals in any hybrid binary; not a config indicator)
+   ok: strings: Serial-backend literal ABSENT (correct for NVECTOR=1)
+   ok: RUNTIME (authoritative): stdout prints 'NVEC config: Config E (serial reduction overrides; DETRED=off)'
+   ok: runtime: no Config E2 line (correct — DETRED off)
+----------------------------------------------------------------
+PASS  2 'make shud_omp SHUD_USE_OPENMP_NVECTOR=0' -> Config C (single-flag opt-out)
+   cmd: make clean && make -j8 shud_omp SHUD_USE_OPENMP_NVECTOR=0
+   ok: build rc=0
+   ok: link: nvecopenmp NOT linked (correct for Config C)
+   ok: link: libomp LINKED (StrictOMP RHS still default under shud_omp)
+   ok: strings: 'Serial backend' literal PRESENT (Config C)
+   ok: strings: no hybrid NVEC config literals (correct for C)
+   ok: strings: 'NVector: ON' literal ABSENT (correct for C)
+----------------------------------------------------------------
+PASS  3 'make shud_omp SHUD_NVEC_HYBRID=0' aborts (Config D guard)
+   cmd: make shud_omp SHUD_NVEC_HYBRID=0  # expect $(error)
+   ok: errored as expected (rc=2, parse-time $(error))
+   ok: guard message names Config D
+   ok: guard message names the explicit override flag
+----------------------------------------------------------------
+PASS  4 Config D with SHUD_ALLOW_CONFIG_D=1 builds (build-only smoke)
+   cmd: make clean && make -j8 shud_omp SHUD_NVEC_HYBRID=0 SHUD_ALLOW_CONFIG_D=1
+   ok: build rc=0 (explicit opt-in)
+   ok: link: nvecopenmp LINKED (Config D uses OpenMP NVector)
+   ok: strings: 'NVector: ON' literal PRESENT (Config D)
+   ok: strings: no hybrid NVEC config literals (correct — D has no hybrid overrides)
+   ok: strings: Serial-backend literal ABSENT (correct for NVECTOR=1)
+----------------------------------------------------------------
+PASS  5a full E2 leg (3 flags) builds + runs as E2
+   cmd: make clean && make -j8 shud_omp SHUD_USE_OPENMP_NVECTOR=1 SHUD_NVEC_HYBRID=1 SHUD_NVEC_DETRED=1; keliya run
+   ok: build rc=0
+   ok: RUNTIME (authoritative): stdout prints 'NVEC config: Config E2 (... B=4096 ...)'
+   ok: runtime: no Config E (DETRED=off) line — correct for E2
+----------------------------------------------------------------
+PASS  5b short E2 form 'make shud_omp SHUD_NVEC_DETRED=1' builds + runs as E2
+   cmd: make clean && make -j8 shud_omp SHUD_NVEC_DETRED=1; keliya run
+   ok: build rc=0 (HYBRID+NVECTOR default 1 under shud_omp -> DETRED alone selects E2)
+   ok: RUNTIME (authoritative): stdout prints 'NVEC config: Config E2 (... B=4096 ...)' (short form works)
+   ok: runtime: no Config E (DETRED=off) line — correct for E2
+----------------------------------------------------------------
+PASS  6 'make shud' serial builds (single-goal invocation unaffected by the flip)
+   cmd: make clean && make -j8 shud
+   ok: build rc=0
+   ok: link: nvecopenmp NOT linked (correct for serial)
+   ok: link: libomp NOT linked (correct for serial)
+----------------------------------------------------------------
+PASS  7 'make smoke_configd' unaffected by Config D guard
+   cmd: make clean && make -j8 smoke_configd
+   ok: guard did not fire on smoke_configd (different goal; correct)
+----------------------------------------------------------------
+### RESULT: pass=8 fail=0 (legs; every check within a leg must hold)
+### FLAG MATRIX CLEAN

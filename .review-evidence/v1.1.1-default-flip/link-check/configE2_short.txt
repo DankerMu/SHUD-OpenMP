@@ -1,0 +1,10 @@
+=== configE2_short : otool -L (nvecopenmp / libomp presence) ===
+	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/InstallSundials/lib/libsundials_cvode.6.dylib (compatibility version 6.0.0, current version 6.0.0)
+	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/InstallSundials/lib/libsundials_nvecserial.6.dylib (compatibility version 6.0.0, current version 6.0.0)
+	/opt/homebrew/opt/libomp/lib/libomp.dylib (compatibility version 5.0.0, current version 5.0.0)
+	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/InstallSundials/lib/libsundials_nvecopenmp.6.dylib (compatibility version 6.0.0, current version 6.0.0)
+=== configE2_short : NVEC config strings compiled in ===
+NVEC config: Config E2 (fixed-tree deterministic reductions; B=%d, Neumaier=%d)
+NVEC config: Config E (serial reduction overrides; DETRED=off)
+=== configE2_short : SHUD_RHS_THREADS marker (StrictOMP RHS) ===
+2

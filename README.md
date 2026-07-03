@@ -17,16 +17,20 @@ Full manifest: [RELEASE.md](RELEASE.md).
 Measured on `heihe_x4` (40,046 elements, 90-day simulation, node-exclusive
 Xeon, 3-run medians; every config A5 hydrology-acceptance PASS):
 
-| Build | N=16 wall | vs default | vs serial | Determinism contract |
+| Build | N=16 wall | vs Config C | vs serial | Determinism contract |
 |---|---:|---:|---:|---|
-| **Config C** — `make shud_omp` (default) | 694 s | 1.00× | 1.86× | bitwise-identical at every thread count |
-| **Config E** — `+ SHUD_NVEC_HYBRID=1` | 492 s | 1.41× | 2.62× | bitwise-identical **to Config C** at every thread count |
-| **Config E2** — `+ SHUD_NVEC_DETRED=1` | **363 s** | **1.915×** | **≈3.55×** | thread-count-invariant by construction; one-time re-baselined golden (A5: NSE=1.0000, KGE=0.9999 vs C) |
+| **Config E** — `make shud_omp` (default, v1.1.1) | 492 s | 1.41× | 2.62× | bitwise-identical **to Config C** at every thread count |
+| **Config C** — `make shud_omp SHUD_USE_OPENMP_NVECTOR=0` (opt-out) | 694 s | 1.00× | 1.86× | bitwise-identical at every thread count |
+| **Config E2** — `make shud_omp SHUD_NVEC_DETRED=1` | **363 s** | **1.915×** | **≈3.55×** | thread-count-invariant by construction; one-time re-baselined golden (A5: NSE=1.0000, KGE=0.9999 vs C) |
 
-Same physics, same solver, no accuracy trade — the speedups come from
-deterministic parallelization of the RHS evaluation (v1.0) and of CVODE's
-internal vector operations (v1.1), never from reduced tolerances or
-reordered non-deterministic floating-point sums.
+Since **v1.1.1** `make shud_omp` defaults to **Config E** — bitwise-identical
+to the former Config C default at every thread count and 1.41× faster @N16, a
+pure Pareto upgrade (nothing validated against Config C changes). The
+Serial-NVector Config C binary is a single-flag opt-out
+(`SHUD_USE_OPENMP_NVECTOR=0`). Same physics, same solver, no accuracy trade —
+the speedups come from deterministic parallelization of the RHS evaluation
+(v1.0) and of CVODE's internal vector operations (v1.1), never from reduced
+tolerances or reordered non-deterministic floating-point sums.
 
 ## Quick start
 
@@ -38,15 +42,17 @@ git submodule update --init
 
 cd SHUD
 ./configure        # downloads + builds SUNDIALS/CVODE 6.0.0 locally
-make shud_omp      # Config C default; add flags per the table above
+make shud_omp      # Config E default (v1.1.1); opt out to Config C with
+                   #   SHUD_USE_OPENMP_NVECTOR=0, or E2 with SHUD_NVEC_DETRED=1
 
 export OMP_NUM_THREADS=8 OMP_PROC_BIND=close OMP_PLACES=cores
 
-# Config E/E2 ONLY — one extra step, or you leave most of the v1.1 gain
-# on the table: set NUM_OPENMP in your project's .cfg.para to the SAME N.
-# CVODE's vector-op thread count is fixed from that field at load time;
-# the env var above only drives the RHS layer. (Results are correct and
-# thread-count-invariant either way — a mismatch only costs wall time.)
+# The default (Config E) and Config E2 read the NVector thread count from
+# your project's .cfg.para NUM_OPENMP field, fixed at load time — the env
+# var above only drives the RHS layer. Set NUM_OPENMP to the SAME N or you
+# leave most of the gain on the table. (Results are correct and thread-
+# count-invariant either way — a mismatch only costs wall time. Config C
+# opt-out builds are unaffected: they have no OpenMP NVector layer.)
 #   NUM_OPENMP  8
 
 ./shud_omp <your_project>

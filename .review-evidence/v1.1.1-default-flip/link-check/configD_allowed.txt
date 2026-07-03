@@ -1,0 +1,8 @@
+=== configD_allowed : otool -L (nvecopenmp / libomp presence) ===
+	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/InstallSundials/lib/libsundials_cvode.6.dylib (compatibility version 6.0.0, current version 6.0.0)
+	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/InstallSundials/lib/libsundials_nvecserial.6.dylib (compatibility version 6.0.0, current version 6.0.0)
+	/opt/homebrew/opt/libomp/lib/libomp.dylib (compatibility version 5.0.0, current version 5.0.0)
+	/Users/danker/Desktop/Hydro-SHUD/openMP/SHUD/InstallSundials/lib/libsundials_nvecopenmp.6.dylib (compatibility version 6.0.0, current version 6.0.0)
+=== configD_allowed : NVEC config strings compiled in ===
+=== configD_allowed : SHUD_RHS_THREADS marker (StrictOMP RHS) ===
+2
