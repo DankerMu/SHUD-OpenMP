@@ -35,9 +35,26 @@ yield Config D — the REFUTED nondeterministic config (reduction-order drift,
 unless `SHUD_ALLOW_CONFIG_D=1` is also passed. Scoped to the `shud_omp` goal so
 `smoke_configd` (a different goal) is unaffected.
 
+## Known pattern property — goal-scoped defaults are per-`make`-run global
+
+`$(filter shud_omp,$(MAKECMDGOALS))` keys the defaults on the goal list of the
+whole `make` invocation, not per target. Co-invoking serial and OMP in one
+command (`make shud shud_omp`) therefore applies the shud_omp defaults
+(NVECTOR/HYBRID=1 — and RHS=1, the identical pre-existing property of the
+v1.0.1 flip at Makefile:149-153) to BOTH goals: the serial `shud` recipe would
+compile with the OMP defines and link `nvecopenmp`. Single-goal `make shud` is
+unaffected (leg 6). Build serial and OMP binaries in separate `make`
+invocations. Inherited from the v1.0.1 pattern, not introduced by this PR
+(review finding Minor 4, PR #452).
+
 ## Files
 
-- `flag_matrix.log` — build + marker/link inspection across the 7-cell matrix.
+- `flag_matrix.log` — build + marker/link + runtime-marker inspection across the
+  7-cell matrix. v2, regenerated on this PR's actual SHUD commit after review
+  (PR #452 Minors 1+2): the v1 log carried a pre-pointer-bump HEAD stamp and
+  counted the expected E2-format-string presence in the default-E binary as a
+  failure; v2 stamps the build-tree HEAD and asserts the authoritative runtime
+  stdout marker per hybrid leg.
 - `sha/defaultE_n{1,8}.manifest.sha` — keliya output SHA256 manifests, default-E
   build at N∈{1,8}.
 - `sha/baseline_C_n8.manifest.sha` — Config C baseline lineage
@@ -51,13 +68,16 @@ unless `SHUD_ALLOW_CONFIG_D=1` is also passed. Scoped to the `shud_omp` goal so
 
 ## Verdicts
 
-**Flag matrix** (`flag_matrix.log`): all 7 cells behave as designed. The single
-"E2 string PRESENT" line under the default-E cell is a test-harness artifact —
-BOTH `NVEC config` format-string literals are compiled into any hybrid binary
-(the E2 one carries `%d` placeholders); only the E branch executes at runtime
-(`if (nvec_hybrid_detred_active())` is false without `-DSHUD_NVEC_DETRED=1`).
-Runtime discriminator confirmed: default-E keliya stdout prints
-`NVEC config: Config E (serial reduction overrides; DETRED=off)` — genuinely E.
+**Flag matrix** (`flag_matrix.log`, v2): all 8 legs PASS (`pass=8 fail=0`).
+strings(1) limitation, handled explicitly: BOTH `NVEC config` format-string
+literals are compiled into any hybrid binary (runtime if/else on
+`nvec_hybrid_detred_active()`; the E2 literal carries `%d` placeholders), so
+string presence cannot discriminate Config E vs E2 — the harness records the
+E2 literal in the default-E binary as EXPECTED and asserts the authoritative
+runtime stdout marker instead. Default build prints
+`NVEC config: Config E (serial reduction overrides; DETRED=off)`; both E2 legs
+print `NVEC config: Config E2 (fixed-tree deterministic reductions; B=4096, …)`
+and no Config E line.
 
 **keliya bitwise gate**:
 - `defaultE_n1.manifest.sha` == `baseline_C_n8.manifest.sha` — BITWISE MATCH

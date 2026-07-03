@@ -101,7 +101,7 @@ This release ships the **first-phase CPU acceleration** for the SHUD fully-coupl
 
 Deliverables:
 
-- **P1e StrictOMP RHS** — deterministic parallel RHS evaluation on `heihe_x4` (40,046 elements). Measured N∈{1,2,4,8,16} scaling on release Config C binary: **1.80× @ N=8, 1.95× @ N=16** with **A5 PASS** at every thread count (NSE=KGE=1.0000, trajectory-identical to serial reference). `make shud_omp` produces the Config C binary by default — no compile flags required. See §Scaling profile.
+- **P1e StrictOMP RHS** — deterministic parallel RHS evaluation on `heihe_x4` (40,046 elements). Measured N∈{1,2,4,8,16} scaling on release Config C binary: **1.80× @ N=8, 1.95× @ N=16** with **A5 PASS** at every thread count (NSE=KGE=1.0000, trajectory-identical to serial reference). `make shud_omp` produced the Config C binary by default from v1.0.1 through v1.1; **since v1.1.1 the default is Config E** (bitwise-identical to C — see §v1.1.1), with Config C a single-flag opt-out (`SHUD_USE_OPENMP_NVECTOR=0`). See §Scaling profile.
 - **`SHUD_SPGMR_MAXL` small-case opt-in** — an env-driven knob for keliya-like small cases.
 - **A5 hydrology-acceptance pipeline** (`tools/a5/`) — reusable NSE/KGE/peak/timing/runoff validator.
 - **Decision archive** — ADR-0001 through ADR-0010 documenting what was tried, what was retained, what was closed, and what is deferred.
@@ -144,8 +144,10 @@ Everything else in the tree is either infrastructure (benchmarks, snapshot tools
 ## Scaling profile (`heihe_x4`, 40,046 elements, 90-day, SPGMR, Config C)
 
 Measured 2026-07-01 on node-exclusive Linux `cn04/05/14/15/16` (Intel Xeon, 40 physical
-cores/node), Slurm array 10764. Binary built with `make shud_omp HYPRE=1 …` — release
-default Config C (Serial NVec + StrictOMP RHS). Every non-baseline cell validated
+cores/node), Slurm array 10764. Binary built with `make shud_omp HYPRE=1 …` — the
+then-release-default Config C (Serial NVec + StrictOMP RHS; since v1.1.1 the default
+build is Config E, and Config C remains the reference lineage). Every non-baseline
+cell validated
 against the N=1 serial reference via the A5 hydrology-acceptance pipeline. Aggregator
 verdict: **CONDITIONAL** — "all N A5=PASS and 1.5 ≤ speedup(N=8) < 2.5× — parallel
 gain OK but modest".
