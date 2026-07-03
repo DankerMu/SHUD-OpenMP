@@ -1,0 +1,36 @@
+### v1.1.1 flag-matrix — Fri Jul  3 07:45:02 EDT 2026
+### SHUD HEAD: 56defd721efa558c27d405479dfdb23bda8ca71f
+----------------------------------------------------------------
+PASS  1 default 'make shud_omp' builds
+   marker: Config E startup string PRESENT
+   link: nvecopenmp LINKED (expected for E)
+   marker: E2 string PRESENT (unexpected for E)
+----------------------------------------------------------------
+PASS  2 'make shud_omp SHUD_USE_OPENMP_NVECTOR=0' builds (Config C)
+   link: nvecopenmp NOT linked (correct for Config C)
+   marker: no Config E string (correct for Config C)
+   marker: 'Serial backend' string PRESENT (Config C)
+----------------------------------------------------------------
+PASS  3 'make shud_omp SHUD_NVEC_HYBRID=0' aborts (Config D guard) (errored as expected, rc=2)
+   guard msg mentions Config D (correct)
+----------------------------------------------------------------
+PASS  4 Config D with SHUD_ALLOW_CONFIG_D=1 builds
+   link: nvecopenmp LINKED (Config D uses OpenMP NVector)
+   marker: no Config E string (correct — Config D has no hybrid overrides)
+   marker: 'NVector: ON' PRESENT (Config D)
+----------------------------------------------------------------
+PASS  5a full E2 leg (3 flags) builds
+   marker: Config E2 string PRESENT
+----------------------------------------------------------------
+PASS  5b short E2 form 'make shud_omp SHUD_NVEC_DETRED=1' builds
+   marker: Config E2 string PRESENT (short form works)
+----------------------------------------------------------------
+PASS  6 'make shud' serial builds
+   link: nvecopenmp NOT linked (correct for serial)
+   link: libomp NOT linked (correct for serial)
+----------------------------------------------------------------
+PASS  7 'make smoke_configd' unaffected by guard
+   guard did not fire on smoke_configd (correct)
+----------------------------------------------------------------
+### RESULT: pass=8 fail=1
+### FLAG MATRIX HAS FAILURES
