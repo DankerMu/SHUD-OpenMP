@@ -41,13 +41,20 @@ cd SHUD
 make shud_omp      # Config C default; add flags per the table above
 
 export OMP_NUM_THREADS=8 OMP_PROC_BIND=close OMP_PLACES=cores
+
+# Config E/E2 ONLY — one extra step, or you leave most of the v1.1 gain
+# on the table: set NUM_OPENMP in your project's .cfg.para to the SAME N.
+# CVODE's vector-op thread count is fixed from that field at load time;
+# the env var above only drives the RHS layer. (Results are correct and
+# thread-count-invariant either way — a mismatch only costs wall time.)
+#   NUM_OPENMP  8
+
 ./shud_omp <your_project>
 ```
 
 Which build to pick, thread-count guidance, Slurm templates, and common
 pitfalls: **[SHUD/README.md §OpenMP parallel build](SHUD/README.md)** — the
-operational runbook. For Config E/E2, also set the cfg.para `NUM_OPENMP`
-field to the same N (the runbook explains why).
+operational runbook.
 
 ## Repository map
 
