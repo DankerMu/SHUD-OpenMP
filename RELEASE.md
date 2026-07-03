@@ -1,8 +1,8 @@
 # SHUD-OpenMP CPU Acceleration Release v1.1
 
-**Current tag**: `cpu-accel-v1.1` (release branch tip `release/cpu-accel-v1.1`)  
+**Current tag**: `cpu-accel-v1.1` (code anchor: outer `4529222` + SHUD `e37e26f`; the release branch carries docs-only polish on top)  
 **Initial tag**: `cpu-accel-v1.0` (outer `479526b` + SHUD `6bae35d`, immutable v1.0 launch point)  
-**SHUD submodule pin**: `openmp-baseline/e37e26f` (P12-nvec Config E/E2 + README runbook)  
+**SHUD submodule pin**: `openmp-baseline/56defd7` (P12-nvec Config E/E2 + user-friendly README runbook)  
 **Released**: 2026-07-01 (v1.0) / 2026-07-02 (v1.1 — deterministic hybrid NVector, Config E/E2 opt-in)
 
 ## Patch history
