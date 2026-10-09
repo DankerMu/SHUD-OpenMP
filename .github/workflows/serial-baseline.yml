@@ -685,8 +685,11 @@ jobs:
       # -----------------------------------------------------------------------
       # Step 5b — Hypre / OpenMPI / OpenBLAS runtime deps (P8-tune.G0 PR-0)
       # -----------------------------------------------------------------------
-      # SHUD's Makefile now links -lHYPRE -lmpi -lopenblas unconditionally
-      # (link-always; opt-in via SHUD_LINSOL=amg at runtime). The packages
+      # Since SHUD v2.2 the Makefile links -lHYPRE -lmpi -lopenblas only
+      # with `HYPRE=1` (the AMG solver is then selected with
+      # SHUD_LINSOL=amg at run time). The builds below do not pass
+      # HYPRE=1, so these packages are no longer needed by them; they are
+      # kept for jobs that build the AMG path. The packages
       # ship with Ubuntu jammy (22.04) main repository:
       #   libhypre-dev      — pulls libhypre runtime + headers (Ubuntu 22.04 = 2.28)
       #   libopenmpi-dev    — pulls libopenmpi3 runtime + headers
